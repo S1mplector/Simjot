@@ -1,8 +1,9 @@
-hat @echo off
+@echo off
 REM ================================================================
-REM  build & package Simjournal into a Windows executable launcher
+REM  build & package Simjournal into a Windows MSI installer
 REM  Requirements:
 REM    • JDK 17 (or newer) installed and on PATH – jpackage must be present.
+REM    • WiX Toolset 3.11+ installed and on PATH (for MSI creation)
 REM ================================================================
 
 setlocal EnableDelayedExpansion
@@ -12,6 +13,9 @@ set APP_NAME=Simjournal
 set APP_VERSION=1.0.0
 set MAIN_MODULE=Simjournal
 set MAIN_CLASS=main.ui.JournalApp
+set VENDOR=Simjournal Team
+set DESCRIPTION=A modern journaling application with drawing and mood tracking features
+set COPYRIGHT=Copyright (C) 2025 Simjournal Team
 
 REM -------- derived paths ----------------------------------------
 set SRC_DIR=Simjournal\src
@@ -25,6 +29,7 @@ REM -------- clean previous build ---------------------------------
 if exist %BUILD_DIR% rmdir /s /q %BUILD_DIR%
 if exist %DIST_DIR% rmdir /s /q %DIST_DIR%
 del /q %JAR_NAME% 2>NUL
+del /q *.msi 2>NUL
 
 REM -------- compile sources --------------------------------------
 echo.
@@ -65,21 +70,38 @@ mkdir %INPUT_DIR% 2>NUL
 copy %JAR_NAME% %INPUT_DIR% >NUL
 xcopy /E /I /Y "Simjournal\audio" "%INPUT_DIR%\audio" >NUL
 
-REM -------- run jpackage ----------------------------------------
+REM -------- check for WiX toolset --------------------------------
 echo.
-echo === Running jpackage (this may take a minute) ===
-REM Use app-image to avoid WiX dependency (produces folder with Simjournal.exe)
-jpackage --type app-image ^
+echo === Checking for WiX Toolset ===
+where candle >NUL 2>NUL
+if errorlevel 1 (
+    echo WARNING: WiX Toolset not found in PATH. 
+    echo Please install WiX Toolset 3.11+ from https://wixtoolset.org/
+    echo Or use the regular package_simjournal.bat for app-image instead.
+    pause
+    exit /b 1
+)
+
+REM -------- run jpackage for MSI installer -----------------------
+echo.
+echo === Creating MSI installer (this may take several minutes) ===
+jpackage --type msi ^
          --input %INPUT_DIR% ^
          --dest %DIST_DIR% ^
          --name %APP_NAME% ^
          --main-jar %JAR_NAME% ^
          --main-class %MAIN_CLASS% ^
          --app-version %APP_VERSION% ^
-         --icon Simjournal\img\logo.ico
+         --icon Simjournal\img\logo.ico ^
+         --description "%DESCRIPTION%" ^
+         --vendor "%VENDOR%" ^
+         --copyright "%COPYRIGHT%" ^
+         --win-dir-chooser ^
+         --win-menu ^
+         --win-shortcut
 
 if errorlevel 1 (
-    echo jpackage failed.
+    echo MSI creation failed.
     pause
     exit /b 1
 )
@@ -88,6 +110,8 @@ ENDLOCAL
 
 echo.
 echo ==================================================================
-echo  Build finished!  Check the %DIST_DIR% folder for %APP_NAME%.exe.
+echo  MSI installer created successfully!
+echo  Look for %APP_NAME%-%APP_VERSION%.msi in the %DIST_DIR% folder.
+echo  You can now distribute this installer to users.
 echo ==================================================================
-pause 
+pause
