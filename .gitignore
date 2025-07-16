@@ -1,0 +1,37 @@
+# Build artifacts and distribution files
+dist/
+build/classes/
+*.jar
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Java compiled files
+*.class
+
+# Package files
+*.war
+*.ear
+*.nar
+
+# Virtual machine crash logs
+hs_err_pid*
+
+# JPackage generated files
+app-image/

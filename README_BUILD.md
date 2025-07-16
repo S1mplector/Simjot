@@ -1,0 +1,28 @@
+# Simjournal – One-click Windows build
+
+## Prerequisites
+1. **JDK 17** or newer on the machine (`java -version` should print ≥ 17).  
+   – Make sure the JDK's *bin* directory (where `javac` & `jpackage` live) is on your `PATH`.
+2. Windows 10/11 – the batch file uses `xcopy` / standard cmd commands.
+
+## Build & package
+Open *PowerShell* or *Command Prompt* inside the project folder (the one that contains `package_simjournal.bat`) and run:
+
+```cmd
+package_simjournal.bat
+```
+
+The script will:
+1. Compile all Java sources into *build/classes*.
+2. Copy images into the class tree so they are embedded in the JAR.
+3. Create a **modular** `Simjournal.jar` with `main.JournalApp` as the entry point.
+4. Copy the `audio/` folder (needed at runtime) next to the JAR.
+5. Invoke `jpackage` to create `Simjournal.exe` plus a trimmed runtime in *dist*.
+
+On success you'll find:
+```
+dist/Simjournal/Simjournal.exe   <- runnable app image
+```
+Double-click it to launch.
+
+> ⚠️  If `jpackage` complains it can't find a suitable icon you can ignore the flag or provide a `.ico` file via the script. 
