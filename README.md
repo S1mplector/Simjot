@@ -7,30 +7,20 @@ A lightweight, feature-rich personal journaling application built with Java Swin
 ### **Multi-Format Content Creation**
 - **Journal Entries**: Traditional diary-style entries with mood tracking and rich formatting
 - **Poetry Writing**: Dedicated poetry editor with inspirational prompts and beautiful backgrounds
-- **Mind Maps**: Visual thinking tool with draggable nodes and relationship mapping
 
-### 🎨 **Advanced Drawing Tools**
-- **Multi-layer drawing canvas** with infinite zoom and pan
-- **Professional brush tools**: Pencil, Calligraphy, Highlighter, Watercolor, Rainbow effects
-- **Layer management** with visibility controls and renaming
-- **Background image support** for enhanced artwork
-- **Custom file format** (.mydraw) with thumbnail generation
-- **Eraser tool** with real-time preview
-
-### 📊 **Mood & Wellness Tracking**
+### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
 - **Mood chart visualization** with date range filtering (7 days, 30 days, all time)
 - **Automatic mood logging** integrated with journal entries
 - **Visual mood trends** to track emotional patterns over time
 
-### 📚 **Organization & Management**
-- **Notebook system** with different types (Journal, Regular, Poetry)
+### **Organization & Management**
+- **Notebook system** with different types (Journal, Poetry)
 - **File browser** with entry previews and word counts
-- **Gallery view** for saved drawings and artwork
 - **Auto-save functionality** with timestamp-based filenames
 - **Search and filter** capabilities across all content
 
-### 🎭 **User Experience**
+### **User Experience**
 - **Modern UI design** with smooth animations and transitions
 - **Customizable backgrounds** and themes
 - **Intuitive navigation** with card-based interface
@@ -38,7 +28,7 @@ A lightweight, feature-rich personal journaling application built with Java Swin
 - **Settings panel** for personalization
 - **Sound effects** and visual feedback
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Java 17 or higher** installed on your system
@@ -73,7 +63,7 @@ dist/Simjournal/Simjournal.exe
 java -jar Simjournal.jar
 ```
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### First Launch
 On first startup, Simjournal will prompt you to:
@@ -95,13 +85,6 @@ On first startup, Simjournal will prompt you to:
 3. Use the "Inspire Me" button for creative prompts
 4. Track stanza count in real-time
 
-#### **Mind Maps**
-1. Access the mind map feature from the main menu
-2. Create nodes by clicking "Add Bubble"
-3. Drag nodes to position them
-4. Right-click to create relationships between nodes
-5. Customize colors and edit node text
-
 #### **Digital Drawing**
 1. Open the drawing panel for full creative control
 2. Choose from 7 brush types: Pencil, Lineart, Calligraphy, Highlighter, Watercolor, Rainbow, Eraser
@@ -122,7 +105,7 @@ On first startup, Simjournal will prompt you to:
 - Preview content before opening
 - See word counts and creation dates
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 Simjournal/
@@ -145,7 +128,7 @@ Simjournal/
 └── dist/                       # Final packaged application
 ```
 
-## 🛠️ Technical Details
+## Technical Details
 
 ### Architecture
 - **Modular Java application** using Java Platform Module System
@@ -154,7 +137,7 @@ Simjournal/
 - **Observer pattern** for UI updates and state management
 - **File-based persistence** with custom serialization
 
-### Key Technologies
+### Technologies Used
 - **Java 17+** with modern language features
 - **Java Swing** for cross-platform GUI
 - **Java 2D Graphics** for drawing and image processing
@@ -169,7 +152,7 @@ Simjournal/
 - **Mind maps**: `.mmap` serialized objects
 - **Settings**: Configuration files in user directory
 
-## 🎨 Customization
+## Customization
 
 ### Themes & Appearance
 - Multiple background options for different writing modes
@@ -184,7 +167,7 @@ Simjournal/
 - Audio feedback controls
 - Tutorial and tip visibility
 
-## 🤝 Contributing
+## Contributing
 
 This is a personal journaling application, but if you'd like to contribute:
 
@@ -200,11 +183,9 @@ This is a personal journaling application, but if you'd like to contribute:
 3. **Run the main class**: `main.ui.JournalApp`
 4. **Make changes** and test thoroughly
 
-## 📝 License
+## License
 
 This project is available for personal use. Please respect the educational and personal nature of this journaling application.
-
-## 🐛 Known Issues & Troubleshooting
 
 ### Common Issues
 - **Application won't start**: Ensure Java 17+ is installed and in your PATH
@@ -214,10 +195,8 @@ This project is available for personal use. Please respect the educational and p
 ### Support
 For technical issues or feature requests, please check the project documentation or create an issue in the project repository.
 
-## 🌟 Acknowledgments
-
-Simjournal was created as a comprehensive personal productivity and creative expression tool, bringing together the best aspects of digital journaling, artistic creation, and mindful reflection in one beautiful application.
+## Acknowledgments
 
 ---
 
-*Happy Journaling! 🌸*
+*Happy Journaling!*
