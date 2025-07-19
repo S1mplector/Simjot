@@ -1,4 +1,4 @@
-# Simjournal – One-click Windows build
+# Simjot – One-click Windows build
 
 ## Prerequisites
 1. **JDK 17** or newer on the machine (`java -version` should print ≥ 17).  
@@ -15,13 +15,13 @@ package_simjournal.bat
 The script will:
 1. Compile all Java sources into *build/classes*.
 2. Copy images into the class tree so they are embedded in the JAR.
-3. Create a **modular** `Simjournal.jar` with `main.JournalApp` as the entry point.
+3. Create a **modular** `Simjot.jar` with `main.JournalApp` as the entry point.
 4. Copy the `audio/` folder (needed at runtime) next to the JAR.
-5. Invoke `jpackage` to create `Simjournal.exe` plus a trimmed runtime in *dist*.
+5. Invoke `jpackage` to create `Simjot.exe` plus a trimmed runtime in *dist*.
 
 On success you'll find:
 ```
-dist/Simjournal/Simjournal.exe   <- runnable app image
+dist/Simjot/Simjot.exe   <- runnable app image
 ```
 Double-click it to launch.
 

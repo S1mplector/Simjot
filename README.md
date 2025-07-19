@@ -51,22 +51,22 @@ The build process will:
 
 ### Running the Application
 
-After building, you can run Simjournal in two ways:
+After building, you can run Simjot in two ways:
 
 **Option 1: Native Executable (Recommended)**
 ```
-dist/Simjournal/Simjournal.exe
+dist/Simjot/Simjot.exe
 ```
 
 **Option 2: JAR File**
 ```cmd
-java -jar Simjournal.jar
+java -jar Simjot.jar
 ```
 
 ## Usage Guide
 
 ### First Launch
-On first startup, Simjournal will prompt you to:
+On first startup, Simjot will prompt you to:
 1. **Choose a journal folder** where all your content will be stored
 2. **Take an optional tutorial** to learn the interface
 3. **Set up your preferences** in the settings panel
@@ -108,7 +108,7 @@ On first startup, Simjournal will prompt you to:
 ## Project Structure
 
 ```
-Simjournal/
+Simjot/
 ├── src/
 │   ├── main/
 │   │   ├── animation/          # UI animations and transitions
