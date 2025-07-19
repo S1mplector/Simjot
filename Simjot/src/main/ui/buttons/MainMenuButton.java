@@ -106,6 +106,19 @@ public class MainMenuButton extends FadingButton {
                 g2.drawOval(x+s-6, y+s/2-6, 12,12);
                 g2.drawOval(x-6, y+s/2-6, 12,12);
                 break;
+            case "tick":
+                // Draw a checkmark/tick symbol
+                g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int checkStart = x + s/4;
+                int checkMid = x + s*2/5;
+                int checkEnd = x + s*3/4;
+                int checkBottom = y + s*3/5;
+                int checkMiddle = y + s/2;
+                int checkTop = y + s/3;
+                // Draw the checkmark as two connected lines
+                g2.drawLine(checkStart, checkMiddle, checkMid, checkBottom);
+                g2.drawLine(checkMid, checkBottom, checkEnd, checkTop);
+                break;
         }
     }
 } 

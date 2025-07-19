@@ -283,7 +283,7 @@ public class JournalApp extends JFrame {
         buttonPanel.add(notebooksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
 
-        FadingButton tasksButton = createMenuButtonWithIcon("Tasks", TASKS, "tasks");
+        FadingButton tasksButton = createMenuButtonWithIcon("Tasks", TASKS, "tick");
         buttonPanel.add(tasksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0,12)));
 

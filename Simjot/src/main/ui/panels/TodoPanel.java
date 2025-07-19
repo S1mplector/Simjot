@@ -11,6 +11,8 @@ import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernCheckBoxUI;
+import main.ui.components.ModernComboBoxRenderer;
+import main.ui.components.ModernComboBoxUI;
 import main.util.SettingsStore;
 import main.util.TaskStore;
 
@@ -27,6 +29,7 @@ public class TodoPanel extends JPanel {
     
     // UI Components
     private ModernTextField newTaskField;
+    private JComboBox<Task.Priority> prioritySelector;
     private JPanel taskListPanel;
     private JScrollPane taskScrollPane;
     private JLabel statsLabel;
@@ -92,6 +95,15 @@ public class TodoPanel extends JPanel {
         toolbar.add(Box.createHorizontalStrut(20));
         toolbar.add(new JLabel("New Task:"));
         toolbar.add(newTaskField);
+        
+        // Priority selector with modern UI
+        prioritySelector = new JComboBox<>(Task.Priority.values());
+        prioritySelector.setSelectedItem(Task.Priority.MEDIUM); // Default to medium priority
+        prioritySelector.setUI(new ModernComboBoxUI());
+        prioritySelector.setRenderer(new PriorityComboBoxRenderer());
+        toolbar.add(Box.createHorizontalStrut(5));
+        toolbar.add(new JLabel("Priority:"));
+        toolbar.add(prioritySelector);
         
         // Add button
         addButton = new RoundedButton("Add");
@@ -171,9 +183,12 @@ public class TodoPanel extends JPanel {
             return;
         }
         
+        Task.Priority selectedPriority = (Task.Priority) prioritySelector.getSelectedItem();
         Task newTask = new Task(taskText);
+        newTask.setPriority(selectedPriority);
         taskStore.addTask(newTask);
         newTaskField.setText("");
+        prioritySelector.setSelectedItem(Task.Priority.MEDIUM); // Reset to default
         refreshTaskList();
     }
     
@@ -209,9 +224,15 @@ public class TodoPanel extends JPanel {
             emptyLabel.setBorder(new EmptyBorder(40, 20, 40, 20));
             taskListPanel.add(emptyLabel);
         } else {
-            // Add active tasks first, then completed tasks
+            // Sort tasks by priority and completion status
             List<Task> activeTasks = taskStore.getActiveTasks();
             List<Task> completedTasks = taskStore.getCompletedTasks();
+            
+            // Sort active tasks by priority (HIGH -> MEDIUM -> LOW)
+            activeTasks.sort((t1, t2) -> t1.getPriority().compareTo(t2.getPriority()));
+            
+            // Sort completed tasks by priority as well
+            completedTasks.sort((t1, t2) -> t1.getPriority().compareTo(t2.getPriority()));
             
             if (!activeTasks.isEmpty()) {
                 addTaskSection("Active Tasks", activeTasks, false);
@@ -273,13 +294,26 @@ public class TodoPanel extends JPanel {
         private JLabel priorityLabel;
         private JLabel dateLabel;
         private FadingButton deleteButton;
+        private boolean isDragging = false;
         
         public TaskItemPanel(Task task) {
             this.task = task;
             setLayout(new BorderLayout(8, 0));
             setOpaque(false);
             setBorder(new EmptyBorder(8, 12, 8, 12));
+            
+            // Set uniform height for all task items
+            setPreferredSize(new Dimension(0, 60));
+            setMinimumSize(new Dimension(0, 60));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+            
             initTaskItem();
+            setupDragAndDrop();
+        }
+        
+        private void setupDragAndDrop() {
+            // Drag and drop functionality will be added in a future update
+            // For now, focus on core UI improvements
         }
         
         @Override
@@ -312,11 +346,19 @@ public class TodoPanel extends JPanel {
             completedCheckBox.addActionListener(e -> toggleTaskCompletion());
             add(completedCheckBox, BorderLayout.WEST);
             
-            // Main content panel
-            JPanel contentPanel = new JPanel(new BorderLayout(5, 2));
+            // Main content panel - using FlowLayout to center content vertically
+            JPanel contentPanel = new JPanel();
+            contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
             contentPanel.setOpaque(false);
             
-            // Task text
+            // Add vertical glue to center content
+            contentPanel.add(Box.createVerticalGlue());
+            
+            // Task text panel
+            JPanel textPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            textPanel.setOpaque(false);
+            textPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            
             taskLabel = new JLabel(task.getText());
             taskLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
             if (task.isCompleted()) {
@@ -326,11 +368,13 @@ public class TodoPanel extends JPanel {
             } else {
                 taskLabel.setForeground(Color.DARK_GRAY);
             }
-            contentPanel.add(taskLabel, BorderLayout.CENTER);
+            textPanel.add(taskLabel);
+            contentPanel.add(textPanel);
             
             // Details panel (priority, date)
             JPanel detailsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
             detailsPanel.setOpaque(false);
+            detailsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
             
             // Priority indicator
             priorityLabel = new JLabel("●");
@@ -345,7 +389,11 @@ public class TodoPanel extends JPanel {
             dateLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
             detailsPanel.add(dateLabel);
             
-            contentPanel.add(detailsPanel, BorderLayout.SOUTH);
+            contentPanel.add(detailsPanel);
+            
+            // Add vertical glue to center content
+            contentPanel.add(Box.createVerticalGlue());
+            
             add(contentPanel, BorderLayout.CENTER);
             
             // Delete button
@@ -404,6 +452,29 @@ public class TodoPanel extends JPanel {
             g2.setColor(hasFocus() ? new Color(0, 120, 215) : Color.LIGHT_GRAY);
             g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
             g2.dispose();
+        }
+    }
+    
+    // Note: Drag-and-drop reordering functionality will be implemented in a future update
+    // when the module system can properly support the required drag-and-drop imports
+    
+    // --- Priority ComboBox Renderer extending ModernComboBoxRenderer ---
+    private static class PriorityComboBoxRenderer extends ModernComboBoxRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            
+            if (value instanceof Task.Priority priority) {
+                setText("● " + priority.getDisplayName());
+                
+                // Use priority color when not selected, white when selected
+                if (!isSelected) {
+                    setForeground(priority.getColor());
+                }
+            }
+            
+            return this;
         }
     }
 }
