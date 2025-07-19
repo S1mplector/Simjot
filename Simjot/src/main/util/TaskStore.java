@@ -1,6 +1,7 @@
 package main.util;
 
 import java.io.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -108,12 +109,27 @@ public final class TaskStore {
             LocalDateTime createdAt = LocalDateTime.parse(extractJsonValue(json, "createdAt"), ISO_FORMATTER);
             
             String completedAtStr = extractJsonValue(json, "completedAt");
-            LocalDateTime completedAt = "null".equals(completedAtStr) ? null : 
+            LocalDateTime completedAt = "null".equals(completedAtStr) ? null :
                 LocalDateTime.parse(completedAtStr, ISO_FORMATTER);
             
             String category = extractJsonValue(json, "category");
             
-            return new Task(id, text, completed, priority, createdAt, completedAt, category);
+            // Parse new due date and reminder fields with backward compatibility
+            String dueDateStr = extractJsonValue(json, "dueDate");
+            LocalDate dueDate = "null".equals(dueDateStr) || dueDateStr.isEmpty() ? null :
+                LocalDate.parse(dueDateStr);
+            
+            String reminderSettingsStr = extractJsonValue(json, "reminderSettings");
+            Task.ReminderSettings reminderSettings = reminderSettingsStr.isEmpty() ?
+                Task.ReminderSettings.NONE : Task.ReminderSettings.valueOf(reminderSettingsStr);
+            
+            // Use new extended constructor if due date fields are present
+            if (dueDate != null || !reminderSettings.equals(Task.ReminderSettings.NONE)) {
+                return new Task(id, text, completed, priority, createdAt, completedAt, category, dueDate, reminderSettings);
+            } else {
+                // Fallback to old constructor for backward compatibility
+                return new Task(id, text, completed, priority, createdAt, completedAt, category);
+            }
         } catch (Exception ex) {
             ex.printStackTrace();
             return null;
@@ -277,5 +293,105 @@ public final class TaskStore {
     public double getCompletionPercentage() {
         if (tasks.isEmpty()) return 0.0;
         return (double) getCompletedCount() / tasks.size() * 100.0;
+    }
+    
+    // --- New due date and reminder methods ---
+    
+    /**
+     * Get active tasks sorted by urgency level and due date
+     */
+    public List<Task> getActiveTasksSortedByUrgency() {
+        return tasks.stream()
+                   .filter(task -> !task.isCompleted())
+                   .sorted((t1, t2) -> {
+                       Task.UrgencyLevel urgency1 = t1.calculateUrgency();
+                       Task.UrgencyLevel urgency2 = t2.calculateUrgency();
+                       
+                       // First sort by urgency level (higher urgency first)
+                       int urgencyCompare = Integer.compare(urgency2.getSortOrder(), urgency1.getSortOrder());
+                       if (urgencyCompare != 0) return urgencyCompare;
+                       
+                       // Then by due date (earlier dates first)
+                       if (t1.getDueDate() != null && t2.getDueDate() != null) {
+                           return t1.getDueDate().compareTo(t2.getDueDate());
+                       } else if (t1.getDueDate() != null) {
+                           return -1; // t1 has due date, t2 doesn't
+                       } else if (t2.getDueDate() != null) {
+                           return 1; // t2 has due date, t1 doesn't
+                       }
+                       
+                       // Finally by priority
+                       return Integer.compare(t2.getPriority().ordinal(), t1.getPriority().ordinal());
+                   })
+                   .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get tasks that need reminders today
+     */
+    public List<Task> getTasksNeedingReminders() {
+        return tasks.stream()
+                   .filter(task -> !task.isCompleted())
+                   .filter(Task::needsReminder)
+                   .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get overdue tasks
+     */
+    public List<Task> getOverdueTasks() {
+        return tasks.stream()
+                   .filter(task -> !task.isCompleted())
+                   .filter(task -> task.calculateUrgency() == Task.UrgencyLevel.OVERDUE)
+                   .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get tasks due today
+     */
+    public List<Task> getTasksDueToday() {
+        return tasks.stream()
+                   .filter(task -> !task.isCompleted())
+                   .filter(task -> task.calculateUrgency() == Task.UrgencyLevel.DUE_TODAY)
+                   .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get tasks due this week
+     */
+    public List<Task> getTasksDueThisWeek() {
+        return tasks.stream()
+                   .filter(task -> !task.isCompleted())
+                   .filter(task -> task.calculateUrgency() == Task.UrgencyLevel.DUE_THIS_WEEK)
+                   .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get tasks grouped by urgency level
+     */
+    public Map<Task.UrgencyLevel, List<Task>> getTasksGroupedByUrgency() {
+        return tasks.stream()
+                   .filter(task -> !task.isCompleted())
+                   .collect(Collectors.groupingBy(Task::calculateUrgency));
+    }
+    
+    /**
+     * Get count of overdue tasks
+     */
+    public int getOverdueCount() {
+        return (int) tasks.stream()
+                         .filter(task -> !task.isCompleted())
+                         .filter(task -> task.calculateUrgency() == Task.UrgencyLevel.OVERDUE)
+                         .count();
+    }
+    
+    /**
+     * Get count of tasks due today
+     */
+    public int getDueTodayCount() {
+        return (int) tasks.stream()
+                         .filter(task -> !task.isCompleted())
+                         .filter(task -> task.calculateUrgency() == Task.UrgencyLevel.DUE_TODAY)
+                         .count();
     }
 }

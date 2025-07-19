@@ -272,7 +272,7 @@ public class JournalApp extends JFrame {
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // ---------- WRITING section (first) ----------
-        JLabel writingHeader = new JLabel("Writing");
+        JLabel writingHeader = new JLabel("Writing & Planning");
         writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
         writingHeader.setForeground(Color.WHITE);
         writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));

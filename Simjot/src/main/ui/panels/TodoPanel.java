@@ -2,6 +2,7 @@ package main.ui.panels;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.time.LocalDate;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -13,6 +14,7 @@ import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernCheckBoxUI;
 import main.ui.components.ModernComboBoxRenderer;
 import main.ui.components.ModernComboBoxUI;
+import main.ui.components.ModernDatePicker;
 import main.util.SettingsStore;
 import main.util.TaskStore;
 
@@ -30,6 +32,8 @@ public class TodoPanel extends JPanel {
     // UI Components
     private ModernTextField newTaskField;
     private JComboBox<Task.Priority> prioritySelector;
+    private JComboBox<Task.ReminderSettings> reminderSelector;
+    private ModernDatePicker dueDatePicker;
     private JPanel taskListPanel;
     private JScrollPane taskScrollPane;
     private JLabel statsLabel;
@@ -64,9 +68,9 @@ public class TodoPanel extends JPanel {
     }
     
     private void createToolbar() {
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 15));
         toolbar.setBackground(new Color(230, 230, 230)); // Matching NewEntryPanel toolbar
-        toolbar.setPreferredSize(new Dimension(0, 50));
+        toolbar.setPreferredSize(new Dimension(0, 80)); // Increased height for better spacing
         
         // Back button
         RoundedButton backButton = new RoundedButton("Back");
@@ -104,6 +108,21 @@ public class TodoPanel extends JPanel {
         toolbar.add(Box.createHorizontalStrut(5));
         toolbar.add(new JLabel("Priority:"));
         toolbar.add(prioritySelector);
+        
+        // Reminder selector with modern UI
+        reminderSelector = new JComboBox<>(Task.ReminderSettings.values());
+        reminderSelector.setSelectedItem(Task.ReminderSettings.NONE); // Default to no reminder
+        reminderSelector.setUI(new ModernComboBoxUI());
+        reminderSelector.setRenderer(new ReminderComboBoxRenderer());
+        toolbar.add(Box.createHorizontalStrut(5));
+        toolbar.add(new JLabel("Reminder:"));
+        toolbar.add(reminderSelector);
+        
+        // Due date picker
+        dueDatePicker = new ModernDatePicker();
+        toolbar.add(Box.createHorizontalStrut(5));
+        toolbar.add(new JLabel("Due:"));
+        toolbar.add(dueDatePicker);
         
         // Add button
         addButton = new RoundedButton("Add");
@@ -184,11 +203,22 @@ public class TodoPanel extends JPanel {
         }
         
         Task.Priority selectedPriority = (Task.Priority) prioritySelector.getSelectedItem();
+        Task.ReminderSettings selectedReminder = (Task.ReminderSettings) reminderSelector.getSelectedItem();
+        LocalDate selectedDueDate = dueDatePicker.getSelectedDate();
+        
         Task newTask = new Task(taskText);
         newTask.setPriority(selectedPriority);
+        newTask.setReminderSettings(selectedReminder);
+        newTask.setDueDate(selectedDueDate);
+        
         taskStore.addTask(newTask);
+        
+        // Reset form to defaults
         newTaskField.setText("");
-        prioritySelector.setSelectedItem(Task.Priority.MEDIUM); // Reset to default
+        prioritySelector.setSelectedItem(Task.Priority.MEDIUM);
+        reminderSelector.setSelectedItem(Task.ReminderSettings.NONE);
+        dueDatePicker.setSelectedDate(null);
+        
         refreshTaskList();
     }
     
@@ -224,18 +254,20 @@ public class TodoPanel extends JPanel {
             emptyLabel.setBorder(new EmptyBorder(40, 20, 40, 20));
             taskListPanel.add(emptyLabel);
         } else {
-            // Sort tasks by priority and completion status
-            List<Task> activeTasks = taskStore.getActiveTasks();
+            // Sort tasks by urgency and priority
+            List<Task> activeTasks = taskStore.getActiveTasksSortedByUrgency();
             List<Task> completedTasks = taskStore.getCompletedTasks();
             
-            // Sort active tasks by priority (HIGH -> MEDIUM -> LOW)
-            activeTasks.sort((t1, t2) -> t1.getPriority().compareTo(t2.getPriority()));
-            
-            // Sort completed tasks by priority as well
-            completedTasks.sort((t1, t2) -> t1.getPriority().compareTo(t2.getPriority()));
+            // Sort completed tasks by completion time (most recent first)
+            completedTasks.sort((t1, t2) -> {
+                if (t1.getCompletedAt() != null && t2.getCompletedAt() != null) {
+                    return t2.getCompletedAt().compareTo(t1.getCompletedAt());
+                }
+                return 0;
+            });
             
             if (!activeTasks.isEmpty()) {
-                addTaskSection("Active Tasks", activeTasks, false);
+                addTaskSection("Active Tasks (Sorted by Urgency)", activeTasks, false);
             }
             
             if (!completedTasks.isEmpty()) {
@@ -286,6 +318,73 @@ public class TodoPanel extends JPanel {
         }
     }
     
+    // --- Urgency Helper Methods ---
+    private Color getUrgencyBorderColor(Task task) {
+        if (task.isCompleted()) {
+            return new Color(200, 200, 200); // Light gray for completed
+        }
+        
+        switch (task.getUrgencyLevel()) {
+            case OVERDUE:
+                return new Color(220, 50, 50); // Red for overdue
+            case DUE_TODAY:
+                return new Color(255, 140, 0); // Orange for due today
+            case DUE_THIS_WEEK:
+                return new Color(255, 200, 0); // Yellow for due this week
+            case FUTURE:
+                return new Color(100, 150, 255); // Blue for future
+            case NO_DUE_DATE:
+            default:
+                return new Color(230, 230, 230); // Default gray
+        }
+    }
+    
+    private Color getUrgencyTextColor(Task.UrgencyLevel urgency) {
+        switch (urgency) {
+            case OVERDUE:
+                return new Color(200, 50, 50); // Red
+            case DUE_TODAY:
+                return new Color(255, 100, 0); // Orange
+            case DUE_THIS_WEEK:
+                return new Color(200, 150, 0); // Dark yellow
+            case FUTURE:
+                return new Color(80, 120, 200); // Blue
+            case NO_DUE_DATE:
+            default:
+                return Color.GRAY;
+        }
+    }
+    
+    private JLabel createUrgencyIndicator(Task.UrgencyLevel urgency) {
+        JLabel indicator = new JLabel();
+        indicator.setFont(new Font("SansSerif", Font.BOLD, 12));
+        indicator.setForeground(getUrgencyTextColor(urgency));
+        
+        switch (urgency) {
+            case OVERDUE:
+                indicator.setText("⚠️");
+                indicator.setToolTipText("Overdue");
+                break;
+            case DUE_TODAY:
+                indicator.setText("🔥");
+                indicator.setToolTipText("Due Today");
+                break;
+            case DUE_THIS_WEEK:
+                indicator.setText("📅");
+                indicator.setToolTipText("Due This Week");
+                break;
+            case FUTURE:
+                indicator.setText("📋");
+                indicator.setToolTipText("Future Task");
+                break;
+            default:
+                indicator.setText("");
+                break;
+        }
+        
+        return indicator;
+    }
+    
     // --- Task Item Panel ---
     private class TaskItemPanel extends JPanel {
         private final Task task;
@@ -322,16 +421,20 @@ public class TodoPanel extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            Color bgColor = task.isCompleted() ? 
+            Color bgColor = task.isCompleted() ?
                 new Color(245, 245, 245, 180) :  // Light gray for completed
                 new Color(255, 255, 255, 200);   // White for active
                 
             g2.setColor(bgColor);
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
             
-            // Subtle border
-            g2.setColor(new Color(220, 220, 220));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+            // Urgency-based border
+            Color borderColor = getUrgencyBorderColor(task);
+            int borderWidth = task.isCompleted() ? 1 : 2;
+            g2.setColor(borderColor);
+            g2.setStroke(new BasicStroke(borderWidth));
+            g2.drawRoundRect(borderWidth/2, borderWidth/2, getWidth() - borderWidth,
+                           getHeight() - borderWidth, 12, 12);
             
             g2.dispose();
             super.paintComponent(g);
@@ -354,10 +457,17 @@ public class TodoPanel extends JPanel {
             // Add vertical glue to center content
             contentPanel.add(Box.createVerticalGlue());
             
-            // Task text panel
+            // Task text panel with urgency indicator
             JPanel textPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             textPanel.setOpaque(false);
             textPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            
+            // Add urgency indicator for active tasks
+            if (!task.isCompleted() && task.getUrgencyLevel() != Task.UrgencyLevel.NO_DUE_DATE) {
+                JLabel urgencyIndicator = createUrgencyIndicator(task.getUrgencyLevel());
+                textPanel.add(urgencyIndicator);
+                textPanel.add(Box.createHorizontalStrut(4));
+            }
             
             taskLabel = new JLabel(task.getText());
             taskLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
@@ -371,7 +481,7 @@ public class TodoPanel extends JPanel {
             textPanel.add(taskLabel);
             contentPanel.add(textPanel);
             
-            // Details panel (priority, date)
+            // Details panel (priority, dates, due date info)
             JPanel detailsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
             detailsPanel.setOpaque(false);
             detailsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -383,11 +493,42 @@ public class TodoPanel extends JPanel {
             priorityLabel.setToolTipText(task.getPriority().getDisplayName() + " Priority");
             detailsPanel.add(priorityLabel);
             
-            // Creation date
-            dateLabel = new JLabel(task.getFormattedCreatedDate());
+            // Due date information (if exists)
+            if (task.getDueDate() != null) {
+                JLabel dueDateLabel = new JLabel("📅 " + task.getFormattedDueDate());
+                dueDateLabel.setForeground(task.isCompleted() ? Color.GRAY : Color.DARK_GRAY);
+                dueDateLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
+                dueDateLabel.setToolTipText("Due Date");
+                detailsPanel.add(dueDateLabel);
+                
+                // Add countdown for active tasks
+                if (!task.isCompleted()) {
+                    String countdown = task.getDueDateCountdown();
+                    if (!countdown.isEmpty()) {
+                        JLabel countdownLabel = new JLabel("(" + countdown + ")");
+                        countdownLabel.setForeground(getUrgencyTextColor(task.getUrgencyLevel()));
+                        countdownLabel.setFont(new Font("SansSerif", Font.ITALIC, 10));
+                        detailsPanel.add(countdownLabel);
+                    }
+                }
+            }
+            
+            // Creation date (smaller, more subtle for tasks with due dates)
+            dateLabel = new JLabel(task.getDueDate() != null ?
+                "Created: " + task.getFormattedCreatedDate() :
+                task.getFormattedCreatedDate());
             dateLabel.setForeground(Color.LIGHT_GRAY);
-            dateLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
+            dateLabel.setFont(new Font("SansSerif", Font.PLAIN, 9));
             detailsPanel.add(dateLabel);
+            
+            // Reminder indicator
+            if (task.getReminderSettings() != Task.ReminderSettings.NONE) {
+                JLabel reminderLabel = new JLabel("🔔");
+                reminderLabel.setForeground(new Color(0, 120, 215));
+                reminderLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
+                reminderLabel.setToolTipText("Reminder: " + task.getReminderSettings().getDisplayName());
+                detailsPanel.add(reminderLabel);
+            }
             
             contentPanel.add(detailsPanel);
             
@@ -471,6 +612,28 @@ public class TodoPanel extends JPanel {
                 // Use priority color when not selected, white when selected
                 if (!isSelected) {
                     setForeground(priority.getColor());
+                }
+            }
+            
+            return this;
+        }
+    }
+    
+    // --- Reminder Settings ComboBox Renderer extending ModernComboBoxRenderer ---
+    private static class ReminderComboBoxRenderer extends ModernComboBoxRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            
+            if (value instanceof Task.ReminderSettings reminder) {
+                setText("🔔 " + reminder.getDisplayName());
+                
+                // Use different colors based on reminder setting
+                if (!isSelected) {
+                    Color reminderColor = reminder == Task.ReminderSettings.NONE ?
+                        Color.GRAY : new Color(0, 120, 215);
+                    setForeground(reminderColor);
                 }
             }
             
