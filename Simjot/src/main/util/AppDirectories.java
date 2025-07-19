@@ -17,7 +17,8 @@ public final class AppDirectories {
         POEMS("poems"),
         DRAWINGS("drawings"),
         MOOD_DATA("mood"),
-        SETTINGS("settings");
+        SETTINGS("settings"),
+        TASKS("tasks");
 
         private final String folderName;
         Type(String folderName) { this.folderName = folderName; }

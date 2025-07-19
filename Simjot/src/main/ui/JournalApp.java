@@ -22,6 +22,7 @@ import main.ui.panels.NotebookEntriesPanel;
 import main.ui.panels.NotebookManagerPanel;
 import main.ui.panels.PoemPanel;
 import main.ui.panels.SettingsPanel;
+import main.ui.panels.TodoPanel;
 import main.ui.panels.ViewEntriesPanel;
 import main.util.AppDirectories;
 import main.util.NotebookInfo;
@@ -51,6 +52,7 @@ public class JournalApp extends JFrame {
     public static final String SETTINGS = "Settings";
     public static final String GALLERY = "Gallery";
     public static final String NOTEBOOK_MANAGER = "NotebookManager";
+    public static final String TASKS = "Tasks";
 
     // Additional references for panels that might need referencing
     private SettingsPanel settingsPanel;
@@ -157,6 +159,10 @@ public class JournalApp extends JFrame {
         // ----------------- Notebooks Manager Panel -----------------
         NotebookManagerPanel notebookManagerPanel = new NotebookManagerPanel(this);
         cardPanel.add(notebookManagerPanel, NOTEBOOK_MANAGER);
+
+        // ----------------- Tasks Panel -----------------
+        TodoPanel tasksPanel = new TodoPanel(this, cardLayout, cardPanel);
+        cardPanel.add(tasksPanel, TASKS);
 
         getContentPane().add(cardPanel);
 
@@ -275,6 +281,10 @@ public class JournalApp extends JFrame {
 
         FadingButton notebooksButton = createMenuButtonWithIcon("Notebooks", NOTEBOOK_MANAGER, "notebook");
         buttonPanel.add(notebooksButton);
+        buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
+
+        FadingButton tasksButton = createMenuButtonWithIcon("Tasks", TASKS, "tasks");
+        buttonPanel.add(tasksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0,12)));
 
         // ---------- ARTS section (second) ----------
