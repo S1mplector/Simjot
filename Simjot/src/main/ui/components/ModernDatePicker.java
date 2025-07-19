@@ -38,9 +38,11 @@ public class ModernDatePicker extends JPanel {
     
     public ModernDatePicker(LocalDate initialDate) {
         this.selectedDate = initialDate;
-        setLayout(new BorderLayout(5, 0));
+        setLayout(new BorderLayout(3, 3));
         setOpaque(false);
-        setPreferredSize(new Dimension(300, 35));
+        setPreferredSize(new Dimension(200, 60)); // Better proportions
+        setMinimumSize(new Dimension(180, 60));
+        setMaximumSize(new Dimension(250, 60));
         
         initComponents();
         updateDisplay();
@@ -51,9 +53,10 @@ public class ModernDatePicker extends JPanel {
         JPanel inputPanel = new JPanel(new BorderLayout(3, 0));
         inputPanel.setOpaque(false);
         
-        // Date text field
-        dateField = new ModernTextField(12);
+        // Date text field - more compact
+        dateField = new ModernTextField(8); // Reduced from 12
         dateField.setEditable(true);
+        dateField.setPreferredSize(new Dimension(120, 28)); // Fixed width
         dateField.addActionListener(e -> parseDateFromField());
         dateField.addFocusListener(new FocusAdapter() {
             @Override
@@ -70,9 +73,10 @@ public class ModernDatePicker extends JPanel {
         
         add(inputPanel, BorderLayout.CENTER);
         
-        // Quick preset buttons panel
-        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        // Quick preset buttons panel - more compact
+        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 1, 2));
         presetsPanel.setOpaque(false);
+        presetsPanel.setPreferredSize(new Dimension(200, 28)); // Fixed height
         
         todayButton = new PresetButton("Today");
         todayButton.addActionListener(e -> setSelectedDate(LocalDate.now()));
@@ -200,8 +204,8 @@ public class ModernDatePicker extends JPanel {
         public ModernTextField(int cols) {
             super(cols);
             setOpaque(false);
-            setBorder(new EmptyBorder(8, 12, 8, 12));
-            setFont(new Font("SansSerif", Font.PLAIN, 13));
+            setBorder(new EmptyBorder(4, 8, 4, 8)); // Reduced padding
+            setFont(new Font("SansSerif", Font.PLAIN, 12)); // Smaller font
         }
         
         @Override
@@ -228,11 +232,13 @@ public class ModernDatePicker extends JPanel {
     private static class ModernCalendarButton extends JButton {
         public ModernCalendarButton() {
             super("📅");
-            setFont(new Font("SansSerif", Font.PLAIN, 14));
+            setFont(new Font("SansSerif", Font.BOLD, 12)); // Match RoundedButton font
             setPreferredSize(new Dimension(35, 35));
             setBorder(new EmptyBorder(5, 5, 5, 5));
             setFocusPainted(false);
-            setOpaque(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setForeground(Color.DARK_GRAY); // Match RoundedButton foreground
             setToolTipText("Open calendar");
         }
         
@@ -241,17 +247,14 @@ public class ModernDatePicker extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            Color bgColor = getModel().isPressed() ? 
-                new Color(220, 220, 220) :
-                getModel().isRollover() ? 
-                    new Color(240, 240, 240) : 
-                    Color.WHITE;
-                    
-            g2.setColor(bgColor);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+            // Use exact RoundedButton styling
+            if(getModel().isPressed())       g2.setColor(new Color(200,200,200));
+            else if(getModel().isRollover()) g2.setColor(new Color(220,220,220));
+            else                             g2.setColor(new Color(240,240,240));
             
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10); // Match RoundedButton radius
+            g2.setColor(Color.LIGHT_GRAY); // Match RoundedButton border
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
             
             g2.dispose();
             super.paintComponent(g);
@@ -261,12 +264,18 @@ public class ModernDatePicker extends JPanel {
     private static class PresetButton extends JButton {
         public PresetButton(String text) {
             super(text);
-            setFont(new Font("SansSerif", Font.PLAIN, 11));
-            setPreferredSize(new Dimension(text.length() * 8 + 16, 28)); // Slightly larger for better spacing
-            setBorder(new EmptyBorder(5, 8, 5, 8)); // More padding
+            setFont(new Font("SansSerif", Font.BOLD, 12)); // Match RoundedButton font
+            
+            // Compact sizing based on text length but with better proportions
+            int width = Math.max(60, text.length() * 8 + 16);
+            setPreferredSize(new Dimension(width, 32)); // Match RoundedButton height
+            setMinimumSize(new Dimension(width, 32));
+            setMaximumSize(new Dimension(width, 32));
+            
             setFocusPainted(false);
-            setOpaque(false);
-            setForeground(new Color(60, 60, 60)); // Consistent text color
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setForeground(Color.DARK_GRAY); // Match RoundedButton foreground
         }
         
         @Override
@@ -274,23 +283,21 @@ public class ModernDatePicker extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            // Consistent white-based styling
-            Color bgColor = getModel().isPressed() ?
-                new Color(220, 220, 220) :
-                getModel().isRollover() ?
-                    new Color(240, 240, 240) :
-                    Color.WHITE; // Clean white default
-                    
-            g2.setColor(bgColor);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8); // Rounded corners
+            // Use exact RoundedButton styling
+            if(getModel().isPressed())       g2.setColor(new Color(200,200,200));
+            else if(getModel().isRollover()) g2.setColor(new Color(220,220,220));
+            else                             g2.setColor(new Color(240,240,240));
             
-            // Clean border
-            g2.setColor(new Color(200, 200, 200));
-            g2.setStroke(new BasicStroke(1f));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10); // Match RoundedButton radius
+            g2.setColor(Color.LIGHT_GRAY); // Match RoundedButton border
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+
+            // Draw text manually to match RoundedButton style
+            g2.setColor(getForeground());
+            FontMetrics fm = g2.getFontMetrics();
+            g2.drawString(getText(), (getWidth()-fm.stringWidth(getText()))/2, ((getHeight()-fm.getHeight())/2)+fm.getAscent());
             
             g2.dispose();
-            super.paintComponent(g);
         }
     }
     
@@ -321,19 +328,13 @@ public class ModernDatePicker extends JPanel {
             JPanel headerPanel = new JPanel(new BorderLayout());
             headerPanel.setOpaque(false);
             
-            prevButton = new JButton("<");
-            prevButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-            prevButton.setBorder(new EmptyBorder(5, 10, 5, 10));
-            prevButton.setFocusPainted(false);
+            prevButton = new ModernNavigationButton("<");
             prevButton.addActionListener(e -> {
                 displayedDate = displayedDate.minusMonths(1);
                 updateCalendar();
             });
             
-            nextButton = new JButton(">");
-            nextButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-            nextButton.setBorder(new EmptyBorder(5, 10, 5, 10));
-            nextButton.setFocusPainted(false);
+            nextButton = new ModernNavigationButton(">");
             nextButton.addActionListener(e -> {
                 displayedDate = displayedDate.plusMonths(1);
                 updateCalendar();
@@ -462,6 +463,41 @@ public class ModernDatePicker extends JPanel {
                 
                 g2.dispose();
                 super.paintComponent(g);
+            }
+        }
+        
+        // --- Modern Navigation Button for Calendar ---
+        private static class ModernNavigationButton extends JButton {
+            public ModernNavigationButton(String text) {
+                super(text);
+                setFont(new Font("SansSerif", Font.BOLD, 12)); // Match RoundedButton font
+                setPreferredSize(new Dimension(35, 32)); // Match RoundedButton height
+                setFocusPainted(false);
+                setBorderPainted(false);
+                setContentAreaFilled(false);
+                setForeground(Color.DARK_GRAY); // Match RoundedButton foreground
+            }
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Use exact RoundedButton styling
+                if(getModel().isPressed())       g2.setColor(new Color(200,200,200));
+                else if(getModel().isRollover()) g2.setColor(new Color(220,220,220));
+                else                             g2.setColor(new Color(240,240,240));
+                
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10); // Match RoundedButton radius
+                g2.setColor(Color.LIGHT_GRAY); // Match RoundedButton border
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+    
+                // Draw text manually to match RoundedButton style
+                g2.setColor(getForeground());
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(getText(), (getWidth()-fm.stringWidth(getText()))/2, ((getHeight()-fm.getHeight())/2)+fm.getAscent());
+                
+                g2.dispose();
             }
         }
     }

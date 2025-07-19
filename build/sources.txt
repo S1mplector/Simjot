@@ -7,6 +7,7 @@ C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\dialog\TutorialDialog.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\drawing\Stroke.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\drawing\Tool.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\model\SectionData.java
+C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\model\Task.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\model\TodoData.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\transitions\FadeTransitionPanel.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\transitions\FadingButton.java
@@ -21,6 +22,7 @@ C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\buttons\ToolbarIconButto
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\ModernCheckBoxUI.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\ModernComboBoxRenderer.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\ModernComboBoxUI.java
+C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\ModernDatePicker.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\ModernScrollBarUI.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\ModernSpinnerUI.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\ui\components\MoodSlider.java
@@ -53,6 +55,7 @@ C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\util\NotebookStore.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\util\RamMonitor.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\util\ResourceLoader.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\util\SettingsStore.java
+C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\main\util\TaskStore.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\mindmap\DraggableMindMapButton.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\mindmap\MindMap.java
 C:\Users\Sim\Desktop\Projects\simjot\Simjot\src\mindmap\MindMapEditingPanel.java
