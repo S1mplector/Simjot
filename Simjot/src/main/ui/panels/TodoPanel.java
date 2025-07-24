@@ -70,7 +70,7 @@ public class TodoPanel extends JPanel {
     private void createToolbar() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 15));
         toolbar.setBackground(new Color(230, 230, 230)); // Matching NewEntryPanel toolbar
-        toolbar.setPreferredSize(new Dimension(0, 80)); // Increased height for better spacing
+        toolbar.setPreferredSize(new Dimension(0, 100)); // Increased height for better spacing
         
         // Back button
         RoundedButton backButton = new RoundedButton("Back");

@@ -34,9 +34,10 @@ public class TutorialDialog extends JDialog {
 
         // build pages – refreshed for the latest main-menu layout
         addPage("Welcome", "Welcome to Simjot!\nLet's walk through the essentials.");
-        addPage("New Entry", "Start journaling by pressing <b>New Entry</b>.\nWrite freely, adjust font size, and record your mood with the new gradient slider.");
+        addPage("Notebooks", "Organise life with multiple notebooks.\nCreate, rename or delete notebooks and watch them pop into the shelf.");
+        addPage("Journal", "Your daily journal is here.\nWrite entries, add photos, and track your moods with the mood slider.");
+        addPage("Poetry", "Express yourself with poetry.\nCreate, edit and delete poems, and re-visit them whenever you like");
         addPage("Canvas", "Tap <b>Canvas</b> to sketch ideas on an infinite sheet.\nPens, eraser and colour picker give you creative freedom.");
-        addPage("Notebooks", "Organise life with multiple notebooks.\nCreate, rename or delete notebooks and watch them pop into the shelf with a neat animation.");
         addPage("Mood Chart", "All those slider moods converge here.\nSee how your feelings trend over the last 7/30 days or overall.");
         addPage("Settings & Themes", "Personalise Simjot: change wallpapers, tweak UI sizes and more in <b>Settings</b>.");
         addPage("That's it!", "Enjoy Simjot and happy writing.");
