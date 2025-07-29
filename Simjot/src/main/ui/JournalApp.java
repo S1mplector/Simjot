@@ -7,8 +7,6 @@ import main.dialog.CustomConfirmDialog;
 import main.dialog.SetupWizardDialog;
 import main.dialog.TutorialDialog;
 import main.transitions.FadeTransitionPanel;
-import main.transitions.FadingButton;
-import main.ui.buttons.MainMenuButton;
 import main.ui.panels.DrawingPanel;
 import main.ui.panels.EditEntryPanel;
 import main.ui.panels.EditPoemPanel;
@@ -27,6 +25,7 @@ import main.util.NotebookInfo;
 import main.util.RamMonitor;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
+// import main.ui.buttons.MainMenuButton; // Removed as per edit hint
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -60,9 +59,9 @@ public class JournalApp extends JFrame {
     private boolean firstSwitchDone = false;
 
     // Buttons references for tutorial highlighting
-    private FadingButton btnNewEntry, btnNewPoem,
-                         btnViewEntries, btnMoodChart,
-                         btnDrawing, btnGallery;
+    // private FadingButton btnNewEntry, btnNewPoem,
+    //                      btnViewEntries, btnMoodChart,
+    //                      btnDrawing, btnGallery; // removed – highlight buttons moved to MainMenuPanel
 
     private JPanel mainMenuPanel;
 
@@ -73,7 +72,7 @@ public class JournalApp extends JFrame {
     private final java.util.Map<String,JPanel> cardMap = new java.util.HashMap<>();
 
     // Toggle to quickly hide the Gallery feature without removing code/resources.
-    private static final boolean SHOW_GALLERY = false;
+    // private static final boolean SHOW_GALLERY = false; // removed – handled inside MainMenuPanel
 
     public JournalApp() {
         super("Simjot");
@@ -226,28 +225,31 @@ public class JournalApp extends JFrame {
         return new MainMenuPanel(this);
     }
 
-    private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon){
-        FadingButton button = new MainMenuButton(text, icon);
+    // /**
+    //  * Legacy helper – replaced by MainMenuPanel.createMenuButtonWithIcon()
+    //  */
+    // private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon){
+    //     FadingButton button = new MainMenuButton(text, icon);
 
-        // Uniform styling so all buttons appear with equal padding/size
-        button.setForeground(Color.WHITE);
-        button.setFont(button.getFont().deriveFont(Font.BOLD, 20f));
-        button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
-        button.setAlignmentX(Component.CENTER_ALIGNMENT);
+    //     // Uniform styling so all buttons appear with equal padding/size
+    //     button.setForeground(Color.WHITE);
+    //     button.setFont(button.getFont().deriveFont(Font.BOLD, 20f));
+    //     button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+    //     button.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Clicking the button switches to the associated card
-        button.addActionListener(e -> switchCard(cardName));
+    //     // Clicking the button switches to the associated card
+    //     button.addActionListener(e -> switchCard(cardName));
 
-        // Store reference for tutorial highlights
-        if(cardName.equals(NEW_ENTRY)) btnNewEntry = button;
-        else if(cardName.equals(NEW_POEM)) btnNewPoem = button;
-        else if(cardName.equals(VIEW_ENTRIES)) btnViewEntries = button;
-        else if(cardName.equals(MOOD_CHART)) btnMoodChart = button;
-        else if(cardName.equals("Drawing")) btnDrawing = button;
-        else if(cardName.equals(GALLERY)) btnGallery = button;
+    //     // Store reference for tutorial highlights
+    //     if(cardName.equals(NEW_ENTRY)) btnNewEntry = button;
+    //     else if(cardName.equals(NEW_POEM)) btnNewPoem = button;
+    //     else if(cardName.equals(VIEW_ENTRIES)) btnViewEntries = button;
+    //     else if(cardName.equals(MOOD_CHART)) btnMoodChart = button;
+    //     else if(cardName.equals("Drawing")) btnDrawing = button;
+    //     else if(cardName.equals(GALLERY)) btnGallery = button;
 
-        return button;
-    }
+    //     return button;
+    // }
 
     private void showTutorialIfFirstTime() {
         SettingsStore store = SettingsStore.get();
