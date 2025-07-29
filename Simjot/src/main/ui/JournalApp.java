@@ -9,13 +9,11 @@ import main.dialog.TutorialDialog;
 import main.transitions.FadeTransitionPanel;
 import main.transitions.FadingButton;
 import main.ui.buttons.MainMenuButton;
-import main.ui.panels.AnalogClockPanel;
-import main.ui.panels.BackgroundPanel;
 import main.ui.panels.DrawingPanel;
 import main.ui.panels.EditEntryPanel;
 import main.ui.panels.EditPoemPanel;
 import main.ui.panels.GalleryPanel;
-import main.ui.panels.HeaderPanel;
+import main.ui.panels.MainMenuPanel;
 import main.ui.panels.MoodChartPanel;
 import main.ui.panels.NewEntryPanel;
 import main.ui.panels.NotebookEntriesPanel;
@@ -225,166 +223,7 @@ public class JournalApp extends JFrame {
 
     // MAIN MENU: Contains the big background, the clock, the header, and animated buttons
     private JPanel createMainMenuPanel() {
-        // Create the main content panel using a vertical BoxLayout.
-        String bgPath = SettingsStore.get().getBackgroundImage();
-        JPanel content;
-        if(bgPath != null && !bgPath.isEmpty()) {
-            if(bgPath.startsWith("res:")){
-                // Built-in resource (class-path) – strip prefix
-                String resPath = bgPath.substring(4);
-                java.awt.Image img = ResourceLoader.createImage("Simjot/"+resPath);
-                content = (img != null) ? new BackgroundPanel(img) : new JPanel();
-            } else {
-                // User-selected file path
-                content = new BackgroundPanel(bgPath);
-            }
-            content.setBackground(Color.BLACK);
-        } else {
-            // Blank / default – just use a plain white panel
-            content = new JPanel();
-            content.setBackground(Color.WHITE);
-        }
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-
-        // Add header and clock.
-        HeaderPanel header = new HeaderPanel();
-        header.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(Box.createRigidArea(new Dimension(0, 10)));
-        content.add(header);
-
-        // Time info right below header quote
-        TimeInfoPanel timePanelTop = new TimeInfoPanel();
-        timePanelTop.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(Box.createRigidArea(new Dimension(0,6)));
-        content.add(timePanelTop);
-
-        AnalogClockPanel clockPanel = new AnalogClockPanel();
-        clockPanel.setPreferredSize(new Dimension(200, 200));
-        clockPanel.setMaximumSize(new Dimension(200, 200));
-        clockPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(Box.createRigidArea(new Dimension(0, 5)));
-        content.add(clockPanel);
-
-        // Create the button panel with animated fade-in
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.setOpaque(false);
-        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
-        buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        // ---------- WRITING section (first) ----------
-        JLabel writingHeader = new JLabel("Writing & Planning");
-        writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        writingHeader.setForeground(Color.WHITE);
-        writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));
-        buttonPanel.add(writingHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
-
-        FadingButton notebooksButton = createMenuButtonWithIcon("Notebooks", NOTEBOOK_MANAGER, "notebook");
-        buttonPanel.add(notebooksButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
-
-        FadingButton tasksButton = createMenuButtonWithIcon("Tasks", TASKS, "tick");
-        buttonPanel.add(tasksButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0,12)));
-
-        // ---------- ARTS section (second) ----------
-        JLabel artsHeader = new JLabel("Arts & Gallery");
-        artsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        artsHeader.setForeground(Color.WHITE);
-        artsHeader.setFont(artsHeader.getFont().deriveFont(Font.BOLD, 22f));
-        buttonPanel.add(artsHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
-
-        FadingButton drawingButton = createMenuButtonWithIcon("Canvas", "Drawing", "pencil");
-        drawingButton.setForeground(Color.WHITE);
-        drawingButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        FadingButton galleryButton = createMenuButtonWithIcon("Gallery", GALLERY, "image");
-        galleryButton.setForeground(Color.WHITE);
-        galleryButton.setFont(galleryButton.getFont().deriveFont(Font.BOLD, 20f));
-        galleryButton.setBorder(BorderFactory.createEmptyBorder(12,24,12,24));
-        galleryButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        galleryButton.addActionListener(e -> switchCard(GALLERY));
-
-        java.util.List<FadingButton> artsBtns = new java.util.ArrayList<>();
-        artsBtns.add(drawingButton);
-        if(SHOW_GALLERY) artsBtns.add(galleryButton);
-        for(FadingButton b : artsBtns) {
-            b.setAlpha(1f);
-            b.setAlignmentX(Component.CENTER_ALIGNMENT);
-            buttonPanel.add(b);
-            buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
-        }
-        if(SHOW_GALLERY) buttonPanel.add(Box.createRigidArea(new Dimension(0,12)));
-
-        // ---------- INSIGHTS section (last) ----------
-        JLabel insightsHeader = new JLabel("Insights");
-        insightsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        insightsHeader.setForeground(Color.WHITE);
-        insightsHeader.setFont(insightsHeader.getFont().deriveFont(Font.BOLD, 22f));
-
-        FadingButton[] insightBtns = {
-            createMenuButtonWithIcon("Mood Chart", MOOD_CHART, "smile")
-        };
-
-        buttonPanel.add(insightsHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
-        for (FadingButton b : insightBtns) {
-            b.setAlpha(1f);
-            b.setAlignmentX(Component.CENTER_ALIGNMENT);
-            buttonPanel.add(b);
-            buttonPanel.add(Box.createRigidArea(new Dimension(0,6)));
-        }
-        buttonPanel.add(Box.createRigidArea(new Dimension(0,12)));
-
-        FadingButton settingsButton = createMenuButtonWithIcon("Settings", SETTINGS, "wrench");
-        // Cork icon removed – Settings button now text-only
-
-        FadingButton[] otherBtns = { settingsButton };
-        for (FadingButton b : otherBtns) {
-            b.setAlpha(1f);
-            b.setAlignmentX(Component.CENTER_ALIGNMENT);
-            buttonPanel.add(b);
-            buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-        }
-
-        content.add(Box.createRigidArea(new Dimension(0, 20)));
-        content.add(buttonPanel);
-
-        header.startAnimation();
-        // No fade-in animation; buttons are visible immediately
-
-        // Container panel that holds everything plus a south panel
-        JPanel container = new JPanel(new BorderLayout());
-        if(bgPath != null && !bgPath.isEmpty()){
-            container.setBackground(Color.BLACK);
-        } else {
-            container.setBackground(Color.WHITE);
-        }
-
-        // South Panel with version label and RAM usage
-        JPanel southPanel = new JPanel();
-        southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
-        southPanel.setOpaque(false);
-
-        // Add a spacer to push the version and RAM info to the right
-        southPanel.add(Box.createHorizontalGlue());
-
-        JLabel versionLabel = new JLabel("Version 1.0 - By Ilgaz, with love");
-        versionLabel.setForeground(Color.WHITE);
-        versionLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        versionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        southPanel.add(versionLabel);
-
-        ramUsagePanel = new RamMonitor();
-        ramUsagePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        ramUsagePanel.setOpaque(false);
-        southPanel.add(ramUsagePanel);
-
-        container.add(content, BorderLayout.CENTER);
-        container.add(southPanel, BorderLayout.SOUTH);
-
-        return container;
+        return new MainMenuPanel(this);
     }
 
     private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon){
