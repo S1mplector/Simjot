@@ -155,7 +155,7 @@ public class SettingsPanel extends JPanel {
 
     // ---- Appearance ----
     private class AppearancePage extends JPanel implements SettingsPage{
-        private final RoundedButton chooseBgBtn;
+        private final RoundedButton backgroundOptionsBtn;
         private final JComboBox<String> themeBox;
         private final JCheckBox glowChk;
         private final JCheckBox disableAnimationsChk;
@@ -182,10 +182,12 @@ public class SettingsPanel extends JPanel {
             disableAnimationsChk.setUI(new ModernCheckBoxUI());
             disableAnimationsChk.setBackground(Color.WHITE);
 
-            chooseBgBtn = new RoundedButton("Choose background...");
-            chooseBgBtn.addActionListener(e->chooseBackground());
-            gc.gridx=0; gc.gridy=0; add(new JLabel("Custom background:"), gc);
-            gc.gridx=1; add(chooseBgBtn, gc);
+            // Single background options button
+            backgroundOptionsBtn = new RoundedButton("Background Options");
+            backgroundOptionsBtn.addActionListener(e->openBackgroundOptions());
+            
+            gc.gridx=0; gc.gridy=0; add(new JLabel("Background:"), gc);
+            gc.gridx=1; add(backgroundOptionsBtn, gc);
             gc.gridx=0; gc.gridy=1; add(new JLabel("Theme:"), gc);
             gc.gridx=1; add(themeBox, gc);
             gc.gridx=0; gc.gridy=2; gc.gridwidth=2; add(glowChk, gc);
@@ -206,15 +208,8 @@ public class SettingsPanel extends JPanel {
             store.setAnimationsDisabled(disableAnimationsChk.isSelected());
         }
 
-        private void chooseBackground(){
-            javax.swing.JFileChooser ch = new javax.swing.JFileChooser();
-            ch.setDialogTitle("Select background image");
-            ch.setFileSelectionMode(javax.swing.JFileChooser.FILES_ONLY);
-            if(ch.showOpenDialog(this)==javax.swing.JFileChooser.APPROVE_OPTION){
-                java.io.File f= ch.getSelectedFile();
-                SettingsStore.get().setBackgroundImage(f.getAbsolutePath());
-                chooseBgBtn.setText("Selected");
-            }
+        private void openBackgroundOptions(){
+            WallpaperGalleryPanel.showWallpaperGallery(this);
         }
     }
 
@@ -303,4 +298,6 @@ public class SettingsPanel extends JPanel {
             return this;
         }
     }
+    
+
 }
