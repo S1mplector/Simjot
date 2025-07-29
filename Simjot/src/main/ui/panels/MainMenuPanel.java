@@ -4,13 +4,12 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
-
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.buttons.MainMenuButton;
+import main.util.RamMonitor;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
-import main.util.RamMonitor;
 
 public class MainMenuPanel extends JPanel {
     private static final long serialVersionUID = 1L;
@@ -72,7 +71,7 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // ---------- WRITING section ----------
-        JLabel writingHeader = new JLabel("Writing & Planning");
+        JLabel writingHeader = new JLabel("Writing");
         writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
         writingHeader.setForeground(Color.WHITE);
         writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));
@@ -81,6 +80,14 @@ public class MainMenuPanel extends JPanel {
 
         FadingButton notebooksButton = createMenuButtonWithIcon("Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
         buttonPanel.add(notebooksButton);
+        buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
+
+        // ---------- PLANNING section ----------
+        JLabel planningHeader = new JLabel("Planning");
+        planningHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
+        planningHeader.setForeground(Color.WHITE);
+        planningHeader.setFont(planningHeader.getFont().deriveFont(Font.BOLD, 22f));
+        buttonPanel.add(planningHeader);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
 
         FadingButton tasksButton = createMenuButtonWithIcon("Tasks", JournalApp.TASKS, "tick");
