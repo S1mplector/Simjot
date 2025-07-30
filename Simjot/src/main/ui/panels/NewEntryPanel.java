@@ -7,15 +7,15 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import main.util.SettingsStore;
-import main.util.ResourceLoader;
-import main.util.UndoRedoManager;
 import main.dialog.CustomMessageDialog;
 import main.dialog.EntryBackgroundDialog;
-import main.ui.buttons.RoundedButton;
 import main.ui.JournalApp;
+import main.ui.buttons.RoundedButton;
 import main.ui.components.MoodSlider;
 import main.util.AppDirectories;
+import main.util.ResourceLoader;
+import main.util.SettingsStore;
+import main.util.UndoRedoManager;
 
 public class NewEntryPanel extends JPanel {
     protected CardLayout cardLayout;
@@ -34,6 +34,7 @@ public class NewEntryPanel extends JPanel {
     private int cachedX = 0;
     private int cachedY = 0;
     private float cachedOpacity = -1f;
+    private File currentFile = null; // Track the current file being edited
 
 
 
@@ -275,17 +276,30 @@ public class NewEntryPanel extends JPanel {
         recordMood(moodValue);
 
         try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String timestamp = sdf.format(new Date());
-            String filename = timestamp + ".txt";
-            File file = new File(journalFolder, filename);
+            File file;
+            boolean isNewFile = false;
+            
+            if (currentFile == null) {
+                // First save - create new file
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                String timestamp = sdf.format(new Date());
+                String filename = timestamp + ".txt";
+                file = new File(journalFolder, filename);
+                currentFile = file;
+                isNewFile = true;
+            } else {
+                // Subsequent saves - use existing file
+                file = currentFile;
+            }
+            
             try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
                 writer.println(title);
                 writer.println(); // Blank line for separation
                 writer.print(content); // Use print to avoid extra newline
             }
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", "Journal entry saved successfully!", false).showDialog();
-            app.switchCard(JournalApp.MAIN_MENU);
+            
+            String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog();

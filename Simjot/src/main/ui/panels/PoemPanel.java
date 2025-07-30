@@ -34,6 +34,7 @@ public class PoemPanel extends JPanel {
 
     // Floral background image
     private BufferedImage bgImage;
+    private File currentFile = null; // Track the current file being edited
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -220,21 +221,39 @@ public class PoemPanel extends JPanel {
         if (!journalFolder.exists()) {
             journalFolder.mkdirs();
         }
-        // Use a timestamp-based filename
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String timestamp = sdf.format(new Date());
-        String filename = timestamp + ".poem";
-        File poemFile = new File(journalFolder, filename);
-        try (PrintWriter writer = new PrintWriter(new FileWriter(poemFile))) {
-            writer.println(title);
-            writer.println();
-            writer.println(content);
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", "Poem saved successfully!", false).showDialog();
-            // Clear fields
-            poemTitleField.setText("");
-            poemTextArea.setText("");
-            // Return to main menu
-            app.switchCard(JournalApp.MAIN_MENU);
+        
+        try {
+            File poemFile;
+            boolean isNewFile = false;
+            
+            if (currentFile == null) {
+                // First save - create new file
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                String timestamp = sdf.format(new Date());
+                String filename = timestamp + ".poem";
+                poemFile = new File(journalFolder, filename);
+                currentFile = poemFile;
+                isNewFile = true;
+            } else {
+                // Subsequent saves - use existing file
+                poemFile = currentFile;
+            }
+            
+            try (PrintWriter writer = new PrintWriter(new FileWriter(poemFile))) {
+                writer.println(title);
+                writer.println();
+                writer.println(content);
+            }
+            
+            String message = isNewFile ? "Poem saved successfully!" : "Poem updated successfully!";
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+            
+            if (isNewFile) {
+                // Clear fields only on first save
+                poemTitleField.setText("");
+                poemTextArea.setText("");
+                currentFile = null; // Reset for next new poem
+            }
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving poem.", true).showDialog();
