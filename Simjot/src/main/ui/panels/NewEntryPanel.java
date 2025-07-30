@@ -8,9 +8,8 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import main.util.UndoRedoManager;
 import main.dialog.CustomMessageDialog;
-import main.transitions.FadingButton;
-import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
+import main.ui.JournalApp;
 import main.ui.components.MoodSlider;
 import main.util.AppDirectories;
 
@@ -144,9 +143,7 @@ public class NewEntryPanel extends JPanel {
         // --- Bottom Panel: Save Button ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setOpaque(false);
-        FadingButton saveButton = new FadingButton("Save Entry");
-        saveButton.setBackground(Color.DARK_GRAY);
-        saveButton.setForeground(Color.WHITE);
+        RoundedButton saveButton = new RoundedButton("Save Entry");
         saveButton.addActionListener(e -> saveEntry());
 
         // Word count label
