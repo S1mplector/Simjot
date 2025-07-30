@@ -3,8 +3,6 @@ package main.ui.panels;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
 import javax.swing.*;
 import main.dialog.CustomMessageDialog;
 import main.ui.buttons.RoundedButton;
@@ -21,9 +19,15 @@ public class WallpaperGalleryPanel extends JDialog {
     private final DefaultListModel<WallpaperItem> model = new DefaultListModel<>();
     private final JList<WallpaperItem> list = new JList<>(model);
     private WallpaperItem selectedItem = null;
+    private final boolean autoSaveSelection; // New field to control auto-saving
     
     public WallpaperGalleryPanel(Component parent) {
+        this(parent, true); // Default to auto-saving for backward compatibility
+    }
+    
+    public WallpaperGalleryPanel(Component parent, boolean autoSaveSelection) {
         super(SwingUtilities.getWindowAncestor(parent), "Choose Wallpaper", Dialog.ModalityType.APPLICATION_MODAL);
+        this.autoSaveSelection = autoSaveSelection;
         setLayout(new BorderLayout(10, 10));
         setSize(700, 600);
         setLocationRelativeTo(parent);
@@ -118,7 +122,7 @@ private JPanel buttonPanel;
         
         selectBtn.addActionListener(e -> {
             selectedItem = list.getSelectedValue();
-            if (selectedItem != null) {
+            if (selectedItem != null && autoSaveSelection) {
                 SettingsStore settings = SettingsStore.get();
                 settings.setBackgroundImage(selectedItem.getPath());
                 // Keep the existing opacity setting
@@ -292,7 +296,17 @@ private JPanel buttonPanel;
      * @return The selected WallpaperItem, or null if cancelled
      */
     public static WallpaperItem showWallpaperGallery(Component parent) {
-        WallpaperGalleryPanel panel = new WallpaperGalleryPanel(parent);
+        return showWallpaperGallery(parent, true);
+    }
+    
+    /**
+     * Shows the wallpaper gallery dialog and returns the selected wallpaper item.
+     * @param parent The parent component
+     * @param autoSave Whether to automatically save the selection to main menu background
+     * @return The selected WallpaperItem, or null if cancelled
+     */
+    public static WallpaperItem showWallpaperGallery(Component parent, boolean autoSave) {
+        WallpaperGalleryPanel panel = new WallpaperGalleryPanel(parent, autoSave);
         panel.setVisible(true);
         return panel.getSelectedImage();
     }

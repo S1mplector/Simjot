@@ -121,8 +121,8 @@ public class EntryBackgroundDialog extends JDialog {
     }
     
     private void selectFromGallery() {
-        // Use the existing WallpaperGalleryPanel to select an image
-        WallpaperGalleryPanel.WallpaperItem selected = WallpaperGalleryPanel.showWallpaperGallery(this);
+        // Use the existing WallpaperGalleryPanel to select an image, but don't auto-save to main menu background
+        WallpaperGalleryPanel.WallpaperItem selected = WallpaperGalleryPanel.showWallpaperGallery(this, false);
         if (selected != null) {
             selectedImagePath = selected.getPath();
             // Convert Image to BufferedImage if needed
