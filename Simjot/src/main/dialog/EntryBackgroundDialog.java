@@ -3,7 +3,6 @@ package main.dialog;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import main.ui.panels.WallpaperGalleryPanel;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
@@ -45,20 +44,14 @@ public class EntryBackgroundDialog extends JDialog {
         opacitySlider = new JSlider(0, 100, (int)(currentOpacity * 100));
         opacitySlider.setPreferredSize(new Dimension(200, 30));
         opacitySlider.addChangeListener(e -> {
-            if (!opacitySlider.getValueIsAdjusting()) {
-                currentOpacity = opacitySlider.getValue() / 100f;
-                previewLabel.repaint();
-            }
+            currentOpacity = opacitySlider.getValue() / 100f;
+            previewLabel.repaint();
         });
         opacityPanel.add(opacitySlider);
         
         // Gallery button
         JButton galleryBtn = new JButton("Choose from Gallery...");
         galleryBtn.addActionListener(e -> selectFromGallery());
-        
-        // Custom image button
-        JButton customBtn = new JButton("Choose Custom Image...");
-        customBtn.addActionListener(e -> selectCustomBackground());
         
         // Remove background button
         JButton removeBtn = new JButton("Remove Background");
@@ -84,14 +77,14 @@ public class EntryBackgroundDialog extends JDialog {
         
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
         
-        // Button container for gallery and custom buttons
-        JPanel selectButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        selectButtonsPanel.add(galleryBtn);
-        selectButtonsPanel.add(customBtn);
+        // Button container for gallery and remove buttons
+        JPanel leftButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        leftButtonsPanel.add(galleryBtn);
+        leftButtonsPanel.add(removeBtn);
         
         // Container for all bottom controls
         JPanel bottomControlsPanel = new JPanel(new BorderLayout(10, 10));
-        bottomControlsPanel.add(selectButtonsPanel, BorderLayout.WEST);
+        bottomControlsPanel.add(leftButtonsPanel, BorderLayout.WEST);
         bottomControlsPanel.add(buttonPanel, BorderLayout.EAST);
         
         bottomPanel.add(bottomControlsPanel, BorderLayout.SOUTH);
@@ -130,30 +123,6 @@ public class EntryBackgroundDialog extends JDialog {
                     selectedImage = bimage;
                 }
                 previewLabel.repaint();
-            }
-        }
-    }
-    
-    private void selectCustomBackground() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Select Background Image");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("Image files", "jpg", "jpeg", "png", "gif"));
-            
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            try {
-                java.io.File selectedFile = fileChooser.getSelectedFile();
-                selectedImage = javax.imageio.ImageIO.read(selectedFile);
-                if (selectedImage != null) {
-                    selectedImagePath = selectedFile.getAbsolutePath();
-                    previewLabel.repaint();
-                } else {
-                    throw new Exception("Failed to load image");
-                }
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this,
-                    "Error loading image: " + ex.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }

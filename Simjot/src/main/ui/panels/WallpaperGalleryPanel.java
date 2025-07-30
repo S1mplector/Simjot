@@ -21,7 +21,6 @@ public class WallpaperGalleryPanel extends JDialog {
     private final DefaultListModel<WallpaperItem> model = new DefaultListModel<>();
     private final JList<WallpaperItem> list = new JList<>(model);
     private WallpaperItem selectedItem = null;
-    private JSlider opacitySlider;
     
     public WallpaperGalleryPanel(Component parent) {
         super(SwingUtilities.getWindowAncestor(parent), "Choose Wallpaper", Dialog.ModalityType.APPLICATION_MODAL);
@@ -38,40 +37,10 @@ public class WallpaperGalleryPanel extends JDialog {
         setupImageGrid();
         add(new JScrollPane(list), BorderLayout.CENTER);
         
-        // Opacity control
-        JPanel opacityPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
-        opacityPanel.setBorder(BorderFactory.createTitledBorder("Background Opacity"));
-        
-        JLabel opacityLabel = new JLabel("Opacity:");
-        opacitySlider = new JSlider(0, 100, (int)(SettingsStore.get().getBackgroundOpacity() * 100));
-        opacitySlider.setPreferredSize(new Dimension(200, 30));
-        opacitySlider.setMajorTickSpacing(25);
-        opacitySlider.setMinorTickSpacing(5);
-        opacitySlider.setPaintTicks(true);
-        opacitySlider.setPaintLabels(true);
-        
-        JLabel valueLabel = new JLabel(String.format("%d%%", opacitySlider.getValue()));
-        opacitySlider.addChangeListener(e -> {
-            int value = opacitySlider.getValue();
-            valueLabel.setText(String.format("%d%%", value));
-            // Update the preview if an item is selected
-            if (list.getSelectedValue() != null) {
-                SettingsStore.get().setBackgroundOpacity(value / 100.0f);
-                SettingsStore.get().save();
-                // Trigger a repaint of the preview
-                list.repaint();
-            }
-        });
-        
-        opacityPanel.add(opacityLabel);
-        opacityPanel.add(opacitySlider);
-        opacityPanel.add(valueLabel);
-        
-        // Buttons
+        // Buttons panel
         JPanel bottomPanel = new JPanel(new BorderLayout());
-        bottomPanel.add(opacityPanel, BorderLayout.NORTH);
         setupButtons();
-        bottomPanel.add(buttonPanel, BorderLayout.SOUTH);
+        bottomPanel.add(buttonPanel, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
         
         loadWallpapers();
@@ -152,7 +121,7 @@ private JPanel buttonPanel;
             if (selectedItem != null) {
                 SettingsStore settings = SettingsStore.get();
                 settings.setBackgroundImage(selectedItem.getPath());
-                settings.setBackgroundOpacity(opacitySlider.getValue() / 100.0f);
+                // Keep the existing opacity setting
                 settings.save();
             }
             dispose();
