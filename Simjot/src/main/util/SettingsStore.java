@@ -19,12 +19,18 @@ public final class SettingsStore {
     private static final String KEY_THEME        = "theme";
     private static final String KEY_GLOW         = "glowEnabled";
     private static final String KEY_BG_IMAGE     = "backgroundImage";
+    private static final String KEY_BG_OPACITY   = "backgroundOpacity";
+    private static final String KEY_ENTRY_BG_IMAGE = "entryBackgroundImage";
+    private static final String KEY_ENTRY_BG_OPACITY = "entryBackgroundOpacity";
     private static final String KEY_BRUSH_SIZE   = "defaultBrushSize";
     private static final String KEY_SMOOTHING    = "strokeSmoothing";
     private static final String KEY_THUMBNAILS   = "generateThumbnails";
     private static final String KEY_AUTOSAVE     = "autosaveMinutes";
     private static final String KEY_TUTORIAL_SEEN = "tutorialSeen";
     private static final String KEY_DISABLE_ANIMATIONS = "disableAnimations";
+    
+    // Default values
+    private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
 
     // Defaults
     private static final int    DEF_JOURNAL_FONT = 14;
@@ -32,6 +38,7 @@ public final class SettingsStore {
     private static final String DEF_THEME        = "Light";
     private static final boolean DEF_GLOW        = false;
     private static final String  DEF_BG_IMAGE    = "";
+    private static final float   DEF_BG_OPACITY  = 0.5f; // Default to 50% opacity
     private static final int     DEF_BRUSH_SIZE  = 5;
     private static final boolean DEF_SMOOTHING   = true;
     private static final boolean DEF_THUMBNAILS  = true;
@@ -80,6 +87,45 @@ public final class SettingsStore {
     public void setGlowEnabled(boolean b){ props.setProperty(KEY_GLOW, String.valueOf(b)); }
 
     public String getBackgroundImage(){ return props.getProperty(KEY_BG_IMAGE, DEF_BG_IMAGE); }
+    
+    public float getBackgroundOpacity() {
+        try {
+            return Float.parseFloat(props.getProperty(KEY_BG_OPACITY, String.valueOf(DEF_BG_OPACITY)));
+        } catch (NumberFormatException e) {
+            return DEF_BG_OPACITY;
+        }
+    }
+    
+    public void setBackgroundOpacity(float opacity) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
+        props.setProperty(KEY_BG_OPACITY, String.valueOf(clamped));
+    }
+    
+    public String getEntryBackgroundImage() {
+        return props.getProperty(KEY_ENTRY_BG_IMAGE, "");
+    }
+    
+    public void setEntryBackgroundImage(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            props.remove(KEY_ENTRY_BG_IMAGE);
+        } else {
+            props.setProperty(KEY_ENTRY_BG_IMAGE, path);
+        }
+    }
+    
+    public float getEntryBackgroundOpacity() {
+        try {
+            return Float.parseFloat(props.getProperty(KEY_ENTRY_BG_OPACITY, String.valueOf(DEF_ENTRY_BG_OPACITY)));
+        } catch (NumberFormatException e) {
+            return DEF_ENTRY_BG_OPACITY;
+        }
+    }
+    
+    public void setEntryBackgroundOpacity(float opacity) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
+        props.setProperty(KEY_ENTRY_BG_OPACITY, String.valueOf(clamped));
+    }
+    
     public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); }
 
     public int getDefaultBrushSize(){ return Integer.parseInt(props.getProperty(KEY_BRUSH_SIZE, String.valueOf(DEF_BRUSH_SIZE))); }

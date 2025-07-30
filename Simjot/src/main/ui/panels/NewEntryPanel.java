@@ -1,13 +1,17 @@
 package main.ui.panels;
 
 import java.awt.*;
+import java.awt.image.*;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import main.util.SettingsStore;
+import main.util.ResourceLoader;
 import main.util.UndoRedoManager;
 import main.dialog.CustomMessageDialog;
+import main.dialog.EntryBackgroundDialog;
 import main.ui.buttons.RoundedButton;
 import main.ui.JournalApp;
 import main.ui.components.MoodSlider;
@@ -23,6 +27,13 @@ public class NewEntryPanel extends JPanel {
     protected JTextField titleField;
     protected JTextArea contentArea;
     protected MoodSlider moodSlider;
+    private Image backgroundImage;
+    private BufferedImage cachedScaled;
+    private int cachedPanelW = -1;
+    private int cachedPanelH = -1;
+    private int cachedX = 0;
+    private int cachedY = 0;
+    private float cachedOpacity = -1f;
 
 
 
@@ -33,7 +44,8 @@ public class NewEntryPanel extends JPanel {
         this.cardPanel = cardPanel;
         setLayout(new BorderLayout());
         setOpaque(false);
-        setBackground(new Color(250, 250, 245)); // An off-white, paper-like color
+        // Set a transparent background so the parent's background can show through
+        setBackground(new Color(0, 0, 0, 0));
         initUI();
     }
 
@@ -52,20 +64,92 @@ public class NewEntryPanel extends JPanel {
     // Paint the background image scaled to fill the panel.
     @Override
     protected void paintComponent(Graphics g) {
-        // Since we're not using a background image anymore,
-        // we can just let the default paintComponent handle the solid color.
         super.paintComponent(g);
+        
+        // Draw the background image with opacity if available
+        String bgPath = SettingsStore.get().getEntryBackgroundImage();
+        if (bgPath != null && !bgPath.isEmpty()) {
+            // Load the background image if not already loaded
+            if (backgroundImage == null) {
+                if (bgPath.startsWith("res:")) {
+                    // Built-in resource
+                    String resPath = bgPath.substring(4);
+                    backgroundImage = ResourceLoader.createImage("Simjot/" + resPath);
+                } else {
+                    // User-selected file
+                    backgroundImage = new ImageIcon(bgPath).getImage();
+                }
+            }
+            
+            if (backgroundImage != null) {
+                int panelW = getWidth();
+                int panelH = getHeight();
+                float opacity = SettingsStore.get().getEntryBackgroundOpacity();
+                
+                // Recreate cache only if necessary
+                if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || opacity != cachedOpacity) {
+                    int imgW = backgroundImage.getWidth(this);
+                    int imgH = backgroundImage.getHeight(this);
+                    
+                    if (imgW > 0 && imgH > 0) {
+                        // Calculate scale factor to cover the panel while maintaining aspect ratio
+                        double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
+                        int drawW = (int) Math.round(imgW * scale);
+                        int drawH = (int) Math.round(imgH * scale);
+                        
+                        cachedX = (panelW - drawW) / 2;
+                        cachedY = (panelH - drawH) / 2;
+                        cachedPanelW = panelW;
+                        cachedPanelH = panelH;
+                        cachedOpacity = opacity;
+                        
+                        // Create a new image with the current opacity
+                        BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
+                        Graphics2D cg = tmp.createGraphics();
+                        
+                        // Set the composite with the current opacity
+                        AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity);
+                        cg.setComposite(ac);
+                        
+                        // Draw the image with the applied opacity
+                        cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                        cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
+                        cg.dispose();
+                        
+                        cachedScaled = tmp;
+                    }
+                }
+                
+                // Draw the cached image
+                if (cachedScaled != null) {
+                    g.drawImage(cachedScaled, cachedX, cachedY, this);
+                }
+            }
+        }
     }
 
     private void initUI() {
         // --- Modern Flat Toolbar (matching DrawingPanel) ---
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.setBackground(new Color(230,230,230));
+        toolbar.setBackground(new Color(230, 230, 230, 200)); // Semi-transparent gray
 
         // Back button
         RoundedButton backButton = new RoundedButton("Back");
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
         toolbar.add(backButton);
+        
+        // Background button
+        JButton bgButton = new JButton("Background");
+        bgButton.addActionListener(e -> {
+            EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
+            dialog.setVisible(true);
+            // Refresh the background if it was changed
+            backgroundImage = null;
+            cachedScaled = null;
+            repaint();
+        });
+        toolbar.add(bgButton);
 
         // Title label & field
         JLabel titleLabel = new JLabel("Title:");
@@ -96,6 +180,10 @@ public class NewEntryPanel extends JPanel {
         // Mood Buttons Panel
         JPanel moodPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 5));
         moodPanel.setOpaque(false);
+        
+        // Make content area semi-transparent
+        JPanel contentWrapper = new JPanel(new BorderLayout());
+        contentWrapper.setOpaque(false);
         moodSlider = new MoodSlider();
         moodPanel.add(moodSlider);
 
@@ -103,46 +191,43 @@ public class NewEntryPanel extends JPanel {
 
         // Content Area: Text editor with undo/redo support
         contentArea = new JTextArea();
-        contentArea.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        contentArea.setFont(new Font("Serif", Font.PLAIN, JournalApp.globalJournalFontSize));
         contentArea.setLineWrap(true);
         contentArea.setWrapStyleWord(true);
         contentArea.setOpaque(false);
         contentArea.setForeground(Color.DARK_GRAY);
         
-        // Set up undo/redo for content area and title field
-        // We don't need to store the UndoRedoManager instances since they manage themselves
+        // Add undo/redo support
         @SuppressWarnings("unused")
         UndoRedoManager contentUndoManager = new UndoRedoManager(contentArea);
         @SuppressWarnings("unused")
         UndoRedoManager titleUndoManager = new UndoRedoManager(titleField);
-
-        // Add a listener to update the word count
+        
+        // Add document listener for word count
         contentArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            @Override
-            public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                updateWordCount();
-            }
-            @Override
-            public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                updateWordCount();
-            }
-            @Override
-            public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                updateWordCount();
-            }
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { updateWordCount(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { updateWordCount(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { updateWordCount(); }
         });
-
+        
         JScrollPane scrollPane = new JScrollPane(contentArea);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
-
-        middlePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Add components to the wrapper
+        contentWrapper.add(moodPanel, BorderLayout.NORTH);
+        contentWrapper.add(scrollPane, BorderLayout.CENTER);
+        
+        // Add the wrapper to the middle panel
+        middlePanel.add(contentWrapper, BorderLayout.CENTER);
 
         add(middlePanel, BorderLayout.CENTER);
 
         // --- Bottom Panel: Save Button ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setOpaque(false);
+        
         RoundedButton saveButton = new RoundedButton("Save Entry");
         saveButton.addActionListener(e -> saveEntry());
 

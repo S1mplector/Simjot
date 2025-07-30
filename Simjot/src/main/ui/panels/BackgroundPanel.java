@@ -3,6 +3,7 @@ package main.ui.panels;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.swing.*;
+import main.util.SettingsStore;
 
 public class BackgroundPanel extends JPanel {
 	private static final long serialVersionUID = 1L;
@@ -14,6 +15,7 @@ public class BackgroundPanel extends JPanel {
 	private int cachedPanelH = -1;
 	private int cachedX = 0;
 	private int cachedY = 0;
+	private float cachedOpacity = -1f;
 	
 	// Reusable popup menu for removing the background
 	private final JPopupMenu contextMenu = new JPopupMenu();
@@ -65,6 +67,7 @@ public class BackgroundPanel extends JPanel {
 	private void clearBackground() {
 		backgroundImage = null;
 		cachedScaled = null;
+		cachedOpacity = -1f;
 		repaint();
 	}
 	
@@ -119,8 +122,11 @@ public class BackgroundPanel extends JPanel {
 				return;
 			}
 
-			// Recreate cache only if panel size changed or cache missing
-			if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH) {
+			// Get current opacity setting
+			float currentOpacity = SettingsStore.get().getBackgroundOpacity();
+			
+			// If opacity changed or we don't have a cached image, update the cache
+			if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || currentOpacity != cachedOpacity) {
 				int imgW = backgroundImage.getWidth(this);
 				int imgH = backgroundImage.getHeight(this);
 				if (imgW <= 0 || imgH <= 0) return;
@@ -134,18 +140,26 @@ public class BackgroundPanel extends JPanel {
 				cachedY = (panelH - drawH) / 2;
 				cachedPanelW = panelW;
 				cachedPanelH = panelH;
+				cachedOpacity = currentOpacity;
 
-				// Render scaled version into cache image
+				// Create a new image with the current opacity
 				BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
 				Graphics2D cg = tmp.createGraphics();
+				
+				// Set the composite with the current opacity
+				AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, currentOpacity);
+				cg.setComposite(ac);
+				
+				// Draw the image with the applied opacity
 				cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 				cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 				cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
 				cg.dispose();
+				
 				cachedScaled = tmp;
 			}
 
-			// Draw cached image
+			// Draw the cached image with the correct opacity
 			g.drawImage(cachedScaled, cachedX, cachedY, this);
 		}
 	}
