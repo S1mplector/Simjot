@@ -1,12 +1,13 @@
 package main.ui.panels;
 
 import java.awt.*;
-import java.awt.image.BufferedImage;
+import java.awt.event.ActionEvent;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.undo.UndoManager;
 import main.dialog.CustomMessageDialog;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
@@ -25,8 +26,7 @@ public class NewEntryPanel extends JPanel {
     protected JTextArea contentArea;
     protected MoodSlider moodSlider;
 
-    // Background image (paper)
-    private BufferedImage backgroundImage;
+
 
     public NewEntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -103,22 +103,88 @@ public class NewEntryPanel extends JPanel {
 
         middlePanel.add(moodPanel, BorderLayout.NORTH);
 
-        // Content Area: Text editor
+        // Content Area: Text editor with undo/redo support
         contentArea = new JTextArea();
         contentArea.setFont(new Font("SansSerif", Font.PLAIN, 16));
         contentArea.setLineWrap(true);
         contentArea.setWrapStyleWord(true);
         contentArea.setOpaque(false);
         contentArea.setForeground(Color.DARK_GRAY);
+        
+        // Set up undo/redo functionality for content area
+        final UndoManager undoManager = new UndoManager();
+        contentArea.getDocument().addUndoableEditListener(e -> 
+            undoManager.addEdit(e.getEdit())
+        );
+        
+        // Add undo/redo keyboard shortcuts (Ctrl+Z and Ctrl+Y)
+        InputMap inputMap = contentArea.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap actionMap = contentArea.getActionMap();
+        
+        // Undo action (Ctrl+Z)
+        inputMap.put(KeyStroke.getKeyStroke("control Z"), "undo");
+        actionMap.put("undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (undoManager.canUndo()) {
+                    undoManager.undo();
+                }
+            }
+        });
+        
+        // Redo action (Ctrl+Y or Ctrl+Shift+Z)
+        inputMap.put(KeyStroke.getKeyStroke("control Y"), "redo");
+        inputMap.put(KeyStroke.getKeyStroke("control shift Z"), "redo");
+        actionMap.put("redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (undoManager.canRedo()) {
+                    undoManager.redo();
+                }
+            }
+        });
+        
+        // Add undo/redo to the title field as well
+        final UndoManager titleUndoManager = new UndoManager();
+        titleField.getDocument().addUndoableEditListener(e -> 
+            titleUndoManager.addEdit(e.getEdit())
+        );
+        
+        InputMap titleInputMap = titleField.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap titleActionMap = titleField.getActionMap();
+        
+        titleInputMap.put(KeyStroke.getKeyStroke("control Z"), "undo");
+        titleActionMap.put("undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (titleUndoManager.canUndo()) {
+                    titleUndoManager.undo();
+                }
+            }
+        });
+        
+        titleInputMap.put(KeyStroke.getKeyStroke("control Y"), "redo");
+        titleInputMap.put(KeyStroke.getKeyStroke("control shift Z"), "redo");
+        titleActionMap.put("redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (titleUndoManager.canRedo()) {
+                    titleUndoManager.redo();
+                }
+            }
+        });
 
         // Add a listener to update the word count
         contentArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
             }
+            @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
             }
+            @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
             }
