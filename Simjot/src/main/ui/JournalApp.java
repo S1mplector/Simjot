@@ -18,7 +18,6 @@ import main.ui.panels.NotebookEntriesPanel;
 import main.ui.panels.NotebookManagerPanel;
 import main.ui.panels.PoemPanel;
 import main.ui.panels.SettingsPanel;
-import main.ui.panels.TodoPanel;
 import main.ui.panels.ViewEntriesPanel;
 import main.util.AppDirectories;
 import main.util.NotebookInfo;
@@ -41,15 +40,14 @@ public class JournalApp extends JFrame {
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
 
     // Card identifiers
-    public static final String MAIN_MENU = "MainMenu";
-    public static final String NEW_ENTRY = "NewEntry";
-    public static final String VIEW_ENTRIES = "ViewEntries";
-    public static final String MOOD_CHART = "MoodChart";
-    public static final String NEW_POEM = "NewPoem";
+    public static final String MAIN_MENU = "Main Menu";
+    public static final String NEW_ENTRY = "New Entry";
+    public static final String VIEW_ENTRIES = "View Entries";
+    public static final String MOOD_CHART = "Mood Chart";
+    public static final String NEW_POEM = "New Poem";
     public static final String SETTINGS = "Settings";
     public static final String GALLERY = "Gallery";
-    public static final String NOTEBOOK_MANAGER = "NotebookManager";
-    public static final String TASKS = "Tasks";
+    public static final String NOTEBOOK_MANAGER = "Notebook Manager";
 
     // Additional references for panels that might need referencing
     private SettingsPanel settingsPanel;
@@ -58,11 +56,6 @@ public class JournalApp extends JFrame {
 
     private boolean firstSwitchDone = false;
 
-    // Buttons references for tutorial highlighting
-    // private FadingButton btnNewEntry, btnNewPoem,
-    //                      btnViewEntries, btnMoodChart,
-    //                      btnDrawing, btnGallery; // removed – highlight buttons moved to MainMenuPanel
-
     private JPanel mainMenuPanel;
 
     // Keeps track of dynamically created entry manager panels for notebooks
@@ -70,9 +63,6 @@ public class JournalApp extends JFrame {
 
     // Added for openExistingEntryEditor method
     private final java.util.Map<String,JPanel> cardMap = new java.util.HashMap<>();
-
-    // Toggle to quickly hide the Gallery feature without removing code/resources.
-    // private static final boolean SHOW_GALLERY = false; // removed – handled inside MainMenuPanel
 
     public JournalApp() {
         super("Simjot");
@@ -157,10 +147,6 @@ public class JournalApp extends JFrame {
         NotebookManagerPanel notebookManagerPanel = new NotebookManagerPanel(this);
         cardPanel.add(notebookManagerPanel, NOTEBOOK_MANAGER);
 
-        // ----------------- Tasks Panel -----------------
-        TodoPanel tasksPanel = new TodoPanel(this, cardLayout, cardPanel);
-        cardPanel.add(tasksPanel, TASKS);
-
         getContentPane().add(cardPanel);
 
         // Fade transitions
@@ -224,32 +210,6 @@ public class JournalApp extends JFrame {
     private JPanel createMainMenuPanel() {
         return new MainMenuPanel(this);
     }
-
-    // /**
-    //  * Legacy helper – replaced by MainMenuPanel.createMenuButtonWithIcon()
-    //  */
-    // private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon){
-    //     FadingButton button = new MainMenuButton(text, icon);
-
-    //     // Uniform styling so all buttons appear with equal padding/size
-    //     button.setForeground(Color.WHITE);
-    //     button.setFont(button.getFont().deriveFont(Font.BOLD, 20f));
-    //     button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
-    //     button.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-    //     // Clicking the button switches to the associated card
-    //     button.addActionListener(e -> switchCard(cardName));
-
-    //     // Store reference for tutorial highlights
-    //     if(cardName.equals(NEW_ENTRY)) btnNewEntry = button;
-    //     else if(cardName.equals(NEW_POEM)) btnNewPoem = button;
-    //     else if(cardName.equals(VIEW_ENTRIES)) btnViewEntries = button;
-    //     else if(cardName.equals(MOOD_CHART)) btnMoodChart = button;
-    //     else if(cardName.equals("Drawing")) btnDrawing = button;
-    //     else if(cardName.equals(GALLERY)) btnGallery = button;
-
-    //     return button;
-    // }
 
     private void showTutorialIfFirstTime() {
         SettingsStore store = SettingsStore.get();

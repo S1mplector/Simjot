@@ -73,10 +73,10 @@ public class ModernDatePicker extends JPanel {
         
         add(inputPanel, BorderLayout.CENTER);
         
-        // Quick preset buttons panel - more compact
-        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 1, 2));
+        // Quick preset buttons panel with improved spacing
+        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
         presetsPanel.setOpaque(false);
-        presetsPanel.setPreferredSize(new Dimension(200, 28)); // Fixed height
+        presetsPanel.setPreferredSize(new Dimension(250, 10)); // Slightly larger to accommodate better spacing
         
         todayButton = new PresetButton("Today");
         todayButton.addActionListener(e -> setSelectedDate(LocalDate.now()));

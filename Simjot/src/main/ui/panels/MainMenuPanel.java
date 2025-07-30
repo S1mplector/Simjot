@@ -82,17 +82,7 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(notebooksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
-        // ---------- PLANNING section ----------
-        JLabel planningHeader = new JLabel("Planning");
-        planningHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        planningHeader.setForeground(Color.WHITE);
-        planningHeader.setFont(planningHeader.getFont().deriveFont(Font.BOLD, 22f));
-        buttonPanel.add(planningHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-
-        FadingButton tasksButton = createMenuButtonWithIcon("Tasks", JournalApp.TASKS, "tick");
-        buttonPanel.add(tasksButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
+        // Planning section has been removed
 
         // ---------- ARTS section ----------
         JLabel artsHeader = new JLabel("Arts & Gallery");
