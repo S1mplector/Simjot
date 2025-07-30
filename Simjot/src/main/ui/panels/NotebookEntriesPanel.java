@@ -129,8 +129,9 @@ public class NotebookEntriesPanel extends JPanel {
     private void deleteSelected(){
         File f = list.getSelectedValue();
         if(f==null) return;
-        int ok=JOptionPane.showConfirmDialog(this,"Delete "+f.getName()+"?","Confirm",JOptionPane.OK_CANCEL_OPTION);
-        if(ok==JOptionPane.OK_OPTION){ f.delete(); loadFiles(); update(); }
+        String title = titles.getOrDefault(f, f.getName());
+        boolean ok = CustomConfirmDialog.confirm(this, "Delete Entry", "Delete entry '"+title+"'?");
+        if(ok){ f.delete(); loadFiles(); update(); }
     }
 
     private void deleteNotebook(){
