@@ -1,13 +1,12 @@
 package main.ui.panels;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.undo.UndoManager;
+import main.util.UndoRedoManager;
 import main.dialog.CustomMessageDialog;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
@@ -111,68 +110,12 @@ public class NewEntryPanel extends JPanel {
         contentArea.setOpaque(false);
         contentArea.setForeground(Color.DARK_GRAY);
         
-        // Set up undo/redo functionality for content area
-        final UndoManager undoManager = new UndoManager();
-        contentArea.getDocument().addUndoableEditListener(e -> 
-            undoManager.addEdit(e.getEdit())
-        );
-        
-        // Add undo/redo keyboard shortcuts (Ctrl+Z and Ctrl+Y)
-        InputMap inputMap = contentArea.getInputMap(JComponent.WHEN_FOCUSED);
-        ActionMap actionMap = contentArea.getActionMap();
-        
-        // Undo action (Ctrl+Z)
-        inputMap.put(KeyStroke.getKeyStroke("control Z"), "undo");
-        actionMap.put("undo", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (undoManager.canUndo()) {
-                    undoManager.undo();
-                }
-            }
-        });
-        
-        // Redo action (Ctrl+Y or Ctrl+Shift+Z)
-        inputMap.put(KeyStroke.getKeyStroke("control Y"), "redo");
-        inputMap.put(KeyStroke.getKeyStroke("control shift Z"), "redo");
-        actionMap.put("redo", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (undoManager.canRedo()) {
-                    undoManager.redo();
-                }
-            }
-        });
-        
-        // Add undo/redo to the title field as well
-        final UndoManager titleUndoManager = new UndoManager();
-        titleField.getDocument().addUndoableEditListener(e -> 
-            titleUndoManager.addEdit(e.getEdit())
-        );
-        
-        InputMap titleInputMap = titleField.getInputMap(JComponent.WHEN_FOCUSED);
-        ActionMap titleActionMap = titleField.getActionMap();
-        
-        titleInputMap.put(KeyStroke.getKeyStroke("control Z"), "undo");
-        titleActionMap.put("undo", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (titleUndoManager.canUndo()) {
-                    titleUndoManager.undo();
-                }
-            }
-        });
-        
-        titleInputMap.put(KeyStroke.getKeyStroke("control Y"), "redo");
-        titleInputMap.put(KeyStroke.getKeyStroke("control shift Z"), "redo");
-        titleActionMap.put("redo", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (titleUndoManager.canRedo()) {
-                    titleUndoManager.redo();
-                }
-            }
-        });
+        // Set up undo/redo for content area and title field
+        // We don't need to store the UndoRedoManager instances since they manage themselves
+        @SuppressWarnings("unused")
+        UndoRedoManager contentUndoManager = new UndoRedoManager(contentArea);
+        @SuppressWarnings("unused")
+        UndoRedoManager titleUndoManager = new UndoRedoManager(titleField);
 
         // Add a listener to update the word count
         contentArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
