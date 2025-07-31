@@ -6,15 +6,16 @@ import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Random;
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
 import main.dialog.CustomMessageDialog;
-import main.transitions.FadingButton;
+import main.dialog.PoemBackgroundDialog;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
+import main.util.ResourceLoader;
+import main.util.SettingsStore;
 
 public class PoemPanel extends JPanel {
     protected CardLayout cardLayout;
@@ -32,8 +33,14 @@ public class PoemPanel extends JPanel {
         "Luminescence", "Redolent", "Somnambulist", "Susurrus", "Opalescent", "Reverie"
     };
 
-    // Floral background image
-    private BufferedImage bgImage;
+    // Background system
+    private Image backgroundImage;
+    private BufferedImage cachedScaled;
+    private int cachedPanelW = -1;
+    private int cachedPanelH = -1;
+    private int cachedX = 0;
+    private int cachedY = 0;
+    private float cachedOpacity = -1f;
     private File currentFile = null; // Track the current file being edited
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
@@ -43,53 +50,138 @@ public class PoemPanel extends JPanel {
         this.cardPanel = cardPanel;
         setLayout(new BorderLayout());
         setOpaque(false);
-        loadBackground();
+        // Set a transparent background so the parent's background can show through
+        setBackground(new Color(0, 0, 0, 0));
         initUI();
     }
 
-    // Load a floral or pastel image from img/poem_bg.jpg
-    private void loadBackground() {
-        try {
-            bgImage = ImageIO.read(new File("Simjot/img/poem.png")); 
-            // Change the filename above if yours is different
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            bgImage = null;
-        }
-    }
-
-    // Paint the background image scaled to fill the entire panel.
+    // Paint the background image scaled to fill the panel with white default.
     @Override
     protected void paintComponent(Graphics g) {
-        if (bgImage != null) {
-            g.drawImage(bgImage, 0, 0, getWidth(), getHeight(), this);
-        }
         super.paintComponent(g);
+        
+        // Draw white background first
+        g.setColor(Color.WHITE);
+        g.fillRect(0, 0, getWidth(), getHeight());
+        
+        // Draw the background image with opacity if available
+        String bgPath = SettingsStore.get().getPoemBackgroundImage();
+        if (bgPath != null && !bgPath.isEmpty()) {
+            // Load the background image if not already loaded
+            if (backgroundImage == null) {
+                if (bgPath.startsWith("res:")) {
+                    // Built-in resource
+                    String resPath = bgPath.substring(4);
+                    backgroundImage = ResourceLoader.createImage("Simjot/" + resPath);
+                } else {
+                    // User-selected file
+                    backgroundImage = new ImageIcon(bgPath).getImage();
+                }
+            }
+            
+            if (backgroundImage != null) {
+                int panelW = getWidth();
+                int panelH = getHeight();
+                float opacity = SettingsStore.get().getPoemBackgroundOpacity();
+                
+                // Recreate cache only if necessary
+                if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || opacity != cachedOpacity) {
+                    int imgW = backgroundImage.getWidth(this);
+                    int imgH = backgroundImage.getHeight(this);
+                    
+                    if (imgW > 0 && imgH > 0) {
+                        // Calculate scale factor to cover the panel while maintaining aspect ratio
+                        double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
+                        int drawW = (int) Math.round(imgW * scale);
+                        int drawH = (int) Math.round(imgH * scale);
+                        
+                        cachedX = (panelW - drawW) / 2;
+                        cachedY = (panelH - drawH) / 2;
+                        cachedPanelW = panelW;
+                        cachedPanelH = panelH;
+                        cachedOpacity = opacity;
+                        
+                        // Create a new image with the current opacity
+                        BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
+                        Graphics2D cg = tmp.createGraphics();
+                        
+                        // Set the composite with the current opacity
+                        AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity);
+                        cg.setComposite(ac);
+                        
+                        // Draw the image with the applied opacity
+                        cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                        cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
+                        cg.dispose();
+                        
+                        cachedScaled = tmp;
+                    }
+                }
+                
+                // Draw the cached image
+                if (cachedScaled != null) {
+                    g.drawImage(cachedScaled, cachedX, cachedY, this);
+                }
+            }
+        }
     }
 
     private void initUI() {
-        // --- Top Panel with a fancy rounded background for the poem title ---
-        RoundedPanel topPanel = new RoundedPanel();
-        topPanel.setBackground(new Color(255, 255, 255, 180));
-        topPanel.setLayout(new BorderLayout(5, 5));
-        topPanel.setOpaque(false);
-        topPanel.setPreferredSize(new Dimension(0, 60));
+        // --- Modern Toolbar Container ---
+        JPanel toolbarContainer = new JPanel(new BorderLayout(0, 5));
+        toolbarContainer.setBackground(new Color(230, 230, 230, 200)); // Semi-transparent gray
+        toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+        // Top toolbar row
+        JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topToolbar.setOpaque(false);
+
+        // Back button
+        RoundedButton backButton = new RoundedButton("Back");
+        backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
+        topToolbar.add(backButton);
+        
+        // Background button
+        RoundedButton bgButton = new RoundedButton("Background");
+        bgButton.addActionListener(e -> {
+            PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
+            dialog.setVisible(true);
+            // Refresh the background if it was changed
+            backgroundImage = null;
+            cachedScaled = null;
+            repaint();
+        });
+        topToolbar.add(bgButton);
+
+        // Title label & field
         JLabel titleLabel = new JLabel("Poem Title:");
-        titleLabel.setFont(new Font("Serif", Font.BOLD, 18));
-        titleLabel.setForeground(new Color(60, 50, 50)); // a soft dark color
-        topPanel.add(titleLabel, BorderLayout.WEST);
+        titleLabel.setForeground(Color.DARK_GRAY);
+        titleLabel.setFont(new Font("Serif", Font.BOLD, 16));
+        topToolbar.add(Box.createHorizontalStrut(6));
+        topToolbar.add(titleLabel);
 
-        poemTitleField = new JTextField();
+        poemTitleField = new ModernTextField(24);
         poemTitleField.setFont(new Font("Serif", Font.BOLD, 16));
-        poemTitleField.setForeground(new Color(70, 60, 60));
-        poemTitleField.setOpaque(false);
-        poemTitleField.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        topPanel.add(poemTitleField, BorderLayout.CENTER);
+        topToolbar.add(poemTitleField);
 
-        // --- Font Selection & Back Button ---
-        JPanel eastControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
-        eastControls.setOpaque(false);
+        // Font buttons (A- / A+)
+        RoundedButton decFont = new RoundedButton("A-");
+        RoundedButton incFont = new RoundedButton("A+");
+        decFont.addActionListener(e -> changeFontSize(-1));
+        incFont.addActionListener(e -> changeFontSize(1));
+        topToolbar.add(Box.createHorizontalStrut(6));
+        topToolbar.add(decFont);
+        topToolbar.add(incFont);
+
+        // Bottom toolbar row with font selector
+        JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        bottomToolbar.setOpaque(false);
+        
+        JLabel fontLabel = new JLabel("Font:");
+        fontLabel.setForeground(Color.DARK_GRAY);
+        fontLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+        bottomToolbar.add(fontLabel);
 
         String[] fonts = {"Serif", "Georgia", "Verdana", "Cursive"};
         JComboBox<String> fontSelector = new JComboBox<>(fonts);
@@ -101,30 +193,13 @@ public class PoemPanel extends JPanel {
             Font currentFont = poemTextArea.getFont();
             poemTextArea.setFont(new Font(selectedFont, currentFont.getStyle(), currentFont.getSize()));
         });
-        eastControls.add(new JLabel("Font:"));
-        eastControls.add(fontSelector);
+        bottomToolbar.add(fontSelector);
 
-        // Font size buttons
-        RoundedButton decFont = new RoundedButton("A-");
-        RoundedButton incFont = new RoundedButton("A+");
-        decFont.setPreferredSize(new Dimension(40,24));
-        incFont.setPreferredSize(new Dimension(40,24));
-        decFont.addActionListener(e->changeFontSize(-1));
-        incFont.addActionListener(e->changeFontSize(1));
-        eastControls.add(decFont);
-        eastControls.add(incFont);
+        // Add both toolbar rows to the container
+        toolbarContainer.add(topToolbar, BorderLayout.NORTH);
+        toolbarContainer.add(bottomToolbar, BorderLayout.CENTER);
 
-        // "Back" button in pastel style
-        FadingButton backButton = new FadingButton("Back");
-        backButton.setBackground(new Color(180, 170, 220)); 
-        // Slightly pastel purple 
-        backButton.setForeground(Color.WHITE);
-        backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
-        eastControls.add(backButton);
-
-        topPanel.add(eastControls, BorderLayout.EAST);
-
-        add(topPanel, BorderLayout.NORTH);
+        add(toolbarContainer, BorderLayout.NORTH);
 
         // --- Center Panel: Poem Text Area with a cursive feel ---
         JPanel textWrapper = new TranslucentPanel(); // Use the new panel
@@ -173,16 +248,14 @@ public class PoemPanel extends JPanel {
         });
 
         // Add the "Inspire Me" button to the center
-        FadingButton inspireButton = new FadingButton("✨ Inspire Me");
+        RoundedButton inspireButton = new RoundedButton("✨ Inspire Me");
         inspireButton.addActionListener(e -> showInspirationalWord());
         JPanel centerFlow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         centerFlow.setOpaque(false);
         centerFlow.add(inspireButton);
         bottomPanel.add(centerFlow, BorderLayout.CENTER);
 
-        FadingButton saveButton = new FadingButton("Save Poem");
-        saveButton.setBackground(new Color(220, 150, 150)); // pastel pinkish
-        saveButton.setForeground(Color.WHITE);
+        RoundedButton saveButton = new RoundedButton("Save Poem");
         saveButton.addActionListener(e -> savePoem());
         bottomPanel.add(saveButton, BorderLayout.EAST);
 
@@ -248,12 +321,8 @@ public class PoemPanel extends JPanel {
             String message = isNewFile ? "Poem saved successfully!" : "Poem updated successfully!";
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
             
-            if (isNewFile) {
-                // Clear fields only on first save
-                poemTitleField.setText("");
-                poemTextArea.setText("");
-                currentFile = null; // Reset for next new poem
-            }
+            // Don't clear fields - keep content like NewEntryPanel does
+            // This allows continuous editing of the same poem
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving poem.", true).showDialog();
@@ -334,6 +403,26 @@ class TranslucentPanel extends JPanel {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setColor(new Color(255, 255, 255, 160)); // White with transparency
         g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
+        g2.dispose();
+    }
+}
+
+// Modern rounded text field identical to NewEntryPanel
+class ModernTextField extends JTextField{
+    public ModernTextField(int cols){ super(cols); setOpaque(false); setBorder(BorderFactory.createEmptyBorder(6,10,6,10)); }
+    @Override protected void paintComponent(Graphics g){
+        Graphics2D g2=(Graphics2D)g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(Color.WHITE);
+        g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
+        super.paintComponent(g2);
+        g2.dispose();
+    }
+    @Override protected void paintBorder(Graphics g){
+        Graphics2D g2=(Graphics2D)g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(Color.LIGHT_GRAY);
+        g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
         g2.dispose();
     }
 }

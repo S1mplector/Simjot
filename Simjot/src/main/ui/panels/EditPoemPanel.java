@@ -3,6 +3,7 @@ package main.ui.panels;
 import java.awt.*;
 import java.io.*;
 import javax.swing.*;
+import main.dialog.CustomMessageDialog;
 import main.ui.JournalApp;
 
 public class EditPoemPanel extends PoemPanel {
@@ -29,7 +30,7 @@ public class EditPoemPanel extends PoemPanel {
             poemTextArea.setText(content.toString());
         } catch (IOException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error loading poem.", "Error", JOptionPane.ERROR_MESSAGE);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading poem.", true).showDialog();
         }
     }
 
@@ -37,20 +38,18 @@ public class EditPoemPanel extends PoemPanel {
         String title = poemTitleField.getText().trim();
         String content = poemTextArea.getText().trim();
         if (title.isEmpty() && content.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter a title or some content for your poem.", 
-                "Error", JOptionPane.ERROR_MESSAGE);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or some content for your poem.", true).showDialog();
             return;
         }
         try (PrintWriter writer = new PrintWriter(new FileWriter(poemFile))) {
             writer.println(title);
             writer.println();
             writer.println(content);
-            JOptionPane.showMessageDialog(this, "Poem updated successfully!");
-            app.switchCard(JournalApp.VIEW_ENTRIES);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", "Poem updated successfully!", false).showDialog();
+            // Stay in the current panel - don't navigate away
         } catch (IOException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error saving poem.", 
-                "Error", JOptionPane.ERROR_MESSAGE);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving poem.", true).showDialog();
         }
     }
 }

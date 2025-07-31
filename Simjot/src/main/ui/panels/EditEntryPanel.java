@@ -3,6 +3,7 @@ package main.ui.panels;
 import java.awt.*;
 import java.io.*;
 import javax.swing.*;
+import main.dialog.CustomMessageDialog;
 import main.ui.JournalApp;
 
 public class EditEntryPanel extends NewEntryPanel {
@@ -36,7 +37,7 @@ public class EditEntryPanel extends NewEntryPanel {
             
         } catch (IOException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error loading journal entry.", "Error", JOptionPane.ERROR_MESSAGE);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
         }
     }
 
@@ -45,18 +46,18 @@ public class EditEntryPanel extends NewEntryPanel {
         String title = titleField.getText().trim();
         String content = contentArea.getText();
         if (title.isEmpty() && content.trim().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter a title or content.", "Error", JOptionPane.ERROR_MESSAGE);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or content.", true).showDialog();
             return;
         }
         try (PrintWriter writer = new PrintWriter(new FileWriter(fileToEdit))) {
             writer.println(title);
             writer.println();
             writer.println(content);
-            JOptionPane.showMessageDialog(this, "Journal entry updated successfully!");
-            app.switchCard(JournalApp.VIEW_ENTRIES);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", "Journal entry updated successfully!", false).showDialog();
+            // Stay in the current panel - don't navigate away
         } catch (IOException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error saving journal entry.", "Error", JOptionPane.ERROR_MESSAGE);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving journal entry.", true).showDialog();
         }
     }
 }
