@@ -131,14 +131,19 @@ public class NewEntryPanel extends JPanel {
     }
 
     private void initUI() {
-        // --- Modern Flat Toolbar (matching DrawingPanel) ---
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.setBackground(new Color(230, 230, 230, 200)); // Semi-transparent gray
+        // --- Extended Toolbar with Mood Slider ---
+        JPanel toolbarContainer = new JPanel(new BorderLayout(0, 5));
+        toolbarContainer.setBackground(new Color(230, 230, 230, 200)); // Semi-transparent gray
+        toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Top toolbar row
+        JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topToolbar.setOpaque(false);
 
         // Back button
         RoundedButton backButton = new RoundedButton("Back");
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
-        toolbar.add(backButton);
+        topToolbar.add(backButton);
         
         // Background button
         RoundedButton bgButton = new RoundedButton("Background");
@@ -150,45 +155,44 @@ public class NewEntryPanel extends JPanel {
             cachedScaled = null;
             repaint();
         });
-        toolbar.add(bgButton);
+        topToolbar.add(bgButton);
 
         // Title label & field
         JLabel titleLabel = new JLabel("Title:");
         titleLabel.setForeground(Color.DARK_GRAY);
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
-        toolbar.add(Box.createHorizontalStrut(6));
-        toolbar.add(titleLabel);
+        topToolbar.add(Box.createHorizontalStrut(6));
+        topToolbar.add(titleLabel);
 
         titleField = new ModernTextField(24);
         titleField.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        toolbar.add(titleField);
+        topToolbar.add(titleField);
 
         // Font buttons (A- / A+)
         RoundedButton decFont = new RoundedButton("A-");
         RoundedButton incFont = new RoundedButton("A+");
         decFont.addActionListener(e -> changeFontSize(-1));
         incFont.addActionListener(e -> changeFontSize(1));
-        toolbar.add(Box.createHorizontalStrut(6));
-        toolbar.add(decFont);
-        toolbar.add(incFont);
+        topToolbar.add(Box.createHorizontalStrut(6));
+        topToolbar.add(decFont);
+        topToolbar.add(incFont);
 
-        add(toolbar, BorderLayout.NORTH);
-
-        // --- Middle Panel: Mood Buttons and Content Area ---
-        JPanel middlePanel = new JPanel(new BorderLayout(5,5));
-        middlePanel.setOpaque(false);
-
-        // Mood Buttons Panel
-        JPanel moodPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 5));
-        moodPanel.setOpaque(false);
+        // Bottom toolbar row with mood slider
+        JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        bottomToolbar.setOpaque(false);
         
-        // Make content area semi-transparent
+        moodSlider = new MoodSlider();
+        bottomToolbar.add(moodSlider);
+
+        // Add both toolbar rows to the container
+        toolbarContainer.add(topToolbar, BorderLayout.NORTH);
+        toolbarContainer.add(bottomToolbar, BorderLayout.CENTER);
+
+        add(toolbarContainer, BorderLayout.NORTH);
+
+        // --- Content Area ---
         JPanel contentWrapper = new JPanel(new BorderLayout());
         contentWrapper.setOpaque(false);
-        moodSlider = new MoodSlider();
-        moodPanel.add(moodSlider);
-
-        middlePanel.add(moodPanel, BorderLayout.NORTH);
 
         // Content Area: Text editor with undo/redo support
         contentArea = new JTextArea();
@@ -216,14 +220,11 @@ public class NewEntryPanel extends JPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         
-        // Add components to the wrapper
-        contentWrapper.add(moodPanel, BorderLayout.NORTH);
+        // Add scroll pane to the content wrapper
         contentWrapper.add(scrollPane, BorderLayout.CENTER);
         
-        // Add the wrapper to the middle panel
-        middlePanel.add(contentWrapper, BorderLayout.CENTER);
-
-        add(middlePanel, BorderLayout.CENTER);
+        // Add the content wrapper to the main panel
+        add(contentWrapper, BorderLayout.CENTER);
 
         // --- Bottom Panel: Save Button ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
