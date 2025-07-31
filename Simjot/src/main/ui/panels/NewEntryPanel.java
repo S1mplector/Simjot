@@ -141,7 +141,7 @@ public class NewEntryPanel extends JPanel {
         toolbar.add(backButton);
         
         // Background button
-        JButton bgButton = new JButton("Background");
+        RoundedButton bgButton = new RoundedButton("Background");
         bgButton.addActionListener(e -> {
             EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
             dialog.setVisible(true);
