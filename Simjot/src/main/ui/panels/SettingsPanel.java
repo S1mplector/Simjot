@@ -122,6 +122,7 @@ public class SettingsPanel extends JPanel {
     // ---- General ----
     private class GeneralPage extends JPanel implements SettingsPage{
         private final JSpinner journalFont;
+        private final JSpinner poemFont;
         private final JSpinner autosaveSpin;
         GeneralPage(){
             setLayout(new GridBagLayout());
@@ -134,13 +135,19 @@ public class SettingsPanel extends JPanel {
             journalFont = new JSpinner(new SpinnerNumberModel(store.getJournalFontSize(), 8, 72, 1));
             journalFont.setUI(new ModernSpinnerUI());
 
+            poemFont = new JSpinner(new SpinnerNumberModel(store.getPoemFontSize(), 8, 72, 1));
+            poemFont.setUI(new ModernSpinnerUI());
+
             gc.gridx=0; gc.gridy=0; add(new JLabel("Journal font size:"), gc);
             gc.gridx=1; add(journalFont, gc);
+
+            gc.gridx=0; gc.gridy=1; add(new JLabel("Poem font size:"), gc);
+            gc.gridx=1; add(poemFont, gc);
 
             autosaveSpin = new JSpinner(new SpinnerNumberModel(SettingsStore.get().getAutosaveMinutes(),0,120,5));
             autosaveSpin.setUI(new ModernSpinnerUI());
             ((JSpinner.DefaultEditor)autosaveSpin.getEditor()).getTextField().setColumns(3);
-            gc.gridx=0; gc.gridy=1; add(new JLabel("Autosave interval (min):"),gc);
+            gc.gridx=0; gc.gridy=2; add(new JLabel("Autosave interval (min):"),gc);
             gc.gridx=1; add(autosaveSpin,gc);
         }
         public JComponent getComponent(){ return this; }
@@ -149,6 +156,10 @@ public class SettingsPanel extends JPanel {
             int jf = (Integer) journalFont.getValue();
             store.setJournalFontSize(jf);
             JournalApp.globalJournalFontSize = jf;
+            
+            int pf = (Integer) poemFont.getValue();
+            store.setPoemFontSize(pf);
+            
             SettingsStore.get().setAutosaveMinutes((Integer)autosaveSpin.getValue());
         }
     }

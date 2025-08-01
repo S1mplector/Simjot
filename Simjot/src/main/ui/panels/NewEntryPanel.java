@@ -196,7 +196,10 @@ public class NewEntryPanel extends JPanel {
 
         // Content Area: Text editor with undo/redo support
         contentArea = new JTextArea();
-        contentArea.setFont(new Font("Serif", Font.PLAIN, JournalApp.globalJournalFontSize));
+        
+        // Load font size directly from settings to ensure persistence
+        int savedFontSize = SettingsStore.get().getJournalFontSize();
+        contentArea.setFont(new Font("Serif", Font.PLAIN, savedFontSize));
         contentArea.setLineWrap(true);
         contentArea.setWrapStyleWord(true);
         contentArea.setOpaque(false);

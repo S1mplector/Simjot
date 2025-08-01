@@ -210,7 +210,10 @@ public class PoemPanel extends JPanel {
         poemTextArea.setWrapStyleWord(true);
         poemTextArea.setOpaque(false); // Make the text area fully transparent
         poemTextArea.setForeground(new Color(40, 40, 40));
-        poemTextArea.setFont(new Font("Serif", Font.ITALIC, 16));
+        
+        // Load font size directly from settings to ensure persistence
+        int savedFontSize = SettingsStore.get().getPoemFontSize();
+        poemTextArea.setFont(new Font("Serif", Font.ITALIC, savedFontSize));
         /*
           NOTE: If you want a truly cursive font, pick one installed on your system, 
           e.g. new Font("Gabriola", Font.PLAIN, 18) or "Lucida Handwriting", etc.

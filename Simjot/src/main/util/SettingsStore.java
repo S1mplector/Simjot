@@ -15,6 +15,7 @@ public final class SettingsStore {
 
     // Keys
     private static final String KEY_JOURNAL_FONT = "journalFontSize";
+    private static final String KEY_POEM_FONT    = "poemFontSize";
     private static final String KEY_ANIMATION    = "animation";
     private static final String KEY_THEME        = "theme";
     private static final String KEY_GLOW         = "glowEnabled";
@@ -37,6 +38,7 @@ public final class SettingsStore {
 
     // Defaults
     private static final int    DEF_JOURNAL_FONT = 14;
+    private static final int    DEF_POEM_FONT    = 16;
     private static final String DEF_ANIMATION    = "Snow";
     private static final String DEF_THEME        = "Light";
     private static final boolean DEF_GLOW        = false;
@@ -79,6 +81,8 @@ public final class SettingsStore {
     public int getJournalFontSize(){ return Integer.parseInt(props.getProperty(KEY_JOURNAL_FONT, String.valueOf(DEF_JOURNAL_FONT))); }
     public void setJournalFontSize(int v){ props.setProperty(KEY_JOURNAL_FONT, String.valueOf(v)); }
 
+    public int getPoemFontSize(){ return Integer.parseInt(props.getProperty(KEY_POEM_FONT, String.valueOf(DEF_POEM_FONT))); }
+    public void setPoemFontSize(int v){ props.setProperty(KEY_POEM_FONT, String.valueOf(v)); }
 
     public String getAnimation(){ return props.getProperty(KEY_ANIMATION, DEF_ANIMATION); }
     public void setAnimation(String a){ props.setProperty(KEY_ANIMATION, a); }

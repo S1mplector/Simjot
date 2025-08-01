@@ -35,3 +35,8 @@ hs_err_pid*
 
 # JPackage generated files
 app-image/
+DESKTOP_SHORTCUTS.md
+launch-simjot.sh
+.gitignore
+Simjot.app/Contents/Info.plist
+Simjot.app/Contents/MacOS/Simjot
