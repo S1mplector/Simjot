@@ -65,14 +65,80 @@ public final class NotebookStore {
 
     /**
      * Removes the notebook from the store and deletes its folder on disk.
+     * Also cleans up associated mood data.
      */
     public void delete(NotebookInfo nb){
         if(nb==null) return;
         String targetName = nb.getName();
         notebooks.removeIf(n -> n.getName().equalsIgnoreCase(targetName));
         save();
+        
+        // Clean up mood data associated with this notebook's entries
+        cleanupMoodData(nb);
+        
         // delete files on disk
         deleteRec(nb.getFolder());
+    }
+    
+    /**
+     * Removes mood data entries that correspond to journal entries in the deleted notebook.
+     * This matches mood entries by timestamp with the journal entry file timestamps.
+     */
+    private void cleanupMoodData(NotebookInfo nb) {
+        if (nb.getType() != NotebookInfo.Type.JOURNAL) {
+            return; // Only journal notebooks have mood data
+        }
+        
+        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
+        if (!moodFile.exists()) {
+            return;
+        }
+        
+        // Collect timestamps of all journal entries in this notebook
+        Set<String> entryTimestamps = new HashSet<>();
+        File[] entries = nb.getFolder().listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
+        if (entries != null) {
+            for (File entry : entries) {
+                String fileName = entry.getName();
+                if (fileName.matches("\\d{8}_\\d{6}\\.txt")) {
+                    // Extract timestamp from filename (yyyyMMdd_HHmmss.txt)
+                    String timestamp = fileName.substring(0, fileName.lastIndexOf('.'));
+                    entryTimestamps.add(timestamp);
+                }
+            }
+        }
+        
+        if (entryTimestamps.isEmpty()) {
+            return;
+        }
+        
+        // Read existing mood data and filter out entries matching deleted notebook
+        List<String> remainingMoodEntries = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(moodFile))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    String moodTimestamp = parts[0].trim();
+                    // Check if this mood entry matches any of the deleted notebook's entries
+                    if (!entryTimestamps.contains(moodTimestamp)) {
+                        remainingMoodEntries.add(line);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return;
+        }
+        
+        // Write back the filtered mood data
+        try (PrintWriter pw = new PrintWriter(new FileWriter(moodFile))) {
+            for (String entry : remainingMoodEntries) {
+                pw.println(entry);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
 
     /**
