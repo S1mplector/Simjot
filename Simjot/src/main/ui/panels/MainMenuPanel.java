@@ -18,6 +18,7 @@ public class MainMenuPanel extends JPanel {
     private static final boolean SHOW_GALLERY = false;
 
     private final JournalApp app;
+    private java.util.Map<String, main.ui.widgets.Widget> widgets = new java.util.LinkedHashMap<>();
 
     public MainMenuPanel(JournalApp app) {
         this.app = app;
@@ -45,6 +46,15 @@ public class MainMenuPanel extends JPanel {
         }
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
+        // -------- Widgets registration ---------
+        // Create a dummy widget just for the menu button
+        widgets.put("Breathing", new main.ui.widgets.Widget() {
+            private boolean enabled = false;
+            @Override public void start() { enabled = true; }
+            @Override public void stop() { enabled = false; }
+            @Override public boolean isEnabled() { return enabled; }
+        });
+
         // Add header and clock.
         HeaderPanel header = new HeaderPanel();
         header.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -57,12 +67,23 @@ public class MainMenuPanel extends JPanel {
         content.add(Box.createRigidArea(new Dimension(0, 6)));
         content.add(timePanelTop);
 
+        // ---- Clock and Widgets side-by-side ----
         AnalogClockPanel clockPanel = new AnalogClockPanel();
         clockPanel.setPreferredSize(new Dimension(200, 200));
         clockPanel.setMaximumSize(new Dimension(200, 200));
-        clockPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JPanel widgetsMenu = buildWidgetsMenu();
+
+        JPanel clockRow = new JPanel();
+        clockRow.setOpaque(false);
+        clockRow.setLayout(new BoxLayout(clockRow, BoxLayout.X_AXIS));
+        clockRow.add(clockPanel);
+        clockRow.add(Box.createRigidArea(new Dimension(20, 0)));
+        clockRow.add(widgetsMenu);
+
+        clockRow.setAlignmentX(Component.CENTER_ALIGNMENT);
         content.add(Box.createRigidArea(new Dimension(0, 5)));
-        content.add(clockPanel);
+        content.add(clockRow);
 
         // Create the button panel with animated fade-in
         JPanel buttonPanel = new JPanel();
@@ -169,6 +190,69 @@ public class MainMenuPanel extends JPanel {
 
         add(content, BorderLayout.CENTER);
         add(southPanel, BorderLayout.SOUTH);
+    }
+
+    /** Builds the small widget-selection menu shown next to the clock */
+    private JPanel buildWidgetsMenu() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("Widgets");
+        title.setForeground(Color.WHITE);
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createRigidArea(new Dimension(0,6)));
+
+        for (java.util.Map.Entry<String, main.ui.widgets.Widget> entry : widgets.entrySet()) {
+            String name = entry.getKey();
+            main.ui.widgets.Widget widget = entry.getValue();
+            FadingButton btn = new MainMenuButton(name, "bolt");
+            btn.setForeground(Color.WHITE);
+            btn.setFont(btn.getFont().deriveFont(Font.PLAIN,16f));
+            btn.setAlpha(1f);
+            btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+            btn.addActionListener(e -> {
+                if(name.equals("Breathing")) {
+                    // First show our custom confirmation dialog
+                    boolean startBreathing = main.dialog.CustomConfirmDialog.confirm(
+                        this, 
+                        "Breathing Exercise", 
+                        "Would you like to start a guided breathing exercise?\n\nThis will display a calming animation overlay."
+                    );
+                    
+                    if(startBreathing) {
+                        // Show configuration dialog for breathing widget
+                        main.dialog.BreathingConfigDialog dialog = 
+                            new main.dialog.BreathingConfigDialog((JFrame) SwingUtilities.getWindowAncestor(this));
+                        dialog.setVisible(true);
+                        
+                        if(dialog.isConfirmed()) {
+                            // Open breathing exercise in its own window
+                            main.dialog.BreathingExerciseWindow exerciseWindow = 
+                                new main.dialog.BreathingExerciseWindow((JFrame) SwingUtilities.getWindowAncestor(this));
+                            exerciseWindow.startExercise(
+                                dialog.getInhaleTime(),
+                                dialog.getHold1Time(),
+                                dialog.getExhaleTime(),
+                                dialog.getHold2Time(),
+                                dialog.getOpacityValue(),
+                                dialog.getSizeValue(),
+                                dialog.getColor()
+                            );
+                        }
+                    }
+                } else {
+                    // For other widgets, just toggle
+                    boolean enable = !widget.isEnabled();
+                    widget.setEnabled(enable);
+                }
+            });
+            panel.add(btn);
+            panel.add(Box.createRigidArea(new Dimension(0,4)));
+        }
+        return panel;
     }
 
     private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon) {

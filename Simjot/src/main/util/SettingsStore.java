@@ -31,6 +31,7 @@ public final class SettingsStore {
     private static final String KEY_AUTOSAVE     = "autosaveMinutes";
     private static final String KEY_TUTORIAL_SEEN = "tutorialSeen";
     private static final String KEY_DISABLE_ANIMATIONS = "disableAnimations";
+    private static final String KEY_BREATHING_OVERLAY = "breathingOverlayEnabled";
     
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
@@ -50,6 +51,7 @@ public final class SettingsStore {
     private static final int     DEF_AUTOSAVE    = 0;
     private static final boolean DEF_TUTORIAL_SEEN = false;
     private static final boolean DEF_DISABLE_ANIMATIONS = false;
+    private static final boolean DEF_BREATHING_OVERLAY = true;
 
     // Singleton handling
     private static SettingsStore instance;
@@ -178,4 +180,7 @@ public final class SettingsStore {
 
     public boolean isAnimationsDisabled(){ return Boolean.parseBoolean(props.getProperty(KEY_DISABLE_ANIMATIONS, String.valueOf(DEF_DISABLE_ANIMATIONS))); }
     public void setAnimationsDisabled(boolean b){ props.setProperty(KEY_DISABLE_ANIMATIONS, String.valueOf(b)); }
+
+    public boolean isBreathingOverlayEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_BREATHING_OVERLAY, String.valueOf(DEF_BREATHING_OVERLAY))); }
+    public void setBreathingOverlayEnabled(boolean b){ props.setProperty(KEY_BREATHING_OVERLAY, String.valueOf(b)); }
 }
