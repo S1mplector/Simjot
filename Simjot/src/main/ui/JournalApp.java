@@ -67,7 +67,7 @@ public class JournalApp extends JFrame {
     public JournalApp() {
         super("Simjot");
         // Set the application icon
-        setIconImage(ResourceLoader.createImage("Simjot/img/feather.png"));
+        setIconImage(ResourceLoader.createImage("simjot-icon.png"));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         loadOrChooseRootFolder();
         if (rootFolder != null) {
@@ -339,7 +339,56 @@ public class JournalApp extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new JournalApp());
+        SwingUtilities.invokeLater(() -> {
+            // Apply UI scaling before creating the application
+            applyUIScaling();
+            new JournalApp();
+        });
+    }
+
+    private static void applyUIScaling() {
+        try {
+            // Get the UI scale from settings
+            float uiScale = SettingsStore.get().getUIScale();
+
+            if (uiScale != 1.0f) {
+                // Scale all UI fonts
+                javax.swing.UIDefaults defaults = UIManager.getDefaults();
+                java.util.Enumeration<Object> keys = defaults.keys();
+
+                while (keys.hasMoreElements()) {
+                    Object key = keys.nextElement();
+                    Object value = defaults.get(key);
+
+                    if (value instanceof javax.swing.plaf.FontUIResource) {
+                        javax.swing.plaf.FontUIResource font = (javax.swing.plaf.FontUIResource) value;
+                        int newSize = Math.round(font.getSize() * uiScale);
+                        javax.swing.plaf.FontUIResource scaledFont = new javax.swing.plaf.FontUIResource(
+                                font.getName(), font.getStyle(), newSize);
+                        UIManager.put(key, scaledFont);
+                    }
+                }
+
+                // Scale component sizes
+                UIManager.put("Button.margin", new java.awt.Insets(
+                        Math.round(2 * uiScale), Math.round(14 * uiScale),
+                        Math.round(2 * uiScale), Math.round(14 * uiScale)));
+                UIManager.put("TextField.margin", new java.awt.Insets(
+                        Math.round(2 * uiScale), Math.round(6 * uiScale),
+                        Math.round(2 * uiScale), Math.round(6 * uiScale)));
+                UIManager.put("ComboBox.padding", new java.awt.Insets(
+                        Math.round(3 * uiScale), Math.round(3 * uiScale),
+                        Math.round(3 * uiScale), Math.round(3 * uiScale)));
+
+                // Scale scroll bar width
+                UIManager.put("ScrollBar.width", Math.round(16 * uiScale));
+
+                // Update the global font size used by the application
+                globalJournalFontSize = Math.round(globalJournalFontSize * uiScale);
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not apply UI scaling: " + e.getMessage());
+        }
     }
 
     // ---------- Cork Icon ---------

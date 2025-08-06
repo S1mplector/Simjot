@@ -39,7 +39,7 @@ get_ui_scale() {
     # Look for the preferences file in the settings subdirectory
     local prefs_file="$root_folder/settings/preferences.properties"
     if [ -f "$prefs_file" ]; then
-        local scale=$(grep "^uiScale=" "$prefs_file" | cut -d'=' -f2)
+        local scale=$(grep -a "^uiScale=" "$prefs_file" | tr -d '\r' | cut -d'=' -f2 | tr -cd '0-9.')
         if [ ! -z "$scale" ]; then
             echo "$scale"
             return 0
@@ -51,10 +51,10 @@ get_ui_scale() {
 # Run the application
 echo "Starting Simjot..."
 ui_scale=$(get_ui_scale)
-if [ "$ui_scale" != "1.0" ]; then
+if (( $(echo "$ui_scale != 1.0" | bc -l) )); then
     echo "Applying UI scale: $ui_scale"
 fi
-java -Dsun.java2d.uiScale=$ui_scale --module-path "$BUILD_DIR" -m Simjot/main.ui.JournalApp
+java --module-path "$BUILD_DIR" -m Simjot/main.ui.JournalApp
 
 # Check if the command was successful
 if [ $? -ne 0 ]; then
