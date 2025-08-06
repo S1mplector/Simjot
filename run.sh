@@ -50,31 +50,10 @@ get_ui_scale() {
 
 # Run the application
 echo "Starting Simjot..."
-
-# Debug information
-config_file="$HOME/.simjournal_config.txt"
-if [ -f "$config_file" ]; then
-    echo "Found config file at: $config_file"
-    root_folder=$(cat "$config_file")
-    echo "Root folder: $root_folder"
-    if [ -d "$root_folder/settings" ]; then
-        echo "Settings folder exists"
-        if [ -f "$root_folder/settings/preferences.properties" ]; then
-            echo "Found preferences file"
-            echo "Contents of preferences file:"
-            cat "$root_folder/settings/preferences.properties"
-        else
-            echo "No preferences file found"
-        fi
-    else
-        echo "No settings folder found"
-    fi
-else
-    echo "No config file found at: $config_file"
-fi
-
 ui_scale=$(get_ui_scale)
-echo "Using UI scale: $ui_scale"
+if [ "$ui_scale" != "1.0" ]; then
+    echo "Applying UI scale: $ui_scale"
+fi
 java -Dsun.java2d.uiScale=$ui_scale --module-path "$BUILD_DIR" -m Simjot/main.ui.JournalApp
 
 # Check if the command was successful
