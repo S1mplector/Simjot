@@ -32,6 +32,7 @@ public final class SettingsStore {
     private static final String KEY_TUTORIAL_SEEN = "tutorialSeen";
     private static final String KEY_DISABLE_ANIMATIONS = "disableAnimations";
     private static final String KEY_BREATHING_OVERLAY = "breathingOverlayEnabled";
+    private static final String KEY_UI_SCALE = "uiScale";
     
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
@@ -52,6 +53,7 @@ public final class SettingsStore {
     private static final boolean DEF_TUTORIAL_SEEN = false;
     private static final boolean DEF_DISABLE_ANIMATIONS = false;
     private static final boolean DEF_BREATHING_OVERLAY = true;
+    private static final float DEF_UI_SCALE = 1.0f;
 
     // Singleton handling
     private static SettingsStore instance;
@@ -183,4 +185,17 @@ public final class SettingsStore {
 
     public boolean isBreathingOverlayEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_BREATHING_OVERLAY, String.valueOf(DEF_BREATHING_OVERLAY))); }
     public void setBreathingOverlayEnabled(boolean b){ props.setProperty(KEY_BREATHING_OVERLAY, String.valueOf(b)); }
+
+    public float getUIScale() {
+        try {
+            return Float.parseFloat(props.getProperty(KEY_UI_SCALE, String.valueOf(DEF_UI_SCALE)));
+        } catch (NumberFormatException e) {
+            return DEF_UI_SCALE;
+        }
+    }
+    
+    public void setUIScale(float scale) {
+        float clamped = Math.max(0.5f, Math.min(3.0f, scale));
+        props.setProperty(KEY_UI_SCALE, String.valueOf(clamped));
+    }
 }

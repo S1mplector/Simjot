@@ -62,7 +62,7 @@ public class JournalApp extends JFrame {
     private final java.util.Map<String, NotebookEntriesPanel> notebookPanels = new java.util.HashMap<>();
 
     // Added for openExistingEntryEditor method
-    private final java.util.Map<String,JPanel> cardMap = new java.util.HashMap<>();
+    private final java.util.Map<String, JPanel> cardMap = new java.util.HashMap<>();
 
     public JournalApp() {
         super("Simjot");
@@ -124,8 +124,11 @@ public class JournalApp extends JFrame {
         cardPanel.add(mainMenuPanel, MAIN_MENU);
 
         // "New" creation panels points to new subfolders
-        cardPanel.add(new NewEntryPanel(this, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel), NEW_ENTRY);
-        cardPanel.add(new PoemPanel(this, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel), NEW_POEM);
+        cardPanel.add(
+                new NewEntryPanel(this, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel),
+                NEW_ENTRY);
+        cardPanel.add(new PoemPanel(this, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel),
+                NEW_POEM);
 
         // View Entries
         cardPanel.add(new ViewEntriesPanel(this, cardLayout, cardPanel), VIEW_ENTRIES);
@@ -134,13 +137,14 @@ public class JournalApp extends JFrame {
         cardPanel.add(new MoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
         settingsPanel = new SettingsPanel(this, cardLayout, cardPanel);
         cardPanel.add(settingsPanel, SETTINGS);
-        
+
         // Drawing panel
         DrawingPanel drawingPanel = new DrawingPanel(this);
         cardPanel.add(drawingPanel, "Drawing");
 
         // Gallery panel uses drawings dir and needs drawingPanel reference
-        galleryPanel = new GalleryPanel(AppDirectories.folder(AppDirectories.Type.DRAWINGS), cardLayout, cardPanel, this, drawingPanel);
+        galleryPanel = new GalleryPanel(AppDirectories.folder(AppDirectories.Type.DRAWINGS), cardLayout, cardPanel,
+                this, drawingPanel);
         cardPanel.add(galleryPanel, GALLERY);
 
         // ----------------- Notebooks Manager Panel -----------------
@@ -170,20 +174,22 @@ public class JournalApp extends JFrame {
         if (SettingsStore.get().isAnimationsDisabled() || !firstSwitchDone) {
             // If animations are off, or it's the first switch, do it instantly.
             cardLayout.show(cardPanel, cardName);
-            
+
             if (!firstSwitchDone) {
                 firstSwitchDone = true;
             }
-            
+
             // Always ensure the fade panel is hidden if we're not animating.
             if (fadePanel.isVisible()) {
                 fadePanel.setVisible(false);
             }
 
             // Special refresh logic for notebook manager
-            if(cardName.equals(NOTEBOOK_MANAGER)){
-                for(Component c: cardPanel.getComponents()){
-                    if(c instanceof NotebookManagerPanel nm){ nm.refresh(); }
+            if (cardName.equals(NOTEBOOK_MANAGER)) {
+                for (Component c : cardPanel.getComponents()) {
+                    if (c instanceof NotebookManagerPanel nm) {
+                        nm.refresh();
+                    }
                 }
             }
             return;
@@ -194,28 +200,32 @@ public class JournalApp extends JFrame {
         if (!fadePanel.isVisible()) {
             fadePanel.setVisible(true);
         }
-        
+
         fadePanel.startFadeOut(() -> {
             cardLayout.show(cardPanel, cardName);
-            if(cardName.equals(NOTEBOOK_MANAGER)){
-                for(Component c: cardPanel.getComponents()){
-                    if(c instanceof NotebookManagerPanel nm){ nm.refresh(); }
+            if (cardName.equals(NOTEBOOK_MANAGER)) {
+                for (Component c : cardPanel.getComponents()) {
+                    if (c instanceof NotebookManagerPanel nm) {
+                        nm.refresh();
+                    }
                 }
             }
             fadePanel.startFadeIn();
         });
     }
 
-    // MAIN MENU: Contains the big background, the clock, the header, and animated buttons
+    // MAIN MENU: Contains the big background, the clock, the header, and animated
+    // buttons
     private JPanel createMainMenuPanel() {
         return new MainMenuPanel(this);
     }
 
     private void showTutorialIfFirstTime() {
         SettingsStore store = SettingsStore.get();
-        if(!store.isTutorialSeen()) {
-            boolean yes = CustomConfirmDialog.confirm(this, "Quick Tour", "Would you like a quick tour of Simjot's features?");
-            if(yes) {
+        if (!store.isTutorialSeen()) {
+            boolean yes = CustomConfirmDialog.confirm(this, "Quick Tour",
+                    "Would you like a quick tour of Simjot's features?");
+            if (yes) {
                 new TutorialDialog(this).setVisible(true);
             }
             store.setTutorialSeen(true);
@@ -223,10 +233,10 @@ public class JournalApp extends JFrame {
         }
     }
 
-    public void ensureFullScreen(){
+    public void ensureFullScreen() {
         SwingUtilities.invokeLater(() -> {
             // If the frame was minimised (iconified) bring it back first
-            if( (getExtendedState() & JFrame.ICONIFIED) != 0 ){
+            if ((getExtendedState() & JFrame.ICONIFIED) != 0) {
                 setExtendedState(JFrame.NORMAL);
             }
 
@@ -235,26 +245,30 @@ public class JournalApp extends JFrame {
     }
 
     // Called by DrawingPanel after saving a new file so gallery updates next time
-    public void refreshGallery(){ if(galleryPanel!=null) galleryPanel.refresh(); }
+    public void refreshGallery() {
+        if (galleryPanel != null)
+            galleryPanel.refresh();
+    }
 
     // Rebuilds the main menu panel (e.g., when wallpaper or theme changes)
-    public void recreateMainMenuPanel(){
-        if(mainMenuPanel!=null){
+    public void recreateMainMenuPanel() {
+        if (mainMenuPanel != null) {
             cardPanel.remove(mainMenuPanel);
         }
         mainMenuPanel = createMainMenuPanel();
         cardPanel.add(mainMenuPanel, MAIN_MENU);
         cardLayout.show(cardPanel, MAIN_MENU);
-        revalidate(); repaint();
+        revalidate();
+        repaint();
     }
 
     /**
      * Opens the entry manager panel for the given notebook. If it doesn't
      * exist yet, it will be created and added to the CardLayout on-the-fly.
      */
-    public void openNotebookEntries(NotebookInfo nb){
-        String cardId = "NotebookEntries_"+nb.getName();
-        if(!notebookPanels.containsKey(cardId)){
+    public void openNotebookEntries(NotebookInfo nb) {
+        String cardId = "NotebookEntries_" + nb.getName();
+        if (!notebookPanels.containsKey(cardId)) {
             NotebookEntriesPanel panel = new NotebookEntriesPanel(this, nb);
             notebookPanels.put(cardId, panel);
             cardPanel.add(panel, cardId);
@@ -268,7 +282,7 @@ public class JournalApp extends JFrame {
      * Shows a card without triggering the fade transition. Useful for quick
      * panel creations where the fade would otherwise reveal a blank frame.
      */
-    public void showCardImmediate(String cardName){
+    public void showCardImmediate(String cardName) {
         CardLayout cl = cardLayout;
         cl.show(cardPanel, cardName);
     }
@@ -279,40 +293,48 @@ public class JournalApp extends JFrame {
      * is generated each time so the user can open multiple editors in the
      * same session.
      */
-    public void openNewEntryEditor(NotebookInfo nb){
-        String cardId = "Editor_"+nb.getName()+"_"+System.currentTimeMillis();
+    public void openNewEntryEditor(NotebookInfo nb) {
+        String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
         JPanel editor;
-        switch(nb.getType()){
+        switch (nb.getType()) {
             case JOURNAL -> editor = new NewEntryPanel(this, nb.getFolder(), cardLayout, cardPanel);
-            case POETRY  -> editor = new PoemPanel(this, nb.getFolder(), cardLayout, cardPanel);
-            default -> throw new IllegalStateException("Unexpected value: "+nb.getType());
+            case POETRY -> editor = new PoemPanel(this, nb.getFolder(), cardLayout, cardPanel);
+            default -> throw new IllegalStateException("Unexpected value: " + nb.getType());
         }
         cardPanel.add(editor, cardId);
         switchCard(cardId);
     }
 
     /** Opens an existing file in proper editor based on notebook type */
-    public void openExistingEntryEditor(NotebookInfo nb, java.io.File file){
-        String cardId = "Edit_"+file.getName();
-        if(cardMap.containsKey(cardId)){
-            showCardImmediate(cardId); return; }
+    public void openExistingEntryEditor(NotebookInfo nb, java.io.File file) {
+        String cardId = "Edit_" + file.getName();
+        if (cardMap.containsKey(cardId)) {
+            showCardImmediate(cardId);
+            return;
+        }
 
         JPanel editor;
-        switch(nb.getType()){
+        switch (nb.getType()) {
             case JOURNAL -> editor = new EditEntryPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
-            case POETRY  -> editor = new EditPoemPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
-            default -> { return; }
+            case POETRY -> editor = new EditPoemPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
+            default -> {
+                return;
+            }
         }
         cardPanel.add(editor, cardId);
         showCardImmediate(cardId);
         cardMap.put(cardId, editor);
     }
 
-    public JPanel getCardPanel(){ return cardPanel; }
+    public JPanel getCardPanel() {
+        return cardPanel;
+    }
 
-    public void refreshNotebookManager(){
-        for(Component c: cardPanel.getComponents()){
-            if(c instanceof NotebookManagerPanel nm){ nm.refresh(); }
+    public void refreshNotebookManager() {
+        for (Component c : cardPanel.getComponents()) {
+            if (c instanceof NotebookManagerPanel nm) {
+                nm.refresh();
+            }
         }
     }
 
@@ -321,35 +343,50 @@ public class JournalApp extends JFrame {
     }
 
     // ---------- Cork Icon ---------
-    private static class CorkIcon implements javax.swing.Icon{
-        private final int w,h;
-        CorkIcon(int w,int h){this.w=w;this.h=h;}
-        @Override public int getIconWidth(){return w;}
-        @Override public int getIconHeight(){return h;}
-        @Override public void paintIcon(Component c, Graphics g, int x, int y){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+    private static class CorkIcon implements javax.swing.Icon {
+        private final int w, h;
+
+        CorkIcon(int w, int h) {
+            this.w = w;
+            this.h = h;
+        }
+
+        @Override
+        public int getIconWidth() {
+            return w;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return h;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(new Color(194, 149, 93)); // cork brown
-            g2.fillRoundRect(x, y, w, h, 4,4);
-            g2.setColor(new Color(150,100,60));
-            g2.drawRoundRect(x, y, w-1, h-1,4,4);
+            g2.fillRoundRect(x, y, w, h, 4, 4);
+            g2.setColor(new Color(150, 100, 60));
+            g2.drawRoundRect(x, y, w - 1, h - 1, 4, 4);
             // decorative dots
-            int dots=8;
-            java.util.Random rnd=new java.util.Random();
-            for(int i=0;i<dots;i++){
-                int dx=rnd.nextInt(w-4)+2;
-                int dy=rnd.nextInt(h-4)+2;
-                g2.fillOval(x+dx, y+dy, 2,2);
+            int dots = 8;
+            java.util.Random rnd = new java.util.Random();
+            for (int i = 0; i < dots; i++) {
+                int dx = rnd.nextInt(w - 4) + 2;
+                int dy = rnd.nextInt(h - 4) + 2;
+                g2.fillOval(x + dx, y + dy, 2, 2);
             }
             g2.dispose();
         }
     }
 
     // ----------- Time Info Panel ----------
-    private static class TimeInfoPanel extends JPanel{
+    private static class TimeInfoPanel extends JPanel {
         private final JLabel timeLbl = new JLabel();
         private final JLabel pctLbl = new JLabel();
-        TimeInfoPanel(){
+
+        TimeInfoPanel() {
             setOpaque(false);
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             timeLbl.setForeground(Color.WHITE);
@@ -359,15 +396,20 @@ public class JournalApp extends JFrame {
             pctLbl.setFont(quoteFont);
             timeLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
             pctLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-            add(timeLbl); add(pctLbl);
-            javax.swing.Timer t = new javax.swing.Timer(1000,e->{update();});
-            t.start(); update();
+            add(timeLbl);
+            add(pctLbl);
+            javax.swing.Timer t = new javax.swing.Timer(1000, e -> {
+                update();
+            });
+            t.start();
+            update();
         }
-        private void update(){
+
+        private void update() {
             java.time.LocalTime now = java.time.LocalTime.now();
-            timeLbl.setText("It's currently "+ now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+            timeLbl.setText("It's currently " + now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
             int seconds = now.toSecondOfDay();
-            double pct = seconds/86400.0*100.0;
+            double pct = seconds / 86400.0 * 100.0;
             pctLbl.setText(String.format("%.1f%% of the day has passed.", pct));
         }
     }

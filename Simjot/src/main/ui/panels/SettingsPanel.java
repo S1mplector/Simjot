@@ -124,6 +124,7 @@ public class SettingsPanel extends JPanel {
         private final JSpinner journalFont;
         private final JSpinner poemFont;
         private final JSpinner autosaveSpin;
+        private final JSpinner uiScaleSpinner;
         GeneralPage(){
             setLayout(new GridBagLayout());
             setBackground(Color.WHITE);
@@ -149,6 +150,21 @@ public class SettingsPanel extends JPanel {
             ((JSpinner.DefaultEditor)autosaveSpin.getEditor()).getTextField().setColumns(3);
             gc.gridx=0; gc.gridy=2; add(new JLabel("Autosave interval (min):"),gc);
             gc.gridx=1; add(autosaveSpin,gc);
+
+            // UI Scale spinner with custom step size
+            SpinnerNumberModel uiScaleModel = new SpinnerNumberModel(store.getUIScale(), 0.5, 3.0, 0.25);
+            uiScaleSpinner = new JSpinner(uiScaleModel);
+            uiScaleSpinner.setUI(new ModernSpinnerUI());
+            JSpinner.NumberEditor editor = new JSpinner.NumberEditor(uiScaleSpinner, "0.00");
+            uiScaleSpinner.setEditor(editor);
+            gc.gridx=0; gc.gridy=3; add(new JLabel("UI Scale:"),gc);
+            gc.gridx=1; add(uiScaleSpinner,gc);
+            
+            // Add a detailed note about UI scale changes
+            JLabel noteLabel = new JLabel("<html><i>UI scale changes will take effect after closing and reopening Simjot.<br>This setting helps with high-DPI displays (e.g., use 2.0 for 200% scaling).</i></html>");
+            noteLabel.setForeground(Color.GRAY);
+            gc.gridx=0; gc.gridy=4; gc.gridwidth=2;
+            add(noteLabel,gc);
         }
         public JComponent getComponent(){ return this; }
         public void apply(){
@@ -161,6 +177,10 @@ public class SettingsPanel extends JPanel {
             store.setPoemFontSize(pf);
             
             SettingsStore.get().setAutosaveMinutes((Integer)autosaveSpin.getValue());
+            
+            // Save UI scale setting
+            float uiScale = ((Number) uiScaleSpinner.getValue()).floatValue();
+            store.setUIScale(uiScale);
         }
     }
 
