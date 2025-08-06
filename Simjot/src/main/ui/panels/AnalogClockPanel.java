@@ -22,7 +22,7 @@ public class AnalogClockPanel extends JPanel {
         int size = Math.min(getWidth(), getHeight());
         int centerX = getWidth() / 2;
         int centerY = getHeight() / 2;
-        int radius = size / 2 - 6;
+        int radius = Math.max(1, size / 2 - 6); // Ensure radius is at least 1
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         

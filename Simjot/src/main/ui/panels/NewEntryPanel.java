@@ -18,6 +18,7 @@ import main.util.SettingsStore;
 import main.util.UndoRedoManager;
 
 public class NewEntryPanel extends JPanel {
+
     protected CardLayout cardLayout;
     protected JPanel cardPanel;
     protected File journalFolder;
@@ -35,8 +36,6 @@ public class NewEntryPanel extends JPanel {
     private int cachedY = 0;
     private float cachedOpacity = -1f;
     private File currentFile = null; // Track the current file being edited
-
-
 
     public NewEntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -60,13 +59,12 @@ public class NewEntryPanel extends JPanel {
             backgroundImage = null;
         }
     }
-    */
-
+     */
     // Paint the background image scaled to fill the panel.
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        
+
         // Draw the background image with opacity if available
         String bgPath = SettingsStore.get().getEntryBackgroundImage();
         if (bgPath != null && !bgPath.isEmpty()) {
@@ -81,47 +79,47 @@ public class NewEntryPanel extends JPanel {
                     backgroundImage = new ImageIcon(bgPath).getImage();
                 }
             }
-            
+
             if (backgroundImage != null) {
                 int panelW = getWidth();
                 int panelH = getHeight();
                 float opacity = SettingsStore.get().getEntryBackgroundOpacity();
-                
+
                 // Recreate cache only if necessary
                 if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || opacity != cachedOpacity) {
                     int imgW = backgroundImage.getWidth(this);
                     int imgH = backgroundImage.getHeight(this);
-                    
+
                     if (imgW > 0 && imgH > 0) {
                         // Calculate scale factor to cover the panel while maintaining aspect ratio
                         double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
                         int drawW = (int) Math.round(imgW * scale);
                         int drawH = (int) Math.round(imgH * scale);
-                        
+
                         cachedX = (panelW - drawW) / 2;
                         cachedY = (panelH - drawH) / 2;
                         cachedPanelW = panelW;
                         cachedPanelH = panelH;
                         cachedOpacity = opacity;
-                        
+
                         // Create a new image with the current opacity
                         BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
                         Graphics2D cg = tmp.createGraphics();
-                        
+
                         // Set the composite with the current opacity
                         AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity);
                         cg.setComposite(ac);
-                        
+
                         // Draw the image with the applied opacity
                         cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
                         cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
                         cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
                         cg.dispose();
-                        
+
                         cachedScaled = tmp;
                     }
                 }
-                
+
                 // Draw the cached image
                 if (cachedScaled != null) {
                     g.drawImage(cachedScaled, cachedX, cachedY, this);
@@ -144,11 +142,11 @@ public class NewEntryPanel extends JPanel {
         RoundedButton backButton = new RoundedButton("Back");
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
         topToolbar.add(backButton);
-        
+
         // Background button
         RoundedButton bgButton = new RoundedButton("Background");
         bgButton.addActionListener(e -> {
-            EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
+            EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
             dialog.setVisible(true);
             // Refresh the background if it was changed
             backgroundImage = null;
@@ -180,7 +178,7 @@ public class NewEntryPanel extends JPanel {
         // Bottom toolbar row with mood slider
         JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         bottomToolbar.setOpaque(false);
-        
+
         moodSlider = new MoodSlider();
         bottomToolbar.add(moodSlider);
 
@@ -196,7 +194,7 @@ public class NewEntryPanel extends JPanel {
 
         // Content Area: Text editor with undo/redo support
         contentArea = new JTextArea();
-        
+
         // Load font size directly from settings to ensure persistence
         int savedFontSize = SettingsStore.get().getJournalFontSize();
         contentArea.setFont(new Font("Serif", Font.PLAIN, savedFontSize));
@@ -204,35 +202,46 @@ public class NewEntryPanel extends JPanel {
         contentArea.setWrapStyleWord(true);
         contentArea.setOpaque(false);
         contentArea.setForeground(Color.DARK_GRAY);
-        
+
         // Add undo/redo support
         @SuppressWarnings("unused")
         UndoRedoManager contentUndoManager = new UndoRedoManager(contentArea);
         @SuppressWarnings("unused")
         UndoRedoManager titleUndoManager = new UndoRedoManager(titleField);
-        
+
         // Add document listener for word count
         contentArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { updateWordCount(); }
-            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { updateWordCount(); }
-            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { updateWordCount(); }
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                updateWordCount();
+            }
+
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                updateWordCount();
+            }
+
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                updateWordCount();
+            }
         });
-        
+
         JScrollPane scrollPane = new JScrollPane(contentArea);
         scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
-        
+
         // Add scroll pane to the content wrapper
         contentWrapper.add(scrollPane, BorderLayout.CENTER);
-        
+
         // Add the content wrapper to the main panel
         add(contentWrapper, BorderLayout.CENTER);
 
         // --- Bottom Panel: Save Button ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setOpaque(false);
-        
+
         RoundedButton saveButton = new RoundedButton("Save Entry");
         saveButton.addActionListener(e -> saveEntry());
 
@@ -251,7 +260,7 @@ public class NewEntryPanel extends JPanel {
         String text = contentArea.getText();
         String[] words = text.trim().split("\\s+");
         int count = text.trim().isEmpty() ? 0 : words.length;
-        
+
         // Find the word count label and update it
         // This is a bit of a workaround, but effective for this structure
         for (Component comp : getComponents()) {
@@ -282,7 +291,7 @@ public class NewEntryPanel extends JPanel {
         try {
             File file;
             boolean isNewFile = false;
-            
+
             if (currentFile == null) {
                 // First save - create new file
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
@@ -295,13 +304,13 @@ public class NewEntryPanel extends JPanel {
                 // Subsequent saves - use existing file
                 file = currentFile;
             }
-            
+
             try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
                 writer.println(title);
                 writer.println(); // Blank line for separation
                 writer.print(content); // Use print to avoid extra newline
             }
-            
+
             String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
         } catch (IOException ex) {
@@ -321,28 +330,37 @@ public class NewEntryPanel extends JPanel {
         }
     }
 
-    private void changeFontSize(int delta){
+    private void changeFontSize(int delta) {
         Font f = contentArea.getFont();
-        int newSize = Math.max(8, Math.min(72, f.getSize()+delta));
-        contentArea.setFont(f.deriveFont((float)newSize));
+        int newSize = Math.max(8, Math.min(72, f.getSize() + delta));
+        contentArea.setFont(f.deriveFont((float) newSize));
     }
 
     // Modern rounded text field identical to NotePanel
-    private static class ModernTextField extends JTextField{
-        public ModernTextField(int cols){ super(cols); setOpaque(false); setBorder(BorderFactory.createEmptyBorder(6,10,6,10)); }
-        @Override protected void paintComponent(Graphics g){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+    private static class ModernTextField extends JTextField {
+
+        public ModernTextField(int cols) {
+            super(cols);
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(Color.WHITE);
-            g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
             super.paintComponent(g2);
             g2.dispose();
         }
-        @Override protected void paintBorder(Graphics g){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+
+        @Override
+        protected void paintBorder(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(Color.LIGHT_GRAY);
-            g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
             g2.dispose();
         }
     }
@@ -353,56 +371,57 @@ enum Mood {
 }
 
 class MoodButton extends JToggleButton {
+
     private Mood mood;
     private final Color SELECTED_COLOR = new Color(135, 206, 250); // Light Sky Blue
-    
+
     public MoodButton(Mood mood) {
         this.mood = mood;
         init();
     }
-    
+
     private void init() {
         setContentAreaFilled(false);
         setFocusPainted(false);
         setBorderPainted(false);
     }
-    
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
+
         int width = getWidth();
         int height = getHeight();
-        
+
         // Draw background circle based on selection state
         if (isSelected()) {
             g2.setColor(SELECTED_COLOR);
             g2.fillOval(0, 0, width, height);
         } else {
             g2.setColor(Color.LIGHT_GRAY);
-            g2.drawOval(0, 0, width-1, height-1);
+            g2.drawOval(0, 0, width - 1, height - 1);
         }
-        
+
         g2.setColor(Color.DARK_GRAY);
         g2.setStroke(new BasicStroke(2));
-        
+
         // Draw minimalist face
         switch (mood) {
             case HAPPY:
-                g2.drawArc(width/4, height/4, width/2, height/2, 200, 140); // Smile
-                g2.fillOval(width/4 + 5, height/3, 4, 4); // Left eye
-                g2.fillOval(width*3/4 - 10, height/3, 4, 4); // Right eye
+                g2.drawArc(width / 4, height / 4, width / 2, height / 2, 200, 140); // Smile
+                g2.fillOval(width / 4 + 5, height / 3, 4, 4); // Left eye
+                g2.fillOval(width * 3 / 4 - 10, height / 3, 4, 4); // Right eye
                 break;
             case NEUTRAL:
-                g2.drawLine(width/4, height/2, width*3/4, height/2); // Mouth
-                g2.fillOval(width/4 + 5, height/3, 4, 4); // Left eye
-                g2.fillOval(width*3/4 - 10, height/3, 4, 4); // Right eye
+                g2.drawLine(width / 4, height / 2, width * 3 / 4, height / 2); // Mouth
+                g2.fillOval(width / 4 + 5, height / 3, 4, 4); // Left eye
+                g2.fillOval(width * 3 / 4 - 10, height / 3, 4, 4); // Right eye
                 break;
             case SAD:
-                g2.drawArc(width/4, height/2, width/2, height/2, 20, 140); // Frown
-                g2.fillOval(width/4 + 5, height/3, 4, 4); // Left eye
-                g2.fillOval(width*3/4 - 10, height/3, 4, 4); // Right eye
+                g2.drawArc(width / 4, height / 2, width / 2, height / 2, 20, 140); // Frown
+                g2.fillOval(width / 4 + 5, height / 3, 4, 4); // Left eye
+                g2.fillOval(width * 3 / 4 - 10, height / 3, 4, 4); // Right eye
                 break;
         }
         g2.dispose();
