@@ -14,6 +14,8 @@ import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.ModernComboBoxUI;
 import main.util.NotebookInfo;
 import main.util.NotebookStore;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 public class NotebookManagerPanel extends JPanel {
     private final NotebookStore store = new NotebookStore();
@@ -341,12 +343,12 @@ public class NotebookManagerPanel extends JPanel {
             panel.add(iconPanel, BorderLayout.CENTER);
 
             JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER,20,0)); btns.setOpaque(false);
-            FadingButton okBtn = new FadingButton("Create");
-            okBtn.setBackground(new Color(76,175,80)); okBtn.setForeground(Color.WHITE); okBtn.setPreferredSize(new Dimension(100,38));
+            RoundedButton okBtn = new RoundedButton("Create");
+            okBtn.setForeground(Color.BLACK); okBtn.setPreferredSize(new Dimension(110,36));
             okBtn.addActionListener(e->{ accepted=true; setVisible(false); dispose(); });
 
-            FadingButton cancel = new FadingButton("Cancel");
-            cancel.setBackground(new Color(200,200,200)); cancel.setForeground(Color.DARK_GRAY); cancel.setPreferredSize(new Dimension(100,38));
+            RoundedButton cancel = new RoundedButton("Cancel");
+            cancel.setForeground(Color.DARK_GRAY); cancel.setPreferredSize(new Dimension(110,36));
             cancel.addActionListener(e->{ accepted=false; setVisible(false); dispose(); });
             btns.add(okBtn); btns.add(cancel);
             panel.add(btns, BorderLayout.SOUTH);
@@ -425,23 +427,39 @@ public class NotebookManagerPanel extends JPanel {
         String getNewName(){ return newName; }
     }
 
-    // Create the permanent tile for adding a new notebook
+    // Create the permanent tile for adding a new notebook (Aero-styled)
     private JPanel createAddTile(){
         JPanel tile = new JPanel(){
+            private boolean hover=false, pressed=false;
             { setOpaque(false); }
             @Override protected void paintComponent(Graphics g){
                 Graphics2D g2=(Graphics2D)g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-                float[] dash={4f,4f};
-                g2.setStroke(new BasicStroke(2f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND,1f,dash,0f));
+                // Background gradient depending on state
+                Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
+                Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
+                Rectangle r = new Rectangle(0,0,getWidth(),getHeight());
+                AeroPainters.paintVerticalGradient(g2, r, top, bottom, 12);
+                AeroPainters.paintGlassOverlay(g2, r, 12);
+                // Soft border
                 g2.setColor(new Color(180,180,180));
-                g2.drawRoundRect(1,1,getWidth()-2,getHeight()-2,12,12);
-                // plus icon
-                int cx=getWidth()/2, cy=getHeight()/2, s=12;
-                g2.setStroke(new BasicStroke(3f));
+                g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,12,12);
+                // Center plus icon
+                int cx=getWidth()/2, cy=getHeight()/2, s=14;
+                g2.setColor(new Color(90,90,90));
+                g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.drawLine(cx-s/2,cy, cx+s/2,cy);
                 g2.drawLine(cx,cy-s/2, cx,cy+s/2);
                 g2.dispose();
+            }
+            @Override protected void processMouseEvent(MouseEvent e){
+                switch(e.getID()){
+                    case MouseEvent.MOUSE_ENTERED -> { hover=true; repaint(); }
+                    case MouseEvent.MOUSE_EXITED -> { hover=false; repaint(); }
+                    case MouseEvent.MOUSE_PRESSED -> { pressed=true; repaint(); }
+                    case MouseEvent.MOUSE_RELEASED -> { pressed=false; repaint(); }
+                }
+                super.processMouseEvent(e);
             }
         };
         tile.setPreferredSize(new Dimension(70,70));

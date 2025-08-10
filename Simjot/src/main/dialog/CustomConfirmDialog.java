@@ -2,9 +2,9 @@ package main.dialog;
 
 import java.awt.*;
 import javax.swing.*;
-import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.panels.RoundedPanel;
+import main.ui.buttons.RoundedButton;
 
 /**
  * Modern translucent confirm dialog with Yes / No buttons matching style of other custom dialogs.
@@ -26,22 +26,20 @@ public class CustomConfirmDialog extends JDialog {
 
         JLabel lbl = new JLabel("<html><body style='text-align:center;'>"+message+"</body></html>", SwingConstants.CENTER);
         lbl.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        lbl.setForeground(Color.WHITE);
+        lbl.setForeground(Color.BLACK);
         panel.add(lbl, BorderLayout.CENTER);
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0));
         btnPanel.setOpaque(false);
 
-        FadingButton yesBtn = new FadingButton("Yes");
-        yesBtn.setBackground(new Color(80,130,180));
-        yesBtn.setForeground(Color.WHITE);
-        yesBtn.setPreferredSize(new Dimension(100,40));
+        RoundedButton yesBtn = new RoundedButton("Yes");
+        yesBtn.setForeground(Color.BLACK);
+        yesBtn.setPreferredSize(new Dimension(110,36));
         yesBtn.addActionListener(e -> { accepted = true; setVisible(false); dispose(); });
 
-        FadingButton noBtn = new FadingButton("No");
-        noBtn.setBackground(new Color(120,120,120));
-        noBtn.setForeground(Color.WHITE);
-        noBtn.setPreferredSize(new Dimension(100,40));
+        RoundedButton noBtn = new RoundedButton("No");
+        noBtn.setForeground(Color.BLACK);
+        noBtn.setPreferredSize(new Dimension(110,36));
         noBtn.addActionListener(e -> { accepted = false; setVisible(false); dispose(); });
 
         btnPanel.add(yesBtn);
