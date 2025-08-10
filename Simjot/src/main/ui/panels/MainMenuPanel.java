@@ -14,6 +14,7 @@ import main.ui.buttons.MainMenuButton;
 import main.util.RamMonitor;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
+import main.ui.components.DragController;
 
 public class MainMenuPanel extends JPanel {
 
@@ -274,67 +275,29 @@ public class MainMenuPanel extends JPanel {
     private class DraggableWidgetPanel extends JPanel {
 
         private boolean isExpanded = true;
-        private boolean isDragging = false;
-        private boolean suppressNextClick = false;
-        private Point dragOffset;
         private JPanel expandedContent;
         private JButton toggleButton;
+        private DragController drag;
 
         public DraggableWidgetPanel() {
             setOpaque(false);
             setLayout(new BorderLayout());
             initializeComponents();
-            setupDragBehavior();
+            // Reusable drag controller bound to this panel
+            drag = new DragController(this)
+                    .setConstrainToParentBounds(true)
+                    .setCursorOnDrag(true)
+                    .setDragThreshold(3);
         }
 
         private void setupTitleBarDrag(Component component) {
-            // Expanded state uses this drag behavior for the title bar
-            MouseAdapter mouseHandler = createDragHandler();
-            component.addMouseListener(mouseHandler);
-            component.addMouseMotionListener(mouseHandler);
+            // Use DragController for dragging by specific handles in expanded state
+            if (drag != null && component != null) {
+                drag.addHandle(component);
+            }
         }
 
-        private MouseAdapter createDragHandler() {
-            return new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent e) {
-                    if (SwingUtilities.isLeftMouseButton(e)) {
-                        isDragging = true;
-                        dragOffset = e.getPoint();
-                    }
-                }
-
-                @Override
-                public void mouseReleased(MouseEvent e) {
-                    if (isDragging) {
-                        isDragging = false;
-                    }
-                }
-
-                @Override
-                public void mouseDragged(MouseEvent e) {
-                    if (isDragging && dragOffset != null) {
-                        Point currentLocation = getLocation();
-                        Point newLocation = new Point(
-                                currentLocation.x + e.getX() - dragOffset.x,
-                                currentLocation.y + e.getY() - dragOffset.y
-                        );
-
-                        // Constrain to parent bounds
-                        Container parent = getParent();
-                        if (parent != null) {
-                            Dimension parentSize = parent.getSize();
-                            Dimension thisSize = getSize();
-
-                            newLocation.x = Math.max(0, Math.min(newLocation.x, parentSize.width - thisSize.width));
-                            newLocation.y = Math.max(0, Math.min(newLocation.y, parentSize.height - thisSize.height));
-                        }
-
-                        setBounds(newLocation.x, newLocation.y, getWidth(), getHeight());
-                    }
-                }
-            };
-        }
+        // createDragHandler removed (handled by DragController)
 
         private void initializeComponents() {
             // Create toggle button (always visible)
@@ -367,8 +330,7 @@ public class MainMenuPanel extends JPanel {
             toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             toggleButton.addActionListener(e -> {
                 // Prevent accidental toggle when this click follows a drag
-                if (suppressNextClick) {
-                    suppressNextClick = false;
+                if (drag != null && drag.shouldSuppressClickAndReset()) {
                     return;
                 }
                 toggleExpansion();
@@ -441,64 +403,13 @@ public class MainMenuPanel extends JPanel {
             updateLayout();
         }
 
-        private void setupDragBehavior() {
-            MouseAdapter mouseHandler = new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent e) {
-                    if (SwingUtilities.isLeftMouseButton(e)) {
-                        isDragging = true;
-                        dragOffset = e.getPoint();
-                        setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
-                        // reset click suppression at start of interaction
-                        suppressNextClick = false;
-                    }
-                }
-
-                @Override
-                public void mouseReleased(MouseEvent e) {
-                    if (isDragging) {
-                        isDragging = false;
-                        setCursor(Cursor.getDefaultCursor());
-                    }
-                }
-
-                @Override
-                public void mouseDragged(MouseEvent e) {
-                    if (isDragging && dragOffset != null) {
-                        // If the mouse moved beyond a small threshold, treat this as a drag and suppress the next click
-                        int dx = Math.abs(e.getX() - dragOffset.x);
-                        int dy = Math.abs(e.getY() - dragOffset.y);
-                        if (dx + dy > 3) {
-                            suppressNextClick = true;
-                        }
-                        Point currentLocation = getLocation();
-                        Point newLocation = new Point(
-                                currentLocation.x + e.getX() - dragOffset.x,
-                                currentLocation.y + e.getY() - dragOffset.y
-                        );
-
-                        // Constrain to parent bounds
-                        Container parent = getParent();
-                        if (parent != null) {
-                            Dimension parentSize = parent.getSize();
-                            Dimension thisSize = getSize();
-
-                            newLocation.x = Math.max(0, Math.min(newLocation.x, parentSize.width - thisSize.width));
-                            newLocation.y = Math.max(0, Math.min(newLocation.y, parentSize.height - thisSize.height));
-                        }
-
-                        setBounds(newLocation.x, newLocation.y, getWidth(), getHeight());
-                    }
-                }
-            };
-
-            addMouseListener(mouseHandler);
-            addMouseMotionListener(mouseHandler);
-            toggleButton.addMouseListener(mouseHandler);
-            toggleButton.addMouseMotionListener(mouseHandler);
-        }
+        // Old ad-hoc drag behavior removed in favor of DragController
 
         private void toggleExpansion() {
+            // Prevent accidental toggle if a drag just occurred
+            if (drag != null && drag.shouldSuppressClickAndReset()) {
+                return;
+            }
             isExpanded = !isExpanded;
             updateLayout();
 
@@ -587,14 +498,22 @@ public class MainMenuPanel extends JPanel {
                 toggleButton.setText("<"); // use '<' to visually hint minimizing/collapsing
                 toggleButton.setToolTipText("Collapse widgets");
 
-                // Add drag behavior to title bar and grip
-                setupTitleBarDrag(titleBar);
-                setupTitleBarDrag(grip);
+                // Configure drag handles for expanded state
+                if (drag != null) {
+                    drag.clearHandles();
+                    setupTitleBarDrag(titleBar);
+                    setupTitleBarDrag(grip);
+                }
             } else {
                 // Show only the toggle button
                 add(toggleButton, BorderLayout.CENTER);
                 toggleButton.setText("⚙"); // Widget icon when collapsed
                 toggleButton.setToolTipText("Expand widgets");
+                // In collapsed state, drag via the toggle button
+                if (drag != null) {
+                    drag.clearHandles();
+                    drag.addHandle(toggleButton);
+                }
             }
 
             // Update bounds when layout changes
