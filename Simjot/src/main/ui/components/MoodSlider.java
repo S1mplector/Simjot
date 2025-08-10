@@ -15,6 +15,10 @@ public class MoodSlider extends JSlider {
         setOpaque(false);
         setFocusable(false);
         setPreferredSize(new Dimension(220, 40));
+        // Help prevent painting artifacts by leveraging Swing's double buffering
+        setDoubleBuffered(true);
+        // Ensure background matches toolbar exact color when needed (#e7e7e7)
+        setBackground(new Color(0xE7, 0xE7, 0xE7));
         // Install custom UI
         setUI(new MoodSliderUI(this));
     }
@@ -55,6 +59,18 @@ public class MoodSlider extends JSlider {
             int trackLeft = trackRect.x;
             int trackTop = trackRect.y + (trackRect.height - TRACK_HEIGHT) / 2;
             int trackWidth = trackRect.width;
+
+            // Clear the repaint region using the exact toolbar color (#e7e7e7)
+            // instead of relying on parent background, for visual consistency.
+            Shape clip = g2.getClip();
+            if (clip != null) {
+                Rectangle cb = clip.getBounds();
+                Color bg = new Color(0xE7, 0xE7, 0xE7);
+                Color old = g2.getColor();
+                g2.setColor(bg);
+                g2.fillRect(cb.x, cb.y, cb.width, cb.height);
+                g2.setColor(old);
+            }
 
             // Build gradient: blue (0) → grey (50) → orange (100)
             LinearGradientPaint paint = new LinearGradientPaint(

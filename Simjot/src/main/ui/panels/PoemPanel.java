@@ -130,7 +130,9 @@ public class PoemPanel extends JPanel {
     private void initUI() {
         // --- Modern Toolbar Container ---
         JPanel toolbarContainer = new JPanel(new BorderLayout(0, 5));
-        toolbarContainer.setBackground(new Color(230, 230, 230, 200)); // Semi-transparent gray
+        // Solid background so the page wallpaper does not seep through the toolbar
+        toolbarContainer.setOpaque(true);
+        toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
         toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Top toolbar row

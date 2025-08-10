@@ -131,7 +131,9 @@ public class NewEntryPanel extends JPanel {
     private void initUI() {
         // --- Extended Toolbar with Mood Slider ---
         JPanel toolbarContainer = new JPanel(new BorderLayout(0, 5));
-        toolbarContainer.setBackground(new Color(230, 230, 230, 200)); // Semi-transparent gray
+        // Solid background so the page wallpaper does not seep through the toolbar
+        toolbarContainer.setOpaque(true);
+        toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
         toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Top toolbar row
@@ -188,9 +190,10 @@ public class NewEntryPanel extends JPanel {
 
         add(toolbarContainer, BorderLayout.NORTH);
 
-        // --- Content Area ---
-        JPanel contentWrapper = new JPanel(new BorderLayout());
-        contentWrapper.setOpaque(false);
+        // --- Content Area (match PoemPanel style) ---
+        // Use the same translucent rounded rectangle container used in PoemPanel
+        JPanel textWrapper = new TranslucentPanel();
+        textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Content Area: Text editor with undo/redo support
         contentArea = new JTextArea();
@@ -228,15 +231,21 @@ public class NewEntryPanel extends JPanel {
         });
 
         JScrollPane scrollPane = new JScrollPane(contentArea);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
 
-        // Add scroll pane to the content wrapper
-        contentWrapper.add(scrollPane, BorderLayout.CENTER);
+        // Add scroll pane to the translucent wrapper
+        textWrapper.add(scrollPane, BorderLayout.CENTER);
 
-        // Add the content wrapper to the main panel
-        add(contentWrapper, BorderLayout.CENTER);
+        // Add some vertical space between toolbar and content (like PoemPanel)
+        JPanel centerContainer = new JPanel(new BorderLayout());
+        centerContainer.setOpaque(false);
+        centerContainer.add(Box.createRigidArea(new Dimension(0, 15)), BorderLayout.NORTH);
+        centerContainer.add(textWrapper, BorderLayout.CENTER);
+
+        // Add to main panel
+        add(centerContainer, BorderLayout.CENTER);
 
         // --- Bottom Panel: Save Button ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
