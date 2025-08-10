@@ -262,6 +262,13 @@ public class JournalApp extends JFrame {
         repaint();
     }
 
+    // Updates widget panel visibility without recreating the entire main menu
+    public void updateWidgetPanelVisibility() {
+        if (mainMenuPanel instanceof MainMenuPanel) {
+            ((MainMenuPanel) mainMenuPanel).updateWidgetPanelVisibility();
+        }
+    }
+
     /**
      * Opens the entry manager panel for the given notebook. If it doesn't
      * exist yet, it will be created and added to the CardLayout on-the-fly.

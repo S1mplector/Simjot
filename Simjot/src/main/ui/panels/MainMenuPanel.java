@@ -25,6 +25,7 @@ public class MainMenuPanel extends JPanel {
     private final JournalApp app;
     private java.util.Map<String, main.ui.widgets.Widget> widgets = new java.util.LinkedHashMap<>();
     private DraggableWidgetPanel widgetPanel;
+    private JLayeredPane layeredPane;
 
     public MainMenuPanel(JournalApp app) {
         this.app = app;
@@ -190,13 +191,13 @@ public class MainMenuPanel extends JPanel {
             setBackground(Color.WHITE);
         }
 
-        // Create draggable widget panel and add it as an overlay
+        // Always create the widget panel, but only show it if enabled
         widgetPanel = new DraggableWidgetPanel();
         // Position it initially in the top-right area (will be adjusted when component is shown)
         widgetPanel.setBounds(600, 50, 150, 200);
 
         // Use a layered pane to allow dragging over other components
-        JLayeredPane layeredPane = new JLayeredPane() {
+        layeredPane = new JLayeredPane() {
             @Override
             public Dimension getPreferredSize() {
                 return content.getPreferredSize();
@@ -208,10 +209,11 @@ public class MainMenuPanel extends JPanel {
         content.setBounds(0, 0, content.getPreferredSize().width, content.getPreferredSize().height);
         layeredPane.add(content, Integer.valueOf(JLayeredPane.DEFAULT_LAYER));
 
-        // Add the widget panel
+        // Add the widget panel and set its visibility based on settings
         Dimension widgetSize = widgetPanel.getPreferredSize();
         widgetPanel.setBounds(600, 50, widgetSize.width, widgetSize.height);
         layeredPane.add(widgetPanel, Integer.valueOf(JLayeredPane.PALETTE_LAYER));
+        updateWidgetPanelVisibility();
 
         // Add component listener to resize content and reposition widget panel when window resizes
         layeredPane.addComponentListener(new ComponentAdapter() {
@@ -285,14 +287,14 @@ public class MainMenuPanel extends JPanel {
             initializeComponents();
             setupDragBehavior();
         }
-        
+
         private void setupTitleBarDrag(Component component) {
             // Expanded state uses this drag behavior for the title bar
             MouseAdapter mouseHandler = createDragHandler();
             component.addMouseListener(mouseHandler);
             component.addMouseMotionListener(mouseHandler);
         }
-        
+
         private MouseAdapter createDragHandler() {
             return new MouseAdapter() {
                 @Override
@@ -302,33 +304,33 @@ public class MainMenuPanel extends JPanel {
                         dragOffset = e.getPoint();
                     }
                 }
-                
+
                 @Override
                 public void mouseReleased(MouseEvent e) {
                     if (isDragging) {
                         isDragging = false;
                     }
                 }
-                
+
                 @Override
                 public void mouseDragged(MouseEvent e) {
                     if (isDragging && dragOffset != null) {
                         Point currentLocation = getLocation();
                         Point newLocation = new Point(
-                            currentLocation.x + e.getX() - dragOffset.x,
-                            currentLocation.y + e.getY() - dragOffset.y
+                                currentLocation.x + e.getX() - dragOffset.x,
+                                currentLocation.y + e.getY() - dragOffset.y
                         );
-                        
+
                         // Constrain to parent bounds
                         Container parent = getParent();
                         if (parent != null) {
                             Dimension parentSize = parent.getSize();
                             Dimension thisSize = getSize();
-                            
+
                             newLocation.x = Math.max(0, Math.min(newLocation.x, parentSize.width - thisSize.width));
                             newLocation.y = Math.max(0, Math.min(newLocation.y, parentSize.height - thisSize.height));
                         }
-                        
+
                         setBounds(newLocation.x, newLocation.y, getWidth(), getHeight());
                     }
                 }
@@ -561,10 +563,17 @@ public class MainMenuPanel extends JPanel {
         @Override
         public Dimension getPreferredSize() {
             if (isExpanded) {
-                return new Dimension(150, 200);
+                return new Dimension(160, 220);
             } else {
-                return new Dimension(40, 40);
+                return new Dimension(50, 50);
             }
+        }
+    }
+
+    public void updateWidgetPanelVisibility() {
+        if (widgetPanel != null) {
+            boolean shouldShow = SettingsStore.get().isShowWidgetOptions();
+            widgetPanel.setVisible(shouldShow);
         }
     }
 

@@ -98,6 +98,9 @@ public class SettingsPanel extends JPanel {
 
         // Refresh main menu so background / theme update instantly
         app.recreateMainMenuPanel();
+        
+        // Update widget panel visibility immediately
+        app.updateWidgetPanelVisibility();
 
         CustomMessageDialog.display(this, "Success", "Settings saved.", false);
     }
@@ -190,7 +193,7 @@ public class SettingsPanel extends JPanel {
         private final JComboBox<String> themeBox;
         private final JCheckBox glowChk;
         private final JCheckBox disableAnimationsChk;
-        private final JCheckBox breathingOverlayChk;
+        private final JCheckBox showWidgetOptionsChk;
 
         AppearancePage(){
             setLayout(new GridBagLayout());
@@ -214,9 +217,9 @@ public class SettingsPanel extends JPanel {
             disableAnimationsChk.setUI(new ModernCheckBoxUI());
             disableAnimationsChk.setBackground(Color.WHITE);
 
-            breathingOverlayChk = new JCheckBox("Breathing overlay on main menu", store.isBreathingOverlayEnabled());
-            breathingOverlayChk.setUI(new ModernCheckBoxUI());
-            breathingOverlayChk.setBackground(Color.WHITE);
+            showWidgetOptionsChk = new JCheckBox("Show widget options", store.isShowWidgetOptions());
+            showWidgetOptionsChk.setUI(new ModernCheckBoxUI());
+            showWidgetOptionsChk.setBackground(Color.WHITE);
 
             // Single background options button
             backgroundOptionsBtn = new RoundedButton("Background Options");
@@ -228,7 +231,7 @@ public class SettingsPanel extends JPanel {
             gc.gridx=1; add(themeBox, gc);
             gc.gridx=0; gc.gridy=2; gc.gridwidth=2; add(glowChk, gc);
             gc.gridx=0; gc.gridy=3; gc.gridwidth=2; add(disableAnimationsChk, gc);
-            gc.gridx=0; gc.gridy=4; gc.gridwidth=2; add(breathingOverlayChk, gc);
+            gc.gridx=0; gc.gridy=4; gc.gridwidth=2; add(showWidgetOptionsChk, gc);
         }
         public JComponent getComponent(){ return this; }
         public void apply(){
@@ -243,7 +246,7 @@ public class SettingsPanel extends JPanel {
             main.ui.buttons.ToolbarIconButton.setGlowEnabled(glow);
 
             store.setAnimationsDisabled(disableAnimationsChk.isSelected());
-            store.setBreathingOverlayEnabled(breathingOverlayChk.isSelected());
+            store.setShowWidgetOptions(showWidgetOptionsChk.isSelected());
         }
 
         private void openBackgroundOptions(){

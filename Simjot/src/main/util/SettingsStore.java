@@ -32,6 +32,7 @@ public final class SettingsStore {
     private static final String KEY_TUTORIAL_SEEN = "tutorialSeen";
     private static final String KEY_DISABLE_ANIMATIONS = "disableAnimations";
     private static final String KEY_BREATHING_OVERLAY = "breathingOverlayEnabled";
+    private static final String KEY_SHOW_WIDGET_OPTIONS = "showWidgetOptions";
     private static final String KEY_UI_SCALE = "uiScale";
     
     // Default values
@@ -53,6 +54,7 @@ public final class SettingsStore {
     private static final boolean DEF_TUTORIAL_SEEN = false;
     private static final boolean DEF_DISABLE_ANIMATIONS = false;
     private static final boolean DEF_BREATHING_OVERLAY = true;
+    private static final boolean DEF_SHOW_WIDGET_OPTIONS = true;
     private static final float DEF_UI_SCALE = 1.0f;
 
     // Singleton handling
@@ -185,6 +187,9 @@ public final class SettingsStore {
 
     public boolean isBreathingOverlayEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_BREATHING_OVERLAY, String.valueOf(DEF_BREATHING_OVERLAY))); }
     public void setBreathingOverlayEnabled(boolean b){ props.setProperty(KEY_BREATHING_OVERLAY, String.valueOf(b)); }
+
+    public boolean isShowWidgetOptions(){ return Boolean.parseBoolean(props.getProperty(KEY_SHOW_WIDGET_OPTIONS, String.valueOf(DEF_SHOW_WIDGET_OPTIONS))); }
+    public void setShowWidgetOptions(boolean b){ props.setProperty(KEY_SHOW_WIDGET_OPTIONS, String.valueOf(b)); }
 
     public float getUIScale() {
         try {
