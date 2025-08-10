@@ -23,7 +23,7 @@ public class MainMenuPanel extends JPanel {
     private static final boolean SHOW_GALLERY = false;
 
     private final JournalApp app;
-    private java.util.Map<String, main.ui.widgets.Widget> widgets = new java.util.LinkedHashMap<>();
+    private main.ui.widgets.WidgetManager widgetManager = new main.ui.widgets.WidgetManager();
     private DraggableWidgetPanel widgetPanel;
     private JLayeredPane layeredPane;
 
@@ -53,28 +53,8 @@ public class MainMenuPanel extends JPanel {
         }
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-        // -------- Widgets registration ---------
-        // Create a minimal Breathing stub entry and real Pomodoro widget
-        widgets.put("Breathing", new main.ui.widgets.Widget() {
-            private boolean enabled = false;
-
-            @Override
-            public void start() {
-                enabled = true;
-            }
-
-            @Override
-            public void stop() {
-                enabled = false;
-            }
-
-            @Override
-            public boolean isEnabled() {
-                return enabled;
-            }
-        });
-        widgets.put("Pomodoro", new main.ui.widgets.PomodoroWidget(app));
-        widgets.put("Idea Sticky", new main.ui.widgets.IdeaStickyWidget(app));
+        // -------- Widgets registration (centralized) ---------
+        widgetManager.initializeDefault(app);
 
         // Add header and clock.
         HeaderPanel header = new HeaderPanel();
@@ -295,6 +275,7 @@ public class MainMenuPanel extends JPanel {
 
         private boolean isExpanded = true;
         private boolean isDragging = false;
+        private boolean suppressNextClick = false;
         private Point dragOffset;
         private JPanel expandedContent;
         private JButton toggleButton;
@@ -384,7 +365,14 @@ public class MainMenuPanel extends JPanel {
             toggleButton.setFocusPainted(false);
             toggleButton.setFont(new Font("SansSerif", Font.BOLD, 18));
             toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            toggleButton.addActionListener(e -> toggleExpansion());
+            toggleButton.addActionListener(e -> {
+                // Prevent accidental toggle when this click follows a drag
+                if (suppressNextClick) {
+                    suppressNextClick = false;
+                    return;
+                }
+                toggleExpansion();
+            });
 
             // Create expanded content panel
             expandedContent = new JPanel();
@@ -401,7 +389,7 @@ public class MainMenuPanel extends JPanel {
             expandedContent.add(Box.createRigidArea(new Dimension(0, 6)));
 
             // Add widget buttons
-            for (java.util.Map.Entry<String, main.ui.widgets.Widget> entry : widgets.entrySet()) {
+            for (java.util.Map.Entry<String, main.ui.widgets.Widget> entry : widgetManager.getAll().entrySet()) {
                 String name = entry.getKey();
                 main.ui.widgets.Widget widget = entry.getValue();
                 String iconId;
@@ -465,6 +453,8 @@ public class MainMenuPanel extends JPanel {
                         isDragging = true;
                         dragOffset = e.getPoint();
                         setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                        // reset click suppression at start of interaction
+                        suppressNextClick = false;
                     }
                 }
 
@@ -479,6 +469,12 @@ public class MainMenuPanel extends JPanel {
                 @Override
                 public void mouseDragged(MouseEvent e) {
                     if (isDragging && dragOffset != null) {
+                        // If the mouse moved beyond a small threshold, treat this as a drag and suppress the next click
+                        int dx = Math.abs(e.getX() - dragOffset.x);
+                        int dy = Math.abs(e.getY() - dragOffset.y);
+                        if (dx + dy > 3) {
+                            suppressNextClick = true;
+                        }
                         Point currentLocation = getLocation();
                         Point newLocation = new Point(
                                 currentLocation.x + e.getX() - dragOffset.x,
@@ -549,31 +545,60 @@ public class MainMenuPanel extends JPanel {
                 };
                 backgroundPanel.setOpaque(false);
 
-                // Create title bar with toggle button and drag area
+                // Create title bar with toggle button and visual grip drag area
                 JPanel titleBar = new JPanel(new BorderLayout());
                 titleBar.setOpaque(false);
                 titleBar.setPreferredSize(new Dimension(0, 50));
 
-                JLabel dragLabel = new JLabel("≡≡≡ Drag Here ≡≡≡", SwingConstants.CENTER);
-                dragLabel.setForeground(new Color(0, 0, 0, 150));
-                dragLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
-                dragLabel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
-
-                titleBar.add(dragLabel, BorderLayout.CENTER);
+                // Visual grip: subtle dotted handle that hints drag (with hover cue)
+                JComponent grip = new JComponent() {
+                    private boolean hover = false;
+                    {
+                        addMouseListener(new MouseAdapter() {
+                            @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+                            @Override public void mouseExited(MouseEvent e) { hover = false; repaint(); }
+                        });
+                    }
+                    @Override protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        int w = getWidth();
+                        int h = getHeight();
+                        int cols = 6, rows = 3; // 6x3 dots
+                        int spacingX = w / (cols + 1);
+                        int spacingY = h / (rows + 1);
+                        Color dot = new Color(0,0,0, hover ? 150 : 90);
+                        g2.setColor(dot);
+                        int radius = hover ? 5 : 4;
+                        for (int r = 1; r <= rows; r++) {
+                            for (int c = 1; c <= cols; c++) {
+                                int cx = c * spacingX;
+                                int cy = r * spacingY + 6; // slight offset down from the top
+                                g2.fillOval(cx - radius/2, cy - radius/2, radius, radius);
+                            }
+                        }
+                        g2.dispose();
+                    }
+                };
+                grip.setOpaque(false);
+                grip.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                titleBar.add(grip, BorderLayout.CENTER);
                 titleBar.add(toggleButton, BorderLayout.EAST);
 
                 backgroundPanel.add(titleBar, BorderLayout.NORTH);
                 backgroundPanel.add(expandedContent, BorderLayout.CENTER);
                 add(backgroundPanel, BorderLayout.CENTER);
-                toggleButton.setText("×"); // X to close when expanded
+                toggleButton.setText("<"); // use '<' to visually hint minimizing/collapsing
+                toggleButton.setToolTipText("Collapse widgets");
 
-                // Add drag behavior to title bar
+                // Add drag behavior to title bar and grip
                 setupTitleBarDrag(titleBar);
-                setupTitleBarDrag(dragLabel);
+                setupTitleBarDrag(grip);
             } else {
                 // Show only the toggle button
                 add(toggleButton, BorderLayout.CENTER);
                 toggleButton.setText("⚙"); // Widget icon when collapsed
+                toggleButton.setToolTipText("Expand widgets");
             }
 
             // Update bounds when layout changes
