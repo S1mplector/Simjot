@@ -118,6 +118,31 @@ public class ToolbarIconButton extends JButton {
 
                 g2.setTransform(old);
                 break;
+            case "cork":
+                // Draw a cork round with subtle speckles
+                int r = Math.min(w, h) - 16; // padding
+                int x0 = cx - r/2, y0 = cy - r/2;
+                // base cork color
+                g2.setColor(new Color(205, 155, 100));
+                g2.fillOval(x0, y0, r, r);
+                // inner shading ring
+                g2.setColor(new Color(185, 140, 90));
+                g2.drawOval(x0+1, y0+1, r-2, r-2);
+                // speckles
+                g2.setColor(new Color(160, 110, 70));
+                for(int i=0;i<10;i++){
+                    double ang = i * (Math.PI*2/10.0) + 0.3*i;
+                    int sx = (int)(cx + (r*0.25)*Math.cos(ang));
+                    int sy = (int)(cy + (r*0.25)*Math.sin(ang));
+                    g2.fillOval(sx-2, sy-1, 3, 3);
+                }
+                // highlight
+                g2.setColor(new Color(255, 255, 255, 60));
+                g2.fillOval(x0+3, y0+3, r/2, r/2);
+                // outline
+                g2.setColor(new Color(120, 80, 50));
+                g2.drawOval(x0, y0, r, r);
+                break;
             case "delete":
                 g2.setColor(Color.RED);
                 g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));

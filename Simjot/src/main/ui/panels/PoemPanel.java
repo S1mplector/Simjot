@@ -14,6 +14,7 @@ import main.dialog.CustomMessageDialog;
 import main.dialog.PoemBackgroundDialog;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
+import main.ui.buttons.ToolbarIconButton;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
 
@@ -144,9 +145,12 @@ public class PoemPanel extends JPanel {
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
         topToolbar.add(backButton);
         
-        // Background button
-        RoundedButton bgButton = new RoundedButton("Background");
-        bgButton.addActionListener(e -> {
+        // Right-side settings (cork icon) button
+        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        rightToolbar.setOpaque(false);
+        ToolbarIconButton settingsBtn = new ToolbarIconButton("cork");
+        settingsBtn.setToolTipText("Background Settings");
+        settingsBtn.addActionListener(e -> {
             PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
             dialog.setVisible(true);
             // Refresh the background if it was changed
@@ -154,7 +158,7 @@ public class PoemPanel extends JPanel {
             cachedScaled = null;
             repaint();
         });
-        topToolbar.add(bgButton);
+        rightToolbar.add(settingsBtn);
 
         // Title label & field
         JLabel titleLabel = new JLabel("Poem Title:");
@@ -200,6 +204,7 @@ public class PoemPanel extends JPanel {
         // Add both toolbar rows to the container
         toolbarContainer.add(topToolbar, BorderLayout.NORTH);
         toolbarContainer.add(bottomToolbar, BorderLayout.CENTER);
+        toolbarContainer.add(rightToolbar, BorderLayout.EAST);
 
         add(toolbarContainer, BorderLayout.NORTH);
 
