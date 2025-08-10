@@ -74,6 +74,7 @@ public class MainMenuPanel extends JPanel {
             }
         });
         widgets.put("Pomodoro", new main.ui.widgets.PomodoroWidget(app));
+        widgets.put("Idea Sticky", new main.ui.widgets.IdeaStickyWidget(app));
 
         // Add header and clock.
         HeaderPanel header = new HeaderPanel();
@@ -406,6 +407,7 @@ public class MainMenuPanel extends JPanel {
                 String iconId;
                 if (name.equals("Breathing")) iconId = "breath";
                 else if (name.equals("Pomodoro")) iconId = "clock";
+                else if (name.equals("Idea Sticky")) iconId = "pencil";
                 else iconId = "lines";
                 FadingButton btn = new MainMenuButton(name, iconId);
                 btn.setForeground(Color.DARK_GRAY);
