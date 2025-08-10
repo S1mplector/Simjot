@@ -191,10 +191,10 @@ public class MainMenuPanel extends JPanel {
             setBackground(Color.WHITE);
         }
 
-        // Always create the widget panel, but only show it if enabled
+        // Always create the widget panel
         widgetPanel = new DraggableWidgetPanel();
-        // Position it initially in the top-right area (will be adjusted when component is shown)
-        widgetPanel.setBounds(600, 50, 150, 200);
+        // Initial on-screen position to ensure visibility before layout sizes are known
+        widgetPanel.setBounds(20, 50, 150, 200);
 
         // Use a layered pane to allow dragging over other components
         layeredPane = new JLayeredPane() {
@@ -209,11 +209,19 @@ public class MainMenuPanel extends JPanel {
         content.setBounds(0, 0, content.getPreferredSize().width, content.getPreferredSize().height);
         layeredPane.add(content, Integer.valueOf(JLayeredPane.DEFAULT_LAYER));
 
-        // Add the widget panel and set its visibility based on settings
+        // Add the widget panel
         Dimension widgetSize = widgetPanel.getPreferredSize();
-        widgetPanel.setBounds(600, 50, widgetSize.width, widgetSize.height);
+        widgetPanel.setBounds(20, 50, widgetSize.width, widgetSize.height);
         layeredPane.add(widgetPanel, Integer.valueOf(JLayeredPane.PALETTE_LAYER));
+        // Ensure it renders above everything and is visible immediately
+        layeredPane.setLayer(widgetPanel, JLayeredPane.DRAG_LAYER);
+        layeredPane.moveToFront(widgetPanel);
         updateWidgetPanelVisibility();
+        System.out.println("[MainMenuPanel] Widget panel added: bounds=" + widgetPanel.getBounds() + 
+                ", visible=" + widgetPanel.isVisible() + 
+                ", layer=" + JLayeredPane.getLayer(widgetPanel));
+        widgetPanel.repaint();
+        layeredPane.repaint();
 
         // Add component listener to resize content and reposition widget panel when window resizes
         layeredPane.addComponentListener(new ComponentAdapter() {
@@ -245,6 +253,7 @@ public class MainMenuPanel extends JPanel {
                 Dimension wSize = widgetPanel.getPreferredSize();
                 int x = Math.max(0, layeredPane.getWidth() - wSize.width - 20);
                 widgetPanel.setBounds(x, 50, wSize.width, wSize.height);
+                System.out.println("[MainMenuPanel] Widget panel repositioned after layout: bounds=" + widgetPanel.getBounds());
             }
         });
 
@@ -572,8 +581,39 @@ public class MainMenuPanel extends JPanel {
 
     public void updateWidgetPanelVisibility() {
         if (widgetPanel != null) {
-            boolean shouldShow = SettingsStore.get().isShowWidgetOptions();
-            widgetPanel.setVisible(shouldShow);
+            // Always show widgets panel; no longer controlled by a setting
+            widgetPanel.setVisible(true);
+        }
+    }
+
+    // Force widget panel to the top-most layer and visible; useful after the UI is shown
+    public void ensureWidgetPanelOnTopAndVisible() {
+        if (widgetPanel != null && layeredPane != null) {
+            layeredPane.setLayer(widgetPanel, JLayeredPane.DRAG_LAYER);
+            layeredPane.moveToFront(widgetPanel);
+            widgetPanel.setVisible(true);
+
+            // Clamp position to be on-screen
+            Dimension parentSize = layeredPane.getSize();
+            Dimension wSize = widgetPanel.getPreferredSize();
+            int x = widgetPanel.getX();
+            int y = widgetPanel.getY();
+            if (parentSize.width <= 0 || parentSize.height <= 0) {
+                // Parent not laid out yet: place at a safe default
+                x = 20; y = 50;
+            } else {
+                if (x < 0) x = 20;
+                if (y < 0) y = 50;
+                if (x + wSize.width > parentSize.width) x = Math.max(0, parentSize.width - wSize.width - 20);
+                if (y + wSize.height > parentSize.height) y = Math.max(0, parentSize.height - wSize.height - 20);
+            }
+            widgetPanel.setBounds(x, y, wSize.width, wSize.height);
+
+            widgetPanel.revalidate();
+            widgetPanel.repaint();
+            layeredPane.revalidate();
+            layeredPane.repaint();
+            System.out.println("[MainMenuPanel] ensureWidgetPanelOnTopAndVisible() applied: bounds=" + widgetPanel.getBounds());
         }
     }
 

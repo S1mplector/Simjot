@@ -165,6 +165,12 @@ public class JournalApp extends JFrame {
         SwingUtilities.invokeLater(() -> {
             showTutorialIfFirstTime();
             ensureFullScreen();
+            // Force widget panel visible and on top
+            if (mainMenuPanel instanceof MainMenuPanel mmp) {
+                mmp.ensureWidgetPanelOnTopAndVisible();
+            } else {
+                updateWidgetPanelVisibility();
+            }
         });
     }
 
@@ -192,6 +198,14 @@ public class JournalApp extends JFrame {
                     }
                 }
             }
+            // Ensure widgets panel is visible when entering main menu
+            if (cardName.equals(MAIN_MENU)) {
+                updateWidgetPanelVisibility();
+                if (mainMenuPanel != null) {
+                    mainMenuPanel.revalidate();
+                    mainMenuPanel.repaint();
+                }
+            }
             return;
         }
 
@@ -210,6 +224,13 @@ public class JournalApp extends JFrame {
                     }
                 }
             }
+            if (cardName.equals(MAIN_MENU)) {
+                updateWidgetPanelVisibility();
+                if (mainMenuPanel != null) {
+                    mainMenuPanel.revalidate();
+                    mainMenuPanel.repaint();
+                }
+            }
             fadePanel.startFadeIn();
         });
     }
@@ -217,7 +238,10 @@ public class JournalApp extends JFrame {
     // MAIN MENU: Contains the big background, the clock, the header, and animated
     // buttons
     private JPanel createMainMenuPanel() {
-        return new MainMenuPanel(this);
+        MainMenuPanel panel = new MainMenuPanel(this);
+        // Ensure widgets panel is visible immediately on creation
+        panel.updateWidgetPanelVisibility();
+        return panel;
     }
 
     private void showTutorialIfFirstTime() {

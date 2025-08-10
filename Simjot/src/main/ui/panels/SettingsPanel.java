@@ -193,7 +193,6 @@ public class SettingsPanel extends JPanel {
         private final JComboBox<String> themeBox;
         private final JCheckBox glowChk;
         private final JCheckBox disableAnimationsChk;
-        private final JCheckBox showWidgetOptionsChk;
 
         AppearancePage(){
             setLayout(new GridBagLayout());
@@ -217,10 +216,6 @@ public class SettingsPanel extends JPanel {
             disableAnimationsChk.setUI(new ModernCheckBoxUI());
             disableAnimationsChk.setBackground(Color.WHITE);
 
-            showWidgetOptionsChk = new JCheckBox("Show widget options", store.isShowWidgetOptions());
-            showWidgetOptionsChk.setUI(new ModernCheckBoxUI());
-            showWidgetOptionsChk.setBackground(Color.WHITE);
-
             // Single background options button
             backgroundOptionsBtn = new RoundedButton("Background Options");
             backgroundOptionsBtn.addActionListener(e->openBackgroundOptions());
@@ -231,7 +226,6 @@ public class SettingsPanel extends JPanel {
             gc.gridx=1; add(themeBox, gc);
             gc.gridx=0; gc.gridy=2; gc.gridwidth=2; add(glowChk, gc);
             gc.gridx=0; gc.gridy=3; gc.gridwidth=2; add(disableAnimationsChk, gc);
-            gc.gridx=0; gc.gridy=4; gc.gridwidth=2; add(showWidgetOptionsChk, gc);
         }
         public JComponent getComponent(){ return this; }
         public void apply(){
@@ -246,7 +240,6 @@ public class SettingsPanel extends JPanel {
             main.ui.buttons.ToolbarIconButton.setGlowEnabled(glow);
 
             store.setAnimationsDisabled(disableAnimationsChk.isSelected());
-            store.setShowWidgetOptions(showWidgetOptionsChk.isSelected());
         }
 
         private void openBackgroundOptions(){
