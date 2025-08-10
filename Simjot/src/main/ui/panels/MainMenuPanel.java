@@ -202,11 +202,21 @@ public class MainMenuPanel extends JPanel {
             public Dimension getPreferredSize() {
                 return content.getPreferredSize();
             }
-        };
-        layeredPane.setLayout(null); // Use null layout for absolute positioning
 
-        // Add the main content panel
-        content.setBounds(0, 0, content.getPreferredSize().width, content.getPreferredSize().height);
+            @Override
+            public void doLayout() {
+                // Always stretch the main content to the full size immediately,
+                // so first paint is centered and not left-aligned.
+                if (content.getParent() == this) {
+                    content.setBounds(0, 0, getWidth(), getHeight());
+                }
+                // Keep widgetPanel at its current bounds (it is draggable),
+                // so do not touch its size/position here.
+            }
+        };
+        layeredPane.setLayout(null); // Absolute positioning for draggable widget; content is stretched in doLayout.
+
+        // Add the main content panel (bounds will be set by doLayout before first paint)
         layeredPane.add(content, Integer.valueOf(JLayeredPane.DEFAULT_LAYER));
 
         // Add the widget panel
@@ -223,23 +233,20 @@ public class MainMenuPanel extends JPanel {
         widgetPanel.repaint();
         layeredPane.repaint();
 
-        // Add component listener to resize content and reposition widget panel when window resizes
+        // Add component listener to keep the widget panel clamped inside bounds on resize
         layeredPane.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-                // Resize content panel to fill the layered pane
-                content.setBounds(0, 0, layeredPane.getWidth(), layeredPane.getHeight());
-
                 if (widgetPanel != null) {
                     // Keep widget panel in bounds when window resizes
                     Point location = widgetPanel.getLocation();
                     Dimension widgetSize = widgetPanel.getSize();
 
                     if (location.x + widgetSize.width > layeredPane.getWidth()) {
-                        location.x = layeredPane.getWidth() - widgetSize.width;
+                        location.x = Math.max(0, layeredPane.getWidth() - widgetSize.width);
                     }
                     if (location.y + widgetSize.height > layeredPane.getHeight()) {
-                        location.y = layeredPane.getHeight() - widgetSize.height;
+                        location.y = Math.max(0, layeredPane.getHeight() - widgetSize.height);
                     }
 
                     widgetPanel.setBounds(location.x, location.y, widgetSize.width, widgetSize.height);
