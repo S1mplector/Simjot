@@ -25,6 +25,7 @@ import main.util.RamMonitor;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
 // import main.ui.buttons.MainMenuButton; // Removed as per edit hint
+import main.ui.theme.aero.AeroLookAndFeel;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -116,6 +117,8 @@ public class JournalApp extends JFrame {
     }
 
     private void initUI() {
+        // Apply Windows 7 Aero-inspired look & feel and defaults before building UI
+        AeroLookAndFeel.apply();
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
 

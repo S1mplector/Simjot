@@ -5,6 +5,7 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.util.Random;
 import javax.swing.*;
+import main.ui.theme.aero.AeroPainters;
 
 public class HeaderPanel extends JPanel {
     private float textAlpha = 0f;
@@ -84,12 +85,12 @@ public class HeaderPanel extends JPanel {
         int width = getWidth();
         int height = getHeight();
         
-        // Draw heart shape behind text.
+        // Draw heart shape behind text (slightly softened to fit Aero)
         AffineTransform old = g2.getTransform();
         g2.translate(width / 2, height / 2 - 10);
         g2.scale(heartScale, heartScale);
         Shape heart = createHeartShape();
-        g2.setColor(new Color(255, 0, 0, (int) (100 * textAlpha)));
+        g2.setColor(new Color(220, 30, 30, (int) (90 * textAlpha)));
         g2.fill(heart);
         g2.setTransform(old);
         
@@ -117,24 +118,25 @@ public class HeaderPanel extends JPanel {
             g2.setComposite(AlphaComposite.SrcOver);
         }
         
-        // Draw "Simjot" text.
-        g2.setFont(new Font("SansSerif", Font.BOLD, 36));
+        // Draw title text with glow (Segoe UI)
+        Font titleFont = new Font("Segoe UI", Font.BOLD, 36);
+        g2.setFont(titleFont);
         FontMetrics fm = g2.getFontMetrics();
         String text = "Simjot";
         int textWidth = fm.stringWidth(text);
         int x = (width - textWidth) / 2;
         int y = height / 2;
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, textAlpha));
-        g2.setColor(Color.WHITE);
-        g2.drawString(text, x, y);
+        AeroPainters.paintGlowText((Graphics2D) g2.create(), text, x, y, titleFont, new Color(80, 130, 200, 140), Color.WHITE);
         
-        // Draw the quote below in a smaller italic font.
-        g2.setFont(new Font("SansSerif", Font.ITALIC, 18));
+        // Draw the quote below in a smaller italic Segoe font with subtle glow
+        Font quoteFont = new Font("Segoe UI", Font.ITALIC, 18);
+        g2.setFont(quoteFont);
         FontMetrics fm2 = g2.getFontMetrics();
         int quoteWidth = fm2.stringWidth(quote);
         int quoteX = (width - quoteWidth) / 2;
         int quoteY = y + fm.getDescent() + 25;
-        g2.drawString(quote, quoteX, quoteY);
+        AeroPainters.paintGlowText((Graphics2D) g2.create(), quote, quoteX, quoteY, quoteFont, new Color(0,0,0,90), Color.WHITE);
         
         g2.dispose();
     }

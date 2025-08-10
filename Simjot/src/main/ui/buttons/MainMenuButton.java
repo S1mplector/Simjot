@@ -6,6 +6,8 @@ import java.awt.geom.RoundRectangle2D;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import main.transitions.FadingButton;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 /** A main-menu button that animates a white vector icon sliding out on hover. */
 public class MainMenuButton extends FadingButton {
@@ -40,22 +42,49 @@ public class MainMenuButton extends FadingButton {
 
     @Override
     protected void paintComponent(Graphics g){
-        int extra=(int)(20*progress);
-        Graphics2D g2=(Graphics2D)g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-        Shape bg=new RoundRectangle2D.Float(-extra,0,getWidth()+2*extra,getHeight(),15,15);
-        g2.setColor(getBackground());
-        g2.fill(bg);
+        int extra = (int) (20 * progress);
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Shape bg = new RoundRectangle2D.Float(-extra, 0, getWidth() + 2 * extra, getHeight(), 15, 15);
+
+        // Determine state colors (Aero-style)
+        boolean pressed = getModel().isPressed();
+        Color top;
+        Color bottom;
+        if (pressed) {
+            top = AeroTheme.BUTTON_PRESS_TOP;
+            bottom = AeroTheme.BUTTON_PRESS_BOTTOM;
+        } else if (hovering) {
+            top = AeroTheme.BUTTON_HOVER_TOP;
+            bottom = AeroTheme.BUTTON_HOVER_BOTTOM;
+        } else {
+            top = AeroTheme.BUTTON_BG_TOP;
+            bottom = AeroTheme.BUTTON_BG_BOTTOM;
+        }
+
+        // Paint gradient background and subtle glass overlay
+        Rectangle r = new Rectangle(-extra, 0, getWidth() + 2 * extra, getHeight());
+        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 15);
+        AeroPainters.paintGlassOverlay(g2, r, 15);
+
+        // Soft border
+        g2.setColor(new Color(180, 180, 180));
+        g2.draw(bg);
         g2.dispose();
 
         // Draw text with fading alpha (but do NOT affect icon color)
         Color fgBase = getForeground();
         Color fgOpaque = new Color(fgBase.getRed(), fgBase.getGreen(), fgBase.getBlue());
-        Color fgFaded = new Color(fgOpaque.getRed(), fgOpaque.getGreen(), fgOpaque.getBlue(), (int)(255*(1-progress)));
+        Color fgFaded = new Color(fgOpaque.getRed(), fgOpaque.getGreen(), fgOpaque.getBlue(), (int) (255 * (1 - progress)));
+
+        // Avoid double background paint from FadingButton by making its background transparent during super call
+        Color oldBg = getBackground();
+        setBackground(new Color(0, 0, 0, 0));
         setForeground(fgFaded);
         super.paintComponent(g); // paints text with modified alpha
-        // Restore opaque foreground for subsequent usage
+        // Restore colors
         setForeground(fgOpaque);
+        setBackground(oldBg);
 
         // Draw sliding icon
         if(progress>0f){
