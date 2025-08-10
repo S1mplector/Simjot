@@ -54,7 +54,7 @@ public class MainMenuPanel extends JPanel {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
         // -------- Widgets registration ---------
-        // Create a dummy widget just for the menu button
+        // Create a minimal Breathing stub entry and real Pomodoro widget
         widgets.put("Breathing", new main.ui.widgets.Widget() {
             private boolean enabled = false;
 
@@ -73,6 +73,7 @@ public class MainMenuPanel extends JPanel {
                 return enabled;
             }
         });
+        widgets.put("Pomodoro", new main.ui.widgets.PomodoroWidget(app));
 
         // Add header and clock.
         HeaderPanel header = new HeaderPanel();
@@ -362,11 +363,11 @@ public class MainMenuPanel extends JPanel {
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
                     // Draw rounded background
-                    g2.setColor(new Color(0, 0, 0, 150));
+                    g2.setColor(new Color(255, 255, 255, 180));
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
 
                     // Draw border
-                    g2.setColor(new Color(255, 255, 255, 100));
+                    g2.setColor(new Color(0, 0, 0, 60));
                     g2.setStroke(new BasicStroke(1f));
                     g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
 
@@ -378,7 +379,7 @@ public class MainMenuPanel extends JPanel {
             toggleButton.setOpaque(false);
             toggleButton.setContentAreaFilled(false);
             toggleButton.setBorderPainted(false);
-            toggleButton.setForeground(Color.WHITE);
+            toggleButton.setForeground(Color.DARK_GRAY);
             toggleButton.setFocusPainted(false);
             toggleButton.setFont(new Font("SansSerif", Font.BOLD, 18));
             toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -392,7 +393,7 @@ public class MainMenuPanel extends JPanel {
 
             // Add title
             JLabel title = new JLabel("Widgets");
-            title.setForeground(Color.WHITE);
+            title.setForeground(Color.DARK_GRAY);
             title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
             title.setAlignmentX(Component.CENTER_ALIGNMENT);
             expandedContent.add(title);
@@ -402,8 +403,12 @@ public class MainMenuPanel extends JPanel {
             for (java.util.Map.Entry<String, main.ui.widgets.Widget> entry : widgets.entrySet()) {
                 String name = entry.getKey();
                 main.ui.widgets.Widget widget = entry.getValue();
-                FadingButton btn = new MainMenuButton(name, "bolt");
-                btn.setForeground(Color.WHITE);
+                String iconId;
+                if (name.equals("Breathing")) iconId = "breath";
+                else if (name.equals("Pomodoro")) iconId = "clock";
+                else iconId = "lines";
+                FadingButton btn = new MainMenuButton(name, iconId);
+                btn.setForeground(Color.DARK_GRAY);
                 btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 16f));
                 btn.setAlpha(1f);
                 btn.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -525,16 +530,16 @@ public class MainMenuPanel extends JPanel {
                         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
                         // Draw main background
-                        g2.setColor(new Color(0, 0, 0, 150));
+                        g2.setColor(new Color(255, 255, 255, 180));
                         g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
 
                         // Draw border
-                        g2.setColor(new Color(255, 255, 255, 80));
+                        g2.setColor(new Color(0, 0, 0, 60));
                         g2.setStroke(new BasicStroke(1f));
                         g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
 
                         // Draw title bar area
-                        g2.setColor(new Color(255, 255, 255, 20));
+                        g2.setColor(new Color(0, 0, 0, 20));
                         g2.fillRoundRect(1, 1, getWidth() - 2, 50, 14, 14);
 
                         g2.dispose();
@@ -548,7 +553,7 @@ public class MainMenuPanel extends JPanel {
                 titleBar.setPreferredSize(new Dimension(0, 50));
 
                 JLabel dragLabel = new JLabel("≡≡≡ Drag Here ≡≡≡", SwingConstants.CENTER);
-                dragLabel.setForeground(new Color(255, 255, 255, 150));
+                dragLabel.setForeground(new Color(0, 0, 0, 150));
                 dragLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
                 dragLabel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
 

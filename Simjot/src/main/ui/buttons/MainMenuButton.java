@@ -48,11 +48,14 @@ public class MainMenuButton extends FadingButton {
         g2.fill(bg);
         g2.dispose();
 
-        // Draw text with fading alpha
+        // Draw text with fading alpha (but do NOT affect icon color)
         Color fgBase = getForeground();
-        Color fg = new Color(fgBase.getRed(), fgBase.getGreen(), fgBase.getBlue(), (int)(255*(1-progress)));
-        setForeground(fg);
-        super.paintComponent(g); // paints text with our modified alpha
+        Color fgOpaque = new Color(fgBase.getRed(), fgBase.getGreen(), fgBase.getBlue());
+        Color fgFaded = new Color(fgOpaque.getRed(), fgOpaque.getGreen(), fgOpaque.getBlue(), (int)(255*(1-progress)));
+        setForeground(fgFaded);
+        super.paintComponent(g); // paints text with modified alpha
+        // Restore opaque foreground for subsequent usage
+        setForeground(fgOpaque);
 
         // Draw sliding icon
         if(progress>0f){
@@ -69,6 +72,8 @@ public class MainMenuButton extends FadingButton {
             int x = xStart + (int)((xCenter - xStart) * progress);
 
             int y = (getHeight() - size) / 2;
+            // Icons should appear solid white and fully opaque at center
+            g2Icon.setColor(Color.WHITE);
             drawVector(g2Icon, iconId, x, y, size);
             g2Icon.dispose();
         }
@@ -76,7 +81,6 @@ public class MainMenuButton extends FadingButton {
 
     private void drawVector(Graphics2D g2, String id, int x, int y, int s){
         g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g2.setColor(Color.WHITE);
         switch(id){
             case "notebook":
                 g2.drawRoundRect(x, y, s, s, 8,8);
@@ -106,6 +110,18 @@ public class MainMenuButton extends FadingButton {
                 g2.drawOval(x+s-6, y+s/2-6, 12,12);
                 g2.drawOval(x-6, y+s/2-6, 12,12);
                 break;
+            case "clock":
+                // Simple clock face with hour and minute hands
+                g2.drawOval(x, y, s, s);
+                int cx = x + s/2;
+                int cy = y + s/2;
+                // hour hand (at ~2)
+                g2.drawLine(cx, cy, cx + s/6, cy - s/8);
+                // minute hand (at ~10)
+                g2.drawLine(cx, cy, cx - s/5, cy - s/6);
+                // center dot
+                g2.fillOval(cx-2, cy-2, 4, 4);
+                break;
             case "tick":
                 // Draw a checkmark/tick symbol
                 g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
@@ -119,6 +135,10 @@ public class MainMenuButton extends FadingButton {
                 g2.drawLine(checkStart, checkMiddle, checkMid, checkBottom);
                 g2.drawLine(checkMid, checkBottom, checkEnd, checkTop);
                 break;
+            case "breath":
+                // Breathing icon simplified to a single circle
+                g2.drawOval(x, y, s, s);
+                break;
         }
     }
-} 
+}
