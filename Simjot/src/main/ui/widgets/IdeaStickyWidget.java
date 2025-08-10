@@ -68,6 +68,10 @@ public class IdeaStickyWidget implements Widget {
 
     @Override public void setEnabled(boolean enable) { if (enable) start(); else stop(); }
 
+    @Override public String getName() { return "Idea Sticky"; }
+
+    @Override public String getIconId() { return "pencil"; }
+
     private void ensureDialog() {
         if (dialog != null) return;
         dialog = new JDialog(owner, "Sticky Notes", false);

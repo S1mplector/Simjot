@@ -21,10 +21,18 @@ public class WidgetManager {
             @Override public void start() { enabled = true; }
             @Override public void stop() { enabled = false; }
             @Override public boolean isEnabled() { return enabled; }
+            @Override public String getName() { return "Breathing"; }
+            @Override public String getIconId() { return "breath"; }
         });
 
-        widgets.put("Pomodoro", new PomodoroWidget(app));
-        widgets.put("Idea Sticky", new IdeaStickyWidget(app));
+        widgets.put("Pomodoro", new PomodoroWidget(app) {
+            @Override public String getName() { return "Pomodoro"; }
+            @Override public String getIconId() { return "clock"; }
+        });
+        widgets.put("Idea Sticky", new IdeaStickyWidget(app) {
+            @Override public String getName() { return "Idea Sticky"; }
+            @Override public String getIconId() { return "pencil"; }
+        });
     }
 
     public Map<String, Widget> getAll() { return widgets; }

@@ -64,6 +64,12 @@ public class PomodoroWidget implements Widget {
         return enabled;
     }
 
+    @Override
+    public String getName() { return "Pomodoro"; }
+
+    @Override
+    public String getIconId() { return "clock"; }
+
     private void ensureDialog() {
         if (dialog != null) return;
         dialog = new JDialog(owner, "Pomodoro", false);

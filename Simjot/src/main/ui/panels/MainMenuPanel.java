@@ -390,13 +390,9 @@ public class MainMenuPanel extends JPanel {
 
             // Add widget buttons
             for (java.util.Map.Entry<String, main.ui.widgets.Widget> entry : widgetManager.getAll().entrySet()) {
-                String name = entry.getKey();
                 main.ui.widgets.Widget widget = entry.getValue();
-                String iconId;
-                if (name.equals("Breathing")) iconId = "breath";
-                else if (name.equals("Pomodoro")) iconId = "clock";
-                else if (name.equals("Idea Sticky")) iconId = "pencil";
-                else iconId = "lines";
+                String name = widget.getName();
+                String iconId = widget.getIconId();
                 FadingButton btn = new MainMenuButton(name, iconId);
                 btn.setForeground(Color.DARK_GRAY);
                 btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 16f));

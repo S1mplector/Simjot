@@ -22,4 +22,15 @@ public interface Widget {
 
     /** Whether the widget is currently active (animating/visible) */
     boolean isEnabled();
+
+    /** Display name for menus/buttons. Default: class simple name without trailing "Widget". */
+    default String getName() {
+        String n = getClass().getSimpleName();
+        return n.endsWith("Widget") ? n.substring(0, n.length() - 6) : n;
+    }
+
+    /** Icon identifier to use in menus. Default generic 'lines'. */
+    default String getIconId() {
+        return "lines";
+    }
 }
