@@ -5,6 +5,9 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.*;
 import javax.swing.*;
+import main.ui.buttons.RoundedButton;
+import main.ui.components.ModernScrollBarUI;
+import main.ui.panels.RoundedPanel;
 import main.util.AppDirectories;
 
 /**
@@ -111,21 +114,24 @@ public class IdeaStickyWidget implements Widget {
         // Tiny control bar inside the sticky (top-right)
         JPanel topRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 4));
         topRight.setOpaque(false);
+        JButton btnList  = makeHeaderButton(iconFor("list", 16), "Notes");
         JButton btnColor = makeHeaderButton(iconFor("gear", 16), "Color");
         JButton btnSave  = makeHeaderButton(iconFor("save", 16), "Save");
         JButton btnNew   = makeHeaderButton(iconFor("plus", 16), "New note");
         JButton btnClose = makeHeaderButton(iconFor("close", 16), "Close");
         Dimension tiny = new Dimension(22, 22);
-        for (JButton b : new JButton[]{btnColor, btnSave, btnNew, btnClose}) {
+        for (JButton b : new JButton[]{btnList, btnColor, btnSave, btnNew, btnClose}) {
             b.setPreferredSize(tiny);
             b.setMinimumSize(tiny);
             b.setMaximumSize(tiny);
             b.setFont(b.getFont().deriveFont(Font.BOLD, 11f));
         }
+        btnList.addActionListener(e -> showNotesMenu(btnList));
         btnColor.addActionListener(e -> chooseColor());
         btnSave.addActionListener(e -> saveCurrent());
         btnNew.addActionListener(e -> createNewNote());
         btnClose.addActionListener(e -> stop());
+        topRight.add(btnList);
         topRight.add(btnColor);
         topRight.add(btnSave);
         topRight.add(btnNew);
@@ -217,10 +223,196 @@ public class IdeaStickyWidget implements Widget {
                         }
                         break;
                     }
+                    case "list": {
+                        // three horizontal lines
+                        int left = x + m, right = x + w - m;
+                        int y1 = y + m + 2;
+                        int y2 = cy;
+                        int y3 = y + h - m - 2;
+                        g2.drawLine(left, y1, right, y1);
+                        g2.drawLine(left, y2, right, y2);
+                        g2.drawLine(left, y3, right, y3);
+                        break;
+                    }
                 }
                 g2.dispose();
             }
         };
+    }
+
+    // Popup menu to list, load, and delete notes
+    private void showNotesMenu(Component invoker) {
+        loadNotes(); // refresh from disk in case external changes
+        // Use a borderless transparent window (no OS shadow/frame)
+        JWindow menu = new JWindow(owner);
+        menu.setAlwaysOnTop(true);
+        try { menu.setBackground(new Color(0,0,0,0)); } catch (Throwable ignore) {}
+        ((JComponent) menu.getContentPane()).setOpaque(false);
+        DefaultListModel<Note> model = new DefaultListModel<>();
+        for (Note n : notes) model.addElement(n);
+        JList<Note> list = new JList<>(model);
+        list.setVisibleRowCount(8);
+        list.setOpaque(false);
+        list.setBackground(new Color(0,0,0,0));
+        list.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        list.setCellRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> l, Object val, int idx, boolean sel, boolean foc) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(l, val, idx, sel, foc);
+                Note n = (Note) val;
+                lbl.setText(n.toString());
+                lbl.setOpaque(false); // keep list cell transparent to avoid rectangular blocks
+                lbl.setForeground(Color.DARK_GRAY);
+                lbl.setBorder(BorderFactory.createEmptyBorder(4,8,4,8));
+                return lbl;
+            }
+        });
+        list.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int i = list.locationToIndex(e.getPoint());
+                    if (i >= 0) { setCurrent(model.get(i)); menu.setVisible(false); }
+                }
+            }
+        });
+        JScrollPane scroller = new JScrollPane(list);
+        scroller.setPreferredSize(new Dimension(220, 180));
+        scroller.setOpaque(false);
+        scroller.getViewport().setOpaque(false);
+        scroller.setBorder(BorderFactory.createEmptyBorder());
+        scroller.setViewportBorder(null);
+        try {
+            scroller.getVerticalScrollBar().setUI(new ModernScrollBarUI());
+            scroller.getHorizontalScrollBar().setUI(new ModernScrollBarUI());
+        } catch (Throwable ignore) {}
+
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
+        controls.setOpaque(false);
+        RoundedButton renameBtn = new RoundedButton("Rename");
+        RoundedButton loadBtn = new RoundedButton("Load");
+        RoundedButton delBtn = new RoundedButton("Delete");
+        loadBtn.addActionListener(e -> {
+            Note sel = list.getSelectedValue();
+            if (sel != null) { setCurrent(sel); menu.setVisible(false); }
+        });
+        renameBtn.addActionListener(e -> {
+            java.util.List<Note> sel = list.getSelectedValuesList();
+            if (sel == null || sel.size() != 1) return;
+            Note n = sel.get(0);
+            String currentTitle = n.toString();
+            String name = JOptionPane.showInputDialog(dialog, "Rename note:", currentTitle);
+            if (name != null) {
+                applyTitle(n, name.trim());
+                saveNote(n);
+                list.repaint();
+            }
+        });
+        delBtn.addActionListener(e -> {
+            java.util.List<Note> sel = list.getSelectedValuesList();
+            if (sel != null && !sel.isEmpty()) {
+                int res = JOptionPane.showConfirmDialog(dialog,
+                        "Delete " + sel.size() + " selected note(s)?",
+                        "Confirm delete",
+                        JOptionPane.YES_NO_OPTION);
+                if (res != JOptionPane.YES_OPTION) return;
+                // Delete all selected notes
+                for (Note n : sel) {
+                    current = n;
+                    deleteCurrent();
+                    model.removeElement(n);
+                }
+                if (!notes.isEmpty()) setCurrent(notes.get(0));
+            }
+        });
+        // Delete key to remove selected
+        list.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("DELETE"), "delNotes");
+        list.getActionMap().put("delNotes", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) { delBtn.doClick(); }
+        });
+        // Enable/disable buttons based on selection
+        list.addListSelectionListener(e -> {
+            int count = list.getSelectedIndices().length;
+            loadBtn.setEnabled(count == 1);
+            renameBtn.setEnabled(count == 1);
+            delBtn.setEnabled(count >= 1);
+        });
+        loadBtn.setEnabled(false);
+        renameBtn.setEnabled(false);
+        delBtn.setEnabled(false);
+        controls.add(renameBtn);
+        controls.add(loadBtn);
+        controls.add(delBtn);
+
+        // Header with title and close button inside a rounded panel
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel title = new JLabel("Notes");
+        title.setBorder(BorderFactory.createEmptyBorder(6,10,6,6));
+        JButton close = new JButton(iconFor("close", 12));
+        close.setOpaque(false);
+        close.setContentAreaFilled(false);
+        close.setBorderPainted(false);
+        close.setFocusPainted(false);
+        close.addActionListener(e -> menu.dispose());
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+        right.setOpaque(false);
+        right.add(close);
+        header.add(title, BorderLayout.WEST);
+        header.add(right, BorderLayout.EAST);
+
+        RoundedPanel panel = new RoundedPanel(12);
+        panel.setLayout(new BorderLayout());
+        panel.setBackground(new Color(255,255,255,240));
+        panel.setForeground(new Color(0,0,0,0)); // no outline
+        panel.setBorder(BorderFactory.createEmptyBorder(4,4,4,4));
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(scroller, BorderLayout.CENTER);
+        panel.add(controls, BorderLayout.SOUTH);
+        menu.getContentPane().setLayout(new BorderLayout());
+        menu.getContentPane().add(panel, BorderLayout.CENTER);
+        menu.pack();
+        // Position next to invoker (below it)
+        try {
+            Point onScreen = invoker.getLocationOnScreen();
+            menu.setLocation(onScreen.x, onScreen.y + invoker.getHeight());
+        } catch (IllegalComponentStateException ex) {
+            menu.setLocationRelativeTo(owner);
+        }
+        // Close when focus is lost (click outside)
+        menu.addWindowFocusListener(new WindowAdapter() {
+            @Override public void windowLostFocus(WindowEvent e) { menu.dispose(); }
+        });
+        menu.setVisible(true);
+    }
+
+    // Update the note's display title by replacing the first non-empty line of text
+    private void applyTitle(Note n, String title) {
+        if (n == null) return;
+        String text = n.text == null ? "" : n.text;
+        String[] lines = text.split("\r?\n", -1);
+        int firstIdx = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (!lines[i].trim().isEmpty()) { firstIdx = i; break; }
+        }
+        java.util.List<String> out = new ArrayList<>();
+        if (firstIdx == -1) {
+            // No content yet; set title as the first line
+            out.add(title);
+            // keep rest if any (all empty)
+            for (String s : lines) out.add(s);
+        } else {
+            for (int i = 0; i < lines.length; i++) {
+                if (i == firstIdx) out.add(title);
+                else out.add(lines[i]);
+            }
+        }
+        // Reconstruct preserving trailing newline behavior
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < out.size(); i++) {
+            sb.append(out.get(i));
+            if (i < out.size() - 1) sb.append('\n');
+        }
+        n.text = sb.toString();
+        if (current == n) area.setText(n.text);
     }
 
     // -------- Notes persistence --------
