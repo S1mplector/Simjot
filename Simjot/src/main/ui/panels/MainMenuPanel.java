@@ -16,6 +16,7 @@ import main.util.ResourceLoader;
 import main.util.SettingsStore;
 import main.ui.components.DragController;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.aero.AeroPainters;
 
 public class MainMenuPanel extends JPanel {
 
@@ -253,22 +254,54 @@ public class MainMenuPanel extends JPanel {
             }
         });
 
-        // South Panel with version label and RAM usage
-        JPanel southPanel = new JPanel();
-        southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+        // South Status Bar (Aero-themed)
+        JPanel southPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int w = getWidth();
+                int h = getHeight();
+                Rectangle r = new Rectangle(0, 0, w, h);
+
+                // Subtle outer glow behind the bar
+                AeroPainters.paintOuterGlow(g2, new Rectangle(2, 0, w - 4, h), 12,
+                        new Color(0, 120, 215, 120), 6, 70);
+
+                // Glassy silver gradient fill
+                AeroPainters.paintVerticalGradient(g2, r,
+                        new Color(250, 250, 250, 220), new Color(226, 226, 226, 220), 12);
+                AeroPainters.paintGlassOverlay(g2, r, 12);
+                AeroPainters.paintInnerStroke(g2, r, 12, new Color(180, 180, 180, 180));
+
+                // Thin accent line at the very top (Aero blue)
+                g2.setColor(new Color(0, 120, 215));
+                g2.fillRect(0, 0, w, 1);
+
+                g2.dispose();
+            }
+        };
         southPanel.setOpaque(false);
-        southPanel.add(Box.createHorizontalGlue());
+        southPanel.setPreferredSize(new Dimension(10, 56));
+        southPanel.setBorder(BorderFactory.createEmptyBorder(3, 8, 6, 8));
 
+        // Left: version info
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        left.setOpaque(false);
         JLabel versionLabel = new JLabel("Version 1.0 - By Ilgaz, with love");
-        versionLabel.setForeground(Color.WHITE);
-        versionLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        versionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        southPanel.add(versionLabel);
+        versionLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        versionLabel.setFont(AeroTheme.defaultFont());
+        left.add(versionLabel);
+        southPanel.add(left, BorderLayout.WEST);
 
+        // Right: RAM usage
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 4));
+        right.setOpaque(false);
         RamMonitor ramPanel = new RamMonitor();
-        ramPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        ramPanel.setOpaque(false);
-        southPanel.add(ramPanel);
+        right.add(ramPanel);
+        southPanel.add(right, BorderLayout.EAST);
 
         add(layeredPane, BorderLayout.CENTER);
         add(southPanel, BorderLayout.SOUTH);
