@@ -309,7 +309,7 @@ public class MainMenuPanel extends JPanel {
 
         private void initializeComponents() {
             // Create toggle button (always visible)
-            toggleButton = new JButton("⚙") { // Widget icon
+            toggleButton = new JButton("") { // Vector-rendered icon (pushpin or chevron)
                 @Override
                 protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
@@ -332,16 +332,90 @@ public class MainMenuPanel extends JPanel {
                     g2.setStroke(new BasicStroke(1f));
                     g2.drawRoundRect(0, 0, w - 1, h - 1, 20, 20);
 
+                    // ----- Vector icon -----
+                    int cx = w/2, cy = h/2;
+                    boolean expanded = DraggableWidgetPanel.this.isExpanded;
+
+                    if (expanded) {
+                        // Windows 7 style chevron-left: glossy, soft shadow
+                        int aw = 14, ah = 18;
+                        int x = cx - aw/2, y = cy - ah/2;
+
+                        // Shadow
+                        Graphics2D s = (Graphics2D) g2.create();
+                        s.setComposite(AlphaComposite.SrcOver.derive(0.20f));
+                        s.setPaint(new RadialGradientPaint(new Point(cx+4, cy+6), 14f,
+                                new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                        s.fillOval(x-2, y+ah-6, aw+8, 10);
+                        s.dispose();
+
+                        // Body gradient (light top to darker bottom)
+                        Paint body = new LinearGradientPaint(x, y, x, y+ah,
+                                new float[]{0f, 0.5f, 1f},
+                                new Color[]{new Color(255,255,255), new Color(230,230,230), new Color(200,200,200)});
+                        g2.setPaint(body);
+                        java.awt.geom.GeneralPath chevron = new java.awt.geom.GeneralPath();
+                        chevron.moveTo(x+aw*0.65, y+2);
+                        chevron.lineTo(x+aw*0.20, y+ah/2f);
+                        chevron.lineTo(x+aw*0.65, y+ah-2);
+                        chevron.quadTo(x+aw*0.55, y+ah-1, x+aw*0.52, y+ah-4);
+                        chevron.lineTo(x+aw*0.12, y+ah/2f);
+                        chevron.lineTo(x+aw*0.52, y+4);
+                        chevron.quadTo(x+aw*0.56, y+2, x+aw*0.65, y+2);
+                        chevron.closePath();
+                        g2.fill(chevron);
+
+                        // Outline and top gloss stroke
+                        g2.setColor(new Color(140,140,140));
+                        g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                        g2.draw(chevron);
+                        g2.setColor(new Color(255,255,255,150));
+                        g2.setStroke(new BasicStroke(1.0f));
+                        g2.drawLine((int)(x+aw*0.52), y+4, (int)(x+aw*0.22), y+ah/2);
+                    } else {
+                        // Windows 7 style pushpin: blue glossy head with metallic pin
+                        int r = 16; // head radius
+                        int hx = cx, hy = cy-2;
+
+                        // Head shadow
+                        Graphics2D s = (Graphics2D) g2.create();
+                        s.setComposite(AlphaComposite.SrcOver.derive(0.22f));
+                        s.setPaint(new RadialGradientPaint(new Point(hx, hy+r/2+6), r,
+                                new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                        s.fillOval(hx-r/2-6, hy+r/2, r+12, 10);
+                        s.dispose();
+
+                        // Blue glass head
+                        Paint head = new RadialGradientPaint(new Point(hx-3, hy-3), r/1.6f,
+                                new float[]{0f, 0.6f, 1f},
+                                new Color[]{new Color(120,180,240), new Color(70,130,210), new Color(40,90,170)});
+                        g2.setPaint(head);
+                        g2.fillOval(hx - r/2, hy - r/2, r, r);
+                        // Head gloss
+                        g2.setPaint(new RadialGradientPaint(new Point(hx-5, hy-6), r/2f,
+                                new float[]{0f,1f}, new Color[]{new Color(255,255,255,200), new Color(255,255,255,0)}));
+                        g2.fillOval(hx - r/2 + 2, hy - r/2 + 2, r-6, r-8);
+                        // Head ring
+                        g2.setColor(new Color(255,255,255,140));
+                        g2.drawOval(hx - r/2, hy - r/2, r, r);
+                        g2.setColor(new Color(70,70,70,150));
+                        g2.drawOval(hx - r/2, hy - r/2, r, r);
+
+                        // Metallic pin
+                        g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                        Paint pin = new LinearGradientPaint(hx, hy+2, hx, hy+16,
+                                new float[]{0f,1f}, new Color[]{new Color(230,230,230), new Color(150,150,150)});
+                        g2.setPaint(pin);
+                        g2.drawLine(hx, hy + r/2 - 2, hx, hy + r/2 + 10);
+                    }
+
                     g2.dispose();
-                    super.paintComponent(g);
                 }
             };
             toggleButton.setPreferredSize(new Dimension(50, 50));
             toggleButton.setOpaque(false);
             toggleButton.setContentAreaFilled(false);
             toggleButton.setBorderPainted(false);
-            // Toggle glyph color: black per request
-            toggleButton.setForeground(Color.BLACK);
             toggleButton.setFocusPainted(false);
             toggleButton.setFont(new Font("SansSerif", Font.BOLD, 18));
             toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

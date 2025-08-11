@@ -111,10 +111,54 @@ public class MainMenuButton extends FadingButton {
     private void drawVector(Graphics2D g2, String id, int x, int y, int s){
         g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         switch(id){
-            case "notebook":
-                g2.drawRoundRect(x, y, s, s, 8,8);
-                g2.drawLine(x+s/2, y, x+s/2, y+s);
-                break;
+            case "notebook": {
+                // Windows 7-like hardcover notebook with spine, shadow, and gloss
+                int r = Math.max(6, s/6);
+                int spineW = Math.max(6, s/5);
+
+                // Shadow
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.2f));
+                sh.setPaint(new RadialGradientPaint(new Point(x + s/2, y + s), s/1.8f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                sh.fillOval(x-2, y+s-6, s+6, 10);
+                sh.dispose();
+
+                // Cover gradient
+                Paint cover = new LinearGradientPaint(x, y, x, y+s,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(250,250,250), new Color(232,232,232), new Color(214,214,214)});
+                g2.setPaint(cover);
+                g2.fillRoundRect(x, y, s, s, r, r);
+
+                // Spine (slightly darker)
+                Paint spine = new LinearGradientPaint(x, y, x, y+s,
+                        new float[]{0f,1f}, new Color[]{new Color(225,225,225), new Color(205,205,205)});
+                g2.setPaint(spine);
+                g2.fillRoundRect(x, y, spineW, s, r, r);
+
+                // Separator line for spine
+                g2.setColor(new Color(150,150,150));
+                g2.drawLine(x + spineW, y + 2, x + spineW, y + s - 2);
+
+                // Bookmark tab
+                int tabW = Math.max(6, s/6), tabH = Math.max(10, s/4);
+                int tx = x + s - tabW - 6, ty = y + r - 2;
+                Paint tab = new LinearGradientPaint(tx, ty, tx, ty + tabH,
+                        new float[]{0f,1f}, new Color[]{new Color(120,170,240), new Color(50,110,200)});
+                g2.setPaint(tab);
+                g2.fillRoundRect(tx, ty, tabW, tabH, 3, 3);
+                g2.setColor(new Color(255,255,255,150));
+                g2.drawLine(tx + 2, ty + 2, tx + tabW - 3, ty + 2);
+
+                // Cover gloss
+                g2.setPaint(new GradientPaint(0, y, new Color(255,255,255,180), 0, y + s/2f, new Color(255,255,255,0)));
+                g2.fillRoundRect(x + 1, y + 1, s - 2, s/2, r - 1, r - 1);
+
+                // Border
+                g2.setColor(new Color(140,140,140));
+                g2.drawRoundRect(x, y, s, s, r, r);
+                break; }
             case "pencil":
                 g2.drawLine(x, y+s, x+s, y);
                 g2.drawLine(x+3, y+s-3, x+s-3, y+3);
@@ -128,16 +172,95 @@ public class MainMenuButton extends FadingButton {
                 int gap=s/4;
                 for(int i=0;i<3;i++){ int yy=y+i*gap; g2.drawLine(x, yy, x+s, yy); }
                 break;
-            case "smile":
+            case "smile": {
+                // Glossy yellow happy face with highlight and soft stroke
+                int cx = x + s/2, cy = y + s/2;
+                // Shadow
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(cx, y + s), s/1.6f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,80), new Color(0,0,0,0)}));
+                sh.fillOval(x-4, y+s-8, s+8, 12);
+                sh.dispose();
+
+                // Face gradient
+                Paint face = new RadialGradientPaint(new Point(cx - s/6, cy - s/6), s/1.4f,
+                        new float[]{0f, 0.7f, 1f},
+                        new Color[]{new Color(255,235,120), new Color(255,215,60), new Color(235,180,40)});
+                g2.setPaint(face);
+                g2.fillOval(x, y, s, s);
+
+                // Gloss highlight
+                g2.setPaint(new RadialGradientPaint(new Point(cx - s/4, y + s/5), s/2.2f,
+                        new float[]{0f,1f}, new Color[]{new Color(255,255,255,200), new Color(255,255,255,0)}));
+                g2.fillOval(x + s/10, y + s/10, s/2, s/3);
+
+                // Eyes and smile
+                g2.setColor(new Color(80,80,80));
+                g2.setStroke(new BasicStroke(Math.max(2f, s/14f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int ex = x + s/3, ey = y + s/3;
+                int eW = Math.max(3, s/12);
+                g2.fillOval(ex, ey, eW, eW);
+                g2.fillOval(x + s*2/3 - eW, ey, eW, eW);
+                // Smile arc
+                g2.drawArc(x + s/4, y + s/3, s/2, s/2, 200, 140);
+
+                // Border
+                g2.setColor(new Color(150,130,60));
+                g2.setStroke(new BasicStroke(1.2f));
                 g2.drawOval(x, y, s, s);
-                g2.fillOval(x+s/3, y+s/3, s/10, s/10);
-                g2.fillOval(x+s*2/3 - s/10, y+s/3, s/10, s/10);
-                g2.drawArc(x+s/4, y+s/3, s/2, s/2, 200, 140);
-                break;
+                break; }
             case "wrench":
-                g2.drawLine(x, y+s/2, x+s, y+s/2);
-                g2.drawOval(x+s-6, y+s/2-6, 12,12);
-                g2.drawOval(x-6, y+s/2-6, 12,12);
+                // Replace with a clean glossy gear (Windows 7–style settings)
+                {
+                    int cx = x + s/2; int cy = y + s/2;
+                    int R = Math.max(10, (int)(s*0.45));   // outer radius
+                    int r = Math.max(6,  (int)(s*0.30));   // inner radius (between teeth)
+                    int hole = Math.max(4, (int)(s*0.18)); // centre hole
+                    int teeth = 8;
+
+                    // Shadow
+                    Graphics2D sh2 = (Graphics2D) g2.create();
+                    sh2.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                    sh2.setPaint(new RadialGradientPaint(new Point(cx, y + s), s/1.6f,
+                            new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                    sh2.fillOval(cx - R, y + s - 8, 2*R, 12);
+                    sh2.dispose();
+
+                    // Build gear path by alternating inner/outer radii
+                    java.awt.geom.GeneralPath gear = new java.awt.geom.GeneralPath();
+                    double start = -Math.PI/9; // slight tilt
+                    for(int i=0;i<teeth*2;i++){
+                        double a = start + i * Math.PI/teeth;
+                        double rad = (i%2==0 ? R : r);
+                        int px = (int)(cx + rad*Math.cos(a));
+                        int py = (int)(cy + rad*Math.sin(a));
+                        if(i==0) gear.moveTo(px, py); else gear.lineTo(px, py);
+                    }
+                    gear.closePath();
+
+                    // Metallic gradient fill
+                    Paint metal = new LinearGradientPaint(cx, y, cx, y+s,
+                            new float[]{0f, 0.5f, 1f},
+                            new Color[]{new Color(235,235,235), new Color(210,210,210), new Color(185,185,185)});
+                    g2.setPaint(metal);
+                    g2.fill(gear);
+
+                    // Inner hole
+                    g2.setColor(new Color(160,160,160));
+                    g2.setStroke(new BasicStroke(1.2f));
+                    g2.draw(new java.awt.geom.Ellipse2D.Float(cx - hole, cy - hole, hole*2, hole*2));
+
+                    // Gloss highlight arc on upper left
+                    g2.setColor(new Color(255,255,255,160));
+                    g2.setStroke(new BasicStroke(Math.max(2f, s/14f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    g2.drawArc(cx - R + 4, cy - R + 4, 2*R - 8, 2*R - 8, 130, 70);
+
+                    // Outline
+                    g2.setColor(new Color(130,130,130));
+                    g2.setStroke(new BasicStroke(1.2f));
+                    g2.draw(gear);
+                }
                 break;
             case "clock":
                 // Simple clock face with hour and minute hands

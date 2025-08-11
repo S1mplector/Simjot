@@ -22,6 +22,7 @@ public class RoundedToggleButton extends JToggleButton {
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         ButtonModel m = getModel();
         boolean selected = m.isSelected();
@@ -46,16 +47,34 @@ public class RoundedToggleButton extends JToggleButton {
             bottom = AeroTheme.BUTTON_BG_BOTTOM;
         }
 
+        int arc = 12;
         Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
-        AeroPainters.paintGlassOverlay(g2, r, 10);
+
+        // Hover halo behind the button for a soft glow
+        if (hover && !pressed) {
+            Color glow = new Color(90, 150, 220, 180); // blue-tinted aura
+            AeroPainters.paintOuterGlow(g2, r, arc, glow, 6, 40);
+        }
+
+        // Base fill and glass overlay
+        AeroPainters.paintVerticalGradient(g2, r, top, bottom, arc);
+        AeroPainters.paintGlassOverlay(g2, r, arc);
+
+        // Inner highlight for glass edge
+        AeroPainters.paintInnerStroke(g2, r, arc, new Color(255, 255, 255, 70));
+
+        // Pressed/inset depth
+        if (pressed) {
+            AeroPainters.paintInnerShadow(g2, new Rectangle(r.x + 1, r.y + 1, r.width - 2, r.height - 2), arc - 2,
+                    new Color(0, 0, 0), 4, 60);
+        }
 
         // Soft border
-        g2.setColor(new Color(180, 180, 180));
-        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+        g2.setColor(new Color(0, 0, 0, 60));
+        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
 
         // Draw centered text
-        g2.setColor(getForeground());
+        g2.setColor(getForeground()); // should be AeroTheme.TEXT_PRIMARY
         FontMetrics fm = g2.getFontMetrics();
         g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2, ((getHeight() - fm.getHeight()) / 2) + fm.getAscent());
         g2.dispose();
