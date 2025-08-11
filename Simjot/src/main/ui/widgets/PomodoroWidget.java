@@ -6,6 +6,7 @@ import javax.swing.*;
 import java.time.LocalTime;
 import main.ui.buttons.RoundedButton;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.icons.VectorIconPainter;
 
 /**
  * A lightweight Pomodoro timer widget. When enabled, it shows a small always-on-top dialog
@@ -39,6 +40,29 @@ public class PomodoroWidget implements Widget {
 
     public PomodoroWidget(JFrame owner) {
         this.owner = owner;
+    }
+
+    // Create a small header icon button that paints via VectorIconPainter for exact reuse
+    private JButton makeHeaderIconButton(String id, String tooltip) {
+        JButton b = new JButton(new Icon() {
+            private final int s = 18;
+            @Override public int getIconWidth() { return s; }
+            @Override public int getIconHeight() { return s; }
+            @Override public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                VectorIconPainter.paint(g2, id, x, y, s);
+                g2.dispose();
+            }
+        });
+        b.setPreferredSize(new Dimension(22, 22));
+        b.setOpaque(false);
+        b.setContentAreaFilled(false);
+        b.setBorderPainted(false);
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.setToolTipText(tooltip);
+        return b;
     }
 
     @Override
@@ -117,51 +141,10 @@ public class PomodoroWidget implements Widget {
         phaseLabel = new JLabel("Focus", SwingConstants.CENTER);
         phaseLabel.setForeground(AeroTheme.TEXT_PRIMARY);
         phaseLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-        // Close button (×)
-        JButton closeBtn = new JButton("\u00D7");
-        closeBtn.setOpaque(false);
-        closeBtn.setContentAreaFilled(false);
-        closeBtn.setBorderPainted(false);
-        closeBtn.setFocusPainted(false);
-        closeBtn.setForeground(AeroTheme.TEXT_PRIMARY);
-        closeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        closeBtn.setToolTipText("Close Pomodoro");
+        // Exact same icons as Sticky: delete (close) and settings
+        JButton closeBtn = makeHeaderIconButton("delete", "Close Pomodoro");
         closeBtn.addActionListener(e -> stop());
-        JButton settingsBtn = new JButton() {
-            @Override protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth(), h = getHeight();
-                int s = Math.min(w, h) - 6; // padding
-                int cx = w/2, cy = h/2;
-                int rOuter = s/2;
-                int rInner = Math.max(2, rOuter - 4);
-                // Teeth
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(AeroTheme.TEXT_PRIMARY);
-                for (int i=0;i<8;i++) {
-                    double a = Math.toRadians(i * 45);
-                    int tx1 = cx + (int)((rInner+1) * Math.cos(a));
-                    int ty1 = cy + (int)((rInner+1) * Math.sin(a));
-                    int tx2 = cx + (int)((rOuter) * Math.cos(a));
-                    int ty2 = cy + (int)((rOuter) * Math.sin(a));
-                    g2.drawLine(tx1, ty1, tx2, ty2);
-                }
-                // Outer ring
-                g2.drawOval(cx - rInner, cy - rInner, rInner*2, rInner*2);
-                // Hub
-                g2.fillOval(cx - 2, cy - 2, 4, 4);
-                g2.dispose();
-            }
-        };
-        settingsBtn.setPreferredSize(new Dimension(22, 22));
-        settingsBtn.setOpaque(false);
-        settingsBtn.setContentAreaFilled(false);
-        settingsBtn.setBorderPainted(false);
-        settingsBtn.setFocusPainted(false);
-        settingsBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        settingsBtn.setToolTipText("Pomodoro Settings");
+        JButton settingsBtn = makeHeaderIconButton("settings", "Pomodoro Settings");
         settingsBtn.addActionListener(e -> showSettingsDialog());
         header.add(phaseLabel, BorderLayout.CENTER);
         header.add(settingsBtn, BorderLayout.EAST);

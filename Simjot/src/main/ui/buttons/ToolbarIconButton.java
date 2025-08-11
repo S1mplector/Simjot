@@ -6,6 +6,7 @@ import javax.swing.*;
 import main.util.ResourceLoader;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.icons.VectorIconPainter;
 
 public class ToolbarIconButton extends JButton {
     private final String id;
@@ -180,29 +181,10 @@ public class ToolbarIconButton extends JButton {
                 g2.setColor(new Color(120, 80, 50));
                 g2.drawOval(x0, y0, r, r);
                 break;
-            case "delete": { // Aero-styled red X with gloss and shadow
-                // Shadow
-                Graphics2D s = (Graphics2D) g2.create();
-                s.setComposite(AlphaComposite.SrcOver.derive(0.2f));
-                s.setPaint(new RadialGradientPaint(new Point(cx, cy+6), 12f,
-                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
-                s.fillOval(cx-12, cy+4, 24, 6);
-                s.dispose();
-
-                // Red gradient for strokes
-                Paint red = new LinearGradientPaint(cx, cy-8, cx, cy+8,
-                        new float[]{0f, 0.5f, 1f},
-                        new Color[]{new Color(255, 110, 110), new Color(235, 40, 40), new Color(200, 0, 0)});
-                g2.setPaint(red);
-                g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(cx-7, cy-7, cx+7, cy+7);
-                g2.drawLine(cx-7, cy+7, cx+7, cy-7);
-
-                // Top gloss highlight
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(new Color(255,255,255,130));
-                g2.drawLine(cx-6, cy-6, cx+1, cy+1);
-                g2.drawLine(cx-6, cy+6, cx+1, cy-1);
+            case "delete": {
+                // Delegate to shared painter for exact reuse
+                int size = Math.min(w, h) - 8;
+                VectorIconPainter.paint(g2, "delete", cx - size/2, cy - size/2, size);
                 break; }
             case "trash": {
                 // Windows 7-like glossy trash can
@@ -258,6 +240,7 @@ public class ToolbarIconButton extends JButton {
                     g2.drawLine(xi+1, y+3, xi+1, y+bh-3);
                 }
                 break; }
+            
             default:
                 g2.setColor(Color.DARK_GRAY);
                 g2.drawLine(cx-5,cy-5,cx+5,cy+5);

@@ -9,6 +9,7 @@ import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernScrollBarUI;
 import main.ui.panels.RoundedPanel;
 import main.util.AppDirectories;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Sticky Notes widget: Manage multiple small notes, change background color,
@@ -119,10 +120,12 @@ public class IdeaStickyWidget implements Widget {
         JPanel topRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 4));
         topRight.setOpaque(false);
         JButton btnList  = makeHeaderButton(iconFor("list", 16), "Notes");
-        JButton btnColor = makeHeaderButton(iconFor("gear", 16), "Color");
+        // Reuse the main menu settings (wrench/gear) icon style
+        JButton btnColor = makeHeaderButton(iconFor("settings", 16), "Color");
         JButton btnSave  = makeHeaderButton(iconFor("save", 16), "Save");
         JButton btnNew   = makeHeaderButton(iconFor("plus", 16), "New note");
-        JButton btnClose = makeHeaderButton(iconFor("close", 16), "Close");
+        // Reuse the entry manager "delete entry" icon style for close
+        JButton btnClose = makeHeaderButton(iconFor("delete", 16), "Close");
         Dimension tiny = new Dimension(22, 22);
         for (JButton b : new JButton[]{btnList, btnColor, btnSave, btnNew, btnClose}) {
             b.setPreferredSize(tiny);
@@ -185,8 +188,17 @@ public class IdeaStickyWidget implements Widget {
             @Override public void paintIcon(Component c, Graphics g, int x, int y) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(Color.BLACK);
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                // For icons we want to reuse exactly, delegate to shared painter
+                if ("settings".equals(name) || "delete".equals(name)
+                        || "+".equals(name) || "plus".equals(name)
+                        || "save".equals(name) || "list".equals(name)) {
+                    main.ui.icons.VectorIconPainter.paint(g2, name, x, y, s);
+                    g2.dispose();
+                    return;
+                }
+                // Otherwise, draw minimal monochrome glyphs using theme text color
+                g2.setColor(AeroTheme.TEXT_PRIMARY);
+                g2.setStroke(new BasicStroke(Math.max(1.6f, s/10f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 int m = 2;
                 int w = s, h = s;
                 int cx = x + w/2, cy = y + h/2;
@@ -196,7 +208,7 @@ public class IdeaStickyWidget implements Widget {
                         g2.drawLine(cx, y + m, cx, y + h - m);
                         break;
                     }
-                    case "close": {
+                    case "close": { // fallback X (kept for compatibility)
                         g2.drawLine(x + m, y + m, x + w - m, y + h - m);
                         g2.drawLine(x + m, y + h - m, x + w - m, y + m);
                         break;
@@ -212,19 +224,9 @@ public class IdeaStickyWidget implements Widget {
                         g2.drawRect(x + m + 2, y + m + 2, lw, lw);
                         break;
                     }
-                    case "gear": {
-                        int r = Math.min(w, h)/2 - 4;
-                        g2.drawOval(cx - r, cy - r, 2*r, 2*r);
-                        int r2 = Math.max(1, r - 4);
-                        g2.drawOval(cx - r2, cy - r2, 2*r2, 2*r2);
-                        for (int i = 0; i < 8; i++) {
-                            double ang = i * Math.PI / 4.0;
-                            int x1 = (int) (cx + Math.cos(ang) * (r + 1));
-                            int y1 = (int) (cy + Math.sin(ang) * (r + 1));
-                            int x2 = (int) (cx + Math.cos(ang) * (r + 3));
-                            int y2 = (int) (cy + Math.sin(ang) * (r + 3));
-                            g2.drawLine(x1, y1, x2, y2);
-                        }
+                    case "gear": // legacy alias; map to settings shared painter
+                    case "settings": {
+                        main.ui.icons.VectorIconPainter.paint(g2, "wrench", x, y, s);
                         break;
                     }
                     case "list": {
@@ -238,6 +240,7 @@ public class IdeaStickyWidget implements Widget {
                         g2.drawLine(left, y3, right, y3);
                         break;
                     }
+                    case "delete": { main.ui.icons.VectorIconPainter.paint(g2, "delete", x, y, s); break; }
                 }
                 g2.dispose();
             }

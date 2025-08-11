@@ -22,10 +22,10 @@ import main.ui.panels.ViewEntriesPanel;
 import main.util.AppDirectories;
 import main.util.NotebookInfo;
 import main.util.RamMonitor;
-import main.util.ResourceLoader;
 import main.util.SettingsStore;
 // import main.ui.buttons.MainMenuButton; // Removed as per edit hint
 import main.ui.theme.aero.AeroLookAndFeel;
+import main.ui.icons.AppIcon;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -68,7 +68,7 @@ public class JournalApp extends JFrame {
     public JournalApp() {
         super("Simjot");
         // Set the application icon
-        setIconImage(ResourceLoader.createImage("simjot-icon.png"));
+        setIconImages(AppIcon.generateIconImages());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         loadOrChooseRootFolder();
         if (rootFolder != null) {

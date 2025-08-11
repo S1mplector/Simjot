@@ -9,6 +9,7 @@ import main.transitions.FadingButton;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.util.AppPerf;
+import main.ui.icons.VectorIconPainter;
 
 /** A main-menu button that animates a white vector icon sliding out on hover. */
 public class MainMenuButton extends FadingButton {
@@ -253,56 +254,8 @@ public class MainMenuButton extends FadingButton {
                 g2.drawOval(x, y, s, s);
                 break; }
             case "wrench":
-                // Replace with a clean glossy gear (Windows 7–style settings)
-                {
-                    int cx = x + s/2; int cy = y + s/2;
-                    int R = Math.max(10, (int)(s*0.45));   // outer radius
-                    int r = Math.max(6,  (int)(s*0.30));   // inner radius (between teeth)
-                    int hole = Math.max(4, (int)(s*0.18)); // centre hole
-                    int teeth = 8;
-
-                    // Shadow
-                    Graphics2D sh2 = (Graphics2D) g2.create();
-                    sh2.setComposite(AlphaComposite.SrcOver.derive(0.18f));
-                    sh2.setPaint(new RadialGradientPaint(new Point(cx, y + s), s/1.6f,
-                            new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
-                    sh2.fillOval(cx - R, y + s - 8, 2*R, 12);
-                    sh2.dispose();
-
-                    // Build gear path by alternating inner/outer radii
-                    java.awt.geom.GeneralPath gear = new java.awt.geom.GeneralPath();
-                    double start = -Math.PI/9; // slight tilt
-                    for(int i=0;i<teeth*2;i++){
-                        double a = start + i * Math.PI/teeth;
-                        double rad = (i%2==0 ? R : r);
-                        int px = (int)(cx + rad*Math.cos(a));
-                        int py = (int)(cy + rad*Math.sin(a));
-                        if(i==0) gear.moveTo(px, py); else gear.lineTo(px, py);
-                    }
-                    gear.closePath();
-
-                    // Metallic gradient fill
-                    Paint metal = new LinearGradientPaint(cx, y, cx, y+s,
-                            new float[]{0f, 0.5f, 1f},
-                            new Color[]{new Color(235,235,235), new Color(210,210,210), new Color(185,185,185)});
-                    g2.setPaint(metal);
-                    g2.fill(gear);
-
-                    // Inner hole
-                    g2.setColor(new Color(160,160,160));
-                    g2.setStroke(new BasicStroke(1.2f));
-                    g2.draw(new java.awt.geom.Ellipse2D.Float(cx - hole, cy - hole, hole*2, hole*2));
-
-                    // Gloss highlight arc on upper left
-                    g2.setColor(new Color(255,255,255,160));
-                    g2.setStroke(new BasicStroke(Math.max(2f, s/14f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    g2.drawArc(cx - R + 4, cy - R + 4, 2*R - 8, 2*R - 8, 130, 70);
-
-                    // Outline
-                    g2.setColor(new Color(130,130,130));
-                    g2.setStroke(new BasicStroke(1.2f));
-                    g2.draw(gear);
-                }
+                // Delegate to shared painter for exact match
+                VectorIconPainter.paint(g2, "wrench", x, y, s);
                 break;
             case "clock": {
                 // Glossy regular analog clock for Pomodoro
