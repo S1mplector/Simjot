@@ -2,7 +2,6 @@ package main.ui.panels;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import javax.swing.*;
@@ -76,109 +75,38 @@ public class NotebookManagerPanel extends JPanel {
     }
 
     private static BufferedImage createIcon(NotebookInfo nb){
-        NotebookInfo.Type type = nb.getType();
-        String iconId = nb.getIconId();
         final int S = 100;
-        final int R = 18; // corner radius
         BufferedImage img = new BufferedImage(S, S, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Base color by notebook type (fallback when iconId == "legacy")
-        Color baseType = switch (type) {
-            case JOURNAL -> new Color(0xFFC46B);
-            case POETRY  -> new Color(0xC48BDF);
-        };
+        int s = 70; 
+        int x = (S - s) / 2;
+        int y = (S - s) / 2;
 
-        // If a themed iconId is provided, use its palette
-        Color base = switch (iconId) {
-            case "lightbulb" -> new Color(0xFFE27C);
-            case "rocket"    -> new Color(0xFF8A65);
-            case "camera"    -> new Color(0x90CAF9);
-            case "music"     -> new Color(0xCE93D8);
-            case "code"      -> new Color(0xA5D6A7);
-            default           -> baseType;
-        };
+        g2.setColor(AeroTheme.TEXT_PRIMARY);
 
-        // 1) Soft shadow (Aero-style)
-        g.setPaint(new Color(0,0,0,40));
-        g.fillRoundRect(4, 6, S-8, S-8, R, R);
-        g.setPaint(new Color(0,0,0,20));
-        g.fillRoundRect(3, 5, S-6, S-6, R+2, R+2);
+        int r = Math.max(6, s/6);
+        int spineW = Math.max(6, s/5);
 
-        // 2) Rounded glossy background
-        Color top = new Color(Math.min(255, (int)(base.getRed()*1.05)), Math.min(255, (int)(base.getGreen()*1.05)), Math.min(255, (int)(base.getBlue()*1.05)));
-        Color bottom = base.darker();
-        g.setPaint(new GradientPaint(0, 10, top, 0, S-10, bottom));
-        g.fillRoundRect(0, 0, S, S, R, R);
+        java.awt.geom.RoundRectangle2D.Float cover = new java.awt.geom.RoundRectangle2D.Float(x, y, s, s, r, r);
+        g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.draw(cover);
 
-        // 3) Glass highlight top half
-        g.setPaint(new GradientPaint(0, 0, new Color(255,255,255,180), 0, S/2f, new Color(255,255,255,0)));
-        g.fillRoundRect(1, 1, S-2, S/2, R-2, R-2);
+        g2.fillRect(x, y, spineW, s);
 
-        // 4) Border and inner highlight
-        g.setColor(new Color(160,160,160));
-        g.setStroke(new BasicStroke(1.2f));
-        g.drawRoundRect(0, 0, S-1, S-1, R, R);
-        g.setColor(new Color(255,255,255,120));
-        g.drawRoundRect(1, 1, S-3, S-3, R-2, R-2);
-
-        // 5) Foreground glyph (white with soft outline for readability)
-        Graphics2D glyph = (Graphics2D) g.create();
-        glyph.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        glyph.setStroke(new BasicStroke(3.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        int cx = S/2, cy = S/2;
-
-        // Slight outer glow
-        glyph.setColor(new Color(0,0,0,40));
-        switch (iconId) {
-            case "lightbulb" -> { glyph.drawOval(cx-18,cy-18,36,36); glyph.drawLine(cx-8,cy+18,cx+8,cy+18); }
-            case "rocket" -> { glyph.drawLine(cx,cy-20,cx,cy+10); glyph.drawLine(cx,cy-20,cx-10,cy-5); glyph.drawLine(cx,cy-20,cx+10,cy-5); }
-            case "camera" -> { glyph.drawRoundRect(cx-20,cy-12,40,24,6,6); glyph.drawOval(cx-8,cy-4,16,16); }
-            case "music" -> { glyph.drawLine(cx-8,cy-15,cx-8,cy+15); glyph.drawLine(cx-8,cy-15,cx+12,cy-20); glyph.drawLine(cx+12,cy-20,cx+12,cy+10); glyph.drawOval(cx-12,cy+12,8,8); glyph.drawOval(cx+6,cy+12,8,8); }
-            case "code" -> { glyph.drawLine(cx-12,cy-10,cx-22,cy); glyph.drawLine(cx-22,cy,cx-12,cy+10); glyph.drawLine(cx+12,cy-10,cx+22,cy); glyph.drawLine(cx+22,cy,cx+12,cy+10); }
-            default -> {
-                // When no themed iconId (legacy), use type-specific glyphs
-                if (type == NotebookInfo.Type.JOURNAL) {
-                    int margin = 18;
-                    glyph.drawLine(margin+8, margin, margin+8, S-margin);
-                    for (int y = margin+12; y < S-margin; y += 12) { glyph.drawLine(margin, y, S-margin, y); }
-                } else {
-                    Path2D quill = new Path2D.Double();
-                    quill.moveTo(cx+20, cy-20);
-                    quill.curveTo(cx-5, cy-35, cx-35, cy+5, cx-10, cy+25);
-                    quill.curveTo(cx, cy+35, cx+15, cy+10, cx+20, cy-20);
-                    glyph.draw(quill);
-                    glyph.drawLine(cx-5, cy+15, cx+25, cy-25);
-                }
-            }
+        int left = x + spineW + Math.max(6, s/12);
+        int right = x + s - Math.max(6, s/12);
+        int lines = 4;
+        for(int i=0;i<lines;i++){
+            int yy = y + s/4 + i * (s/(lines+1));
+            g2.drawLine(left, yy, right, yy);
         }
-        // Foreground proper
-        glyph.setColor(Color.WHITE);
-        switch (iconId) {
-            case "lightbulb" -> { glyph.drawOval(cx-18,cy-18,36,36); glyph.drawLine(cx-8,cy+18,cx+8,cy+18); }
-            case "rocket" -> { glyph.drawLine(cx,cy-20,cx,cy+10); glyph.drawLine(cx,cy-20,cx-10,cy-5); glyph.drawLine(cx,cy-20,cx+10,cy-5); }
-            case "camera" -> { glyph.drawRoundRect(cx-20,cy-12,40,24,6,6); glyph.drawOval(cx-8,cy-4,16,16); }
-            case "music" -> { glyph.drawLine(cx-8,cy-15,cx-8,cy+15); glyph.drawLine(cx-8,cy-15,cx+12,cy-20); glyph.drawLine(cx+12,cy-20,cx+12,cy+10); glyph.drawOval(cx-12,cy+12,8,8); glyph.drawOval(cx+6,cy+12,8,8); }
-            case "code" -> { glyph.drawLine(cx-12,cy-10,cx-22,cy); glyph.drawLine(cx-22,cy,cx-12,cy+10); glyph.drawLine(cx+12,cy-10,cx+22,cy); glyph.drawLine(cx+22,cy,cx+12,cy+10); }
-            default -> {
-                if (type == NotebookInfo.Type.JOURNAL) {
-                    int margin = 18;
-                    glyph.drawLine(margin+8, margin, margin+8, S-margin);
-                    for (int y = margin+12; y < S-margin; y += 12) { glyph.drawLine(margin, y, S-margin, y); }
-                } else {
-                    Path2D quill = new Path2D.Double();
-                    quill.moveTo(cx+20, cy-20);
-                    quill.curveTo(cx-5, cy-35, cx-35, cy+5, cx-10, cy+25);
-                    quill.curveTo(cx, cy+35, cx+15, cy+10, cx+20, cy-20);
-                    glyph.draw(quill);
-                    glyph.drawLine(cx-5, cy+15, cx+25, cy-25);
-                }
-            }
-        }
-        glyph.dispose();
 
-        g.dispose();
+        int bandX = x + s - Math.max(8, s/10);
+        g2.drawLine(bandX, y + r/2, bandX, y + s - r/2);
+
+        g2.dispose();
         return img;
     }
 
@@ -204,7 +132,6 @@ public class NotebookManagerPanel extends JPanel {
 
             JLabel icon = new JLabel(new ImageIcon(createIcon(nb)));
             icon.setHorizontalAlignment(SwingConstants.CENTER);
-            // Forward hover and click events to the tile
             MouseAdapter forward = new MouseAdapter(){
                 @Override public void mouseEntered(MouseEvent e){ NotebookTile.this.mouseEntered(e); }
                 @Override public void mouseExited(MouseEvent e){ NotebookTile.this.mouseExited(e); }
@@ -213,7 +140,6 @@ public class NotebookManagerPanel extends JPanel {
             icon.addMouseListener(forward);
             add(icon, BorderLayout.CENTER);
 
-            // name label under tile
             JLabel nameLbl = new JLabel(nb.getName(),SwingConstants.CENTER);
             nameLbl.setForeground(Color.DARK_GRAY);
             NotebookTile.this.add(nameLbl, BorderLayout.SOUTH);
@@ -252,9 +178,8 @@ public class NotebookManagerPanel extends JPanel {
         if(dlg.isAccepted()){
             String name = dlg.getNotebookName();
             NotebookInfo.Type type = dlg.getNotebookType();
-            String icon = dlg.getSelectedIcon();
             if(name!=null && !name.isEmpty()){
-                NotebookInfo nb = store.create(name,type,icon);
+                NotebookInfo nb = store.create(name, type, "notebook");
                 animateNewNotebook(nb);
             }
         }
@@ -276,130 +201,111 @@ public class NotebookManagerPanel extends JPanel {
         }
     }
 
-    /* ----------------- New Notebook Dialog ----------------- */
+    /* Create dialog */
     private static class CreateNotebookDialog extends JDialog{
         private boolean accepted=false;
-        private ModernTextField nameField=new ModernTextField(15);
-        private JComboBox<NotebookInfo.Type> typeBox=new JComboBox<>(NotebookInfo.Type.values());
-        private String selectedIcon="legacy";
+        private final ModernTextField nameField = new ModernTextField(20);
+        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.JOURNAL, NotebookInfo.Type.POETRY });
 
         CreateNotebookDialog(Frame parent){
-            super(parent,"New Notebook",true);
+            super(parent, "Create Notebook", true);
             setUndecorated(true);
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
 
             RoundedPanel panel = new RoundedPanel();
-            panel.setArc(20);
-            panel.setBackground(new Color(255,255,255,240));
-            panel.setLayout(new BorderLayout(10,10));
-            panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
+            panel.setArc(16);
+            panel.setLayout(new BorderLayout(12,12));
+            panel.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
 
-            JPanel fields = new JPanel(new GridLayout(0,1,5,5));
-            fields.setOpaque(false);
-            JLabel nlab=new JLabel("Name: "); nlab.setForeground(Color.DARK_GRAY);
-            fields.add(nlab); fields.add(nameField);
+            // Title
+            JLabel title = new JLabel("Create Notebook", SwingConstants.LEFT);
+            title.setForeground(Color.DARK_GRAY);
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+            panel.add(title, BorderLayout.NORTH);
 
-            // styled combo
+            // Center content
+            JPanel center = new JPanel(new GridBagLayout());
+            center.setOpaque(false);
+            GridBagConstraints gc = new GridBagConstraints();
+            gc.gridx=0; gc.gridy=0; gc.anchor=GridBagConstraints.WEST; gc.fill=GridBagConstraints.HORIZONTAL; gc.weightx=1.0; gc.insets=new Insets(4,2,4,2);
+
+            // Name field
+            nameField.setToolTipText("Notebook name");
+            center.add(nameField, gc);
+
+            // Type selector
+            gc.gridy++;
             typeBox.setUI(new ModernComboBoxUI());
-            typeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-            typeBox.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            typeBox.setForeground(Color.DARK_GRAY);
-
-            JLabel tlab=new JLabel("Type: "); tlab.setForeground(Color.DARK_GRAY);
-            fields.add(tlab); fields.add(typeBox);
-
-            // Icon selector with arrows
-            String[] icons={"legacy","lightbulb","rocket","camera","music","code"};
-            selectedIcon = icons[0];
-
-            JPanel iconSelector = new JPanel(); iconSelector.setOpaque(false); iconSelector.setLayout(new BoxLayout(iconSelector, BoxLayout.X_AXIS));
-            iconSelector.add(Box.createHorizontalGlue());
-            
-            // arrows and preview will be added later
-
-            JLabel iconPreview = new JLabel(); iconPreview.setHorizontalAlignment(SwingConstants.CENTER);
-            iconPreview.setPreferredSize(new Dimension(80,80));
-
-            java.util.function.Consumer<String> updatePreview = id->{
-                NotebookInfo tmp=new NotebookInfo("t", NotebookInfo.Type.JOURNAL,new java.io.File("."),0,id);
-                Image img=createIcon(tmp).getScaledInstance(70,70,Image.SCALE_SMOOTH);
-                iconPreview.setIcon(new ImageIcon(img));
-            };
-            updatePreview.accept(selectedIcon);
-
-            JButton leftBtn = new ArrowButton(false);
-            JButton rightBtn = new ArrowButton(true);
-
-            leftBtn.addActionListener(e->{
-                int idx=java.util.Arrays.asList(icons).indexOf(selectedIcon);
-                idx=(idx-1+icons.length)%icons.length;
-                selectedIcon=icons[idx]; updatePreview.accept(selectedIcon);
+            typeBox.setFocusable(false);
+            typeBox.setRenderer(new javax.swing.ListCellRenderer<NotebookInfo.Type>(){
+                private final JPanel cell = new JPanel(new BorderLayout());
+                private final JLabel t = new JLabel();
+                private final JLabel sub = new JLabel();
+                {
+                    cell.setOpaque(true);
+                    t.setFont(t.getFont().deriveFont(Font.PLAIN, 14f));
+                    sub.setFont(sub.getFont().deriveFont(Font.PLAIN, 11f));
+                    sub.setForeground(new Color(120,120,120));
+                    cell.add(t, BorderLayout.NORTH);
+                    cell.add(sub, BorderLayout.SOUTH);
+                    cell.setBorder(BorderFactory.createEmptyBorder(3,8,3,8));
+                }
+                @Override public Component getListCellRendererComponent(JList<? extends NotebookInfo.Type> list, NotebookInfo.Type value, int index, boolean isSelected, boolean cellHasFocus){
+                    String friendly = value==NotebookInfo.Type.JOURNAL?"Journaling":"Poetry";
+                    String desc = value==NotebookInfo.Type.JOURNAL?"Daily notes, moods, reflections":"Write and organize poems";
+                    t.setText(friendly);
+                    sub.setText(index>=0?desc:"");
+                    if(isSelected){ cell.setBackground(list.getSelectionBackground()); t.setForeground(list.getSelectionForeground()); sub.setForeground(list.getSelectionForeground()); }
+                    else { cell.setBackground(Color.WHITE); t.setForeground(Color.DARK_GRAY); sub.setForeground(new Color(120,120,120)); }
+                    return cell;
+                }
             });
-            rightBtn.addActionListener(e->{
-                int idx=java.util.Arrays.asList(icons).indexOf(selectedIcon);
-                idx=(idx+1)%icons.length;
-                selectedIcon=icons[idx]; updatePreview.accept(selectedIcon);
+            center.add(typeBox, gc);
+
+            // Description label under combo (updates on selection)
+            gc.gridy++;
+            JLabel descLabel = new JLabel("Daily notes, moods, reflections");
+            descLabel.setForeground(new Color(120,120,120));
+            center.add(descLabel, gc);
+
+            typeBox.addActionListener(e->{
+                NotebookInfo.Type t = (NotebookInfo.Type) typeBox.getSelectedItem();
+                descLabel.setText(t==NotebookInfo.Type.JOURNAL?"Daily notes, moods, reflections":"Write and organize poems");
             });
 
-            iconSelector.add(leftBtn);
-            iconSelector.add(Box.createHorizontalStrut(12));
-            iconSelector.add(iconPreview);
-            iconSelector.add(Box.createHorizontalStrut(12));
-            iconSelector.add(rightBtn);
-            iconSelector.add(Box.createHorizontalGlue());
+            panel.add(center, BorderLayout.CENTER);
 
-            JPanel iconPanel = new JPanel(new BorderLayout()); iconPanel.setOpaque(false);
-            iconPanel.add(new JLabel("Icon:"){{setForeground(Color.DARK_GRAY);}}, BorderLayout.NORTH);
-            iconPanel.add(iconSelector, BorderLayout.CENTER);
-
-            fields.setBorder(BorderFactory.createEmptyBorder(10,0,10,0));
-            panel.add(fields, BorderLayout.NORTH);
-            panel.add(iconPanel, BorderLayout.CENTER);
-
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER,20,0)); btns.setOpaque(false);
+            // Buttons
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT,10,0));
+            btns.setOpaque(false);
             RoundedButton okBtn = new RoundedButton("Create");
-            okBtn.setForeground(Color.BLACK); okBtn.setPreferredSize(new Dimension(110,36));
+            okBtn.setPreferredSize(new Dimension(110,36));
+            okBtn.setEnabled(false);
             okBtn.addActionListener(e->{ accepted=true; setVisible(false); dispose(); });
-
             RoundedButton cancel = new RoundedButton("Cancel");
             cancel.setForeground(Color.DARK_GRAY); cancel.setPreferredSize(new Dimension(110,36));
             cancel.addActionListener(e->{ accepted=false; setVisible(false); dispose(); });
             btns.add(okBtn); btns.add(cancel);
             panel.add(btns, BorderLayout.SOUTH);
 
+            // enable Create only when name entered
+            nameField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
+                private void upd(){ okBtn.setEnabled(!nameField.getText().trim().isEmpty()); }
+                public void insertUpdate(javax.swing.event.DocumentEvent e){ upd(); }
+                public void removeUpdate(javax.swing.event.DocumentEvent e){ upd(); }
+                public void changedUpdate(javax.swing.event.DocumentEvent e){ upd(); }
+            });
+
             add(panel);
             pack();
-            setSize(420,380);
+            setSize(420,260);
             setLocationRelativeTo(parent);
         }
 
         boolean isAccepted(){ return accepted; }
         String getNotebookName(){ return nameField.getText().trim(); }
         NotebookInfo.Type getNotebookType(){ return (NotebookInfo.Type)typeBox.getSelectedItem(); }
-        String getSelectedIcon(){ return selectedIcon; }
-
-        class ArrowButton extends JButton{
-            private final boolean right;
-            ArrowButton(boolean right){ this.right=right; Dimension d=new Dimension(28,28); setPreferredSize(d); setMinimumSize(d); setMaximumSize(d); setContentAreaFilled(false); setBorderPainted(false); setFocusPainted(false); }
-            @Override protected void paintComponent(Graphics g){
-                Graphics2D g2=(Graphics2D)g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(240,240,240));
-                g2.fillOval(0,0,getWidth(),getHeight());
-                g2.setColor(new Color(120,120,120));
-                int cx=getWidth()/2, cy=getHeight()/2;
-                int s=6;
-                if(right){
-                    g2.drawLine(cx-s/2,cy-s, cx+s/2,cy);
-                    g2.drawLine(cx-s/2,cy+s, cx+s/2,cy);
-                } else {
-                    g2.drawLine(cx+s/2,cy-s, cx-s/2,cy);
-                    g2.drawLine(cx+s/2,cy+s, cx-s/2,cy);
-                }
-                g2.dispose();
-            }
-        }
     }
 
     /* Options dialog */
