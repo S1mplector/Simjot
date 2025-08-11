@@ -496,7 +496,7 @@ public class NotebookManagerPanel extends JPanel {
         gallery.add(newTile);
         if(addTile!=null) gallery.add(addTile); // keep plus tile at end
 
-        gallery.revalidate(); gallery.repaint();
+        gallery.revalidate(); gallery.repaint(newTile.getBounds());
 
         Timer anim = new Timer(33,null);
         anim.addActionListener(e->{
@@ -506,7 +506,7 @@ public class NotebookManagerPanel extends JPanel {
                 w = 120; anim.stop();
             }
             newTile.setPreferredSize(new Dimension(w,120));
-            gallery.revalidate(); gallery.repaint();
+            gallery.revalidate(); gallery.repaint(newTile.getBounds());
         });
         anim.start();
     }
@@ -534,14 +534,16 @@ public class NotebookManagerPanel extends JPanel {
                 w[0] = 0;
                 anim.stop();
                 // Remove tile and refresh layout
+                Rectangle r = tile.getBounds();
                 gallery.remove(tile);
                 gallery.revalidate();
-                gallery.repaint();
+                // Repaint old area to clear remnants
+                gallery.repaint(r);
                 return;
             }
             tile.setPreferredSize(new Dimension(w[0], targetH));
             gallery.revalidate();
-            gallery.repaint();
+            gallery.repaint(tile.getBounds());
         });
         anim.start();
     }

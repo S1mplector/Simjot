@@ -42,6 +42,7 @@ public class PoemPanel extends JPanel {
     private int cachedX = 0;
     private int cachedY = 0;
     private float cachedOpacity = -1f;
+    private String cachedBgPath = null;
     private File currentFile = null; // Track the current file being edited
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
@@ -68,6 +69,14 @@ public class PoemPanel extends JPanel {
         // Draw the background image with opacity if available
         String bgPath = SettingsStore.get().getPoemBackgroundImage();
         if (bgPath != null && !bgPath.isEmpty()) {
+            // Invalidate cached image if the path changed
+            if (cachedBgPath == null || !cachedBgPath.equals(bgPath)) {
+                backgroundImage = null;
+                cachedScaled = null;
+                cachedPanelW = cachedPanelH = -1;
+                cachedOpacity = -1f;
+                cachedBgPath = bgPath;
+            }
             // Load the background image if not already loaded
             if (backgroundImage == null) {
                 if (bgPath.startsWith("res:")) {
@@ -124,7 +133,25 @@ public class PoemPanel extends JPanel {
                 if (cachedScaled != null) {
                     g.drawImage(cachedScaled, cachedX, cachedY, this);
                 }
+            } else {
+                // Graceful fallback: subtle paper-like gradient when image missing
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
+                main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
+                        new Color(250, 250, 250), new Color(235, 235, 235), 0);
+                main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
+                g2.dispose();
             }
+        } else {
+            // No path configured: draw theme fallback
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
+            main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
+                    new Color(250, 250, 250), new Color(235, 235, 235), 0);
+            main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
+            g2.dispose();
         }
     }
 

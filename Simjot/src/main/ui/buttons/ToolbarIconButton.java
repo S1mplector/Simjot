@@ -25,7 +25,12 @@ public class ToolbarIconButton extends JButton {
         setFocusPainted(false); setBorderPainted(false); setContentAreaFilled(false);
 
         // attempt load bitmap resource from Simjot/img/{id}.png
-        this.icon = ResourceLoader.createImageIcon("Simjot/img/"+id+".png");
+        // Skip loading for ids we always render as vector to avoid missing-file warnings
+        if ("trash".equals(id) || "new".equals(id) || "delete".equals(id) || "cork".equals(id)) {
+            this.icon = null;
+        } else {
+            this.icon = ResourceLoader.createImageIcon("Simjot/img/"+id+".png");
+        }
 
         INSTANCES.add(this);
         setGlow(globalGlow);
