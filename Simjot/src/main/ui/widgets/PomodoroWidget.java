@@ -51,7 +51,13 @@ public class PomodoroWidget implements Widget {
             @Override public void paintIcon(Component c, Graphics g, int x, int y) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                VectorIconPainter.paint(g2, id, x, y, s);
+                java.awt.image.BufferedImage img = VectorIconPainter.getImage(id, s);
+                if (img != null) {
+                    g2.drawImage(img, x, y, null);
+                } else {
+                    // Fallback to vector draw if unknown id
+                    VectorIconPainter.paint(g2, id, x, y, s);
+                }
                 g2.dispose();
             }
         });

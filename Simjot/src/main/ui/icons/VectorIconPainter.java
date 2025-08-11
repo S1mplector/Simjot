@@ -1,10 +1,51 @@
 package main.ui.icons;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /** Shared vector icon painter so multiple components render exactly the same icons. */
 public final class VectorIconPainter {
     private VectorIconPainter() {}
+
+    // --- Lightweight LRU cache for rasterized icons (name@size) -> ARGB image ---
+    private static final int MAX_CACHE = 128;
+    private static final Map<String, BufferedImage> IMG_CACHE = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, BufferedImage> eldest) {
+            return size() > MAX_CACHE;
+        }
+    };
+
+    private static String key(String id, int s) { return (id == null ? "" : id.toLowerCase()) + "@" + s; }
+
+    /** Return a cached ARGB image for the given icon id and size. */
+    public static BufferedImage getImage(String id, int s) {
+        String k = key(id, s);
+        BufferedImage img = IMG_CACHE.get(k);
+        if (img != null) return img;
+        img = renderToImage(id, s);
+        if (img != null) IMG_CACHE.put(k, img);
+        return img;
+    }
+
+    /** Render vector icon to a transparent BufferedImage (no cache). */
+    public static BufferedImage renderToImage(String id, int s) {
+        if (id == null || s <= 0) return null;
+        BufferedImage img = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            // Paint at origin; consumers can offset when drawing the image
+            boolean ok = paint(g2, id, 0, 0, s);
+            if (!ok) {
+                // Not a known id; leave transparent image so callers can fallback
+            }
+        } finally {
+            g2.dispose();
+        }
+        return img;
+    }
 
     /** Paint a named icon at x,y with size s. Returns true if handled. */
     public static boolean paint(Graphics2D g2, String id, int x, int y, int s){

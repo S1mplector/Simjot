@@ -11,10 +11,10 @@ public class FadeTransitionPanel extends JComponent {
     public void startFadeOut(Runnable callback) {
         alpha = 0f;
         setVisible(true);
-        fadeTimer = new Timer(30, null);
+        fadeTimer = new Timer(33, null);
         fadeTimer.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                alpha += 0.05f;
+                alpha += 0.055f; // adjusted for 33ms tick to keep duration similar
                 if (alpha >= 1f) {
                     alpha = 1f;
                     fadeTimer.stop();
@@ -32,10 +32,10 @@ public class FadeTransitionPanel extends JComponent {
     
     public void startFadeIn() {
         alpha = 1f;
-        fadeTimer = new Timer(30, null);
+        fadeTimer = new Timer(33, null);
         fadeTimer.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                alpha -= 0.05f;
+                alpha -= 0.055f; // adjusted for 33ms tick to keep duration similar
                 if (alpha <= 0f) {
                     alpha = 0f;
                     fadeTimer.stop();

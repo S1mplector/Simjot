@@ -181,18 +181,22 @@ public class IdeaStickyWidget implements Widget {
 
     // Vector icon factory for mini buttons
     private Icon iconFor(String name, int size) {
-        final int s = Math.max(8, size);
         return new Icon() {
-            @Override public int getIconWidth() { return s; }
-            @Override public int getIconHeight() { return s; }
+            @Override public int getIconWidth() { return size; }
+            @Override public int getIconHeight() { return size; }
             @Override public void paintIcon(Component c, Graphics g, int x, int y) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int s = size;
                 // For icons we want to reuse exactly, delegate to shared painter
-                if ("settings".equals(name) || "delete".equals(name)
-                        || "+".equals(name) || "plus".equals(name)
-                        || "save".equals(name) || "list".equals(name)) {
-                    main.ui.icons.VectorIconPainter.paint(g2, name, x, y, s);
+                if ("settings".equals(name) || "delete".equals(name) || "+".equals(name) || "plus".equals(name) || "save".equals(name) || "list".equals(name)) {
+                    java.awt.image.BufferedImage img = main.ui.icons.VectorIconPainter.getImage(name, s);
+                    if (img != null) {
+                        g2.drawImage(img, x, y, null);
+                    } else {
+                        // Fallback to vector if cache miss due to unknown id
+                        main.ui.icons.VectorIconPainter.paint(g2, name, x, y, s);
+                    }
                     g2.dispose();
                     return;
                 }

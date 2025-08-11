@@ -498,10 +498,10 @@ public class NotebookManagerPanel extends JPanel {
 
         gallery.revalidate(); gallery.repaint();
 
-        Timer anim = new Timer(15,null);
+        Timer anim = new Timer(33,null);
         anim.addActionListener(e->{
             Dimension d = newTile.getPreferredSize();
-            int w = d.width + 12; // speed
+            int w = d.width + 26; // speed adjusted for 33ms tick (~same duration)
             if(w >= 120){
                 w = 120; anim.stop();
             }
@@ -527,9 +527,9 @@ public class NotebookManagerPanel extends JPanel {
         tile.setCursor(Cursor.getDefaultCursor());
 
         final int[] w = new int[]{ start.width };
-        Timer anim = new Timer(15, null);
+        Timer anim = new Timer(33, null);
         anim.addActionListener(e -> {
-            w[0] -= 12; // speed per frame
+            w[0] -= 26; // speed adjusted for 33ms tick (~same duration)
             if(w[0] <= 0){
                 w[0] = 0;
                 anim.stop();

@@ -38,7 +38,7 @@ public class ToolbarIconButton extends JButton {
         if(this.glow==g) return;
         this.glow=g;
         if(glow){
-            glowTimer = new Timer(60, e->{ glowPhase+=0.05f; repaint(); });
+            glowTimer = new Timer(80, e->{ glowPhase+=0.066f; repaint(); }); // 80ms tick, similar perceived speed
             glowTimer.start();
         } else {
             if(glowTimer!=null){ glowTimer.stop(); glowTimer=null; }
@@ -182,9 +182,14 @@ public class ToolbarIconButton extends JButton {
                 g2.drawOval(x0, y0, r, r);
                 break;
             case "delete": {
-                // Delegate to shared painter for exact reuse
+                // Use cached raster image for exact reuse and lower paint cost
                 int size = Math.min(w, h) - 8;
-                VectorIconPainter.paint(g2, "delete", cx - size/2, cy - size/2, size);
+                java.awt.image.BufferedImage img = VectorIconPainter.getImage("delete", size);
+                if (img != null) {
+                    g2.drawImage(img, cx - size/2, cy - size/2, null);
+                } else {
+                    VectorIconPainter.paint(g2, "delete", cx - size/2, cy - size/2, size);
+                }
                 break; }
             case "trash": {
                 // Windows 7-like glossy trash can
