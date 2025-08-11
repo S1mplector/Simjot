@@ -7,6 +7,10 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import main.ui.theme.aero.AeroTheme;
+import javax.swing.text.StyledEditorKit;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
 import main.dialog.CustomMessageDialog;
 import main.dialog.EntryBackgroundDialog;
 import main.ui.JournalApp;
@@ -17,6 +21,8 @@ import main.util.AppDirectories;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
 import main.util.UndoRedoManager;
+import java.awt.event.*;
+import java.util.function.Supplier;
 
 public class NewEntryPanel extends JPanel {
 
@@ -27,8 +33,11 @@ public class NewEntryPanel extends JPanel {
 
     // UI components for the entry
     protected JTextField titleField;
-    protected JTextArea contentArea;
+    protected JTextPane contentArea;
     protected MoodSlider moodSlider;
+    private JLabel saveStatusLabel;
+    private boolean titleFocusedOnce = false;
+    private FloatingFormatPopup formatPopup;
     private Image backgroundImage;
     private BufferedImage cachedScaled;
     private int cachedPanelW = -1;
@@ -163,13 +172,25 @@ public class NewEntryPanel extends JPanel {
 
         // Title label & field
         JLabel titleLabel = new JLabel("Title:");
-        titleLabel.setForeground(Color.DARK_GRAY);
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        titleLabel.setFont(AeroTheme.defaultBoldFont(16f));
         topToolbar.add(Box.createHorizontalStrut(6));
         topToolbar.add(titleLabel);
 
         titleField = new ModernTextField(24);
-        titleField.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        ((ModernTextField) titleField).setPlaceholder("Untitled entry");
+        titleField.setFont(AeroTheme.defaultFont().deriveFont(16f));
+        titleField.setForeground(AeroTheme.TEXT_PRIMARY);
+        // Auto-select on first focus
+        titleField.addFocusListener(new java.awt.event.FocusAdapter(){
+            @Override
+            public void focusGained(java.awt.event.FocusEvent e){
+                if(!titleFocusedOnce){
+                    titleField.selectAll();
+                    titleFocusedOnce = true;
+                }
+            }
+        });
         topToolbar.add(titleField);
 
         // Font buttons (A- / A+)
@@ -200,16 +221,16 @@ public class NewEntryPanel extends JPanel {
         JPanel textWrapper = new TranslucentPanel();
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Content Area: Text editor with undo/redo support
-        contentArea = new JTextArea();
+        // Content Area: Rich text editor (StyledDocument)
+        contentArea = new JTextPane();
 
         // Load font size directly from settings to ensure persistence
         int savedFontSize = SettingsStore.get().getJournalFontSize();
         contentArea.setFont(new Font("Serif", Font.PLAIN, savedFontSize));
-        contentArea.setLineWrap(true);
-        contentArea.setWrapStyleWord(true);
+        // JTextPane handles wrapping automatically via view; ensure editor kit is styled
+        contentArea.setEditorKit(new StyledEditorKit());
         contentArea.setOpaque(false);
-        contentArea.setForeground(Color.DARK_GRAY);
+        contentArea.setForeground(AeroTheme.TEXT_PRIMARY);
 
         // Add undo/redo support
         @SuppressWarnings("unused")
@@ -235,12 +256,27 @@ public class NewEntryPanel extends JPanel {
             }
         });
 
+        // Middle-click floating popup
+        formatPopup = new FloatingFormatPopup(SwingUtilities.getWindowAncestor(this));
+        contentArea.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isMiddleMouseButton(e)) {
+                    Point p = e.getPoint();
+                    SwingUtilities.convertPointToScreen(p, contentArea);
+                    formatPopup.showAt(p.x, p.y, () -> createFormattingToolbar());
+                    e.consume();
+                }
+            }
+        });
+
         JScrollPane scrollPane = new JScrollPane(contentArea);
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
 
-        // Add scroll pane to the translucent wrapper
+        // Add scroll pane to the translucent wrapper (no inline formatting bar)
+        textWrapper.setLayout(new BorderLayout());
         textWrapper.add(scrollPane, BorderLayout.CENTER);
 
         // Add some vertical space between toolbar and content (like PoemPanel)
@@ -265,9 +301,239 @@ public class NewEntryPanel extends JPanel {
         wordCountLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
         wordCountLabel.setBorder(new EmptyBorder(0, 10, 5, 0));
         bottomPanel.add(wordCountLabel);
+
+        // Save status label (autosave indicator)
+        saveStatusLabel = new JLabel(" ");
+        saveStatusLabel.setForeground(new Color(100, 100, 100));
+        saveStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        saveStatusLabel.setBorder(new EmptyBorder(0, 10, 5, 10));
+        bottomPanel.add(saveStatusLabel);
         bottomPanel.add(saveButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
+    }
+
+    private JPanel createFormattingToolbar() {
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        bar.setOpaque(false);
+
+        Action bold = new StyledEditorKit.BoldAction();
+        bold.putValue(Action.NAME, "B");
+        Action italic = new StyledEditorKit.ItalicAction();
+        italic.putValue(Action.NAME, "I");
+        Action underline = new StyledEditorKit.UnderlineAction();
+        underline.putValue(Action.NAME, "U");
+
+        Dimension btnSize = new Dimension(48, 28);
+        JButton bBold = new RoundedButton("B");
+        bBold.setPreferredSize(btnSize);
+        bBold.setToolTipText("Bold (Ctrl+B)");
+        bBold.addActionListener(e -> {
+            contentArea.requestFocusInWindow();
+            bold.actionPerformed(new java.awt.event.ActionEvent(contentArea, java.awt.event.ActionEvent.ACTION_PERFORMED, "bold"));
+        });
+        JButton bItalic = new RoundedButton("I");
+        bItalic.setPreferredSize(btnSize);
+        bItalic.setToolTipText("Italic (Ctrl+I)");
+        bItalic.addActionListener(e -> {
+            contentArea.requestFocusInWindow();
+            italic.actionPerformed(new java.awt.event.ActionEvent(contentArea, java.awt.event.ActionEvent.ACTION_PERFORMED, "italic"));
+        });
+        JButton bUnderline = new RoundedButton("U");
+        bUnderline.setPreferredSize(btnSize);
+        bUnderline.setToolTipText("Underline (Ctrl+U)");
+        bUnderline.addActionListener(e -> {
+            contentArea.requestFocusInWindow();
+            underline.actionPerformed(new java.awt.event.ActionEvent(contentArea, java.awt.event.ActionEvent.ACTION_PERFORMED, "underline"));
+        });
+
+        JButton bBullets = new RoundedButton("•");
+        bBullets.setPreferredSize(btnSize);
+        bBullets.setToolTipText("Toggle bullets");
+        bBullets.addActionListener(e -> {
+            contentArea.requestFocusInWindow();
+            toggleBullets();
+        });
+
+        bar.add(bBold);
+        bar.add(bItalic);
+        bar.add(bUnderline);
+        bar.add(bBullets);
+
+        // Keyboard shortcuts
+        InputMap im = contentArea.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap am = contentArea.getActionMap();
+        im.put(KeyStroke.getKeyStroke("control B"), "rt-bold");
+        am.put("rt-bold", (Action) bold);
+        im.put(KeyStroke.getKeyStroke("control I"), "rt-italic");
+        am.put("rt-italic", (Action) italic);
+        im.put(KeyStroke.getKeyStroke("control U"), "rt-underline");
+        am.put("rt-underline", (Action) underline);
+
+        return bar;
+    }
+
+    // Aero-styled animated popup used for middle-click formatting menu (interactive Swing components)
+    private static class FloatingFormatPopup extends JWindow {
+        private static final int ARC = 12;
+        private static final int PADDING = 8;
+        private static final int SHADOW = 6;
+        private float t = 0f; // animation progress 0..1
+        private final Timer timer;
+        private JPanel chromePanel; // paints glass background; hosts toolbar
+        private int width;
+        private int height;
+        private int targetX;
+        private int targetY;
+        private boolean showingAnim = true;
+
+        FloatingFormatPopup(Window owner) {
+            super(owner);
+            setBackground(new Color(0,0,0,0));
+            setAlwaysOnTop(true);
+            setFocusableWindowState(true);
+            timer = new Timer(1000/60, e -> step());
+
+            // Close on ESC or click outside
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(ev -> {
+                if (isVisible() && ev.getID() == KeyEvent.KEY_PRESSED && ev.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    hidePopup();
+                    return true;
+                }
+                return false;
+            });
+            Toolkit.getDefaultToolkit().addAWTEventListener(ae -> {
+                if (isVisible() && ae instanceof MouseEvent me && me.getID() == MouseEvent.MOUSE_PRESSED) {
+                    if (!getBounds().contains(me.getLocationOnScreen())) hidePopup();
+                }
+            }, AWTEvent.MOUSE_EVENT_MASK);
+        }
+
+        void showAt(int screenX, int screenY, Supplier<JPanel> toolbarFactory) {
+            // Build interactive content
+            JPanel toolbar = toolbarFactory.get();
+            toolbar.setOpaque(false);
+
+            chromePanel = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                    // Soft shadow
+                    int w = getWidth();
+                    int h = getHeight();
+                    for (int i = SHADOW; i > 0; i--) {
+                        float a = 0.05f * i / SHADOW;
+                        g2.setColor(new Color(0,0,0,(int)(255*a)));
+                        g2.fillRoundRect(PADDING - i, PADDING - i, w - 2*(PADDING - i), h - 2*(PADDING - i), ARC + i*2, ARC + i*2);
+                    }
+
+                    // Glass background (no border)
+                    Rectangle r = new Rectangle(PADDING, PADDING, w - 2*PADDING, h - 2*PADDING);
+                    Color top = new Color(252,252,252, 235);
+                    Color bottom = new Color(231,231,231, 235);
+                    main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r, top, bottom, ARC);
+                    main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, ARC);
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            chromePanel.setOpaque(false);
+            chromePanel.setLayout(new GridBagLayout());
+            JPanel inner = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+            inner.setOpaque(false);
+            for (Component c : toolbar.getComponents()) inner.add(c);
+            chromePanel.add(inner);
+
+            Dimension pref = toolbar.getPreferredSize();
+            width = Math.max(220, pref.width + (PADDING*2) + SHADOW*2);
+            height = Math.max(40, pref.height + (PADDING*2) + SHADOW*2);
+            targetX = screenX - width/2;
+            targetY = screenY - height - 8;
+
+            setContentPane(chromePanel);
+            setBounds(targetX, targetY + 10, width, height); // start slightly lower
+            setOpacity(0f);
+            setVisible(true);
+            requestFocusInWindow();
+            t = 0f;
+            showingAnim = true;
+            timer.start();
+        }
+
+        private void hidePopup() {
+            showingAnim = false;
+            t = 1f;
+            timer.start();
+        }
+
+        private void step() {
+            int sign = showingAnim ? 1 : -1;
+            t = Math.max(0f, Math.min(1f, t + sign * 0.14f));
+            float ease = (float)(1 - Math.pow(1 - t, 3));
+            float opacity = showingAnim ? ease : (1 - ease);
+            setOpacity(Math.max(0f, Math.min(1f, opacity)));
+            int y = targetY + (showingAnim ? (int)((1 - ease) * 10) : (int)(ease * 10));
+            setLocation(targetX, y);
+            if ((showingAnim && t >= 1f) || (!showingAnim && t <= 0f)) {
+                timer.stop();
+                if (!showingAnim) setVisible(false);
+            }
+        }
+    }
+
+    private void toggleBullets() {
+        Document doc = contentArea.getDocument();
+        int start = contentArea.getSelectionStart();
+        int end = contentArea.getSelectionEnd();
+        try {
+            int lineStart = getLineStart(doc, start);
+            int lineEnd = getLineEnd(doc, end);
+            String text = doc.getText(lineStart, lineEnd - lineStart);
+            String[] lines = text.split("\n", -1);
+            boolean allBulleted = true;
+            for (String ln : lines) {
+                if (!ln.startsWith("• ") && ln.trim().length() > 0) { allBulleted = false; break; }
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < lines.length; i++) {
+                String ln = lines[i];
+                if (ln.trim().isEmpty()) {
+                    sb.append(ln);
+                } else if (allBulleted) {
+                    // remove bullet prefix if present
+                    sb.append(ln.startsWith("• ") ? ln.substring(2) : ln);
+                } else {
+                    sb.append("• ").append(ln);
+                }
+                if (i < lines.length - 1) sb.append('\n');
+            }
+            doc.remove(lineStart, lineEnd - lineStart);
+            doc.insertString(lineStart, sb.toString(), null);
+            contentArea.select(lineStart, lineStart + sb.length());
+        } catch (BadLocationException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private int getLineStart(Document doc, int pos) throws BadLocationException {
+        while (pos > 0) {
+            String s = doc.getText(pos - 1, 1);
+            if ("\n".equals(s)) break;
+            pos--;
+        }
+        return pos;
+    }
+
+    private int getLineEnd(Document doc, int pos) throws BadLocationException {
+        int len = doc.getLength();
+        while (pos < len) {
+            String s = doc.getText(pos, 1);
+            if ("\n".equals(s)) break;
+            pos++;
+        }
+        return pos;
     }
 
     private void updateWordCount() {
@@ -303,6 +569,10 @@ public class NewEntryPanel extends JPanel {
         recordMood(moodValue);
 
         try {
+            // Update status to Saving…
+            if (saveStatusLabel != null) {
+                saveStatusLabel.setText("Saving…");
+            }
             File file;
             boolean isNewFile = false;
 
@@ -327,9 +597,18 @@ public class NewEntryPanel extends JPanel {
 
             String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+
+            // Update status to Saved · time
+            if (saveStatusLabel != null) {
+                SimpleDateFormat tf = new SimpleDateFormat("h:mm a");
+                saveStatusLabel.setText("Saved • " + tf.format(new Date()));
+            }
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog();
+            if (saveStatusLabel != null) {
+                saveStatusLabel.setText("Error saving");
+            }
         }
     }
 
@@ -353,10 +632,22 @@ public class NewEntryPanel extends JPanel {
     // Modern rounded text field identical to NotePanel
     private static class ModernTextField extends JTextField {
 
+        private String placeholder = null;
+
         public ModernTextField(int cols) {
             super(cols);
             setOpaque(false);
             setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+            setForeground(AeroTheme.TEXT_PRIMARY);
+        }
+
+        public void setPlaceholder(String placeholder) {
+            this.placeholder = placeholder;
+            repaint();
+        }
+
+        public String getPlaceholder() {
+            return placeholder;
         }
 
         @Override
@@ -366,6 +657,15 @@ public class NewEntryPanel extends JPanel {
             g2.setColor(Color.WHITE);
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
             super.paintComponent(g2);
+
+            // Draw placeholder text if empty and unfocused
+            if ((getText() == null || getText().isEmpty()) && !isFocusOwner() && placeholder != null) {
+                g2.setFont(getFont());
+                g2.setColor(new Color(130, 130, 130));
+                FontMetrics fm = g2.getFontMetrics();
+                int textY = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(placeholder, 12, textY);
+            }
             g2.dispose();
         }
 

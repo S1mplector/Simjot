@@ -12,8 +12,8 @@ public class RoundedButton extends JButton {
         setFocusPainted(false);
         setBorderPainted(false);
         setContentAreaFilled(false);
-        setForeground(Color.DARK_GRAY);
-        setFont(new Font("SansSerif", Font.BOLD, 12));
+        setForeground(AeroTheme.TEXT_PRIMARY);
+        setFont(AeroTheme.defaultBoldFont(12f));
         setPreferredSize(new Dimension(140,32));
     }
 

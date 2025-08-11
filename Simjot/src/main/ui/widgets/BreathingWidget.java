@@ -2,12 +2,15 @@ package main.ui.widgets;
 
 import java.awt.*;
 import javax.swing.*;
+import java.awt.geom.*;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * A calming breathing-circle animation that expands and contracts in a smooth
  * sinusoid. Intended to sit transparently on top of a screen (e.g., the main
  * menu) without intercepting mouse events.
  */
+
 public class BreathingWidget extends JComponent implements Widget {
     private static final long serialVersionUID = 1L;
 
@@ -130,9 +133,66 @@ public class BreathingWidget extends JComponent implements Widget {
 
         // Apply configured opacity
         int alpha = (int) (opacity * 255 / 100);
-        g2.setColor(new Color(circleColor.getRed(), circleColor.getGreen(), 
-                             circleColor.getBlue(), alpha));
+
+        // ---- Soft drop shadow (Aero-style) ----
+        int shadow = Math.max(6, radius/18);
+        for(int i=shadow; i>=1; i--){
+            float a = 0.06f * (i/(float)shadow);
+            g2.setComposite(AlphaComposite.SrcOver.derive(a));
+            g2.setColor(Color.BLACK);
+            g2.fillOval(x - i, y - i + 4, radius + i*2, radius + i*2);
+        }
+        g2.setComposite(AlphaComposite.SrcOver);
+
+        // ---- Glossy sphere body with radial gradient ----
+        float cx = x + radius/2f;
+        float cy = y + radius/2f - radius*0.15f; // lift highlight a bit
+        Color cInner = new Color(
+            Math.min(255, (int)(circleColor.getRed()*1.06)),
+            Math.min(255, (int)(circleColor.getGreen()*1.06)),
+            Math.min(255, (int)(circleColor.getBlue()*1.06)),
+            alpha
+        );
+        Color cOuter = new Color(
+            Math.max(0, (int)(circleColor.getRed()*0.65)),
+            Math.max(0, (int)(circleColor.getGreen()*0.65)),
+            Math.max(0, (int)(circleColor.getBlue()*0.65)),
+            Math.max(40, (int)(alpha*0.9))
+        );
+        float rGrad = radius*0.6f;
+        RadialGradientPaint rgp = new RadialGradientPaint(
+            new Point2D.Float(cx, cy), rGrad,
+            new float[]{0f, 1f},
+            new Color[]{cInner, cOuter}
+        );
+        g2.setPaint(rgp);
         g2.fillOval(x, y, radius, radius);
+
+        // ---- Subtle top glass highlight ----
+        Shape oldClip = g2.getClip();
+        Area topHalf = new Area(new Ellipse2D.Float(x, y, radius, radius));
+        topHalf.intersect(new Area(new Rectangle(x, y, radius, (int)(radius*0.55))));
+        g2.setClip(topHalf);
+        GradientPaint gp = new GradientPaint(x, y, new Color(255,255,255,100), x, y+(int)(radius*0.6), new Color(255,255,255,0));
+        g2.setPaint(gp);
+        g2.fillOval(x, y, radius, radius);
+        g2.setClip(oldClip);
+
+        // ---- Rim and breathing glow ----
+        float pulse = 0.5f + 0.5f * (float)Math.sin(System.currentTimeMillis()/400.0);
+        int rimAlpha = Math.min(255, (int)(120 * pulse));
+        g2.setStroke(new BasicStroke(Math.max(2f, radius/40f)));
+        g2.setColor(new Color(255,255,255, rimAlpha));
+        g2.drawOval(x+1, y+1, radius-2, radius-2);
+
+        // Outer aura glow
+        for(int i=1;i<=4;i++){
+            int grow = i*3;
+            int aAura = Math.max(10, (int)(alpha * (0.10f/(i))));
+            g2.setColor(new Color(AeroTheme.AERO_BLUE.getRed(), AeroTheme.AERO_BLUE.getGreen(), AeroTheme.AERO_BLUE.getBlue(), aAura));
+            g2.drawOval(x - grow, y - grow, radius + grow*2, radius + grow*2);
+        }
+
         g2.dispose();
     }
     

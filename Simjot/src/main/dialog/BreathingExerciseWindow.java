@@ -7,6 +7,8 @@ import java.awt.event.WindowEvent;
 import main.ui.widgets.BreathingWidget;
 import main.ui.buttons.RoundedButton;
 import main.ui.panels.RoundedPanel;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Dedicated window for the breathing exercise with controls
@@ -31,11 +33,22 @@ public class BreathingExerciseWindow extends JDialog {
         super(parent, "Breathing Exercise", false); // Non-modal so user can still interact
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
-        getContentPane().setBackground(new Color(30, 30, 40));
         
         // Main breathing panel
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setOpaque(false);
+        JPanel mainPanel = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                AeroPainters.paintVerticalGradient(
+                        g2,
+                        new Rectangle(0, 0, getWidth(), getHeight()),
+                        Color.WHITE,
+                        new Color(230, 234, 238), // light silver
+                        0);
+                g2.dispose();
+            }
+        };
+        mainPanel.setOpaque(true);
         
         // Top instruction panel
         JPanel topPanel = new JPanel();
@@ -45,7 +58,8 @@ public class BreathingExerciseWindow extends JDialog {
         
         instructionLabel = new JLabel("Follow the circle as it guides your breathing");
         instructionLabel.setFont(new Font("SansSerif", Font.PLAIN, 18));
-        instructionLabel.setForeground(Color.WHITE);
+        instructionLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        
         instructionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         
         phaseLabel = new JLabel("Inhale");

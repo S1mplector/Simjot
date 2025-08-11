@@ -26,8 +26,9 @@ public final class AeroTheme {
 
     public static final Color BUTTON_PRESS_TOP = new Color(214, 228, 244);
     public static final Color BUTTON_PRESS_BOTTOM = new Color(199, 216, 235);
-
-    public static final Color TEXT_PRIMARY = new Color(32, 32, 32);
+    
+    // Primary text color: dark charcoal (not pure black) for better readability
+    public static final Color TEXT_PRIMARY = new Color(43, 43, 43); // #2B2B2B
     public static final Color TEXT_LIGHT = new Color(255, 255, 255);
 
     public static Font defaultFont() {

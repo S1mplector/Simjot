@@ -517,10 +517,13 @@ public class NotebookManagerPanel extends JPanel {
         NotebookInfo nb = selectedTile.nb;
         boolean ok = CustomConfirmDialog.confirm(this, "Delete Notebook", "Delete notebook '"+nb.getName()+"'?" );
         if(ok){
+            // Persist deletion first
             store.delete(nb);
+            // Animate the tile sliding out/shrinking, then remove from gallery
+            NotebookTile toRemove = selectedTile;
             selectedTile = null;
             deleteBtn.setEnabled(false);
-            refresh();
+            animateDeleteNotebook(toRemove);
         }
     }
 
@@ -552,4 +555,39 @@ public class NotebookManagerPanel extends JPanel {
         });
         anim.start();
     }
-} 
+
+    /** Animates removal of the selected notebook by shrinking its tile horizontally, then removes it. */
+    private void animateDeleteNotebook(NotebookTile tile){
+        if(tile==null) return;
+        // Ensure the add ('+') tile remains last; no need to move it for deletion
+        // Start from current preferred width (default tiles are 120 wide)
+        Dimension start = tile.getPreferredSize();
+        if(start == null || start.width <= 0){
+            start = new Dimension(120, 120);
+        }
+        final int targetH = start.height > 0 ? start.height : 120;
+
+        // Disable interactions during animation
+        for(MouseListener ml: tile.getMouseListeners()) tile.removeMouseListener(ml);
+        tile.setCursor(Cursor.getDefaultCursor());
+
+        final int[] w = new int[]{ start.width };
+        Timer anim = new Timer(15, null);
+        anim.addActionListener(e -> {
+            w[0] -= 12; // speed per frame
+            if(w[0] <= 0){
+                w[0] = 0;
+                anim.stop();
+                // Remove tile and refresh layout
+                gallery.remove(tile);
+                gallery.revalidate();
+                gallery.repaint();
+                return;
+            }
+            tile.setPreferredSize(new Dimension(w[0], targetH));
+            gallery.revalidate();
+            gallery.repaint();
+        });
+        anim.start();
+    }
+}
