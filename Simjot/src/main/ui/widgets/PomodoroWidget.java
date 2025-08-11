@@ -375,6 +375,23 @@ public class PomodoroWidget implements Widget {
             }
             g2.setComposite(AlphaComposite.SrcOver);
 
+            // Orange progress overlay: how much of the session is consumed (drawn behind 'now')
+            int totalSec = durationMin * 60;
+            int elapsedSec = Math.max(0, Math.min(totalSec, totalSec - remainingSeconds));
+            if (elapsedSec > 0) {
+                int consumedDeg = (int) Math.round((elapsedSec / 60.0) * 6.0); // positive CCW degrees
+                int consumedStart = startAng - consumedDeg; // begin behind now
+                Color progressOrange = new Color(255, 140, 0);
+                g2.setColor(progressOrange);
+                g2.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawArc(ox, oy, os, os, consumedStart, consumedDeg);
+                // soft glow to make it stand out slightly
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.25f));
+                g2.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawArc(ox, oy, os, os, consumedStart, consumedDeg);
+                g2.setComposite(AlphaComposite.SrcOver);
+            }
+
             // Hands
             double secA = Math.toRadians(((t.getSecond() + (nowMs%1000)/1000.0))*6 - 90);
             double minA = Math.toRadians((t.getMinute() + (t.getSecond() + (nowMs%1000)/1000.0)/60.0)*6 - 90);
