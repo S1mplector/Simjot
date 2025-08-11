@@ -382,15 +382,18 @@ public class JournalApp extends JFrame {
             AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Starting…");
             splash.setVisible(true);
+            final long splashShownAt = System.nanoTime();
 
             // Run startup pre-warm tasks off the EDT and update splash status
             new javax.swing.SwingWorker<Void, String>() {
                 @Override protected Void doInBackground() {
                     publish("Loading settings…");
                     try { main.util.SettingsStore.get().getUIScale(); } catch (Throwable ignored) {}
+                    try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     publish("Preparing icons…");
                     try { main.ui.icons.AppIcon.generateIconImages(); } catch (Throwable ignored) {}
+                    try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     long start = System.nanoTime();
 
@@ -404,6 +407,7 @@ public class JournalApp extends JFrame {
                             }
                         }
                     } catch (Throwable ignored) {}
+                    try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     // Theme is already applied before the splash is shown to avoid visual changes while splash is visible
 
@@ -484,15 +488,17 @@ public class JournalApp extends JFrame {
                 }
 
                 @Override protected void done() {
-                    // Create the main window; keep splash until ANY app window shows (frame or modal wizard)
+                    // Create the main window; keep splash until ANY app window shows AND min duration elapsed
                     new JournalApp();
-                    javax.swing.Timer wait = new javax.swing.Timer(50, ev -> {
+                    final int minMs = 900; // minimum splash time
+                    javax.swing.Timer wait = new javax.swing.Timer(40, ev -> {
                         java.awt.Window[] wins = java.awt.Window.getWindows();
                         boolean otherVisible = false;
                         for (java.awt.Window w : wins) {
                             if (w != splash && w.isShowing()) { otherVisible = true; break; }
                         }
-                        if (otherVisible) {
+                        long elapsedMs = (System.nanoTime() - splashShownAt) / 1_000_000L;
+                        if (otherVisible && elapsedMs >= minMs) {
                             ((javax.swing.Timer) ev.getSource()).stop();
                             splash.dispose();
                         }
