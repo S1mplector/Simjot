@@ -7,8 +7,8 @@ package main.util;
  */
 public final class AppPerf {
     private static volatile boolean lowPowerMode = false;
-    // Defaults: normal 30 FPS, low-power 20 FPS
-    private static volatile int targetFps = 30;
+    // Defaults: normal 60 FPS, low-power 30 FPS
+    private static volatile int targetFps = 60;
 
     private AppPerf() {}
 
@@ -18,7 +18,7 @@ public final class AppPerf {
 
     public static void setLowPowerMode(boolean lowPower) {
         lowPowerMode = lowPower;
-        targetFps = lowPower ? 20 : 30;
+        targetFps = lowPower ? 30 : 60;
     }
 
     public static int getTargetFps() {
