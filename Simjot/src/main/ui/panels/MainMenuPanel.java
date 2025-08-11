@@ -15,6 +15,7 @@ import main.util.RamMonitor;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
 import main.ui.components.DragController;
+import main.ui.theme.aero.AeroTheme;
 
 public class MainMenuPanel extends JPanel {
 
@@ -41,10 +42,18 @@ public class MainMenuPanel extends JPanel {
                 // Built-in resource (class-path) – strip prefix
                 String resPath = bgPath.substring(4);
                 Image img = ResourceLoader.createImage("Simjot/" + resPath);
-                content = (img != null) ? new BackgroundPanel(img) : new JPanel();
+                if (img != null) {
+                    BackgroundPanel bg = new BackgroundPanel(img);
+                    bg.setOpacityOverride(1.0f);
+                    content = bg;
+                } else {
+                    content = new JPanel();
+                }
             } else {
                 // User-selected file path
-                content = new BackgroundPanel(bgPath);
+                BackgroundPanel bg = new BackgroundPanel(bgPath);
+                bg.setOpacityOverride(1.0f);
+                content = bg;
             }
             content.setBackground(Color.BLACK);
         } else {
@@ -100,17 +109,12 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
 
         FadingButton notebooksButton = createMenuButtonWithIcon("Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        notebooksButton.setForeground(AeroTheme.TEXT_PRIMARY);
         buttonPanel.add(notebooksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
         // Planning section has been removed
-        // ---------- ARTS section ----------
-        JLabel artsHeader = new JLabel("Arts & Gallery");
-        artsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        artsHeader.setForeground(Color.WHITE);
-        artsHeader.setFont(artsHeader.getFont().deriveFont(Font.BOLD, 22f));
-        buttonPanel.add(artsHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
+        // ---------- ARTS section (hidden unless there are visible items) ----------
 
         // Canvas button temporarily removed from the menu (functionality kept for later transformation)
         FadingButton galleryButton = createMenuButtonWithIcon("Gallery", JournalApp.GALLERY, "image");
@@ -124,13 +128,19 @@ public class MainMenuPanel extends JPanel {
         if (SHOW_GALLERY) {
             artsBtns.add(galleryButton);
         }
-        for (FadingButton b : artsBtns) {
-            b.setAlpha(1f);
-            b.setAlignmentX(Component.CENTER_ALIGNMENT);
-            buttonPanel.add(b);
+        if (!artsBtns.isEmpty()) {
+            JLabel artsHeader = new JLabel("Arts & Gallery");
+            artsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
+            artsHeader.setForeground(Color.WHITE);
+            artsHeader.setFont(artsHeader.getFont().deriveFont(Font.BOLD, 22f));
+            buttonPanel.add(artsHeader);
             buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-        }
-        if (SHOW_GALLERY) {
+            for (FadingButton b : artsBtns) {
+                b.setAlpha(1f);
+                b.setAlignmentX(Component.CENTER_ALIGNMENT);
+                buttonPanel.add(b);
+                buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
+            }
             buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
         }
 
@@ -363,7 +373,7 @@ public class MainMenuPanel extends JPanel {
                 String name = widget.getName();
                 String iconId = widget.getIconId();
                 FadingButton btn = new MainMenuButton(name, iconId);
-                btn.setForeground(Color.BLACK);
+                btn.setForeground(AeroTheme.TEXT_PRIMARY);
                 btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 16f));
                 btn.setAlpha(1f);
                 btn.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -636,8 +646,8 @@ public class MainMenuPanel extends JPanel {
 
     private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon) {
         FadingButton button = new MainMenuButton(text, icon);
-        // Main menu button text in black per request
-        button.setForeground(Color.BLACK);
+        // Main menu button uses theme primary text color for better contrast
+        button.setForeground(AeroTheme.TEXT_PRIMARY);
         button.setFont(button.getFont().deriveFont(Font.BOLD, 20f));
         button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
         button.setAlignmentX(Component.CENTER_ALIGNMENT);

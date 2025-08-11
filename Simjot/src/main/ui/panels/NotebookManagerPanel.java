@@ -79,90 +79,105 @@ public class NotebookManagerPanel extends JPanel {
         NotebookInfo.Type type = nb.getType();
         String iconId = nb.getIconId();
         final int S = 100;
-        BufferedImage img = new BufferedImage(S,S,BufferedImage.TYPE_INT_ARGB);
+        final int R = 18; // corner radius
+        BufferedImage img = new BufferedImage(S, S, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Smooth background with subtle gradient
-        Color base = switch(type){
+        // Base color by notebook type (fallback when iconId == "legacy")
+        Color baseType = switch (type) {
             case JOURNAL -> new Color(0xFFC46B);
             case POETRY  -> new Color(0xC48BDF);
         };
-        Color lighter = base.brighter();
-        g.setPaint(new GradientPaint(0,0,lighter,0,S,base));
-        g.fillRoundRect(0,0,S,S,20,20);
 
-        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.setColor(Color.WHITE);
+        // If a themed iconId is provided, use its palette
+        Color base = switch (iconId) {
+            case "lightbulb" -> new Color(0xFFE27C);
+            case "rocket"    -> new Color(0xFF8A65);
+            case "camera"    -> new Color(0x90CAF9);
+            case "music"     -> new Color(0xCE93D8);
+            case "code"      -> new Color(0xA5D6A7);
+            default           -> baseType;
+        };
 
-        switch(type){
-            case JOURNAL -> {
-                int margin = 18;
-                // margin line
-                g.drawLine(margin+8, margin, margin+8, S-margin);
-                // horizontal rules
-                for(int y=margin+12; y<S-margin; y+=12){ g.drawLine(margin, y, S-margin, y); }
-            }
-            case POETRY -> {
-                // stylised quill
-                int cx = S/2; int cy = S/2;
-                Path2D quill = new Path2D.Double();
-                quill.moveTo(cx+20, cy-20);
-                quill.curveTo(cx-5, cy-35, cx-35, cy+5, cx-10, cy+25);
-                quill.curveTo(cx, cy+35, cx+15, cy+10, cx+20, cy-20);
-                g.draw(quill);
-                // shaft
-                g.drawLine(cx-5, cy+15, cx+25, cy-25);
+        // 1) Soft shadow (Aero-style)
+        g.setPaint(new Color(0,0,0,40));
+        g.fillRoundRect(4, 6, S-8, S-8, R, R);
+        g.setPaint(new Color(0,0,0,20));
+        g.fillRoundRect(3, 5, S-6, S-6, R+2, R+2);
+
+        // 2) Rounded glossy background
+        Color top = new Color(Math.min(255, (int)(base.getRed()*1.05)), Math.min(255, (int)(base.getGreen()*1.05)), Math.min(255, (int)(base.getBlue()*1.05)));
+        Color bottom = base.darker();
+        g.setPaint(new GradientPaint(0, 10, top, 0, S-10, bottom));
+        g.fillRoundRect(0, 0, S, S, R, R);
+
+        // 3) Glass highlight top half
+        g.setPaint(new GradientPaint(0, 0, new Color(255,255,255,180), 0, S/2f, new Color(255,255,255,0)));
+        g.fillRoundRect(1, 1, S-2, S/2, R-2, R-2);
+
+        // 4) Border and inner highlight
+        g.setColor(new Color(160,160,160));
+        g.setStroke(new BasicStroke(1.2f));
+        g.drawRoundRect(0, 0, S-1, S-1, R, R);
+        g.setColor(new Color(255,255,255,120));
+        g.drawRoundRect(1, 1, S-3, S-3, R-2, R-2);
+
+        // 5) Foreground glyph (white with soft outline for readability)
+        Graphics2D glyph = (Graphics2D) g.create();
+        glyph.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        glyph.setStroke(new BasicStroke(3.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int cx = S/2, cy = S/2;
+
+        // Slight outer glow
+        glyph.setColor(new Color(0,0,0,40));
+        switch (iconId) {
+            case "lightbulb" -> { glyph.drawOval(cx-18,cy-18,36,36); glyph.drawLine(cx-8,cy+18,cx+8,cy+18); }
+            case "rocket" -> { glyph.drawLine(cx,cy-20,cx,cy+10); glyph.drawLine(cx,cy-20,cx-10,cy-5); glyph.drawLine(cx,cy-20,cx+10,cy-5); }
+            case "camera" -> { glyph.drawRoundRect(cx-20,cy-12,40,24,6,6); glyph.drawOval(cx-8,cy-4,16,16); }
+            case "music" -> { glyph.drawLine(cx-8,cy-15,cx-8,cy+15); glyph.drawLine(cx-8,cy-15,cx+12,cy-20); glyph.drawLine(cx+12,cy-20,cx+12,cy+10); glyph.drawOval(cx-12,cy+12,8,8); glyph.drawOval(cx+6,cy+12,8,8); }
+            case "code" -> { glyph.drawLine(cx-12,cy-10,cx-22,cy); glyph.drawLine(cx-22,cy,cx-12,cy+10); glyph.drawLine(cx+12,cy-10,cx+22,cy); glyph.drawLine(cx+22,cy,cx+12,cy+10); }
+            default -> {
+                // When no themed iconId (legacy), use type-specific glyphs
+                if (type == NotebookInfo.Type.JOURNAL) {
+                    int margin = 18;
+                    glyph.drawLine(margin+8, margin, margin+8, S-margin);
+                    for (int y = margin+12; y < S-margin; y += 12) { glyph.drawLine(margin, y, S-margin, y); }
+                } else {
+                    Path2D quill = new Path2D.Double();
+                    quill.moveTo(cx+20, cy-20);
+                    quill.curveTo(cx-5, cy-35, cx-35, cy+5, cx-10, cy+25);
+                    quill.curveTo(cx, cy+35, cx+15, cy+10, cx+20, cy-20);
+                    glyph.draw(quill);
+                    glyph.drawLine(cx-5, cy+15, cx+25, cy-25);
+                }
             }
         }
-        if(!"legacy".equals(iconId)){
-            // override gradient by iconId themed colours
-            Color base2 = switch(iconId){
-                case "lightbulb" -> new Color(0xFFE27C);
-                case "rocket"    -> new Color(0xFF8A65);
-                case "camera"    -> new Color(0x90CAF9);
-                case "music"     -> new Color(0xCE93D8);
-                case "code"      -> new Color(0xA5D6A7);
-                default           -> new Color(0xB0BEC5);
-            };
-            Color lighter2 = base2.brighter();
-            g.setPaint(new GradientPaint(0,0,lighter2,0,S,base2));
-            g.fillRoundRect(0,0,S,S,20,20);
-
-            g.setStroke(new BasicStroke(4f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
-            g.setColor(Color.WHITE);
-            int cx=S/2, cy=S/2;
-            switch(iconId){
-                case "lightbulb" -> {
-                    g.drawOval(cx-18,cy-18,36,36);
-                    g.drawLine(cx-8,cy+18,cx+8,cy+18);
-                }
-                case "rocket" -> {
-                    g.drawLine(cx,cy-20,cx,cy+10);
-                    g.drawLine(cx,cy-20,cx-10,cy-5);
-                    g.drawLine(cx,cy-20,cx+10,cy-5);
-                }
-                case "camera" -> {
-                    g.drawRoundRect(cx-20,cy-12,40,24,6,6);
-                    g.drawOval(cx-8,cy-4,16,16);
-                }
-                case "music" -> {
-                    g.drawLine(cx-8,cy-15,cx-8,cy+15);
-                    g.drawLine(cx-8,cy-15,cx+12,cy-20);
-                    g.drawLine(cx+12,cy-20,cx+12,cy+10);
-                    g.drawOval(cx-12,cy+12,8,8);
-                    g.drawOval(cx+6,cy+12,8,8);
-                }
-                case "code" -> {
-                    g.drawLine(cx-12,cy-10,cx-22,cy);
-                    g.drawLine(cx-22,cy,cx-12,cy+10);
-                    g.drawLine(cx+12,cy-10,cx+22,cy);
-                    g.drawLine(cx+22,cy,cx+12,cy+10);
+        // Foreground proper
+        glyph.setColor(Color.WHITE);
+        switch (iconId) {
+            case "lightbulb" -> { glyph.drawOval(cx-18,cy-18,36,36); glyph.drawLine(cx-8,cy+18,cx+8,cy+18); }
+            case "rocket" -> { glyph.drawLine(cx,cy-20,cx,cy+10); glyph.drawLine(cx,cy-20,cx-10,cy-5); glyph.drawLine(cx,cy-20,cx+10,cy-5); }
+            case "camera" -> { glyph.drawRoundRect(cx-20,cy-12,40,24,6,6); glyph.drawOval(cx-8,cy-4,16,16); }
+            case "music" -> { glyph.drawLine(cx-8,cy-15,cx-8,cy+15); glyph.drawLine(cx-8,cy-15,cx+12,cy-20); glyph.drawLine(cx+12,cy-20,cx+12,cy+10); glyph.drawOval(cx-12,cy+12,8,8); glyph.drawOval(cx+6,cy+12,8,8); }
+            case "code" -> { glyph.drawLine(cx-12,cy-10,cx-22,cy); glyph.drawLine(cx-22,cy,cx-12,cy+10); glyph.drawLine(cx+12,cy-10,cx+22,cy); glyph.drawLine(cx+22,cy,cx+12,cy+10); }
+            default -> {
+                if (type == NotebookInfo.Type.JOURNAL) {
+                    int margin = 18;
+                    glyph.drawLine(margin+8, margin, margin+8, S-margin);
+                    for (int y = margin+12; y < S-margin; y += 12) { glyph.drawLine(margin, y, S-margin, y); }
+                } else {
+                    Path2D quill = new Path2D.Double();
+                    quill.moveTo(cx+20, cy-20);
+                    quill.curveTo(cx-5, cy-35, cx-35, cy+5, cx-10, cy+25);
+                    quill.curveTo(cx, cy+35, cx+15, cy+10, cx+20, cy-20);
+                    glyph.draw(quill);
+                    glyph.drawLine(cx-5, cy+15, cx+25, cy-25);
                 }
             }
-            g.dispose();
-            return img;
         }
+        glyph.dispose();
+
         g.dispose();
         return img;
     }

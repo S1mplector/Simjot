@@ -5,6 +5,7 @@ import java.awt.event.*;
 import javax.swing.*;
 import java.time.LocalTime;
 import main.ui.buttons.RoundedButton;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * A lightweight Pomodoro timer widget. When enabled, it shows a small always-on-top dialog
@@ -77,17 +78,32 @@ public class PomodoroWidget implements Widget {
         dialog.setAlwaysOnTop(true);
         dialog.getRootPane().putClientProperty("apple.awt.draggableWindowBackground", Boolean.TRUE);
         dialog.setLayout(new BorderLayout());
+        // Make window fully transparent so only our rounded panel is visible (no sharp rectangular frame)
+        dialog.setBackground(new Color(0,0,0,0));
 
         JPanel content = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0, 0, 0, 170));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
-                g2.setColor(new Color(255,255,255,90));
+                int w = getWidth();
+                int h = getHeight();
+
+                // Aero silvery panel gradient
+                Paint bg = new LinearGradientPaint(0, 0, 0, h,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(252,252,252,200), new Color(236,236,236,200), new Color(222,222,222,200)});
+                g2.setPaint(bg);
+                g2.fillRoundRect(0, 0, w, h, 16, 16);
+
+                // Glass highlight
+                g2.setPaint(new GradientPaint(0, 0, new Color(255,255,255,170), 0, h/2f, new Color(255,255,255,0)));
+                g2.fillRoundRect(1, 1, w-2, Math.max(1, h/2), 14, 14);
+
+                // Subtle border
+                g2.setColor(new Color(170,170,170));
                 g2.setStroke(new BasicStroke(1f));
-                g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 16, 16);
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 16, 16);
                 g2.dispose();
             }
         };
@@ -99,7 +115,7 @@ public class PomodoroWidget implements Widget {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         phaseLabel = new JLabel("Focus", SwingConstants.CENTER);
-        phaseLabel.setForeground(Color.WHITE);
+        phaseLabel.setForeground(AeroTheme.TEXT_PRIMARY);
         phaseLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         // Close button (×)
         JButton closeBtn = new JButton("\u00D7");
@@ -107,16 +123,43 @@ public class PomodoroWidget implements Widget {
         closeBtn.setContentAreaFilled(false);
         closeBtn.setBorderPainted(false);
         closeBtn.setFocusPainted(false);
-        closeBtn.setForeground(Color.WHITE);
+        closeBtn.setForeground(AeroTheme.TEXT_PRIMARY);
         closeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         closeBtn.setToolTipText("Close Pomodoro");
         closeBtn.addActionListener(e -> stop());
-        JButton settingsBtn = new JButton("\u2699"); // gear
+        JButton settingsBtn = new JButton() {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight();
+                int s = Math.min(w, h) - 6; // padding
+                int cx = w/2, cy = h/2;
+                int rOuter = s/2;
+                int rInner = Math.max(2, rOuter - 4);
+                // Teeth
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(AeroTheme.TEXT_PRIMARY);
+                for (int i=0;i<8;i++) {
+                    double a = Math.toRadians(i * 45);
+                    int tx1 = cx + (int)((rInner+1) * Math.cos(a));
+                    int ty1 = cy + (int)((rInner+1) * Math.sin(a));
+                    int tx2 = cx + (int)((rOuter) * Math.cos(a));
+                    int ty2 = cy + (int)((rOuter) * Math.sin(a));
+                    g2.drawLine(tx1, ty1, tx2, ty2);
+                }
+                // Outer ring
+                g2.drawOval(cx - rInner, cy - rInner, rInner*2, rInner*2);
+                // Hub
+                g2.fillOval(cx - 2, cy - 2, 4, 4);
+                g2.dispose();
+            }
+        };
+        settingsBtn.setPreferredSize(new Dimension(22, 22));
         settingsBtn.setOpaque(false);
         settingsBtn.setContentAreaFilled(false);
         settingsBtn.setBorderPainted(false);
         settingsBtn.setFocusPainted(false);
-        settingsBtn.setForeground(Color.WHITE);
         settingsBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         settingsBtn.setToolTipText("Pomodoro Settings");
         settingsBtn.addActionListener(e -> showSettingsDialog());
@@ -127,7 +170,7 @@ public class PomodoroWidget implements Widget {
 
         // Time display
         timeLabel = new JLabel("25:00", SwingConstants.CENTER);
-        timeLabel.setForeground(Color.WHITE);
+        timeLabel.setForeground(AeroTheme.TEXT_PRIMARY);
         timeLabel.setFont(new Font("SansSerif", Font.BOLD, 28));
         timeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
@@ -269,14 +312,14 @@ public class PomodoroWidget implements Widget {
             int y = (h - size) / 2;
 
             // Dial outline only (no fill)
-            g2.setColor(new Color(255,255,255,110));
+            g2.setColor(new Color(0,0,0,110));
             g2.setStroke(new BasicStroke(1.5f));
             g2.drawOval(x, y, size, size);
 
             // Ticks (60 minor + 12 major)
             int cx = x + size/2;
             int cy = y + size/2;
-            g2.setColor(new Color(255,255,255,90));
+            g2.setColor(new Color(0,0,0,90));
             for (int i=0;i<60;i++){
                 double a = Math.toRadians(i*6 - 90);
                 int r1 = size/2 - 4;
@@ -287,7 +330,7 @@ public class PomodoroWidget implements Widget {
                 int y2 = cy + (int)(r2*Math.sin(a));
                 g2.drawLine(x1,y1,x2,y2);
             }
-            g2.setColor(new Color(255,255,255,160));
+            g2.setColor(new Color(0,0,0,160));
             for (int i=0;i<12;i++){
                 double a = Math.toRadians(i*30 - 90);
                 int r1 = size/2 - 6;
@@ -301,7 +344,7 @@ public class PomodoroWidget implements Widget {
 
             // Numerals at 12/3/6/9
             g2.setFont(getFont().deriveFont(Font.BOLD, 12f));
-            g2.setColor(new Color(255,255,255,170));
+            g2.setColor(new Color(0,0,0,190));
             drawCentered(g2, "12", cx, y + 16);
             drawCentered(g2, "3",  x + size - 16, cy + 5);
             drawCentered(g2, "6",  cx, y + size - 8);
@@ -338,7 +381,7 @@ public class PomodoroWidget implements Widget {
             double hourA = Math.toRadians(((t.getHour()%12) + t.getMinute()/60.0)*30 - 90);
 
             g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.setColor(Color.WHITE);
+            g2.setColor(AeroTheme.TEXT_PRIMARY);
             drawHand(g2, cx, cy, hourA, size*0.25);
             g2.setStroke(new BasicStroke(3f));
             drawHand(g2, cx, cy, minA, size*0.35);

@@ -16,6 +16,8 @@ public class BackgroundPanel extends JPanel {
 	private int cachedX = 0;
 	private int cachedY = 0;
 	private float cachedOpacity = -1f;
+	// Optional per-instance override for opacity; if non-null, used instead of SettingsStore
+	private Float opacityOverride = null;
 	
 	// Reusable popup menu for removing the background
 	private final JPopupMenu contextMenu = new JPopupMenu();
@@ -71,6 +73,17 @@ public class BackgroundPanel extends JPanel {
 		repaint();
 	}
 	
+	/**
+	 * Set a per-instance opacity override (0..1). If null, the global SettingsStore value is used.
+	 * Calling this invalidates the cached scaled image so the new opacity is applied immediately.
+	 */
+	public void setOpacityOverride(Float value){
+		this.opacityOverride = value;
+		this.cachedScaled = null;
+		this.cachedOpacity = -1f;
+		repaint();
+	}
+	
 	// Overload accepting Image directly
 	private void loadAndBlur(Image img){
 		if(img==null) return;
@@ -122,8 +135,8 @@ public class BackgroundPanel extends JPanel {
 				return;
 			}
 
-			// Get current opacity setting
-			float currentOpacity = SettingsStore.get().getBackgroundOpacity();
+			// Get current opacity setting (per-instance override takes precedence)
+			float currentOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
 			
 			// If opacity changed or we don't have a cached image, update the cache
 			if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || currentOpacity != cachedOpacity) {
