@@ -12,6 +12,9 @@ import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.buttons.MainMenuButton;
 import main.util.RamMonitor;
+import main.util.AppDirectories;
+import main.util.LastSaveTracker;
+import main.util.NotebookStore;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
 import main.ui.components.DragController;
@@ -33,6 +36,135 @@ public class MainMenuPanel extends JPanel {
     public MainMenuPanel(JournalApp app) {
         this.app = app;
         buildUI();
+    }
+
+    // ---------- App Context Indicators (center of status bar) ----------
+    private static class AppContextIndicators extends JPanel {
+        private final JLabel countsLbl = new JLabel();
+        private final JLabel autosaveLbl = new JLabel();
+        private final JLabel sizeLbl = new JLabel();
+
+        private final NotebookStore nbStore = new NotebookStore();
+
+        private long lastSizeCompute = 0L;
+        private volatile String lastSizeText = "Library: …";
+
+        AppContextIndicators() {
+            setOpaque(false);
+            setLayout(new FlowLayout(FlowLayout.CENTER, 16, 0));
+            Font f = AeroTheme.defaultFont();
+            Color c = AeroTheme.TEXT_PRIMARY;
+
+            for (JLabel l : new JLabel[]{countsLbl, autosaveLbl, sizeLbl}) {
+                l.setForeground(c);
+                l.setFont(f);
+                add(l);
+            }
+
+            countsLbl.setText("Notebooks: – • Entries: –");
+            autosaveLbl.setText("Autosave: – | Last save: –");
+            sizeLbl.setText(lastSizeText);
+
+            javax.swing.Timer uiTimer = new javax.swing.Timer(1000, e -> updateFast());
+            uiTimer.start();
+
+            // Size recompute on a slower cadence, off-EDT
+            javax.swing.Timer sizeTimer = new javax.swing.Timer(30000, e -> computeSizeAsync());
+            sizeTimer.setInitialDelay(0);
+            sizeTimer.start();
+        }
+
+        private void updateFast() {
+            // Notebooks and entries every 10s to reduce FS churn
+            long now = System.currentTimeMillis();
+            if (now / 10000 != (lastCountsMillis / 10000)) {
+                updateCounts();
+                lastCountsMillis = now;
+            }
+            updateAutosave();
+            sizeLbl.setText(lastSizeText);
+        }
+
+        private long lastCountsMillis = 0L;
+
+        private void updateCounts() {
+            int notebooks = 0;
+            try {
+                notebooks = nbStore.list().size();
+            } catch (Exception ignore) { }
+
+            int entries = countFilesSafe(AppDirectories.folder(AppDirectories.Type.ENTRIES));
+            countsLbl.setText("Notebooks: " + notebooks + " • Entries: " + entries);
+        }
+
+        private int countFilesSafe(java.io.File dir) {
+            try {
+                java.io.File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".txt"));
+                return files == null ? 0 : files.length;
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
+        private void updateAutosave() {
+            int mins = SettingsStore.get().getAutosaveMinutes();
+            String auto = mins <= 0 ? "Off" : (mins + " min");
+            long last = LastSaveTracker.getLastSaveMillis();
+            String lastTxt = (last == 0L) ? "–" : java.time.LocalTime.now()
+                    .withNano(0)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+            // Prefer showing the actual time of save if desired: formatInstant(last)
+            if (last > 0) {
+                java.time.LocalDateTime dt = java.time.Instant.ofEpochMilli(last)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime();
+                lastTxt = dt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+            }
+            autosaveLbl.setText("Autosave: " + auto + " | Last save: " + lastTxt);
+        }
+
+        private void computeSizeAsync() {
+            final java.io.File root;
+            try {
+                root = AppDirectories.getRoot();
+            } catch (Exception ex) {
+                return;
+            }
+            new Thread(() -> {
+                long size = 0L;
+                try {
+                    for (AppDirectories.Type t : AppDirectories.Type.values()) {
+                        size += folderSize(AppDirectories.folder(t));
+                    }
+                } catch (Exception ignored) {}
+                final String txt = "Library: " + humanSize(size);
+                lastSizeCompute = System.currentTimeMillis();
+                lastSizeText = txt;
+                // Trigger EDT repaint
+                SwingUtilities.invokeLater(() -> sizeLbl.setText(lastSizeText));
+            }, "lib-size-worker").start();
+        }
+
+        private long folderSize(java.io.File f) {
+            if (f == null || !f.exists()) return 0L;
+            if (f.isFile()) return f.length();
+            long total = 0L;
+            java.io.File[] list = f.listFiles();
+            if (list != null) {
+                for (java.io.File ch : list) {
+                    total += folderSize(ch);
+                }
+            }
+            return total;
+        }
+
+        private String humanSize(long bytes) {
+            final String[] units = {"B", "KB", "MB", "GB", "TB"};
+            double v = bytes;
+            int u = 0;
+            while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
+            return String.format(java.util.Locale.US, (u <= 1 ? "%.0f %s" : "%.2f %s"), v, units[u]);
+        }
     }
 
     private void buildUI() {
@@ -295,6 +427,12 @@ public class MainMenuPanel extends JPanel {
         versionLabel.setFont(AeroTheme.defaultFont());
         left.add(versionLabel);
         southPanel.add(left, BorderLayout.WEST);
+
+        // Center: App context indicators (entries/notebooks, autosave, size)
+        JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 4));
+        center.setOpaque(false);
+        center.add(new AppContextIndicators());
+        southPanel.add(center, BorderLayout.CENTER);
 
         // Right: RAM usage
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 4));

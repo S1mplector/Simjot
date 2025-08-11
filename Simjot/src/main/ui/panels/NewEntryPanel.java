@@ -1,10 +1,11 @@
 package main.ui.panels;
 
 import java.awt.*;
-import java.awt.image.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import main.ui.theme.aero.AeroTheme;
@@ -22,6 +23,7 @@ import main.ui.components.AnimatedGlassPopup;
 import main.util.AppDirectories;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
+import main.util.LastSaveTracker;
 import main.util.UndoRedoManager;
 import java.awt.event.*;
 
@@ -539,6 +541,9 @@ public class NewEntryPanel extends JPanel {
                 writer.println(); // Blank line for separation
                 writer.print(content); // Use print to avoid extra newline
             }
+
+            // Mark last successful save for status bar
+            LastSaveTracker.markSaved();
 
             String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
