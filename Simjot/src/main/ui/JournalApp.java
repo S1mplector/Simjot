@@ -26,6 +26,7 @@ import main.util.SettingsStore;
 // import main.ui.buttons.MainMenuButton; // Removed as per edit hint
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.icons.AppIcon;
+import main.ui.splash.AeroSplashScreen;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -374,9 +375,132 @@ public class JournalApp extends JFrame {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // Apply UI scaling before creating the application
+            // Apply LAF and UI scaling before creating the splash to prevent flicker
+            try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
             applyUIScaling();
-            new JournalApp();
+            // Show Aero-themed splashscreen while bootstrapping
+            AeroSplashScreen splash = new AeroSplashScreen();
+            splash.setStatus("Starting…");
+            splash.setVisible(true);
+
+            // Run startup pre-warm tasks off the EDT and update splash status
+            new javax.swing.SwingWorker<Void, String>() {
+                @Override protected Void doInBackground() {
+                    publish("Loading settings…");
+                    try { main.util.SettingsStore.get().getUIScale(); } catch (Throwable ignored) {}
+
+                    publish("Preparing icons…");
+                    try { main.ui.icons.AppIcon.generateIconImages(); } catch (Throwable ignored) {}
+
+                    long start = System.nanoTime();
+
+                    publish("Warming vector icons…");
+                    try {
+                        int[] sizes = {16,20,24,32,48,64};
+                        String[] ids = {"notebook","pencil","image","smile","wrench","clock","tick","breath"};
+                        for (int s : sizes) {
+                            for (String id : ids) {
+                                try { main.ui.icons.VectorIconPainter.getImage(id, s); } catch (Throwable ignored2) {}
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+
+                    // Theme is already applied before the splash is shown to avoid visual changes while splash is visible
+
+                    publish("Preparing filesystem…");
+                    try {
+                        // Mirror logic from loadOrChooseRootFolder: check config and ensure subfolders
+                        java.io.File cfg = new java.io.File(System.getProperty("user.home"), ".simjournal_config.txt");
+                        if (cfg.exists()) {
+                            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(cfg))) {
+                                String path = r.readLine();
+                                if (path != null) {
+                                    java.io.File folder = new java.io.File(path);
+                                    if (folder.exists() && folder.isDirectory()) {
+                                        main.util.AppDirectories.setRoot(folder);
+                                        for (main.util.AppDirectories.Type t : main.util.AppDirectories.Type.values()) {
+                                            main.util.AppDirectories.folder(t);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+
+                    // Warm font/text rendering via an offscreen draw to prime text rasterizer/metrics
+                    publish("Priming text rendering…");
+                    try {
+                        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(400, 120, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                        Graphics2D g2 = img.createGraphics();
+                        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.setColor(java.awt.Color.WHITE);
+                        g2.fillRect(0,0,img.getWidth(),img.getHeight());
+                        g2.setColor(main.ui.theme.aero.AeroTheme.TEXT_PRIMARY);
+                        g2.setFont(g2.getFont().deriveFont(java.awt.Font.BOLD, 28f));
+                        g2.drawString("Simjot", 16, 48);
+                        g2.setFont(g2.getFont().deriveFont(java.awt.Font.PLAIN, 15f));
+                        g2.setColor(new java.awt.Color(0,0,0,180));
+                        g2.drawString("Starting…", 16, 78);
+                        g2.dispose();
+                    } catch (Throwable ignored) {}
+
+                    // Light metadata warmup: discover root from config and touch top-level entries
+                    publish("Scanning workspace…");
+                    try {
+                        java.io.File cfg = new java.io.File(System.getProperty("user.home"), ".simjournal_config.txt");
+                        java.io.File root = null;
+                        if (cfg.exists()) {
+                            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(cfg))) {
+                                String path = r.readLine();
+                                if (path != null) {
+                                    java.io.File folder = new java.io.File(path);
+                                    if (folder.exists() && folder.isDirectory()) root = folder;
+                                }
+                            }
+                        }
+                        if (root != null) {
+                            java.io.File[] list = root.listFiles();
+                            if (list != null) {
+                                int n = Math.min(list.length, 200); // soft cap
+                                for (int i=0; i<n; i++) { java.io.File f = list[i]; f.exists(); /* touch */ }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+
+                    // Soft time cap (~2.5s) to avoid lingering on splash
+                    try {
+                        long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+                        if (elapsedMs < 2500) Thread.sleep(50); // tiny debounce, keep UI responsive
+                    } catch (Throwable ignored) {}
+
+                    // Filesystem prep is performed when JournalApp constructs the UI (root selection).
+                    // We keep splash visible until the frame is created to avoid flicker.
+                    return null;
+                }
+
+                @Override protected void process(java.util.List<String> chunks) {
+                    if (!chunks.isEmpty()) splash.setStatus(chunks.get(chunks.size()-1));
+                }
+
+                @Override protected void done() {
+                    // Create the main window; keep splash until ANY app window shows (frame or modal wizard)
+                    new JournalApp();
+                    javax.swing.Timer wait = new javax.swing.Timer(50, ev -> {
+                        java.awt.Window[] wins = java.awt.Window.getWindows();
+                        boolean otherVisible = false;
+                        for (java.awt.Window w : wins) {
+                            if (w != splash && w.isShowing()) { otherVisible = true; break; }
+                        }
+                        if (otherVisible) {
+                            ((javax.swing.Timer) ev.getSource()).stop();
+                            splash.dispose();
+                        }
+                    });
+                    wait.setRepeats(true);
+                    wait.start();
+                }
+            }.execute();
         });
     }
 
