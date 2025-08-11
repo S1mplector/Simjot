@@ -8,6 +8,7 @@ import javax.swing.Timer;
 import main.transitions.FadingButton;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.util.AppPerf;
 
 /** A main-menu button that animates a white vector icon sliding out on hover. */
 public class MainMenuButton extends FadingButton {
@@ -21,8 +22,8 @@ public class MainMenuButton extends FadingButton {
         this.iconId = iconId.toLowerCase();
         // Left align text
         setHorizontalAlignment(SwingConstants.CENTER);
-        // Animation timer ~60 FPS
-        animTimer = new Timer(16, e->{
+        // Animation timer using centralized FPS
+        animTimer = new Timer(AppPerf.getAnimationDelay(), e->{
             float target = hovering?1f:0f;
             float speed = 0.08f; // approach rate
             if(Math.abs(progress-target)>0.01f){

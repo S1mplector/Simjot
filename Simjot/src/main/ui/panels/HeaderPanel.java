@@ -7,6 +7,7 @@ import java.awt.font.*;
 import java.util.Random;
 import javax.swing.*;
 // no theme import needed here
+import main.util.AppPerf;
 
 public class HeaderPanel extends JPanel {
     private float textAlpha = 0f;
@@ -49,7 +50,7 @@ public class HeaderPanel extends JPanel {
         });
         fadeTimer.start();
         
-        pulseTimer = new Timer(16, new ActionListener() { // ~60 FPS for smoothness
+        pulseTimer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() { // centralized FPS
             public void actionPerformed(ActionEvent e) {
                 // Advance phase and compute eased beat between 0..1
                 phase += 0.05; // speed

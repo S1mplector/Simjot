@@ -34,6 +34,7 @@ public final class SettingsStore {
     private static final String KEY_BREATHING_OVERLAY = "breathingOverlayEnabled";
     private static final String KEY_SHOW_WIDGET_OPTIONS = "showWidgetOptions";
     private static final String KEY_UI_SCALE = "uiScale";
+    private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
     
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
@@ -56,6 +57,7 @@ public final class SettingsStore {
     private static final boolean DEF_BREATHING_OVERLAY = true;
     private static final boolean DEF_SHOW_WIDGET_OPTIONS = true;
     private static final float DEF_UI_SCALE = 1.0f;
+    private static final boolean DEF_LOW_POWER_MODE = false;
 
     // Singleton handling
     private static SettingsStore instance;
@@ -190,6 +192,12 @@ public final class SettingsStore {
 
     public boolean isShowWidgetOptions(){ return Boolean.parseBoolean(props.getProperty(KEY_SHOW_WIDGET_OPTIONS, String.valueOf(DEF_SHOW_WIDGET_OPTIONS))); }
     public void setShowWidgetOptions(boolean b){ props.setProperty(KEY_SHOW_WIDGET_OPTIONS, String.valueOf(b)); }
+
+    // Low Power Mode
+    public boolean isLowPowerMode(){
+        return Boolean.parseBoolean(props.getProperty(KEY_LOW_POWER_MODE, String.valueOf(DEF_LOW_POWER_MODE)));
+    }
+    public void setLowPowerMode(boolean b){ props.setProperty(KEY_LOW_POWER_MODE, String.valueOf(b)); }
 
     public float getUIScale() {
         try {

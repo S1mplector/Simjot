@@ -32,6 +32,9 @@ public class MainMenuPanel extends JPanel {
     private main.ui.widgets.WidgetManager widgetManager = new main.ui.widgets.WidgetManager();
     private DraggableWidgetPanel widgetPanel;
     private JLayeredPane layeredPane;
+    // Debounce timer to batch resize handling and reduce repaint storms
+    private javax.swing.Timer resizeDebounce;
+    private static final int RESIZE_DEBOUNCE_MS = 120;
 
     public MainMenuPanel(JournalApp app) {
         this.app = app;
@@ -355,24 +358,19 @@ public class MainMenuPanel extends JPanel {
         widgetPanel.repaint();
         layeredPane.repaint();
 
-        // Add component listener to keep the widget panel clamped inside bounds on resize
+        // Add component listener to keep the widget panel clamped inside bounds on resize (debounced)
         layeredPane.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-                if (widgetPanel != null) {
-                    // Keep widget panel in bounds when window resizes
-                    Point location = widgetPanel.getLocation();
-                    Dimension widgetSize = widgetPanel.getSize();
+                scheduleResizeClamp();
+            }
+        });
 
-                    if (location.x + widgetSize.width > layeredPane.getWidth()) {
-                        location.x = Math.max(0, layeredPane.getWidth() - widgetSize.width);
-                    }
-                    if (location.y + widgetSize.height > layeredPane.getHeight()) {
-                        location.y = Math.max(0, layeredPane.getHeight() - widgetSize.height);
-                    }
-
-                    widgetPanel.setBounds(location.x, location.y, widgetSize.width, widgetSize.height);
-                }
+        // Also debounce direct resizes on the main panel
+        this.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                scheduleResizeClamp();
             }
         });
 
@@ -385,6 +383,9 @@ public class MainMenuPanel extends JPanel {
                 System.out.println("[MainMenuPanel] Widget panel repositioned after layout: bounds=" + widgetPanel.getBounds());
             }
         });
+
+        // Prime the debounce so first layout settles quickly
+        scheduleResizeClamp();
 
         // South Status Bar (Aero-themed)
         JPanel southPanel = new JPanel(new BorderLayout()) {
@@ -443,6 +444,42 @@ public class MainMenuPanel extends JPanel {
 
         add(layeredPane, BorderLayout.CENTER);
         add(southPanel, BorderLayout.SOUTH);
+    }
+
+    // Debounced resize handler to clamp the draggable widget after resizing settles
+    private void scheduleResizeClamp() {
+        if (resizeDebounce == null) {
+            resizeDebounce = new javax.swing.Timer(RESIZE_DEBOUNCE_MS, e -> {
+                // one-shot
+                if (resizeDebounce != null) {
+                    resizeDebounce.stop();
+                    resizeDebounce = null;
+                }
+                clampWidgetToBounds();
+                revalidate();
+                repaint();
+            });
+            resizeDebounce.setRepeats(false);
+        }
+        resizeDebounce.restart();
+    }
+
+    // Keeps the draggable widget inside the layered pane bounds
+    private void clampWidgetToBounds() {
+        if (layeredPane == null || widgetPanel == null) return;
+        Dimension paneSize = layeredPane.getSize();
+        if (paneSize.width <= 0 || paneSize.height <= 0) return;
+        Point location = widgetPanel.getLocation();
+        Dimension widgetSize = widgetPanel.getSize();
+
+        int maxX = Math.max(0, paneSize.width - widgetSize.width);
+        int maxY = Math.max(0, paneSize.height - widgetSize.height);
+        int newX = Math.min(Math.max(0, location.x), maxX);
+        int newY = Math.min(Math.max(0, location.y), maxY);
+
+        if (newX != location.x || newY != location.y) {
+            widgetPanel.setBounds(newX, newY, widgetSize.width, widgetSize.height);
+        }
     }
 
     /**

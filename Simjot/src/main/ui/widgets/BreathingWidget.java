@@ -4,6 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import java.awt.geom.*;
 import main.ui.theme.aero.AeroTheme;
+import main.util.AppPerf;
 
 /**
  * A calming breathing-circle animation that expands and contracts in a smooth
@@ -37,7 +38,7 @@ public class BreathingWidget extends JComponent implements Widget {
         setAlignmentX(0.5f);
         setAlignmentY(0.5f);
 
-        timer = new Timer(16, e -> {
+        timer = new Timer(AppPerf.getAnimationDelay(), e -> {
             updatePhase();
             repaint();
         });
@@ -106,8 +107,9 @@ public class BreathingWidget extends JComponent implements Widget {
         int totalCycle = inhaleTime + hold1Time + exhaleTime + hold2Time;
         if (totalCycle == 0) totalCycle = 1;
         
-        // Increment phase based on cycle time
-        float increment = 1f / (totalCycle * 60f); // 60 FPS
+        // Increment phase based on cycle time and current target FPS
+        float fps = Math.max(1, AppPerf.getTargetFps());
+        float increment = 1f / (totalCycle * fps);
         phase = (phase + increment) % 1f;
     }
 

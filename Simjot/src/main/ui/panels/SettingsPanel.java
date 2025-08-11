@@ -13,6 +13,7 @@ import main.ui.components.ModernComboBoxUI;
 import main.ui.components.ModernSpinnerUI;
 import main.util.AppDirectories;
 import main.util.SettingsStore;
+import main.util.AppPerf;
 
 public class SettingsPanel extends JPanel {
 
@@ -193,6 +194,7 @@ public class SettingsPanel extends JPanel {
         private final JComboBox<String> themeBox;
         private final JCheckBox glowChk;
         private final JCheckBox disableAnimationsChk;
+        private final JCheckBox lowPowerChk;
 
         AppearancePage(){
             setLayout(new GridBagLayout());
@@ -216,6 +218,10 @@ public class SettingsPanel extends JPanel {
             disableAnimationsChk.setUI(new ModernCheckBoxUI());
             disableAnimationsChk.setBackground(Color.WHITE);
 
+            lowPowerChk = new JCheckBox("Low Power Mode (battery saver)", store.isLowPowerMode());
+            lowPowerChk.setUI(new ModernCheckBoxUI());
+            lowPowerChk.setBackground(Color.WHITE);
+
             // Single background options button
             backgroundOptionsBtn = new RoundedButton("Background Options");
             backgroundOptionsBtn.addActionListener(e->openBackgroundOptions());
@@ -226,6 +232,7 @@ public class SettingsPanel extends JPanel {
             gc.gridx=1; add(themeBox, gc);
             gc.gridx=0; gc.gridy=2; gc.gridwidth=2; add(glowChk, gc);
             gc.gridx=0; gc.gridy=3; gc.gridwidth=2; add(disableAnimationsChk, gc);
+            gc.gridx=0; gc.gridy=4; gc.gridwidth=2; add(lowPowerChk, gc);
         }
         public JComponent getComponent(){ return this; }
         public void apply(){
@@ -240,6 +247,10 @@ public class SettingsPanel extends JPanel {
             main.ui.buttons.ToolbarIconButton.setGlowEnabled(glow);
 
             store.setAnimationsDisabled(disableAnimationsChk.isSelected());
+
+            boolean lp = lowPowerChk.isSelected();
+            store.setLowPowerMode(lp);
+            AppPerf.setLowPowerMode(lp);
         }
 
         private void openBackgroundOptions(){

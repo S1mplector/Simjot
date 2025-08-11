@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import main.util.AppPerf;
 
 /**
  * A modern, smooth, indeterminate spinner for loading/progress indication.
@@ -36,7 +37,7 @@ public class ModernSpinner extends JComponent {
         this.color = color;
         setPreferredSize(new Dimension(size, size));
         setOpaque(false);
-        timer = new Timer(16, new ActionListener() {
+        timer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 angle += 0.08f;
                 if (angle > Math.PI * 2) angle -= Math.PI * 2;

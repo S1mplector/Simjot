@@ -2,6 +2,7 @@ package main.ui.panels;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import javax.swing.SwingWorker;
 import javax.swing.*;
 import main.util.SettingsStore;
 
@@ -18,6 +19,10 @@ public class BackgroundPanel extends JPanel {
 	private float cachedOpacity = -1f;
 	// Optional per-instance override for opacity; if non-null, used instead of SettingsStore
 	private Float opacityOverride = null;
+	// Debounce timer for resize/opacity changes to recompute cachedScaled off-EDT
+	private javax.swing.Timer resizeDebounce;
+	private static final int DEBOUNCE_MS = 150;
+	private SwingWorker<BufferedImage, Void> currentWorker;
 	
 	// Reusable popup menu for removing the background
 	private final JPopupMenu contextMenu = new JPopupMenu();
@@ -64,6 +69,12 @@ public class BackgroundPanel extends JPanel {
 				}
 			}
 		});
+		// Debounced recompute on resize
+		addComponentListener(new java.awt.event.ComponentAdapter() {
+			@Override public void componentResized(java.awt.event.ComponentEvent e){
+				scheduleRecompute();
+			}
+		});
 	}
 	
 	private void clearBackground() {
@@ -81,7 +92,7 @@ public class BackgroundPanel extends JPanel {
 		this.opacityOverride = value;
 		this.cachedScaled = null;
 		this.cachedOpacity = -1f;
-		repaint();
+		scheduleRecompute();
 	}
 	
 	// Overload accepting Image directly
@@ -96,6 +107,7 @@ public class BackgroundPanel extends JPanel {
 		g2.drawImage(img,0,0,null); g2.dispose();
 		backgroundImage = applyBlur(src);
 		cachedScaled=null;
+		scheduleRecompute();
 	}
 
 	// Existing String-based loader now delegates to the new overload
@@ -123,57 +135,115 @@ public class BackgroundPanel extends JPanel {
 		return tmp;
 	}
 	
-	@Override
-	protected void paintComponent(Graphics g) {
-		super.paintComponent(g);
-		// Draw the image with uniform scaling (maintain aspect ratio) using cached pre-scaled bitmap
-		if (backgroundImage != null) {
-			int panelW = getWidth();
-			int panelH = getHeight();
-
-			if (panelW <= 0 || panelH <= 0) {
-				return;
-			}
-
-			// Get current opacity setting (per-instance override takes precedence)
-			float currentOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
-			
-			// If opacity changed or we don't have a cached image, update the cache
-			if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || currentOpacity != cachedOpacity) {
-				int imgW = backgroundImage.getWidth(this);
-				int imgH = backgroundImage.getHeight(this);
-				if (imgW <= 0 || imgH <= 0) return;
-
-				// Calculate scale factor (cover the entire area)
-				double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
-				int drawW = (int) Math.round(imgW * scale);
-				int drawH = (int) Math.round(imgH * scale);
-
-				cachedX = (panelW - drawW) / 2;
-				cachedY = (panelH - drawH) / 2;
-				cachedPanelW = panelW;
-				cachedPanelH = panelH;
-				cachedOpacity = currentOpacity;
-
-				// Create a new image with the current opacity
-				BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
-				Graphics2D cg = tmp.createGraphics();
-				
-				// Set the composite with the current opacity
-				AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, currentOpacity);
-				cg.setComposite(ac);
-				
-				// Draw the image with the applied opacity
-				cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-				cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-				cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
-				cg.dispose();
-				
-				cachedScaled = tmp;
-			}
-
-			// Draw the cached image with the correct opacity
-			g.drawImage(cachedScaled, cachedX, cachedY, this);
+	// Debounce timer handler
+	private void scheduleRecompute() {
+		if (resizeDebounce == null) {
+			resizeDebounce = new javax.swing.Timer(DEBOUNCE_MS, e -> {
+				resizeDebounce = null;
+				recomputeScaledImage();
+			});
+			resizeDebounce.setRepeats(false);
 		}
+		resizeDebounce.restart();
 	}
+	
+	// Recompute the cached scaled image off-EDT
+	private void recomputeScaledImage() {
+		if (currentWorker != null) {
+			currentWorker.cancel(true);
+		}
+		currentWorker = new SwingWorker<BufferedImage, Void>() {
+			@Override
+			protected BufferedImage doInBackground() {
+				if (backgroundImage == null) {
+					return null;
+				}
+				int panelW = getWidth();
+				int panelH = getHeight();
+				if (panelW <= 0 || panelH <= 0) {
+					return null;
+				}
+				// Get current opacity setting (per-instance override takes precedence)
+				float currentOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
+				// If opacity changed or we don't have a cached image, update the cache
+				if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || currentOpacity != cachedOpacity) {
+					int imgW = backgroundImage.getWidth(BackgroundPanel.this);
+					int imgH = backgroundImage.getHeight(BackgroundPanel.this);
+					if (imgW <= 0 || imgH <= 0) return null;
+					// Calculate scale factor (cover the entire area)
+					double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
+					int drawW = (int) Math.round(imgW * scale);
+					int drawH = (int) Math.round(imgH * scale);
+					// Create a new image with the current opacity
+					BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
+					Graphics2D cg = tmp.createGraphics();
+					// Set the composite with the current opacity
+					AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, currentOpacity);
+					cg.setComposite(ac);
+					// Draw the image with the applied opacity
+					cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+					cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+					cg.drawImage(backgroundImage, 0, 0, drawW, drawH, BackgroundPanel.this);
+					cg.dispose();
+					return tmp;
+				}
+				return null;
+			}
+			@Override
+			protected void done() {
+				try {
+					BufferedImage result = get();
+					if (result != null) {
+						cachedScaled = result;
+						cachedPanelW = getWidth();
+						cachedPanelH = getHeight();
+						cachedX = (getWidth() - result.getWidth()) / 2;
+						cachedY = (getHeight() - result.getHeight()) / 2;
+						cachedOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
+						repaint();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				currentWorker = null;
+			}
+		};
+		currentWorker.execute();
+	}
+	
+	@Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        // Draw the image with uniform scaling (maintain aspect ratio) using cached pre-scaled bitmap
+        if (backgroundImage != null) {
+            int panelW = getWidth();
+            int panelH = getHeight();
+            if (panelW <= 0 || panelH <= 0) return;
+
+            float currentOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
+
+            // If cache invalid, schedule a background recompute
+            if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || currentOpacity != cachedOpacity) {
+                scheduleRecompute();
+            }
+
+            // Draw cached if available, otherwise quick fallback
+            if (cachedScaled != null) {
+                g.drawImage(cachedScaled, cachedX, cachedY, this);
+            } else {
+                int imgW = backgroundImage.getWidth(this);
+                int imgH = backgroundImage.getHeight(this);
+                if (imgW > 0 && imgH > 0) {
+                    double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
+                    int drawW = (int) Math.round(imgW * scale);
+                    int drawH = (int) Math.round(imgH * scale);
+                    int x = (panelW - drawW) / 2;
+                    int y = (panelH - drawH) / 2;
+                    Graphics2D g2 = (Graphics2D) g;
+                    g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    g2.drawImage(backgroundImage, x, y, drawW, drawH, this);
+                }
+            }
+        }
+    }
 }
