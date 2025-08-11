@@ -159,10 +159,51 @@ public class MainMenuButton extends FadingButton {
                 g2.setColor(new Color(140,140,140));
                 g2.drawRoundRect(x, y, s, s, r, r);
                 break; }
-            case "pencil":
-                g2.drawLine(x, y+s, x+s, y);
-                g2.drawLine(x+3, y+s-3, x+s-3, y+3);
-                break;
+            case "pencil": {
+                // Replace simple pencil with a glossy sticky note (used for Idea Sticky)
+                int r = Math.max(6, s/8);
+                // Shadow
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(x + s/2, y + s), s/1.8f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                sh.fillOval(x-3, y+s-8, s+6, 12);
+                sh.dispose();
+
+                // Note body
+                Paint note = new LinearGradientPaint(x, y, x, y+s,
+                        new float[]{0f, 0.6f, 1f},
+                        new Color[]{new Color(255,255,200), new Color(250,245,150), new Color(240,230,120)});
+                g2.setPaint(note);
+                g2.fillRoundRect(x, y, s, s, r, r);
+
+                // Folded corner
+                int fold = Math.max(8, s/5);
+                Polygon dog = new Polygon();
+                dog.addPoint(x + s - fold, y);
+                dog.addPoint(x + s, y);
+                dog.addPoint(x + s, y + fold);
+                g2.setPaint(new LinearGradientPaint(x, y, x, y+fold,
+                        new float[]{0f,1f}, new Color[]{new Color(255,255,255,220), new Color(235,235,200)}));
+                g2.fillPolygon(dog);
+                g2.setColor(new Color(200,190,120));
+                g2.drawPolygon(dog);
+
+                // Glass highlight strip
+                g2.setPaint(new GradientPaint(0, y, new Color(255,255,255,170), 0, y + s/2f, new Color(255,255,255,0)));
+                g2.fillRoundRect(x+1, y+1, s-2, Math.max(1, s/2), r-2, r-2);
+
+                // Subtle ruled lines
+                g2.setColor(new Color(210,200,120));
+                g2.setStroke(new BasicStroke(Math.max(1f, s/32f)));
+                int gap = Math.max(8, s/5);
+                for(int yy = y + gap; yy < y + s - gap/2; yy += gap) g2.drawLine(x + r/2, yy, x + s - r/2, yy);
+
+                // Border
+                g2.setColor(new Color(170,160,90));
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.drawRoundRect(x, y, s, s, r, r);
+                break; }
             case "image":
                 g2.drawRect(x, y, s, s);
                 g2.drawLine(x, y+s*3/5, x+s*2/5, y+s*2/5);
@@ -262,18 +303,67 @@ public class MainMenuButton extends FadingButton {
                     g2.draw(gear);
                 }
                 break;
-            case "clock":
-                // Simple clock face with hour and minute hands
-                g2.drawOval(x, y, s, s);
-                int cx = x + s/2;
-                int cy = y + s/2;
-                // hour hand (at ~2)
-                g2.drawLine(cx, cy, cx + s/6, cy - s/8);
-                // minute hand (at ~10)
-                g2.drawLine(cx, cy, cx - s/5, cy - s/6);
-                // center dot
+            case "clock": {
+                // Glossy regular analog clock for Pomodoro
+                int cx = x + s/2; int cy = y + s/2;
+
+                // Shadow (subtle)
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(cx, y + s), s/1.6f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                sh.fillOval(x-2, y+s-8, s+4, 12);
+                sh.dispose();
+
+                // Bezel (metallic)
+                Paint bezel = new LinearGradientPaint(x, y, x, y+s,
+                        new float[]{0f,0.5f,1f},
+                        new Color[]{new Color(242,242,242), new Color(214,214,214), new Color(192,192,192)});
+                g2.setPaint(bezel);
+                g2.fillOval(x, y, s, s);
+
+                // Face
+                int pad = Math.max(3, s/12);
+                Paint face = new RadialGradientPaint(new Point(cx - s/6, cy - s/6), s/1.6f,
+                        new float[]{0f,1f}, new Color[]{new Color(255,255,255), new Color(235,235,235)});
+                g2.setPaint(face);
+                int faceSize = s - 2*pad;
+                g2.fillOval(x+pad, y+pad, faceSize, faceSize);
+
+                // Ticks (12 marks, majors longer)
+                g2.setColor(new Color(120,120,120));
+                g2.setStroke(new BasicStroke(Math.max(1f, s/40f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int rOuter = s/2 - pad/2;
+                int rInnerMajor = rOuter - Math.max(7, s/8);
+                int rInnerMinor = rOuter - Math.max(5, s/12);
+                for (int i = 0; i < 12; i++) {
+                    double a = Math.toRadians(i * 30);
+                    int rIn = (i % 3 == 0) ? rInnerMajor : rInnerMinor;
+                    int x1 = cx + (int)(rOuter * Math.cos(a));
+                    int y1 = cy + (int)(rOuter * Math.sin(a));
+                    int x2 = cx + (int)(rIn * Math.cos(a));
+                    int y2 = cy + (int)(rIn * Math.sin(a));
+                    g2.drawLine(x1, y1, x2, y2);
+                }
+
+                // Hands
+                g2.setColor(AeroTheme.TEXT_PRIMARY);
+                g2.setStroke(new BasicStroke(Math.max(2f, s/18f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx, cy, cx + s/6, cy - s/8); // hour ~2
+                g2.setStroke(new BasicStroke(Math.max(1.6f, s/24f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx, cy, cx - s/5, cy - s/6); // minute ~10
+                g2.setColor(new Color(220,60,60));
+                g2.setStroke(new BasicStroke(Math.max(1.2f, s/28f)));
+                g2.drawLine(cx, cy, cx, cy - s/4); // seconds up
                 g2.fillOval(cx-2, cy-2, 4, 4);
-                break;
+
+                // Subtle highlight
+                g2.setPaint(new RadialGradientPaint(new Point(cx - s/4, y + s/5), s/2.4f,
+                        new float[]{0f,1f}, new Color[]{new Color(255,255,255,170), new Color(255,255,255,0)}));
+                int hw = Math.max(1, s*3/4);
+                int hh = Math.max(1, s/2);
+                g2.fillOval(x + s/8, y + s/12, hw, hh);
+                break; }
             case "tick":
                 // Draw a checkmark/tick symbol
                 g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
@@ -287,10 +377,45 @@ public class MainMenuButton extends FadingButton {
                 g2.drawLine(checkStart, checkMiddle, checkMid, checkBottom);
                 g2.drawLine(checkMid, checkBottom, checkEnd, checkTop);
                 break;
-            case "breath":
-                // Breathing icon simplified to a single circle
+            case "breath": {
+                // Calming breathing circle with glassy Win7 look
+                int cx = x + s/2; int cy = y + s/2;
+                // Shadow
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(cx, y + s), s/1.6f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                sh.fillOval(x-3, y+s-8, s+6, 12);
+                sh.dispose();
+
+                // Outer ring
+                Paint ring = new RadialGradientPaint(new Point(cx - s/6, cy - s/6), s/1.3f,
+                        new float[]{0f, 0.7f, 1f},
+                        new Color[]{new Color(170,210,255), new Color(110,160,240), new Color(70,120,210)});
+                g2.setPaint(ring);
+                g2.fillOval(x, y, s, s);
+
+                // Inner hole to make a ring look
+                g2.setComposite(AlphaComposite.Clear);
+                int hole = Math.max(8, s/2);
+                g2.fillOval(cx - hole/2, cy - hole/2, hole, hole);
+                g2.setComposite(AlphaComposite.SrcOver);
+
+                // Soft inner glow
+                g2.setPaint(new RadialGradientPaint(new Point(cx, cy), s/1.6f,
+                        new float[]{0f,1f}, new Color[]{new Color(255,255,255,120), new Color(255,255,255,0)}));
+                g2.fillOval(x + s/10, y + s/10, s - s/5, s - s/5);
+
+                // Highlight arc
+                g2.setColor(new Color(255,255,255,160));
+                g2.setStroke(new BasicStroke(Math.max(2f, s/14f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawArc(x + s/8, y + s/8, s - s/4, s - s/4, 130, 70);
+
+                // Border
+                g2.setColor(new Color(80,110,180));
+                g2.setStroke(new BasicStroke(1.2f));
                 g2.drawOval(x, y, s, s);
-                break;
+                break; }
         }
     }
 }
