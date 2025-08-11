@@ -3,6 +3,7 @@ package main.ui.components;
 import java.awt.*;
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicComboBoxUI;
+import main.ui.theme.aero.AeroTheme;
 
 public class ModernComboBoxUI extends BasicComboBoxUI {
     @Override
@@ -19,19 +20,45 @@ public class ModernComboBoxUI extends BasicComboBoxUI {
     public void paint(Graphics g, JComponent c) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(comboBox.isPopupVisible() ? new Color(220, 220, 220) : new Color(240, 240, 240));
-        g2.fillRoundRect(0, 0, c.getWidth(), c.getHeight(), 10, 10);
-        g2.setColor(Color.LIGHT_GRAY);
-        g2.drawRoundRect(0, 0, c.getWidth() - 1, c.getHeight() - 1, 10, 10);
-        if (comboBox.getSelectedItem() != null) {
+
+        int w = c.getWidth();
+        int h = c.getHeight();
+
+        // Background: subtle Aero gradient, darker when popup visible
+        Color top = comboBox.isPopupVisible() ? new Color(234, 241, 251) : new Color(252, 252, 252);
+        Color bottom = comboBox.isPopupVisible() ? new Color(221, 236, 248) : new Color(235, 235, 235);
+        g2.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
+        g2.fillRoundRect(0, 0, w, h, 10, 10);
+
+        // Gloss highlight on top half
+        g2.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 180), 0, h / 2f, new Color(255, 255, 255, 0)));
+        g2.fillRoundRect(1, 1, w - 2, h / 2, 9, 9);
+
+        // Border
+        g2.setColor(new Color(190, 190, 190));
+        g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
+
+        // Focus glow
+        if (c.isFocusOwner() || (comboBox != null && comboBox.isPopupVisible())) {
+            g2.setColor(new Color(AeroTheme.AERO_BLUE.getRed(), AeroTheme.AERO_BLUE.getGreen(), AeroTheme.AERO_BLUE.getBlue(), 120));
+            g2.drawRoundRect(1, 1, w - 3, h - 3, 8, 8);
+        }
+
+        // Text
+        Object sel = (comboBox != null) ? comboBox.getSelectedItem() : null;
+        if (sel != null) {
             g2.setColor(c.getForeground());
             g2.setFont(c.getFont());
             FontMetrics fm = g2.getFontMetrics();
-            g2.drawString(comboBox.getSelectedItem().toString(), 8, fm.getAscent() + (c.getHeight() - fm.getHeight()) / 2);
+            int textY = fm.getAscent() + (h - fm.getHeight()) / 2;
+            g2.drawString(sel.toString(), 8, textY);
         }
-        g2.setColor(Color.DARK_GRAY);
-        int x = c.getWidth() - 18, y = c.getHeight() / 2 - 3;
+
+        // Arrow
+        g2.setColor(new Color(80, 80, 80));
+        int x = w - 18, y = h / 2 - 3;
         g2.fillPolygon(new int[]{x, x + 6, x + 12}, new int[]{y, y + 6, y}, 3);
+
         g2.dispose();
     }
 
@@ -40,9 +67,10 @@ public class ModernComboBoxUI extends BasicComboBoxUI {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            setBackground(isSelected ? new Color(0,120,215,60) : Color.WHITE);
+            setBackground(isSelected ? new Color(AeroTheme.AERO_BLUE.getRed(), AeroTheme.AERO_BLUE.getGreen(), AeroTheme.AERO_BLUE.getBlue(), 60) : Color.WHITE);
+            setForeground(AeroTheme.TEXT_PRIMARY);
             setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
             return this;
         }
     }
-} 
+}

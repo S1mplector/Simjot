@@ -112,10 +112,7 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(artsHeader);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
 
-        FadingButton drawingButton = createMenuButtonWithIcon("Canvas", "Drawing", "pencil");
-        drawingButton.setForeground(Color.WHITE);
-        drawingButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-
+        // Canvas button temporarily removed from the menu (functionality kept for later transformation)
         FadingButton galleryButton = createMenuButtonWithIcon("Gallery", JournalApp.GALLERY, "image");
         galleryButton.setForeground(Color.WHITE);
         galleryButton.setFont(galleryButton.getFont().deriveFont(Font.BOLD, 20f));
@@ -124,7 +121,6 @@ public class MainMenuPanel extends JPanel {
         galleryButton.addActionListener(e -> app.switchCard(JournalApp.GALLERY));
 
         List<FadingButton> artsBtns = new ArrayList<>();
-        artsBtns.add(drawingButton);
         if (SHOW_GALLERY) {
             artsBtns.add(galleryButton);
         }
@@ -275,6 +271,8 @@ public class MainMenuPanel extends JPanel {
     private class DraggableWidgetPanel extends JPanel {
 
         private boolean isExpanded = true;
+        private boolean suppressAutoBounds = false; // prevents updateLayout from resizing during animations
+        private Timer resizeTimer;
         private JPanel expandedContent;
         private JButton toggleButton;
         private DragController drag;
@@ -307,14 +305,22 @@ public class MainMenuPanel extends JPanel {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                    // Draw rounded background
-                    g2.setColor(new Color(255, 255, 255, 180));
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                    int w = getWidth(), h = getHeight();
+                    // Silvery Aero gradient background
+                    Paint gp = new LinearGradientPaint(0, 0, 0, h,
+                            new float[]{0f, 0.5f, 1f},
+                            new Color[]{new Color(252,252,252,210), new Color(235,235,235,210), new Color(220,220,220,210)});
+                    g2.setPaint(gp);
+                    g2.fillRoundRect(0, 0, w, h, 20, 20);
 
-                    // Draw border
-                    g2.setColor(new Color(0, 0, 0, 60));
+                    // Glass highlight
+                    g2.setPaint(new GradientPaint(0, 0, new Color(255,255,255,170), 0, h/2f, new Color(255,255,255,0)));
+                    g2.fillRoundRect(1, 1, w-2, h/2, 18, 18);
+
+                    // Border
+                    g2.setColor(new Color(170, 170, 170));
                     g2.setStroke(new BasicStroke(1f));
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
+                    g2.drawRoundRect(0, 0, w - 1, h - 1, 20, 20);
 
                     g2.dispose();
                     super.paintComponent(g);
@@ -324,7 +330,8 @@ public class MainMenuPanel extends JPanel {
             toggleButton.setOpaque(false);
             toggleButton.setContentAreaFilled(false);
             toggleButton.setBorderPainted(false);
-            toggleButton.setForeground(Color.DARK_GRAY);
+            // Toggle glyph color: black per request
+            toggleButton.setForeground(Color.BLACK);
             toggleButton.setFocusPainted(false);
             toggleButton.setFont(new Font("SansSerif", Font.BOLD, 18));
             toggleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -344,7 +351,7 @@ public class MainMenuPanel extends JPanel {
 
             // Add title
             JLabel title = new JLabel("Widgets");
-            title.setForeground(Color.DARK_GRAY);
+            title.setForeground(Color.BLACK);
             title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
             title.setAlignmentX(Component.CENTER_ALIGNMENT);
             expandedContent.add(title);
@@ -356,7 +363,7 @@ public class MainMenuPanel extends JPanel {
                 String name = widget.getName();
                 String iconId = widget.getIconId();
                 FadingButton btn = new MainMenuButton(name, iconId);
-                btn.setForeground(Color.DARK_GRAY);
+                btn.setForeground(Color.BLACK);
                 btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 16f));
                 btn.setAlpha(1f);
                 btn.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -410,17 +417,59 @@ public class MainMenuPanel extends JPanel {
             if (drag != null && drag.shouldSuppressClickAndReset()) {
                 return;
             }
-            isExpanded = !isExpanded;
-            updateLayout();
+            // If an animation is already running, stop it
+            if (resizeTimer != null && resizeTimer.isRunning()) {
+                resizeTimer.stop();
+            }
 
-            // Animate the transition
-            Timer animationTimer = new Timer(10, null);
-            animationTimer.addActionListener(e -> {
+            // Animate size change between collapsed (50x50) and expanded preferred size (e.g., 160x220)
+            final Dimension start = getSize();
+            final Dimension end;
+            final boolean collapsing = isExpanded; // current state -> target is opposite
+
+            if (collapsing) {
+                // Collapse: animate to small, then switch content
+                end = new Dimension(50, 50);
+            } else {
+                // Expand: first switch content to expanded to measure preferred size, then animate
+                isExpanded = true;
+                suppressAutoBounds = true; // don't let layout snap size while measuring preferred size
+                updateLayout();
+                suppressAutoBounds = false;
+                end = getPreferredSize();
+            }
+
+            final long duration = 220; // ms
+            final long startTime = System.currentTimeMillis();
+            final Point pos = getLocation();
+
+            resizeTimer = new Timer(15, null);
+            resizeTimer.addActionListener(e -> {
+                long now = System.currentTimeMillis();
+                float t = Math.min(1f, (now - startTime) / (float) duration);
+                // ease in-out
+                float tt = (float) (0.5 - 0.5 * Math.cos(Math.PI * t));
+                int w = (int) (start.width + (end.width - start.width) * tt);
+                int h = (int) (start.height + (end.height - start.height) * tt);
+                setBounds(pos.x, pos.y, w, h);
                 revalidate();
                 repaint();
-                animationTimer.stop();
+                if (t >= 1f) {
+                    resizeTimer.stop();
+                    if (collapsing) {
+                        // After collapse, switch content to collapsed view
+                        isExpanded = false;
+                        updateLayout();
+                        setBounds(pos.x, pos.y, end.width, end.height);
+                    }
+                }
             });
-            animationTimer.start();
+            resizeTimer.start();
+
+            // If we started a collapse, keep expanded view until animation finishes
+            if (!collapsing) {
+                // Already set to expanded and updated layout above
+            }
         }
 
         private void updateLayout() {
@@ -434,18 +483,30 @@ public class MainMenuPanel extends JPanel {
                         Graphics2D g2 = (Graphics2D) g.create();
                         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                        // Draw main background
-                        g2.setColor(new Color(255, 255, 255, 180));
-                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
+                        int w = getWidth(), h = getHeight();
+                        // Silvery background gradient
+                        Paint bg = new LinearGradientPaint(0, 0, 0, h,
+                                new float[]{0f, 0.5f, 1f},
+                                new Color[]{new Color(252,252,252,200), new Color(236,236,236,200), new Color(222,222,222,200)});
+                        g2.setPaint(bg);
+                        g2.fillRoundRect(0, 0, w, h, 15, 15);
 
-                        // Draw border
-                        g2.setColor(new Color(0, 0, 0, 60));
+                        // Glass overlay
+                        g2.setPaint(new GradientPaint(0, 0, new Color(255,255,255,170), 0, h/2f, new Color(255,255,255,0)));
+                        g2.fillRoundRect(1, 1, w-2, h/2, 14, 14);
+
+                        // Title bar strip with subtle separation
+                        Paint tb = new LinearGradientPaint(0, 0, 0, 50,
+                                new float[]{0f,1f}, new Color[]{new Color(255,255,255,160), new Color(230,230,230,140)});
+                        g2.setPaint(tb);
+                        g2.fillRoundRect(1, 1, w-2, 50, 14, 14);
+                        g2.setColor(new Color(180,180,180,180));
+                        g2.drawLine(8, 50, w-8, 50);
+
+                        // Border
+                        g2.setColor(new Color(170, 170, 170));
                         g2.setStroke(new BasicStroke(1f));
-                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
-
-                        // Draw title bar area
-                        g2.setColor(new Color(0, 0, 0, 20));
-                        g2.fillRoundRect(1, 1, getWidth() - 2, 50, 14, 14);
+                        g2.drawRoundRect(0, 0, w - 1, h - 1, 15, 15);
 
                         g2.dispose();
                     }
@@ -516,9 +577,11 @@ public class MainMenuPanel extends JPanel {
                 }
             }
 
-            // Update bounds when layout changes
-            Dimension newSize = getPreferredSize();
-            setBounds(getX(), getY(), newSize.width, newSize.height);
+            // Update bounds when layout changes (skip if animating or suppressed)
+            if (!suppressAutoBounds && (resizeTimer == null || !resizeTimer.isRunning())) {
+                Dimension newSize = getPreferredSize();
+                setBounds(getX(), getY(), newSize.width, newSize.height);
+            }
             revalidate();
             repaint();
         }
@@ -573,7 +636,8 @@ public class MainMenuPanel extends JPanel {
 
     private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon) {
         FadingButton button = new MainMenuButton(text, icon);
-        button.setForeground(Color.WHITE);
+        // Main menu button text in black per request
+        button.setForeground(Color.BLACK);
         button.setFont(button.getFont().deriveFont(Font.BOLD, 20f));
         button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
         button.setAlignmentX(Component.CENTER_ALIGNMENT);

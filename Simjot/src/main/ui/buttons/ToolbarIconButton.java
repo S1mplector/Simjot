@@ -70,9 +70,9 @@ public class ToolbarIconButton extends JButton {
         g2.setColor(new Color(180,180,180));
         g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
 
-        // Draw icon/vector. For 'trash', always prefer vector rendering.
+        // Draw icon/vector. For 'trash', 'new', and 'delete', always prefer vector rendering.
         boolean painted=false;
-        if(!"trash".equals(id) && icon!=null){
+        if(!("trash".equals(id) || "new".equals(id) || "delete".equals(id)) && icon!=null){
             icon.paintIcon(this,g2,(getWidth()-icon.getIconWidth())/2,(getHeight()-icon.getIconHeight())/2);
             painted=true;
         }
@@ -98,39 +98,63 @@ public class ToolbarIconButton extends JButton {
         int cx=w/2, cy=h/2;
         g2.setStroke(new BasicStroke(2f));
         switch(id){
-            case "new": // improved pencil icon
+            case "new": { // Aero-styled pencil icon with gradients and gloss
                 AffineTransform old = g2.getTransform();
                 g2.translate(cx, cy);
                 g2.rotate(-Math.PI/4); // diagonal orientation
 
-                // Pencil body
-                g2.setColor(new Color(255, 215, 0)); // yellow
-                g2.fillRect(-14, -3, 18, 6);
+                // Drop shadow under pencil
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(2, 6), 14f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                sh.fillOval(-16, 4, 28, 6);
+                sh.dispose();
 
-                // Ferrule (metal band)
-                g2.setColor(new Color(180, 180, 180));
+                // Pencil body gradient
+                LinearGradientPaint body = new LinearGradientPaint(-14, -3, -14, 3,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(255, 232, 120), new Color(255, 215, 0), new Color(235, 190, 0)});
+                g2.setPaint(body);
+                g2.fillRoundRect(-14, -3, 18, 6, 2, 2);
+
+                // Top gloss on body
+                g2.setPaint(new GradientPaint(0, -3, new Color(255,255,255,180), 0, 0, new Color(255,255,255,0)));
+                g2.fillRoundRect(-13, -3, 16, 3, 2, 2);
+
+                // Ferrule (metal band) with metallic gradient
+                LinearGradientPaint ferrule = new LinearGradientPaint(4, -3, 4, 3,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(210,210,210), new Color(170,170,170), new Color(200,200,200)});
+                g2.setPaint(ferrule);
                 g2.fillRect(4, -3, 3, 6);
 
-                // Eraser
-                g2.setColor(new Color(255, 120, 120));
+                // Eraser with soft gradient
+                LinearGradientPaint eraser = new LinearGradientPaint(7, -3, 7, 3,
+                        new float[]{0f,1f}, new Color[]{new Color(255, 170, 170), new Color(255, 120, 120)});
+                g2.setPaint(eraser);
                 g2.fillRect(7, -3, 5, 6);
 
-                // Tip
-                g2.setColor(new Color(140, 100, 60));
+                // Wooden tip + graphite
                 int[] px = { -14, -18, -14 };
                 int[] py = { -3, 0, 3 };
+                LinearGradientPaint wood = new LinearGradientPaint(-18, -3, -18, 3,
+                        new float[]{0f,1f}, new Color[]{new Color(214, 174, 123), new Color(160, 120, 80)});
+                g2.setPaint(wood);
                 g2.fillPolygon(px, py, 3);
+                g2.setColor(new Color(70,70,70));
+                g2.fillOval(-19, -1, 3, 2); // graphite tip
 
-                // Outline for definition
-                g2.setColor(Color.DARK_GRAY);
-                g2.setStroke(new BasicStroke(1.2f));
-                g2.drawRect(-14, -3, 18, 6); // body outline
+                // Outlines for definition
+                g2.setColor(new Color(90, 90, 90));
+                g2.setStroke(new BasicStroke(1.1f));
+                g2.drawRoundRect(-14, -3, 18, 6, 2, 2); // body outline
                 g2.drawRect(4, -3, 3, 6);    // ferrule outline
                 g2.drawRect(7, -3, 5, 6);    // eraser outline
                 g2.drawPolygon(px, py, 3);   // tip outline
 
                 g2.setTransform(old);
-                break;
+                break; }
             case "cork":
                 // Draw a cork round with subtle speckles
                 int r = Math.min(w, h) - 16; // padding
@@ -156,12 +180,30 @@ public class ToolbarIconButton extends JButton {
                 g2.setColor(new Color(120, 80, 50));
                 g2.drawOval(x0, y0, r, r);
                 break;
-            case "delete":
-                g2.setColor(Color.RED);
-                g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(cx-6,cy-6,cx+6,cy+6);
-                g2.drawLine(cx-6,cy+6,cx+6,cy-6);
-                break;
+            case "delete": { // Aero-styled red X with gloss and shadow
+                // Shadow
+                Graphics2D s = (Graphics2D) g2.create();
+                s.setComposite(AlphaComposite.SrcOver.derive(0.2f));
+                s.setPaint(new RadialGradientPaint(new Point(cx, cy+6), 12f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                s.fillOval(cx-12, cy+4, 24, 6);
+                s.dispose();
+
+                // Red gradient for strokes
+                Paint red = new LinearGradientPaint(cx, cy-8, cx, cy+8,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(255, 110, 110), new Color(235, 40, 40), new Color(200, 0, 0)});
+                g2.setPaint(red);
+                g2.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx-7, cy-7, cx+7, cy+7);
+                g2.drawLine(cx-7, cy+7, cx+7, cy-7);
+
+                // Top gloss highlight
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(255,255,255,130));
+                g2.drawLine(cx-6, cy-6, cx+1, cy+1);
+                g2.drawLine(cx-6, cy+6, cx+1, cy-1);
+                break; }
             case "trash": {
                 // Windows 7-like glossy trash can
                 int bw = 16, bh = 18; int x = cx - bw/2, y = cy - bh/2 + 2;

@@ -16,6 +16,7 @@ import main.dialog.CustomConfirmDialog;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
+import main.ui.components.AeroTextField;
 import main.ui.components.ModernComboBoxUI;
 import main.util.NotebookInfo;
 
@@ -24,7 +25,7 @@ public class NotebookEntriesPanel extends JPanel {
     private final NotebookInfo nb;
     private final DefaultListModel<File> model = new DefaultListModel<>();
     private final JList<File> list = new JList<>(model);
-    private final JTextField searchField = new ModernTextField(20);
+    private final JTextField searchField = new AeroTextField(20);
     private final JComboBox<String> sortBox = new JComboBox<>(new String[]{
             "Date (Newest)",
             "Date (Oldest)",
@@ -180,25 +181,7 @@ public class NotebookEntriesPanel extends JPanel {
         update();
     }
 
-    // Modern rounded text field used for search to match toolbar style
-    private static class ModernTextField extends JTextField{
-        public ModernTextField(int cols){ super(cols); setOpaque(false); setBorder(BorderFactory.createEmptyBorder(6,10,6,10)); }
-        @Override protected void paintComponent(Graphics g){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(new Color(240,240,240));
-            g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-            super.paintComponent(g2);
-            g2.dispose();
-        }
-        @Override protected void paintBorder(Graphics g){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
-            g2.dispose();
-        }
-    }
+    
 
     // ensure list refresh when panel becomes visible
     @Override public void addNotify(){ super.addNotify(); refresh(); }

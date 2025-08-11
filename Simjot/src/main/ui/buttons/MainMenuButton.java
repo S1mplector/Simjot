@@ -101,8 +101,8 @@ public class MainMenuButton extends FadingButton {
             int x = xStart + (int)((xCenter - xStart) * progress);
 
             int y = (getHeight() - size) / 2;
-            // Icons should appear solid white and fully opaque at center
-            g2Icon.setColor(Color.WHITE);
+            // Icons should appear solid black per request
+            g2Icon.setColor(Color.BLACK);
             drawVector(g2Icon, iconId, x, y, size);
             g2Icon.dispose();
         }
