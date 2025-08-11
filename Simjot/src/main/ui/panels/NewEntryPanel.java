@@ -15,14 +15,15 @@ import main.dialog.CustomMessageDialog;
 import main.dialog.EntryBackgroundDialog;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
+import main.ui.buttons.RoundedToggleButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.MoodSlider;
+import main.ui.components.AnimatedGlassPopup;
 import main.util.AppDirectories;
 import main.util.ResourceLoader;
 import main.util.SettingsStore;
 import main.util.UndoRedoManager;
 import java.awt.event.*;
-import java.util.function.Supplier;
 
 public class NewEntryPanel extends JPanel {
 
@@ -37,11 +38,16 @@ public class NewEntryPanel extends JPanel {
     protected MoodSlider moodSlider;
     private JLabel saveStatusLabel;
     private boolean titleFocusedOnce = false;
-    private FloatingFormatPopup formatPopup;
+    private AnimatedGlassPopup formatPopup;
     private Image backgroundImage;
     private BufferedImage cachedScaled;
     private int cachedPanelW = -1;
     private int cachedPanelH = -1;
+    // Formatting toggle buttons (to reflect current caret/selection state)
+    private JToggleButton boldBtn;
+    private JToggleButton italicBtn;
+    private JToggleButton underlineBtn;
+    private JToggleButton bulletsBtn;
     private int cachedX = 0;
     private int cachedY = 0;
     private float cachedOpacity = -1f;
@@ -232,6 +238,9 @@ public class NewEntryPanel extends JPanel {
         contentArea.setOpaque(false);
         contentArea.setForeground(AeroTheme.TEXT_PRIMARY);
 
+        // Keep formatting toggles in sync with caret/selection changes
+        contentArea.addCaretListener(e -> updateFormattingToggleState());
+
         // Add undo/redo support
         @SuppressWarnings("unused")
         UndoRedoManager contentUndoManager = new UndoRedoManager(contentArea);
@@ -257,7 +266,7 @@ public class NewEntryPanel extends JPanel {
         });
 
         // Middle-click floating popup
-        formatPopup = new FloatingFormatPopup(SwingUtilities.getWindowAncestor(this));
+        formatPopup = new AnimatedGlassPopup(SwingUtilities.getWindowAncestor(this));
         contentArea.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -325,40 +334,48 @@ public class NewEntryPanel extends JPanel {
         underline.putValue(Action.NAME, "U");
 
         Dimension btnSize = new Dimension(48, 28);
-        JButton bBold = new RoundedButton("B");
-        bBold.setPreferredSize(btnSize);
-        bBold.setToolTipText("Bold (Ctrl+B)");
-        bBold.addActionListener(e -> {
+        boldBtn = new RoundedToggleButton("B");
+        boldBtn.setPreferredSize(btnSize);
+        boldBtn.setFocusPainted(false);
+        boldBtn.setToolTipText("Bold (Ctrl+B)");
+        italicBtn = new RoundedToggleButton("I");
+        italicBtn.setPreferredSize(btnSize);
+        italicBtn.setFocusPainted(false);
+        italicBtn.setToolTipText("Italic (Ctrl+I)");
+        underlineBtn = new RoundedToggleButton("U");
+        underlineBtn.setPreferredSize(btnSize);
+        underlineBtn.setFocusPainted(false);
+        underlineBtn.setToolTipText("Underline (Ctrl+U)");
+        bulletsBtn = new RoundedToggleButton("•");
+        bulletsBtn.setPreferredSize(btnSize);
+        bulletsBtn.setFocusPainted(false);
+        bulletsBtn.setToolTipText("Toggle Bullets");
+
+        boldBtn.addActionListener(e -> {
             contentArea.requestFocusInWindow();
             bold.actionPerformed(new java.awt.event.ActionEvent(contentArea, java.awt.event.ActionEvent.ACTION_PERFORMED, "bold"));
+            updateFormattingToggleState();
         });
-        JButton bItalic = new RoundedButton("I");
-        bItalic.setPreferredSize(btnSize);
-        bItalic.setToolTipText("Italic (Ctrl+I)");
-        bItalic.addActionListener(e -> {
+        italicBtn.addActionListener(e -> {
             contentArea.requestFocusInWindow();
             italic.actionPerformed(new java.awt.event.ActionEvent(contentArea, java.awt.event.ActionEvent.ACTION_PERFORMED, "italic"));
+            updateFormattingToggleState();
         });
-        JButton bUnderline = new RoundedButton("U");
-        bUnderline.setPreferredSize(btnSize);
-        bUnderline.setToolTipText("Underline (Ctrl+U)");
-        bUnderline.addActionListener(e -> {
+        underlineBtn.addActionListener(e -> {
             contentArea.requestFocusInWindow();
             underline.actionPerformed(new java.awt.event.ActionEvent(contentArea, java.awt.event.ActionEvent.ACTION_PERFORMED, "underline"));
+            updateFormattingToggleState();
         });
-
-        JButton bBullets = new RoundedButton("•");
-        bBullets.setPreferredSize(btnSize);
-        bBullets.setToolTipText("Toggle bullets");
-        bBullets.addActionListener(e -> {
+        bulletsBtn.addActionListener(e -> {
             contentArea.requestFocusInWindow();
             toggleBullets();
+            updateFormattingToggleState();
         });
 
-        bar.add(bBold);
-        bar.add(bItalic);
-        bar.add(bUnderline);
-        bar.add(bBullets);
+        bar.add(boldBtn);
+        bar.add(italicBtn);
+        bar.add(underlineBtn);
+        bar.add(bulletsBtn);
 
         // Keyboard shortcuts
         InputMap im = contentArea.getInputMap(JComponent.WHEN_FOCUSED);
@@ -370,118 +387,46 @@ public class NewEntryPanel extends JPanel {
         im.put(KeyStroke.getKeyStroke("control U"), "rt-underline");
         am.put("rt-underline", (Action) underline);
 
+        // Initialize toggle state
+        SwingUtilities.invokeLater(this::updateFormattingToggleState);
+
         return bar;
     }
 
-    // Aero-styled animated popup used for middle-click formatting menu (interactive Swing components)
-    private static class FloatingFormatPopup extends JWindow {
-        private static final int ARC = 12;
-        private static final int PADDING = 8;
-        private static final int SHADOW = 6;
-        private float t = 0f; // animation progress 0..1
-        private final Timer timer;
-        private JPanel chromePanel; // paints glass background; hosts toolbar
-        private int width;
-        private int height;
-        private int targetX;
-        private int targetY;
-        private boolean showingAnim = true;
-
-        FloatingFormatPopup(Window owner) {
-            super(owner);
-            setBackground(new Color(0,0,0,0));
-            setAlwaysOnTop(true);
-            setFocusableWindowState(true);
-            timer = new Timer(1000/60, e -> step());
-
-            // Close on ESC or click outside
-            KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(ev -> {
-                if (isVisible() && ev.getID() == KeyEvent.KEY_PRESSED && ev.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                    hidePopup();
-                    return true;
-                }
-                return false;
-            });
-            Toolkit.getDefaultToolkit().addAWTEventListener(ae -> {
-                if (isVisible() && ae instanceof MouseEvent me && me.getID() == MouseEvent.MOUSE_PRESSED) {
-                    if (!getBounds().contains(me.getLocationOnScreen())) hidePopup();
-                }
-            }, AWTEvent.MOUSE_EVENT_MASK);
-        }
-
-        void showAt(int screenX, int screenY, Supplier<JPanel> toolbarFactory) {
-            // Build interactive content
-            JPanel toolbar = toolbarFactory.get();
-            toolbar.setOpaque(false);
-
-            chromePanel = new JPanel() {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                    // Soft shadow
-                    int w = getWidth();
-                    int h = getHeight();
-                    for (int i = SHADOW; i > 0; i--) {
-                        float a = 0.05f * i / SHADOW;
-                        g2.setColor(new Color(0,0,0,(int)(255*a)));
-                        g2.fillRoundRect(PADDING - i, PADDING - i, w - 2*(PADDING - i), h - 2*(PADDING - i), ARC + i*2, ARC + i*2);
-                    }
-
-                    // Glass background (no border)
-                    Rectangle r = new Rectangle(PADDING, PADDING, w - 2*PADDING, h - 2*PADDING);
-                    Color top = new Color(252,252,252, 235);
-                    Color bottom = new Color(231,231,231, 235);
-                    main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r, top, bottom, ARC);
-                    main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, ARC);
-                    g2.dispose();
-                    super.paintComponent(g);
-                }
-            };
-            chromePanel.setOpaque(false);
-            chromePanel.setLayout(new GridBagLayout());
-            JPanel inner = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
-            inner.setOpaque(false);
-            for (Component c : toolbar.getComponents()) inner.add(c);
-            chromePanel.add(inner);
-
-            Dimension pref = toolbar.getPreferredSize();
-            width = Math.max(220, pref.width + (PADDING*2) + SHADOW*2);
-            height = Math.max(40, pref.height + (PADDING*2) + SHADOW*2);
-            targetX = screenX - width/2;
-            targetY = screenY - height - 8;
-
-            setContentPane(chromePanel);
-            setBounds(targetX, targetY + 10, width, height); // start slightly lower
-            setOpacity(0f);
-            setVisible(true);
-            requestFocusInWindow();
-            t = 0f;
-            showingAnim = true;
-            timer.start();
-        }
-
-        private void hidePopup() {
-            showingAnim = false;
-            t = 1f;
-            timer.start();
-        }
-
-        private void step() {
-            int sign = showingAnim ? 1 : -1;
-            t = Math.max(0f, Math.min(1f, t + sign * 0.14f));
-            float ease = (float)(1 - Math.pow(1 - t, 3));
-            float opacity = showingAnim ? ease : (1 - ease);
-            setOpacity(Math.max(0f, Math.min(1f, opacity)));
-            int y = targetY + (showingAnim ? (int)((1 - ease) * 10) : (int)(ease * 10));
-            setLocation(targetX, y);
-            if ((showingAnim && t >= 1f) || (!showingAnim && t <= 0f)) {
-                timer.stop();
-                if (!showingAnim) setVisible(false);
-            }
+    private void updateFormattingToggleState() {
+        try {
+            javax.swing.text.AttributeSet attrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
+            if (boldBtn != null) boldBtn.setSelected(javax.swing.text.StyleConstants.isBold(attrs));
+            if (italicBtn != null) italicBtn.setSelected(javax.swing.text.StyleConstants.isItalic(attrs));
+            if (underlineBtn != null) underlineBtn.setSelected(javax.swing.text.StyleConstants.isUnderline(attrs));
+            if (bulletsBtn != null) bulletsBtn.setSelected(isSelectionAllBulleted());
+        } catch (Exception ignored) {
         }
     }
+
+    private boolean isSelectionAllBulleted() {
+        javax.swing.text.Document doc = contentArea.getDocument();
+        int start = contentArea.getSelectionStart();
+        int end = contentArea.getSelectionEnd();
+        try {
+            int lineStart = getLineStart(doc, start);
+            int lineEnd = getLineEnd(doc, end);
+            String text = doc.getText(lineStart, lineEnd - lineStart);
+            String[] lines = text.split("\n", -1);
+            boolean anyNonEmpty = false;
+            for (String ln : lines) {
+                if (ln.trim().length() > 0) {
+                    anyNonEmpty = true;
+                    if (!ln.startsWith("• ")) return false;
+                }
+            }
+            return anyNonEmpty; // true only if all non-empty lines are bulleted
+        } catch (BadLocationException ex) {
+            return false;
+        }
+    }
+
+    // Reusable popup extracted to main.ui.components.AnimatedGlassPopup
 
     private void toggleBullets() {
         Document doc = contentArea.getDocument();
