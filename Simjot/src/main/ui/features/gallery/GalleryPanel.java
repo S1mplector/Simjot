@@ -8,7 +8,7 @@ import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.panels.DrawingPanel;
+import main.ui.features.drawing.DrawingPanel;
 
 public class GalleryPanel extends JPanel {
     private final DefaultListModel<File> model = new DefaultListModel<>();

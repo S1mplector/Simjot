@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.features.drawing;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -18,7 +18,6 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.features.drawing.DrawingChooserDialog;
 
 /**
  * A modern infinite drawing panel with layers, panning, zooming, and more.

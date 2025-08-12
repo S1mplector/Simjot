@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.features.entries;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -10,9 +10,9 @@ import java.util.Date;
 import javax.swing.*;
 import main.infrastructure.io.AppDirectories;
 import main.ui.app.JournalApp;
+import main.ui.components.containers.RoundedPanel;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.features.entries.EditEntryPanel;
 
 public class ViewEntriesPanel extends JPanel {
     private CardLayout cardLayout;

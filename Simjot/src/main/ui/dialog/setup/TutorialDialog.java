@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.panels.RoundedPanel;
+import main.ui.components.containers.RoundedPanel;
 
 /**
  * A simple multi-page modal dialog that walks the user through the core features

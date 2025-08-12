@@ -15,9 +15,9 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.containers.TranslucentPanel;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
-import main.ui.panels.TranslucentPanel;
 
 public class PoemPanel extends JPanel {
     protected CardLayout cardLayout;

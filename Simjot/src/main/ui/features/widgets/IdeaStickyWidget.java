@@ -7,8 +7,8 @@ import java.util.*;
 import javax.swing.*;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.RoundedPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
-import main.ui.panels.RoundedPanel;
 import main.ui.theme.aero.AeroTheme;
 
 /**

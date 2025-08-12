@@ -9,7 +9,6 @@ module Simjot {
 	
 	exports main.core.service;
 	exports main.core.model;
-	exports main.util;
 
 	// Infrastructure
 	exports main.infrastructure.monitoring;
@@ -26,7 +25,6 @@ module Simjot {
 
 	// App and UI modules
 	exports main.ui.app;
-	exports main.ui.panels;
 	exports main.ui.components.buttons;
 	exports main.ui.animations.transitions;
 	exports main.ui.components;
@@ -34,9 +32,6 @@ module Simjot {
 	exports main.ui.features.widgets;
 	exports main.ui.theme.aero;
 	exports main.ui.features.drawing;
-
-	// Drawing/data
-	exports main.drawing;
 
 	// Feature panels
 	exports main.ui.features.entries;

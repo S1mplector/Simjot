@@ -1,4 +1,4 @@
-package main.util;
+package main.ui.features.editing;
 
 import java.awt.event.ActionEvent;
 import javax.swing.AbstractAction;

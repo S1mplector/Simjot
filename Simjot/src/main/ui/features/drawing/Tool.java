@@ -1,4 +1,4 @@
-package main.drawing;
+package main.ui.features.drawing;
 
 /**
  * Which tool is in use: pencil or eraser.

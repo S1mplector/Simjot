@@ -15,19 +15,19 @@ import main.ui.components.icons.AppIcon;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
+import main.ui.features.drawing.DrawingPanel;
 import main.ui.features.entries.EditEntryPanel;
+import main.ui.features.entries.EditPoemPanel;
 import main.ui.features.entries.NewEntryPanel;
 import main.ui.features.entries.NotebookEntriesPanel;
 import main.ui.features.entries.PoemPanel;
+import main.ui.features.entries.ViewEntriesPanel;
 import main.ui.features.gallery.GalleryPanel;
 import main.ui.features.home.MainMenuPanel;
 import main.ui.features.home.MoodChartPanel;
+import main.ui.features.notebooks.NotebookManagerPanel;
+import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
-import main.ui.panels.DrawingPanel;
-import main.ui.panels.EditPoemPanel;
-import main.ui.panels.NotebookManagerPanel;
-import main.ui.panels.SettingsPanel;
-import main.ui.panels.ViewEntriesPanel;
 import main.ui.theme.aero.AeroLookAndFeel;
 
 public class JournalApp extends JFrame {

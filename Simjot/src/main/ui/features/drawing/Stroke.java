@@ -1,4 +1,4 @@
-package main.drawing;
+package main.ui.features.drawing;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;

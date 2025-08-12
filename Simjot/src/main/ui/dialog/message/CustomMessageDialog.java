@@ -4,7 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
-import main.ui.panels.RoundedPanel;
+import main.ui.components.containers.RoundedPanel;
 import main.ui.theme.aero.AeroTheme;
 
 public class CustomMessageDialog extends JDialog {

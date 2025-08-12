@@ -4,7 +4,7 @@ import java.awt.*;
 import java.io.File;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.panels.RoundedPanel;
+import main.ui.components.containers.RoundedPanel;
 
 /**
  * A more visually integrated folder picker that embeds a {@link JFileChooser}

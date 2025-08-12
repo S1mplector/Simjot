@@ -19,13 +19,13 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.popup.AnimatedGlassPopup;
 import main.ui.components.slider.MoodSlider;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
-import main.ui.panels.TranslucentPanel;
+import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
-import main.util.UndoRedoManager;
 
 public class NewEntryPanel extends JPanel {
 

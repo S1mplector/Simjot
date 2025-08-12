@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.features.notebooks;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -13,6 +13,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.RoundedPanel;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;

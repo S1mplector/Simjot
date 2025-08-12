@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.features.settings;
 
 import java.awt.*;
 import java.util.HashMap;

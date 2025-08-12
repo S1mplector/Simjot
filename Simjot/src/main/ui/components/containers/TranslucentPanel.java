@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.components.containers;
 
 import java.awt.*;
 import javax.swing.*;
