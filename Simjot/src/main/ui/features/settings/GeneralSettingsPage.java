@@ -1,0 +1,151 @@
+package main.ui.features.settings;
+
+import java.awt.Color;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+import main.core.service.SettingsStore;
+import main.ui.app.JournalApp;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.spinner.ModernSpinnerUI;
+
+class GeneralSettingsPage extends JPanel implements SettingsPage {
+    private final JSpinner journalFont;
+    private final JSpinner poemFont;
+    private final JSpinner autosaveSpin;
+    private final JSpinner uiScaleSpinner;
+    private final JComboBox<String> dateFormatBox;
+    private final JCheckBox openLastChk;
+    private final JCheckBox spellChk;
+    private final JCheckBox autosaveOnBlurChk;
+    private final JComboBox<String> backupFreqBox;
+    private final JSpinner backupKeepSpin;
+    private final javax.swing.JButton backupNowBtn;
+
+    GeneralSettingsPage() {
+        setLayout(new GridBagLayout());
+        setOpaque(true);
+        setBackground(Color.WHITE);
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(5, 5, 5, 5);
+        gc.fill = GridBagConstraints.HORIZONTAL;
+
+        SettingsStore store = SettingsStore.get();
+        journalFont = new JSpinner(new SpinnerNumberModel(store.getJournalFontSize(), 8, 72, 1));
+        journalFont.setUI(new ModernSpinnerUI());
+
+        poemFont = new JSpinner(new SpinnerNumberModel(store.getPoemFontSize(), 8, 72, 1));
+        poemFont.setUI(new ModernSpinnerUI());
+
+        gc.gridx = 0; gc.gridy = 0; add(SettingsUi.label("Journal font size:"), gc);
+        gc.gridx = 1; add(journalFont, gc);
+
+        gc.gridx = 0; gc.gridy = 1; add(SettingsUi.label("Poem font size:"), gc);
+        gc.gridx = 1; add(poemFont, gc);
+
+        autosaveSpin = new JSpinner(new SpinnerNumberModel(SettingsStore.get().getAutosaveMinutes(), 0, 120, 5));
+        autosaveSpin.setUI(new ModernSpinnerUI());
+        ((JSpinner.DefaultEditor) autosaveSpin.getEditor()).getTextField().setColumns(3);
+        gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Autosave interval (min):"), gc);
+        gc.gridx = 1; add(autosaveSpin, gc);
+
+        SpinnerNumberModel uiScaleModel = new SpinnerNumberModel(store.getUIScale(), 0.5, 3.0, 0.25);
+        uiScaleSpinner = new JSpinner(uiScaleModel);
+        uiScaleSpinner.setUI(new ModernSpinnerUI());
+        JSpinner.NumberEditor editor = new JSpinner.NumberEditor(uiScaleSpinner, "0.00");
+        uiScaleSpinner.setEditor(editor);
+        gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("UI Scale:"), gc);
+        gc.gridx = 1; add(uiScaleSpinner, gc);
+
+        JLabel noteLabel = new JLabel("<html><i>UI scale changes will take effect after closing and reopening Simjot.<br>This setting helps with high-DPI displays (e.g., use 2.0 for 200% scaling).</i></html>");
+        noteLabel.setForeground(Color.GRAY);
+        gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2;
+        add(noteLabel, gc);
+
+        gc.gridwidth = 1;
+        String[] datePatterns = main.infrastructure.io.DateFormatUtil.getCommonPatterns();
+        dateFormatBox = new JComboBox<>(datePatterns);
+        dateFormatBox.setUI(new ModernComboBoxUI());
+        dateFormatBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        dateFormatBox.setSelectedItem(store.getDateFormat());
+        gc.gridx = 0; gc.gridy = 5; add(SettingsUi.label("Date format:"), gc);
+        gc.gridx = 1; add(dateFormatBox, gc);
+
+        openLastChk = new JCheckBox("Open last note on startup", store.isOpenLastOnStartup());
+        openLastChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        openLastChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(openLastChk, gc);
+
+        spellChk = new JCheckBox("Enable spell check", store.isSpellCheckEnabled());
+        spellChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        spellChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(spellChk, gc);
+
+        autosaveOnBlurChk = new JCheckBox("Autosave on focus loss", store.isAutosaveOnFocusLoss());
+        autosaveOnBlurChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        autosaveOnBlurChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(autosaveOnBlurChk, gc);
+
+        String[] freqs = new String[] { "Off", "Daily", "Weekly", "Monthly" };
+        backupFreqBox = new JComboBox<>(freqs);
+        backupFreqBox.setUI(new ModernComboBoxUI());
+        backupFreqBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        backupFreqBox.setSelectedItem(store.getBackupFrequency());
+        gc.gridwidth = 1;
+        gc.gridx = 0; gc.gridy = 9; add(SettingsUi.label("Auto-backup:"), gc);
+        gc.gridx = 1; add(backupFreqBox, gc);
+
+        backupKeepSpin = new JSpinner(new SpinnerNumberModel(store.getBackupKeepCount(), 1, 100, 1));
+        backupKeepSpin.setUI(new ModernSpinnerUI());
+        ((JSpinner.DefaultEditor) backupKeepSpin.getEditor()).getTextField().setColumns(3);
+        gc.gridx = 0; gc.gridy = 10; add(SettingsUi.label("Keep last N backups:"), gc);
+        gc.gridx = 1; add(backupKeepSpin, gc);
+
+        backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
+        backupNowBtn.addActionListener(e -> {
+            backupNowBtn.setEnabled(false);
+            new javax.swing.SwingWorker<Void, Void>() {
+                @Override protected Void doInBackground() {
+                    try { main.infrastructure.backup.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
+                    return null;
+                }
+                @Override protected void done() {
+                    backupNowBtn.setEnabled(true);
+                    try { main.ui.dialog.message.CustomMessageDialog.display(GeneralSettingsPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
+                }
+            }.execute();
+        });
+        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2; add(backupNowBtn, gc);
+    }
+
+    @Override public JComponent getComponent() { return this; }
+
+    @Override public void apply() {
+        SettingsStore store = SettingsStore.get();
+        int jf = (Integer) journalFont.getValue();
+        store.setJournalFontSize(jf);
+        JournalApp.globalJournalFontSize = jf;
+
+        int pf = (Integer) poemFont.getValue();
+        store.setPoemFontSize(pf);
+
+        SettingsStore.get().setAutosaveMinutes((Integer) autosaveSpin.getValue());
+
+        float uiScale = ((Number) uiScaleSpinner.getValue()).floatValue();
+        store.setUIScale(uiScale);
+
+        store.setDateFormat((String) dateFormatBox.getSelectedItem());
+        store.setOpenLastOnStartup(openLastChk.isSelected());
+        store.setSpellCheckEnabled(spellChk.isSelected());
+        store.setAutosaveOnFocusLoss(autosaveOnBlurChk.isSelected());
+        store.setBackupFrequency((String) backupFreqBox.getSelectedItem());
+        store.setBackupKeepCount((Integer) backupKeepSpin.getValue());
+    }
+}

@@ -5,17 +5,10 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.swing.*;
 import main.core.service.SettingsStore;
-import main.infrastructure.io.AppDirectories;
-import main.infrastructure.monitoring.AppPerf;
-import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.checkbox.ModernCheckBoxUI;
-import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.AeroScrollBarUI;
-import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -76,18 +69,18 @@ public class SettingsPanel extends JPanel {
 
     private void buildPages(){
         // General
-        GeneralPage general = new GeneralPage();
+        GeneralSettingsPage general = new GeneralSettingsPage();
         addPage("General", general);
 
         // Appearance (theme, glow, background)
-        AppearancePage appearance = new AppearancePage();
+        AppearanceSettingsPage appearance = new AppearanceSettingsPage();
         addPage("Appearance", appearance);
 
         // Drawing page fully implemented
-        DrawingPage drawPage = new DrawingPage();
+        DrawingSettingsPage drawPage = new DrawingSettingsPage();
         addPage("Drawing", drawPage);
 
-        StoragePage storagePage = new StoragePage();
+        StorageSettingsPage storagePage = new StorageSettingsPage();
         addPage("Storage", storagePage);
 
         addPage("About", new PlaceholderPage("Simjot v1.0\nCreated by Ilgaz with ❤️"));
@@ -131,307 +124,6 @@ public class SettingsPanel extends JPanel {
     }
 
     // ---------- Page types ---------- //
-    private interface SettingsPage{
-        JComponent getComponent();
-        void apply();
-    }
-
-    private static class PlaceholderPage extends JPanel implements SettingsPage{
-        public PlaceholderPage(String msg){
-            setLayout(new BorderLayout());
-            setOpaque(true);
-            setBackground(Color.WHITE);
-            JLabel lab=new JLabel("<html><div style='text-align:center'>"+msg+"</div></html>",SwingConstants.CENTER);
-            lab.setForeground(AeroTheme.TEXT_PRIMARY);
-            lab.setFont(AeroTheme.defaultFont());
-            add(lab, BorderLayout.CENTER);
-        }
-        @Override public JComponent getComponent(){ return this; }
-        @Override public void apply(){}
-    }
-
-    // ---- General ----
-    private class GeneralPage extends JPanel implements SettingsPage{
-        private final JSpinner journalFont;
-        private final JSpinner poemFont;
-        private final JSpinner autosaveSpin;
-        private final JSpinner uiScaleSpinner;
-        // New controls
-        private final JComboBox<String> dateFormatBox;
-        private final JCheckBox openLastChk;
-        private final JCheckBox spellChk;
-        private final JCheckBox autosaveOnBlurChk;
-        private final JComboBox<String> backupFreqBox;
-        private final JSpinner backupKeepSpin;
-        private final JButton backupNowBtn;
-        GeneralPage(){
-            setLayout(new GridBagLayout());
-            setOpaque(true);
-            setBackground(Color.WHITE);
-            GridBagConstraints gc = new GridBagConstraints();
-            gc.insets=new Insets(5,5,5,5);
-            gc.fill=GridBagConstraints.HORIZONTAL;
-
-            SettingsStore store = SettingsStore.get();
-            journalFont = new JSpinner(new SpinnerNumberModel(store.getJournalFontSize(), 8, 72, 1));
-            journalFont.setUI(new ModernSpinnerUI());
-
-            poemFont = new JSpinner(new SpinnerNumberModel(store.getPoemFontSize(), 8, 72, 1));
-            poemFont.setUI(new ModernSpinnerUI());
-
-            gc.gridx=0; gc.gridy=0; add(label("Journal font size:"), gc);
-            gc.gridx=1; add(journalFont, gc);
-
-            gc.gridx=0; gc.gridy=1; add(label("Poem font size:"), gc);
-            gc.gridx=1; add(poemFont, gc);
-
-            autosaveSpin = new JSpinner(new SpinnerNumberModel(SettingsStore.get().getAutosaveMinutes(),0,120,5));
-            autosaveSpin.setUI(new ModernSpinnerUI());
-            ((JSpinner.DefaultEditor)autosaveSpin.getEditor()).getTextField().setColumns(3);
-            gc.gridx=0; gc.gridy=2; add(label("Autosave interval (min):"),gc);
-            gc.gridx=1; add(autosaveSpin,gc);
-
-            // UI Scale spinner with custom step size
-            SpinnerNumberModel uiScaleModel = new SpinnerNumberModel(store.getUIScale(), 0.5, 3.0, 0.25);
-            uiScaleSpinner = new JSpinner(uiScaleModel);
-            uiScaleSpinner.setUI(new ModernSpinnerUI());
-            JSpinner.NumberEditor editor = new JSpinner.NumberEditor(uiScaleSpinner, "0.00");
-            uiScaleSpinner.setEditor(editor);
-            gc.gridx=0; gc.gridy=3; add(label("UI Scale:"),gc);
-            gc.gridx=1; add(uiScaleSpinner,gc);
-            
-            // Add a detailed note about UI scale changes
-            JLabel noteLabel = new JLabel("<html><i>UI scale changes will take effect after closing and reopening Simjot.<br>This setting helps with high-DPI displays (e.g., use 2.0 for 200% scaling).</i></html>");
-            noteLabel.setForeground(Color.GRAY);
-            gc.gridx=0; gc.gridy=4; gc.gridwidth=2;
-            add(noteLabel,gc);
-
-            // --- New General options ---
-            gc.gridwidth = 1;
-            String[] datePatterns = main.infrastructure.io.DateFormatUtil.getCommonPatterns();
-            dateFormatBox = new JComboBox<>(datePatterns);
-            dateFormatBox.setUI(new ModernComboBoxUI());
-            dateFormatBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-            dateFormatBox.setSelectedItem(store.getDateFormat());
-            gc.gridx=0; gc.gridy=5; add(label("Date format:"), gc);
-            gc.gridx=1; add(dateFormatBox, gc);
-
-            openLastChk = new JCheckBox("Open last note on startup", store.isOpenLastOnStartup());
-            openLastChk.setUI(new ModernCheckBoxUI());
-            openLastChk.setBackground(new Color(0,0,0,0));
-            gc.gridx=0; gc.gridy=6; gc.gridwidth=2; add(openLastChk, gc);
-
-            spellChk = new JCheckBox("Enable spell check", store.isSpellCheckEnabled());
-            spellChk.setUI(new ModernCheckBoxUI());
-            spellChk.setBackground(new Color(0,0,0,0));
-            gc.gridx=0; gc.gridy=7; gc.gridwidth=2; add(spellChk, gc);
-
-            autosaveOnBlurChk = new JCheckBox("Autosave on focus loss", store.isAutosaveOnFocusLoss());
-            autosaveOnBlurChk.setUI(new ModernCheckBoxUI());
-            autosaveOnBlurChk.setBackground(new Color(0,0,0,0));
-            gc.gridx=0; gc.gridy=8; gc.gridwidth=2; add(autosaveOnBlurChk, gc);
-
-            String[] freqs = new String[]{"Off","Daily","Weekly","Monthly"};
-            backupFreqBox = new JComboBox<>(freqs);
-            backupFreqBox.setUI(new ModernComboBoxUI());
-            backupFreqBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-            backupFreqBox.setSelectedItem(store.getBackupFrequency());
-            gc.gridwidth=1;
-            gc.gridx=0; gc.gridy=9; add(label("Auto-backup:"), gc);
-            gc.gridx=1; add(backupFreqBox, gc);
-
-            backupKeepSpin = new JSpinner(new SpinnerNumberModel(store.getBackupKeepCount(), 1, 100, 1));
-            backupKeepSpin.setUI(new ModernSpinnerUI());
-            ((JSpinner.DefaultEditor)backupKeepSpin.getEditor()).getTextField().setColumns(3);
-            gc.gridx=0; gc.gridy=10; add(label("Keep last N backups:"), gc);
-            gc.gridx=1; add(backupKeepSpin, gc);
-
-            // Backup Now button (Aero rounded style)
-            backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
-            backupNowBtn.addActionListener(e -> {
-                backupNowBtn.setEnabled(false);
-                new javax.swing.SwingWorker<Void, Void>(){
-                    @Override protected Void doInBackground(){
-                        try { main.infrastructure.backup.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
-                        return null;
-                    }
-                    @Override protected void done(){
-                        backupNowBtn.setEnabled(true);
-                        try { main.ui.dialog.message.CustomMessageDialog.display(GeneralPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
-                    }
-                }.execute();
-            });
-            gc.gridx=0; gc.gridy=11; gc.gridwidth=2; add(backupNowBtn, gc);
-        }
-        @Override public JComponent getComponent(){ return this; }
-        @Override public void apply(){
-            SettingsStore store = SettingsStore.get();
-            int jf = (Integer) journalFont.getValue();
-            store.setJournalFontSize(jf);
-            JournalApp.globalJournalFontSize = jf;
-            
-            int pf = (Integer) poemFont.getValue();
-            store.setPoemFontSize(pf);
-            
-            SettingsStore.get().setAutosaveMinutes((Integer)autosaveSpin.getValue());
-            
-            // Save UI scale setting
-            float uiScale = ((Number) uiScaleSpinner.getValue()).floatValue();
-            store.setUIScale(uiScale);
-
-            // New settings
-            store.setDateFormat((String) dateFormatBox.getSelectedItem());
-            store.setOpenLastOnStartup(openLastChk.isSelected());
-            store.setSpellCheckEnabled(spellChk.isSelected());
-            store.setAutosaveOnFocusLoss(autosaveOnBlurChk.isSelected());
-            store.setBackupFrequency((String) backupFreqBox.getSelectedItem());
-            store.setBackupKeepCount((Integer) backupKeepSpin.getValue());
-        }
-    }
-
-    // ---- Appearance ----
-    private class AppearancePage extends JPanel implements SettingsPage{
-        private final RoundedButton backgroundOptionsBtn;
-        private final JComboBox<String> themeBox;
-        private final JCheckBox glowChk;
-        private final JCheckBox disableAnimationsChk;
-        private final JCheckBox lowPowerChk;
-
-        AppearancePage(){
-            setLayout(new GridBagLayout());
-            setOpaque(true);
-            setBackground(Color.WHITE);
-            GridBagConstraints gc = new GridBagConstraints();
-            gc.insets=new Insets(5,5,5,5);
-            gc.fill=GridBagConstraints.HORIZONTAL;
-
-            SettingsStore store = SettingsStore.get();
-            String[] themes = {"Light","Dark"};
-            themeBox = new JComboBox<>(themes);
-            themeBox.setUI(new ModernComboBoxUI());
-            themeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-            themeBox.setSelectedItem(store.getTheme());
-
-            glowChk = new JCheckBox("Enable button glow", store.isGlowEnabled());
-            glowChk.setUI(new ModernCheckBoxUI());
-            glowChk.setBackground(new Color(0,0,0,0));
-
-            disableAnimationsChk = new JCheckBox("Disable UI animations", store.isAnimationsDisabled());
-            disableAnimationsChk.setUI(new ModernCheckBoxUI());
-            disableAnimationsChk.setBackground(new Color(0,0,0,0));
-
-            lowPowerChk = new JCheckBox("Low Power Mode (battery saver)", store.isLowPowerMode());
-            lowPowerChk.setUI(new ModernCheckBoxUI());
-            lowPowerChk.setBackground(new Color(0,0,0,0));
-
-            // Single background options button
-            backgroundOptionsBtn = new RoundedButton("Background Options");
-            backgroundOptionsBtn.addActionListener(e->openBackgroundOptions());
-            
-            gc.gridx=0; gc.gridy=0; add(label("Background:"), gc);
-            gc.gridx=1; add(backgroundOptionsBtn, gc);
-            gc.gridx=0; gc.gridy=1; add(label("Theme:"), gc);
-            gc.gridx=1; add(themeBox, gc);
-            gc.gridx=0; gc.gridy=2; gc.gridwidth=2; add(glowChk, gc);
-            gc.gridx=0; gc.gridy=3; gc.gridwidth=2; add(disableAnimationsChk, gc);
-            gc.gridx=0; gc.gridy=4; gc.gridwidth=2; add(lowPowerChk, gc);
-        }
-        @Override public JComponent getComponent(){ return this; }
-        @Override public void apply(){
-            SettingsStore store = SettingsStore.get();
-            String theme = (String) themeBox.getSelectedItem();
-            store.setTheme(theme);
-            // TODO: apply theme live
-
-            boolean glow = glowChk.isSelected();
-            store.setGlowEnabled(glow);
-            FadingButton.setGlowEnabled(glow);
-            main.ui.components.buttons.ToolbarIconButton.setGlowEnabled(glow);
-
-            store.setAnimationsDisabled(disableAnimationsChk.isSelected());
-
-            boolean lp = lowPowerChk.isSelected();
-            store.setLowPowerMode(lp);
-            AppPerf.setLowPowerMode(lp);
-        }
-
-        private void openBackgroundOptions(){
-            WallpaperGalleryPanel.showWallpaperGallery(this);
-        }
-    }
-
-    // ---- Drawing Page ----
-    private class DrawingPage extends JPanel implements SettingsPage{
-        private final JSpinner brushSize;
-        private final JCheckBox smoothing;
-        private final JCheckBox thumbnails;
-        DrawingPage(){
-            setLayout(new GridBagLayout());
-            setBackground(Color.WHITE);
-            GridBagConstraints gc = new GridBagConstraints();
-            gc.insets=new Insets(5,5,5,5);
-            gc.fill=GridBagConstraints.HORIZONTAL;
-
-            SettingsStore st = SettingsStore.get();
-            brushSize = new JSpinner(new SpinnerNumberModel(st.getDefaultBrushSize(),1,50,1));
-            brushSize.setUI(new ModernSpinnerUI());
-            smoothing = new JCheckBox("Enable stroke smoothing", st.isSmoothingEnabled());
-            smoothing.setUI(new ModernCheckBoxUI());
-            thumbnails= new JCheckBox("Generate thumbnails on save", st.isThumbnailGeneration());
-            thumbnails.setUI(new ModernCheckBoxUI());
-            smoothing.setBackground(new Color(0,0,0,0));
-            thumbnails.setBackground(new Color(0,0,0,0));
-
-            gc.gridx=0;gc.gridy=0;add(label("Default brush size:"),gc);
-            gc.gridx=1;add(brushSize,gc);
-            gc.gridx=0;gc.gridy=1;gc.gridwidth=2;add(smoothing,gc);
-            gc.gridy=2;add(thumbnails,gc);
-        }
-        @Override public JComponent getComponent(){return this;}
-        @Override public void apply(){
-            SettingsStore st=SettingsStore.get();
-            st.setDefaultBrushSize((Integer)brushSize.getValue());
-            st.setSmoothingEnabled(smoothing.isSelected());
-            st.setThumbnailGeneration(thumbnails.isSelected());
-        }
-    }
-
-    // ---- Storage Page ----
-    private class StoragePage extends JPanel implements SettingsPage{
-        private final JLabel pathLbl;
-        private final RoundedButton clearThumbsBtn;
-        StoragePage(){
-            setLayout(new BoxLayout(this,BoxLayout.Y_AXIS));
-            setOpaque(true);
-            setBackground(Color.WHITE);
-            add(new JLabel("Simjot root folder:"));
-            pathLbl=new JLabel(AppDirectories.getRoot().getAbsolutePath());
-            pathLbl.setFont(new Font("Monospaced",Font.PLAIN,12));
-            add(pathLbl);
-
-            RoundedButton openBtn = new RoundedButton("Open in Explorer");
-            openBtn.addActionListener(e->{
-                try{
-                    java.awt.Desktop.getDesktop().open(AppDirectories.getRoot());
-                }catch(Exception ignored){}
-            });
-            add(openBtn);
-
-            clearThumbsBtn = new RoundedButton("Clear thumbnails cache");
-            clearThumbsBtn.addActionListener(e->clearThumbs());
-            add(clearThumbsBtn);
-        }
-        @Override public JComponent getComponent(){return this;}
-        @Override public void apply(){}
-
-        private void clearThumbs(){
-            java.io.File dir = AppDirectories.folder(AppDirectories.Type.DRAWINGS);
-            int deleted=0;
-            for(java.io.File f: dir.listFiles((d,n)->n.toLowerCase().endsWith(".png"))){
-                if(f.delete()) deleted++; }
-            CustomMessageDialog.display(this, "Cleanup", deleted+" thumbnails deleted.", false);
-        }
-    }
 
     // --- Modern sidebar renderer ----
     private static class SidebarCellRenderer extends JPanel implements ListCellRenderer<String>{
@@ -467,14 +159,5 @@ public class SettingsPanel extends JPanel {
             super.paintComponent(g);
         }
     }
-
-    // Convenience label styled for Aero theme
-    private JLabel label(String text){
-        JLabel l = new JLabel(text);
-        l.setFont(AeroTheme.defaultFont());
-        l.setForeground(AeroTheme.TEXT_PRIMARY);
-        return l;
-    }
-    
 
 }
