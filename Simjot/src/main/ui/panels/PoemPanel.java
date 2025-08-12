@@ -175,7 +175,7 @@ public class PoemPanel extends JPanel {
         // Right-side settings (cork icon) button
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
-        ToolbarIconButton settingsBtn = new ToolbarIconButton("cork");
+        ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
             PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));

@@ -3,10 +3,16 @@ package main.ui.buttons;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import javax.swing.*;
-import main.util.ResourceLoader;
+import main.ui.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.icons.VectorIconPainter;
+import main.util.ResourceLoader;
+
+/*
+ * This class is used to create toolbar icons
+ * It extends JButton and uses the Aero theme to create a button with a gradient background
+ * It also has a glow effect that can be enabled/disabled
+ */
 
 public class ToolbarIconButton extends JButton {
     private final String id;
@@ -26,7 +32,7 @@ public class ToolbarIconButton extends JButton {
 
         // attempt load bitmap resource from Simjot/img/{id}.png
         // Skip loading for ids we always render as vector to avoid missing-file warnings
-        if ("trash".equals(id) || "new".equals(id) || "delete".equals(id) || "cork".equals(id)) {
+        if ("trash".equals(id) || "new".equals(id) || "delete".equals(id) || "cork".equals(id) || "options".equals(id)) {
             this.icon = null;
         } else {
             this.icon = ResourceLoader.createImageIcon("Simjot/img/"+id+".png");
@@ -76,9 +82,9 @@ public class ToolbarIconButton extends JButton {
         g2.setColor(new Color(180,180,180));
         g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
 
-        // Draw icon/vector. For 'trash', 'new', and 'delete', always prefer vector rendering.
+        // Draw icon/vector. For 'trash', 'new', 'delete', 'cork', and 'options', prefer vector rendering.
         boolean painted=false;
-        if(!("trash".equals(id) || "new".equals(id) || "delete".equals(id)) && icon!=null){
+        if(!("trash".equals(id) || "new".equals(id) || "delete".equals(id) || "cork".equals(id) || "options".equals(id)) && icon!=null){
             icon.paintIcon(this,g2,(getWidth()-icon.getIconWidth())/2,(getHeight()-icon.getIconHeight())/2);
             painted=true;
         }
@@ -186,6 +192,70 @@ public class ToolbarIconButton extends JButton {
                 g2.setColor(new Color(120, 80, 50));
                 g2.drawOval(x0, y0, r, r);
                 break;
+            case "options": {
+                // Windows 7-style glossy gear icon
+                int size = Math.min(w, h) - 12;
+                int gearR = size/2; // gear outer radius
+                int toothCount = 8;
+                int toothDepth = Math.max(3, size/6);
+                int innerR = Math.max(4, gearR - toothDepth);
+
+                // Drop shadow
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(cx, cy+gearR/2), gearR,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,90), new Color(0,0,0,0)}));
+                sh.fillOval(cx-gearR, cy-gearR/2, gearR*2, gearR);
+                sh.dispose();
+
+                // Build gear shape with teeth
+                java.awt.geom.Area gear = new java.awt.geom.Area();
+                for(int i=0;i<toothCount;i++){
+                    double a0 = i * (Math.PI*2/toothCount);
+                    double a1 = a0 + (Math.PI*2/toothCount)/2.5;
+                    int rOuter = gearR;
+                    int rInner = innerR;
+                    int xA = cx + (int)(rInner * Math.cos(a0));
+                    int yA = cy + (int)(rInner * Math.sin(a0));
+                    int xB = cx + (int)(rOuter * Math.cos(a0));
+                    int yB = cy + (int)(rOuter * Math.sin(a0));
+                    int xC = cx + (int)(rOuter * Math.cos(a1));
+                    int yC = cy + (int)(rOuter * Math.sin(a1));
+                    int xD = cx + (int)(rInner * Math.cos(a1));
+                    int yD = cy + (int)(rInner * Math.sin(a1));
+                    java.awt.Polygon tooth = new java.awt.Polygon(new int[]{xA,xB,xC,xD}, new int[]{yA,yB,yC,yD}, 4);
+                    gear.add(new java.awt.geom.Area(tooth));
+                }
+                // Add inner hub circle to close the shape ring
+                java.awt.geom.Ellipse2D inner = new java.awt.geom.Ellipse2D.Double(cx-innerR, cy-innerR, innerR*2, innerR*2);
+                gear.add(new java.awt.geom.Area(inner));
+
+                // Metallic gradient fill
+                LinearGradientPaint metal = new LinearGradientPaint(cx, cy-gearR, cx, cy+gearR,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(240,240,240), new Color(210,210,210), new Color(190,190,190)});
+                g2.setPaint(metal);
+                g2.fill(gear);
+
+                // Top glass highlight
+                g2.setPaint(new GradientPaint(0, cy-gearR, new Color(255,255,255,150), 0, cy, new Color(255,255,255,0)));
+                g2.fill(new java.awt.geom.RoundRectangle2D.Double(cx-gearR+1, cy-gearR+1, (gearR*2)-2, gearR, 8, 8));
+
+                // Outer border
+                g2.setColor(new Color(140,140,140));
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.draw(gear);
+
+                // Inner hole
+                int holeR = Math.max(3, gearR/4);
+                java.awt.geom.Ellipse2D hole = new java.awt.geom.Ellipse2D.Double(cx-holeR, cy-holeR, holeR*2, holeR*2);
+                g2.setPaint(new LinearGradientPaint(cx, cy-holeR, cx, cy+holeR,
+                        new float[]{0f,1f}, new Color[]{new Color(220,220,220), new Color(200,200,200)}));
+                g2.fill(hole);
+                g2.setColor(new Color(130,130,130));
+                g2.draw(hole);
+                break; }
             case "delete": {
                 // Use cached raster image for exact reuse and lower paint cost
                 int size = Math.min(w, h) - 8;
