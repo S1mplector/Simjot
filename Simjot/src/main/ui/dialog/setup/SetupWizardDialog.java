@@ -118,7 +118,7 @@ public class SetupWizardDialog extends JDialog {
             UIManager.put("FileChooser.newFolderIcon", new javax.swing.ImageIcon(ModernFileIcons.createNewFolderIcon()));
 
             // --- Custom ScrollBarUI for modern, round, smooth scrollbars ---
-            UIManager.put("ScrollBarUI", "main.ui.components.ModernScrollBarUI");
+            UIManager.put("ScrollBarUI", "main.ui.components.scrollbar.ModernScrollBarUI");
 
             // --- Modernize bottom section (folder name, file type) ---
             UIManager.put("FileChooser.textFieldBackground", Color.WHITE);

@@ -35,8 +35,9 @@ public final class AeroLookAndFeel {
         UIManager.put("Label.foreground", AeroTheme.TEXT_PRIMARY);
 
         // Register custom UIs so new components use Aero variants by default
-        UIManager.put("ScrollBarUI", "main.ui.components.AeroScrollBarUI");
-        UIManager.put("CheckBoxUI", "main.ui.components.AeroCheckBoxUI");
+        // Note: must use the correct fully-qualified class names matching package structure
+        UIManager.put("ScrollBarUI", "main.ui.components.scrollbar.AeroScrollBarUI");
+        UIManager.put("CheckBoxUI", "main.ui.components.checkbox.AeroCheckBoxUI");
     }
 
     private static void setDefaultFont(Font f) {
