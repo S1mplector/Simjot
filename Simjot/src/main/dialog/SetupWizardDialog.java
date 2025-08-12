@@ -3,12 +3,12 @@ package main.dialog;
 import java.awt.*;
 import java.io.File;
 import javax.swing.*;
+import main.core.service.SettingsStore;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.animations.ModernSpinner;
 import main.ui.buttons.RoundedButton;
 import main.ui.icons.ModernFileIcons;
-import main.util.AppDirectories;
-import main.util.ResourceLoader;
-import main.util.SettingsStore;
 
 /**
  * Simple first-launch wizard that guides the user through choosing where the

@@ -3,10 +3,10 @@ package main.ui.buttons;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import javax.swing.*;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.util.ResourceLoader;
 
 /*
  * This class is used to create toolbar icons
@@ -22,7 +22,7 @@ public class ToolbarIconButton extends JButton {
     private Timer glowTimer;
     private float glowPhase=0f;
 
-    private static boolean globalGlow = main.util.SettingsStore.get().isGlowEnabled();
+    private static boolean globalGlow = main.core.service.SettingsStore.get().isGlowEnabled();
     private static final java.util.List<ToolbarIconButton> INSTANCES = new java.util.ArrayList<>();
 
     public ToolbarIconButton(String iconId){

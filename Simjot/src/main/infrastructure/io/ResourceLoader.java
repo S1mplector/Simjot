@@ -1,4 +1,4 @@
-package main.util;
+package main.infrastructure.io;
 
 import java.awt.Image;
 import java.io.InputStream;

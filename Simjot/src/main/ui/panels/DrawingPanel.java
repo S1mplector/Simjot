@@ -12,13 +12,13 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicComboBoxUI;
+import main.core.service.SettingsStore;
 import main.dialog.CustomInputDialog;
 import main.dialog.CustomMessageDialog;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.JournalApp;
 import main.ui.drawing.DrawingChooserDialog;
-import main.util.AppDirectories;
-import main.util.ResourceLoader;
-import main.util.SettingsStore;
 
 /**
  * A modern infinite drawing panel with layers, panning, zooming, and more.

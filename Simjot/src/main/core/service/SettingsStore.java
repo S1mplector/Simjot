@@ -1,7 +1,8 @@
-package main.util;
+package main.core.service;
 
 import java.io.*;
 import java.util.Properties;
+import main.infrastructure.io.AppDirectories;
 
 /**
  * Singleton-like helper that persists user preferences under Simjot/settings/preferences.properties.

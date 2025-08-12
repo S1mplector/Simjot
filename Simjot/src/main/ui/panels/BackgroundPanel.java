@@ -4,7 +4,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.swing.SwingWorker;
 import javax.swing.*;
-import main.util.SettingsStore;
+import main.core.service.SettingsStore;
 
 public class BackgroundPanel extends JPanel {
 	private static final long serialVersionUID = 1L;

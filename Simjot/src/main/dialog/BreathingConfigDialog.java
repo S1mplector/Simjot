@@ -1,12 +1,11 @@
 package main.dialog;
 
-import javax.swing.*;
 import java.awt.*;
+import javax.swing.*;
+import main.core.service.SettingsStore;
+import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernComboBoxUI;
 import main.ui.components.ModernSpinnerUI;
-import main.ui.buttons.RoundedButton;
-import main.util.SettingsStore;
-
 /**
  * Configuration dialog for the breathing widget with various breathing patterns
  * and customizable settings.

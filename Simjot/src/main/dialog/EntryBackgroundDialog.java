@@ -3,9 +3,9 @@ package main.dialog;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.swing.*;
+import main.core.service.SettingsStore;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.panels.WallpaperGalleryPanel;
-import main.util.ResourceLoader;
-import main.util.SettingsStore;
 
 public class EntryBackgroundDialog extends JDialog {
 

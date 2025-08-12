@@ -4,17 +4,17 @@ import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.*;
+import main.core.service.SettingsStore;
 import main.dialog.CustomMessageDialog;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.monitoring.AppPerf;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
+import main.ui.components.AeroScrollBarUI;
 import main.ui.components.ModernCheckBoxUI;
 import main.ui.components.ModernComboBoxUI;
 import main.ui.components.ModernSpinnerUI;
-import main.util.AppDirectories;
-import main.util.SettingsStore;
-import main.util.AppPerf;
-import main.ui.components.AeroScrollBarUI;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -207,7 +207,7 @@ public class SettingsPanel extends JPanel {
 
             // --- New General options ---
             gc.gridwidth = 1;
-            String[] datePatterns = main.util.DateFormatUtil.getCommonPatterns();
+            String[] datePatterns = main.infrastructure.io.DateFormatUtil.getCommonPatterns();
             dateFormatBox = new JComboBox<>(datePatterns);
             dateFormatBox.setUI(new ModernComboBoxUI());
             dateFormatBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
@@ -251,7 +251,7 @@ public class SettingsPanel extends JPanel {
                 backupNowBtn.setEnabled(false);
                 new javax.swing.SwingWorker<Void, Void>(){
                     @Override protected Void doInBackground(){
-                        try { main.util.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
+                        try { main.infrastructure.backup.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
                         return null;
                     }
                     @Override protected void done(){

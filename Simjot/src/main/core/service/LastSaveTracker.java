@@ -1,4 +1,4 @@
-package main.util;
+package main.core.service;
 
 /**
  * Tracks the last time a user-initiated save occurred in the app.

@@ -6,8 +6,8 @@ import java.awt.geom.*;
 import java.awt.font.*;
 import java.util.Random;
 import javax.swing.*;
-// no theme import needed here
-import main.util.AppPerf;
+
+import main.infrastructure.monitoring.AppPerf;
 
 public class HeaderPanel extends JPanel {
     private float textAlpha = 0f;

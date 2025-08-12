@@ -1,4 +1,4 @@
-package main.util;
+package main.infrastructure.monitoring;
 
 /**
  * Centralized performance toggles for UI animations and effects.

@@ -1,10 +1,12 @@
 package main.ui.animations;
 
 import javax.swing.*;
+
+import main.infrastructure.monitoring.AppPerf;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import main.util.AppPerf;
 
 /**
  * A modern, smooth, indeterminate spinner for loading/progress indication.

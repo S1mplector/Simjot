@@ -4,11 +4,11 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import javax.swing.*;
+import main.core.service.SettingsStore;
 import main.dialog.CustomMessageDialog;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.buttons.RoundedButton;
-import main.util.AppDirectories;
-import main.util.ResourceLoader;
-import main.util.SettingsStore;
 
 /**
  * A comprehensive wallpaper gallery panel that allows users to select wallpapers

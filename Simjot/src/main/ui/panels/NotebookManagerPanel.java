@@ -5,14 +5,15 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import javax.swing.*;
+
+import main.core.service.NotebookStore;
 import main.dialog.CustomConfirmDialog;
+import main.infrastructure.backup.NotebookInfo;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.ModernComboBoxUI;
-import main.util.NotebookInfo;
-import main.util.NotebookStore;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 

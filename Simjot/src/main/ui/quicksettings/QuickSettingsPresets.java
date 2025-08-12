@@ -1,14 +1,14 @@
 package main.ui.quicksettings;
 
-import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.*;
+import main.core.service.SettingsStore;
+import main.infrastructure.backup.BackupService;
 import main.ui.components.ModernCheckBoxUI;
-import main.ui.components.ModernSpinnerUI;
 import main.ui.components.ModernComboBoxUI;
-import main.util.SettingsStore;
-import main.util.BackupService;
+import main.ui.components.ModernSpinnerUI;
 
 public class QuickSettingsPresets {
 

@@ -13,12 +13,12 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import main.dialog.CustomConfirmDialog;
+import main.infrastructure.backup.NotebookInfo;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.AeroTextField;
 import main.ui.components.ModernComboBoxUI;
-import main.util.NotebookInfo;
 
 public class NotebookEntriesPanel extends JPanel {
     private final JournalApp app;
@@ -139,7 +139,7 @@ public class NotebookEntriesPanel extends JPanel {
         boolean ok = CustomConfirmDialog.confirm(this, "Delete Notebook", "Delete entire notebook '"+nb.getName()+"'?" );
         if(!ok) return;
         // Access store to delete
-        new main.util.NotebookStore().delete(nb);
+        new main.core.service.NotebookStore().delete(nb);
         // refresh manager panel
         app.refreshNotebookManager();
         app.switchCard(JournalApp.NOTEBOOK_MANAGER);

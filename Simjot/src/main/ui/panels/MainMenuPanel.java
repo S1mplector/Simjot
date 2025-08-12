@@ -8,18 +8,18 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import main.core.service.LastSaveTracker;
+import main.core.service.NotebookStore;
+import main.core.service.SettingsStore;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
+import main.infrastructure.monitoring.RamMonitor;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.buttons.MainMenuButton;
-import main.util.RamMonitor;
-import main.util.AppDirectories;
-import main.util.LastSaveTracker;
-import main.util.NotebookStore;
-import main.util.ResourceLoader;
-import main.util.SettingsStore;
 import main.ui.components.DragController;
-import main.ui.theme.aero.AeroTheme;
 import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 public class MainMenuPanel extends JPanel {
 

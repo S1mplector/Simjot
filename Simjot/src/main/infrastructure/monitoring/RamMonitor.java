@@ -1,4 +1,4 @@
-package main.util;
+package main.infrastructure.monitoring;
 
 import javax.swing.*;
 import java.awt.*;

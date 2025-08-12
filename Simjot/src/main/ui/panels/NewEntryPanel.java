@@ -1,31 +1,30 @@
 package main.ui.panels;
 
 import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import main.ui.theme.aero.AeroTheme;
-import javax.swing.text.StyledEditorKit;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.StyledEditorKit;
+import main.core.service.LastSaveTracker;
+import main.core.service.SettingsStore;
 import main.dialog.CustomMessageDialog;
 import main.dialog.EntryBackgroundDialog;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.RoundedToggleButton;
 import main.ui.buttons.ToolbarIconButton;
-import main.ui.components.MoodSlider;
 import main.ui.components.AnimatedGlassPopup;
-import main.util.AppDirectories;
-import main.util.ResourceLoader;
-import main.util.SettingsStore;
-import main.util.LastSaveTracker;
+import main.ui.components.MoodSlider;
+import main.ui.theme.aero.AeroTheme;
 import main.util.UndoRedoManager;
-import java.awt.event.*;
 
 public class NewEntryPanel extends JPanel {
 

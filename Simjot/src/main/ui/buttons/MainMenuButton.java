@@ -5,11 +5,11 @@ import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
+import main.infrastructure.monitoring.AppPerf;
 import main.transitions.FadingButton;
+import main.ui.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.util.AppPerf;
-import main.ui.icons.VectorIconPainter;
 
 /** A main-menu button that animates a white vector icon sliding out on hover. */
 public class MainMenuButton extends FadingButton {

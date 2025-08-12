@@ -8,8 +8,8 @@ public class FadingButton extends JButton {
     private static final long serialVersionUID = 1L;
 	// Set alpha to full opacity by default.
     private float alpha = 1f;
-    private static boolean glowEnabled = main.util.SettingsStore.get().isGlowEnabled();
-    private static boolean animationsDisabled = main.util.SettingsStore.get().isAnimationsDisabled();
+    private static boolean glowEnabled = main.core.service.SettingsStore.get().isGlowEnabled();
+    private static boolean animationsDisabled = main.core.service.SettingsStore.get().isAnimationsDisabled();
 
     public static void setGlowEnabled(boolean enabled){ glowEnabled = enabled; }
     public static boolean isGlowEnabled(){ return glowEnabled; }

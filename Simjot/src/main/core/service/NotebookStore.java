@@ -1,7 +1,9 @@
-package main.util;
+package main.core.service;
 
 import java.io.*;
 import java.util.*;
+import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.io.AppDirectories;
 
 /**
  * Persists list of notebooks under Simjot/notebooks.json and provides helpers.

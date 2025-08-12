@@ -5,10 +5,10 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.*;
 import javax.swing.*;
+import main.infrastructure.io.AppDirectories;
 import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernScrollBarUI;
 import main.ui.panels.RoundedPanel;
-import main.util.AppDirectories;
 import main.ui.theme.aero.AeroTheme;
 
 /**

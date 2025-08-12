@@ -1,10 +1,10 @@
 package main.ui.widgets;
 
 import java.awt.*;
-import javax.swing.*;
 import java.awt.geom.*;
+import javax.swing.*;
+import main.infrastructure.monitoring.AppPerf;
 import main.ui.theme.aero.AeroTheme;
-import main.util.AppPerf;
 
 /**
  * A calming breathing-circle animation that expands and contracts in a smooth

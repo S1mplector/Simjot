@@ -10,8 +10,8 @@ import java.util.Date;
 import javax.swing.*;
 import main.dialog.CustomConfirmDialog;
 import main.dialog.CustomMessageDialog;
+import main.infrastructure.io.AppDirectories;
 import main.ui.JournalApp;
-import main.util.AppDirectories;
 
 public class ViewEntriesPanel extends JPanel {
     private CardLayout cardLayout;

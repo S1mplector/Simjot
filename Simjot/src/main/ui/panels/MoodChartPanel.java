@@ -8,10 +8,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import javax.swing.*;
+import main.infrastructure.io.AppDirectories;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernComboBoxUI;
-import main.util.AppDirectories;
 
 public class MoodChartPanel extends JPanel {
     private java.util.List<LocalDate> dayList = new ArrayList<>();

@@ -1,14 +1,20 @@
 package main.ui;
 
 import java.awt.*;
-import java.io.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.*;
 import javax.swing.*;
+import main.core.service.SettingsStore;
 import main.dialog.CustomConfirmDialog;
 import main.dialog.SetupWizardDialog;
 import main.dialog.TutorialDialog;
+import main.infrastructure.backup.BackupService;
+import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.monitoring.RamMonitor;
 import main.transitions.FadeTransitionPanel;
+import main.ui.icons.AppIcon;
 import main.ui.panels.DrawingPanel;
 import main.ui.panels.EditEntryPanel;
 import main.ui.panels.EditPoemPanel;
@@ -21,15 +27,8 @@ import main.ui.panels.NotebookManagerPanel;
 import main.ui.panels.PoemPanel;
 import main.ui.panels.SettingsPanel;
 import main.ui.panels.ViewEntriesPanel;
-import main.util.AppDirectories;
-import main.util.NotebookInfo;
-import main.util.RamMonitor;
-import main.util.SettingsStore;
-import main.util.BackupService;
-// import main.ui.buttons.MainMenuButton; // Removed as per edit hint
-import main.ui.theme.aero.AeroLookAndFeel;
-import main.ui.icons.AppIcon;
 import main.ui.splash.AeroSplashScreen;
+import main.ui.theme.aero.AeroLookAndFeel;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -403,7 +402,7 @@ public class JournalApp extends JFrame {
             new javax.swing.SwingWorker<Void, String>() {
                 @Override protected Void doInBackground() {
                     publish("Loading settings…");
-                    try { main.util.SettingsStore.get().getUIScale(); } catch (Throwable ignored) {}
+                    try { main.core.service.SettingsStore.get().getUIScale(); } catch (Throwable ignored) {}
                     try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     publish("Preparing icons…");
@@ -436,9 +435,9 @@ public class JournalApp extends JFrame {
                                 if (path != null) {
                                     java.io.File folder = new java.io.File(path);
                                     if (folder.exists() && folder.isDirectory()) {
-                                        main.util.AppDirectories.setRoot(folder);
-                                        for (main.util.AppDirectories.Type t : main.util.AppDirectories.Type.values()) {
-                                            main.util.AppDirectories.folder(t);
+                                        main.infrastructure.io.AppDirectories.setRoot(folder);
+                                        for (main.infrastructure.io.AppDirectories.Type t : main.infrastructure.io.AppDirectories.Type.values()) {
+                                            main.infrastructure.io.AppDirectories.folder(t);
                                         }
                                     }
                                 }

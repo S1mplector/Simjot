@@ -1,4 +1,4 @@
-package main.model;
+package main.core.model;
 
 class SectionData {
     String sectionTitle;
