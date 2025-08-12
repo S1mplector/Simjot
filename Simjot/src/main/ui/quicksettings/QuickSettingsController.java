@@ -25,6 +25,12 @@ public class QuickSettingsController {
         void setWidgetsPanelVisible(boolean visible);
         // Query current visibility
         boolean isWidgetsPanelVisible();
+        // List available widget names
+        java.util.List<String> getWidgetNames();
+        // Query if a widget is enabled
+        boolean isWidgetEnabled(String name);
+        // Enable/disable a widget by name
+        void setWidgetEnabled(String name, boolean enabled);
     }
 
     private final JLayeredPane layeredPane;

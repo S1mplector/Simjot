@@ -4,35 +4,59 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import main.ui.components.ModernCheckBoxUI;
+import main.ui.components.ModernSpinnerUI;
+import main.ui.components.ModernComboBoxUI;
+import main.util.SettingsStore;
+import main.util.BackupService;
 
 public class QuickSettingsPresets {
 
     public static List<QuickSettingsCategory> defaultCategories(QuickSettingsController.HostApi host) {
         List<QuickSettingsCategory> list = new ArrayList<>();
 
-        // Five categories with simple glyph icons
-        list.add(new QuickSettingsCategory("General", new GlyphIcon("⚙", 18, new Color(255,255,255)), () -> buildGeneralPanel(host)));
-        list.add(new QuickSettingsCategory("Widgets", new GlyphIcon("🧩", 18, new Color(255,255,255)), () -> buildWidgetsPanel(host)));
-        list.add(new QuickSettingsCategory("Display", new GlyphIcon("🖥", 18, new Color(255,255,255)), () -> buildDisplayPanel())) ;
-        list.add(new QuickSettingsCategory("Audio", new GlyphIcon("🔊", 18, new Color(255,255,255)), () -> buildAudioPanel()));
-        list.add(new QuickSettingsCategory("Shortcuts", new GlyphIcon("⌨", 18, new Color(255,255,255)), () -> buildShortcutsPanel()));
+        // Four categories per user request
+        list.add(new QuickSettingsCategory("Appearance", new GlyphIcon("🎨", 18, Color.WHITE), () -> buildAppearancePanel()));
+        list.add(new QuickSettingsCategory("Writing & Editor", new GlyphIcon("✍", 18, Color.WHITE), () -> buildEditorPanel()));
+        list.add(new QuickSettingsCategory("Widgets", new GlyphIcon("🧩", 18, Color.WHITE), () -> buildWidgetsPanel(host)));
+        list.add(new QuickSettingsCategory("Backup & Data", new GlyphIcon("💾", 18, Color.WHITE), () -> buildBackupPanel()));
 
         return list;
     }
 
-    private static JComponent buildGeneralPanel(QuickSettingsController.HostApi host) {
+    private static JComponent buildAppearancePanel() {
+        SettingsStore store = SettingsStore.get();
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        JLabel title = new JLabel("General Settings");
+
+        JLabel title = new JLabel("Appearance");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(title);
-        p.add(Box.createRigidArea(new Dimension(0, 8)));
+        p.add(Box.createRigidArea(new Dimension(0, 6)));
 
-        JLabel hint = new JLabel("Middle-click anywhere to open quick settings.");
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(hint);
+        // Enable / disable UI animations (maps to inverse of disable flag)
+        boolean enabled = !store.isAnimationsDisabled();
+        JCheckBox animations = new JCheckBox("Enable UI animations", enabled);
+        animations.setUI(new ModernCheckBoxUI());
+        animations.setOpaque(false);
+        animations.setAlignmentX(Component.LEFT_ALIGNMENT);
+        animations.addActionListener(e -> {
+            store.setAnimationsDisabled(!animations.isSelected());
+            store.save();
+        });
+        p.add(animations);
+
+        JCheckBox lowPower = new JCheckBox("Low Power Mode", store.isLowPowerMode());
+        lowPower.setUI(new ModernCheckBoxUI());
+        lowPower.setOpaque(false);
+        lowPower.setAlignmentX(Component.LEFT_ALIGNMENT);
+        lowPower.addActionListener(e -> {
+            store.setLowPowerMode(lowPower.isSelected());
+            store.save();
+        });
+        p.add(lowPower);
 
         return p;
     }
@@ -42,86 +66,141 @@ public class QuickSettingsPresets {
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
 
-        JLabel title = new JLabel("Widgets Utility");
+        JLabel title = new JLabel("Widgets");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(title);
         p.add(Box.createRigidArea(new Dimension(0, 6)));
 
         JCheckBox toggle = new JCheckBox("Show widgets panel", host.isWidgetsPanelVisible());
+        toggle.setUI(new ModernCheckBoxUI());
         toggle.setOpaque(false);
         toggle.setAlignmentX(Component.LEFT_ALIGNMENT);
         toggle.addActionListener(e -> host.setWidgetsPanelVisible(toggle.isSelected()));
         p.add(toggle);
 
+        // Individual widgets
+        List<String> names = host.getWidgetNames();
+        if (names != null && !names.isEmpty()) {
+            p.add(Box.createRigidArea(new Dimension(0, 6)));
+            JLabel wlbl = new JLabel("Enable/Disable Widgets");
+            wlbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+            p.add(wlbl);
+            for (String name : names) {
+                boolean on = host.isWidgetEnabled(name);
+                JCheckBox wcb = new JCheckBox(name, on);
+                wcb.setUI(new ModernCheckBoxUI());
+                wcb.setOpaque(false);
+                wcb.setAlignmentX(Component.LEFT_ALIGNMENT);
+                wcb.addActionListener(ev -> host.setWidgetEnabled(name, wcb.isSelected()));
+                p.add(wcb);
+            }
+        }
+
         return p;
     }
 
-    private static JComponent buildDisplayPanel() {
+    private static JComponent buildEditorPanel() {
+        SettingsStore store = SettingsStore.get();
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
 
-        JLabel title = new JLabel("Display");
+        JLabel title = new JLabel("Writing & Editor");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(title);
         p.add(Box.createRigidArea(new Dimension(0, 6)));
 
-        JCheckBox dark = new JCheckBox("Dark mode");
-        dark.setOpaque(false);
-        dark.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(dark);
+        // Journal font size
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row1.setOpaque(false);
+        row1.add(new JLabel("Journal font size"));
+        int jf = store.getJournalFontSize();
+        JSpinner js1 = new JSpinner(new SpinnerNumberModel(jf, 8, 48, 1));
+        js1.setUI(new ModernSpinnerUI());
+        js1.addChangeListener(e -> { store.setJournalFontSize((Integer) js1.getValue()); store.save(); });
+        row1.add(js1);
+        row1.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(row1);
 
-        JCheckBox animations = new JCheckBox("Enable UI animations", true);
-        animations.setOpaque(false);
-        animations.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(animations);
+        // Poem font size
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row2.setOpaque(false);
+        row2.add(new JLabel("Poem font size"));
+        int pf = store.getPoemFontSize();
+        JSpinner js2 = new JSpinner(new SpinnerNumberModel(pf, 8, 72, 1));
+        js2.setUI(new ModernSpinnerUI());
+        js2.addChangeListener(e -> { store.setPoemFontSize((Integer) js2.getValue()); store.save(); });
+        row2.add(js2);
+        row2.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(row2);
+
+        // Autosave interval (minutes; 0 = off)
+        JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row3.setOpaque(false);
+        row3.add(new JLabel("Autosave interval (min)"));
+        int as = store.getAutosaveMinutes();
+        JSpinner js3 = new JSpinner(new SpinnerNumberModel(as, 0, 120, 1));
+        js3.setUI(new ModernSpinnerUI());
+        js3.addChangeListener(e -> { store.setAutosaveMinutes((Integer) js3.getValue()); store.save(); });
+        row3.add(js3);
+        row3.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(row3);
 
         return p;
     }
 
-    private static JComponent buildAudioPanel() {
+    private static JComponent buildBackupPanel() {
+        SettingsStore store = SettingsStore.get();
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
 
-        JLabel title = new JLabel("Audio");
+        JLabel title = new JLabel("Backup & Data");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(title);
         p.add(Box.createRigidArea(new Dimension(0, 6)));
 
-        JLabel volLabel = new JLabel("Volume");
-        volLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(volLabel);
-        JSlider volume = new JSlider(0, 100, 70);
-        volume.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(volume);
+        // Backup frequency
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row1.setOpaque(false);
+        row1.add(new JLabel("Backup frequency"));
+        String[] options = {"Off", "Daily", "Weekly", "Monthly"};
+        JComboBox<String> freq = new JComboBox<>(options);
+        freq.setUI(new ModernComboBoxUI());
+        freq.setSelectedItem(store.getBackupFrequency());
+        freq.addActionListener(e -> {
+            store.setBackupFrequency((String) freq.getSelectedItem());
+            store.save();
+            // refresh scheduler
+            BackupService.get().start();
+        });
+        row1.add(freq);
+        row1.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(row1);
 
-        JCheckBox mute = new JCheckBox("Mute");
-        mute.setOpaque(false);
-        mute.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(mute);
+        // Keep last N backups
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row2.setOpaque(false);
+        row2.add(new JLabel("Keep last N backups"));
+        int keep = store.getBackupKeepCount();
+        JSpinner keepSpin = new JSpinner(new SpinnerNumberModel(keep, 1, 60, 1));
+        keepSpin.setUI(new ModernSpinnerUI());
+        keepSpin.addChangeListener(e -> { store.setBackupKeepCount((Integer) keepSpin.getValue()); store.save(); });
+        row2.add(keepSpin);
+        row2.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(row2);
 
-        return p;
-    }
-
-    private static JComponent buildShortcutsPanel() {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-
-        JLabel title = new JLabel("Shortcuts");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(title);
+        // Backup Now
+        JButton backupNow = new JButton("Backup Now");
+        backupNow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        backupNow.addActionListener(e -> BackupService.get().triggerNow());
         p.add(Box.createRigidArea(new Dimension(0, 6)));
-
-        JLabel help = new JLabel("Tip: Press ESC to close quick settings.");
-        help.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(help);
+        p.add(backupNow);
 
         return p;
     }
+    // No shortcuts panel in quick settings per latest spec
 }

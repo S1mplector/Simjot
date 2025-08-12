@@ -465,6 +465,29 @@ public class MainMenuPanel extends JPanel {
             public boolean isWidgetsPanelVisible() {
                 return widgetPanel != null && widgetPanel.isVisible();
             }
+
+            @Override
+            public java.util.List<String> getWidgetNames() {
+                java.util.List<String> names = new java.util.ArrayList<>();
+                for (java.util.Map.Entry<String, main.ui.widgets.Widget> e : widgetManager.getAll().entrySet()) {
+                    names.add(e.getKey());
+                }
+                return names;
+            }
+
+            @Override
+            public boolean isWidgetEnabled(String name) {
+                main.ui.widgets.Widget w = widgetManager.get(name);
+                return w != null && w.isEnabled();
+            }
+
+            @Override
+            public void setWidgetEnabled(String name, boolean enabled) {
+                main.ui.widgets.Widget w = widgetManager.get(name);
+                if (w != null) {
+                    w.setEnabled(enabled);
+                }
+            }
         });
     }
 

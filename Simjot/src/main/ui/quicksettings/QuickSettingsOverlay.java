@@ -9,6 +9,13 @@ import java.util.List;
 /**
  * Transparent overlay panel that renders animated category orbs and a
  * contextual settings panel to the right after the spawn sequence completes.
+ * 
+ * Tweaks:
+ * - Increased spacing between rightmost orb and panel
+ * - Reverse dismissal animation for orbs and menu
+ * - Translucent rounded background behind orbs+menu with appear/disappear animations
+ * - Settings panel fade in/out
+ * - Refactored wrapPanel into a fade-capable panel
  */
 public class QuickSettingsOverlay extends JComponent {
 
@@ -28,13 +35,23 @@ public class QuickSettingsOverlay extends JComponent {
     private final int orbDiameter = 34; // larger orbs
 
     // Menu panel for the currently selected category
-    private JComponent menuPanel;
+    private FadePanel menuPanel;
     private int selectedIndex = 0;
     private boolean menuShown = false;
     private Rectangle menuBoundsCache = new Rectangle(0,0,0,0);
 
     // Final layout
     private Point[] finalPositions;
+
+    // Dismissal animation (reverse of spawn)
+    private boolean dismissing = false;
+    private float closeT = 0f;               // 0..1 progress of dismissal
+    private final float closeDuration = 0.26f; // seconds
+    private List<Point> closeStartPositions;  // captured when dismissal begins
+
+    // Backdrop animation (rounded translucent background behind orbs+menu)
+    private float backdropAlpha = 0f;         // 0..1
+    private final float backdropFadeSpeed = 8f; // per second
 
     public QuickSettingsOverlay(List<QuickSettingsCategory> categories, Point spawnPoint, Runnable onClose) {
         this.categories = categories;
@@ -82,24 +99,52 @@ public class QuickSettingsOverlay extends JComponent {
     private void onTick() {
         long elapsed = System.currentTimeMillis() - startMillis;
 
-        // Spawn next orb strictly one-by-one: only after previous has settled
-        boolean canSpawn = nextSpawnIndex < categories.size()
-                && elapsed >= nextSpawnIndex * (long) spawnIntervalMs
-                && (nextSpawnIndex == 0 || (orbs.size() >= nextSpawnIndex && orbs.get(nextSpawnIndex - 1).isSettled()));
-        if (canSpawn) {
-            orbs.add(new Orb(nextSpawnIndex));
-            nextSpawnIndex++;
-        }
-
-        // Update orb animations
         float dt = 16f / 1000f;
-        for (Orb o : orbs) {
-            o.update(dt);
-        }
 
-        // After all spawned and each has finished animating to final spot, show menu
-        if (!menuShown && nextSpawnIndex >= categories.size() && allOrbsSettled()) {
-            showMenuFor(selectedIndex);
+        if (!dismissing) {
+            // Spawn next orb strictly one-by-one: only after previous has settled
+            boolean canSpawn = nextSpawnIndex < categories.size()
+                    && elapsed >= nextSpawnIndex * (long) spawnIntervalMs
+                    && (nextSpawnIndex == 0 || (orbs.size() >= nextSpawnIndex && orbs.get(nextSpawnIndex - 1).isSettled()));
+            if (canSpawn) {
+                orbs.add(new Orb(nextSpawnIndex));
+                nextSpawnIndex++;
+            }
+
+            // Update orb animations
+            for (Orb o : orbs) {
+                o.update(dt);
+            }
+
+            // Backdrop fade in while appearing
+            backdropAlpha = Math.min(1f, backdropAlpha + dt * (backdropFadeSpeed * 0.2f));
+
+            // After all spawned and each has finished animating to final spot, show menu
+            if (!menuShown && nextSpawnIndex >= categories.size() && allOrbsSettled()) {
+                showMenuFor(selectedIndex);
+            }
+        } else {
+            // Dismissing: interpolate each orb position back to spawn and fade out
+            closeT += dt / closeDuration;
+            if (closeT > 1f) closeT = 1f;
+            float k = easeInCubic(closeT);
+            // Fade out backdrop and menu during dismissal
+            backdropAlpha = Math.max(0f, backdropAlpha - dt * (backdropFadeSpeed * 0.4f));
+            if (menuPanel != null) menuPanel.setAlpha(1f - k);
+
+            // Orbs fade out and move to spawn
+            for (int i = 0; i < orbs.size(); i++) {
+                Orb o = orbs.get(i);
+                Point s = closeStartPositions.get(i);
+                Point p = lerpPoint(s, spawnPoint, k);
+                o.setExternalPositionAndAlpha(p, 1f - k);
+            }
+
+            if (closeT >= 1f) {
+                timer.stop();
+                if (onClose != null) onClose.run();
+                return;
+            }
         }
 
         repaint();
@@ -114,8 +159,21 @@ public class QuickSettingsOverlay extends JComponent {
         menuPanel = wrapPanel(categories.get(idx).createPanel());
         add(menuPanel);
         layoutMenuPanel();
+        // Animate menu fade-in
+        if (menuPanel != null) menuPanel.setAlpha(0f);
         revalidate();
         repaint();
+        // Drive a quick fade-in using the main timer
+        new Thread(() -> {
+            // simple fade-in over ~180ms
+            try {
+                for (int i = 0; i <= 12; i++) {
+                    final float a = Math.min(1f, i / 12f);
+                    SwingUtilities.invokeLater(() -> { if (menuPanel != null) menuPanel.setAlpha(a); });
+                    Thread.sleep(15);
+                }
+            } catch (InterruptedException ignored) {}
+        }, "menu-fade-in").start();
     }
 
     private void layoutMenuPanel() {
@@ -124,7 +182,7 @@ public class QuickSettingsOverlay extends JComponent {
         Point center = getOrbitCenter();
         int orbitRightX = center.x + radius;
         Dimension pref = menuPanel.getPreferredSize();
-        int x = orbitRightX + 12;
+        int x = orbitRightX + 28; // slightly more spacing from the rightmost orb
         int y = Math.max(8, spawnPoint.y - pref.height / 2);
         // Clamp to keep on-screen
         int maxX = getWidth() - pref.width - 8;
@@ -150,8 +208,16 @@ public class QuickSettingsOverlay extends JComponent {
     }
 
     private void close() {
-        timer.stop();
-        if (onClose != null) onClose.run();
+        if (dismissing) return;
+        dismissing = true;
+        closeT = 0f;
+        // Capture current positions for smooth reverse animation
+        closeStartPositions = new ArrayList<>(orbs.size());
+        for (Orb o : orbs) {
+            closeStartPositions.add(o.position());
+        }
+        // Start fading out the menu (if showing)
+        if (menuPanel != null) menuPanel.setAlpha(1f);
     }
 
     @Override
@@ -159,11 +225,21 @@ public class QuickSettingsOverlay extends JComponent {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Optional dim background slightly
+        // Soft global dim
         g2.setComposite(AlphaComposite.SrcOver.derive(0.08f));
         g2.setColor(Color.BLACK);
         g2.fillRect(0, 0, getWidth(), getHeight());
         g2.setComposite(AlphaComposite.SrcOver);
+
+        // Translucent rounded background behind orbs + menu
+        Rectangle clusterBounds = computeClusterBounds();
+        if (clusterBounds != null && backdropAlpha > 0f) {
+            int arc = 18;
+            g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(0.85f, 0.35f * backdropAlpha)));
+            g2.setColor(new Color(30, 30, 30, 200));
+            g2.fillRoundRect(clusterBounds.x, clusterBounds.y, clusterBounds.width, clusterBounds.height, arc, arc);
+            g2.setComposite(AlphaComposite.SrcOver);
+        }
 
         // Draw orbs
         for (int i = 0; i < orbs.size(); i++) {
@@ -254,8 +330,18 @@ public class QuickSettingsOverlay extends JComponent {
             return new Point(x, y);
         }
 
+        void setExternalPositionAndAlpha(Point p, float a) {
+            // Used during dismissal to override position/alpha
+            this.alpha = Math.max(0f, Math.min(1f, a));
+            this.externalPos = new Point(p);
+            this.useExternal = true;
+        }
+
+        private Point externalPos = null;
+        private boolean useExternal = false;
+
         void paint(Graphics2D g2, boolean selected) {
-            Point p = position();
+            Point p = useExternal && externalPos != null ? externalPos : position();
             int d = orbDiameter;
             int x = p.x - d / 2;
             int y = p.y - d / 2;
@@ -317,29 +403,77 @@ public class QuickSettingsOverlay extends JComponent {
         }
     }
 
-    private static JComponent wrapPanel(JComponent inner) {
-        JPanel p = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                int w = getWidth();
-                int h = getHeight();
-                // Subtle aero-style card
-                Paint bg = new LinearGradientPaint(0, 0, 0, h,
-                        new float[]{0f, 0.6f, 1f},
-                        new Color[]{new Color(252,252,252,235), new Color(236,236,236,235), new Color(222,222,222,235)});
-                g2.setPaint(bg);
-                g2.fillRoundRect(0, 0, w, h, 14, 14);
-                g2.setColor(new Color(170,170,170));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
-                g2.dispose();
-            }
-        };
+    private static FadePanel wrapPanel(JComponent inner) {
+        FadePanel p = new FadePanel(new BorderLayout());
         p.setOpaque(false);
         p.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
         p.add(inner, BorderLayout.CENTER);
         return p;
+    }
+
+    private Rectangle computeClusterBounds() {
+        // Union of orbit circle and menu bounds (if present), with padding
+        Point c = getOrbitCenter();
+        int orbitR = radius + orbDiameter / 2 + 10;
+        Rectangle orbitRect = new Rectangle(c.x - orbitR, c.y - orbitR, orbitR * 2, orbitR * 2);
+        Rectangle r = new Rectangle(orbitRect);
+        if (menuShown && menuBoundsCache.width > 0 && menuBoundsCache.height > 0) {
+            r = r.union(menuBoundsCache);
+        }
+        int pad = 12;
+        r.x = Math.max(0, r.x - pad);
+        r.y = Math.max(0, r.y - pad);
+        r.width = Math.min(getWidth() - r.x, r.width + pad * 2);
+        r.height = Math.min(getHeight() - r.y, r.height + pad * 2);
+        return r;
+    }
+
+    private static Point lerpPoint(Point a, Point b, float t) {
+        t = Math.max(0f, Math.min(1f, t));
+        int x = Math.round(a.x + (b.x - a.x) * t);
+        int y = Math.round(a.y + (b.y - a.y) * t);
+        return new Point(x, y);
+    }
+
+    private static float easeInCubic(float x) {
+        return x * x * x;
+    }
+
+    // Panel that can fade its content in/out
+    private static class FadePanel extends JPanel {
+        private float alpha = 1f;
+
+        FadePanel(LayoutManager mgr) { super(mgr); }
+
+        void setAlpha(float a) {
+            this.alpha = Math.max(0f, Math.min(1f, a));
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+
+            int w = getWidth();
+            int h = getHeight();
+            Paint bg = new LinearGradientPaint(0, 0, 0, h,
+                    new float[]{0f, 0.6f, 1f},
+                    new Color[]{new Color(252,252,252,235), new Color(236,236,236,235), new Color(222,222,222,235)});
+            g2.setPaint(bg);
+            g2.fillRoundRect(0, 0, w, h, 14, 14);
+            g2.setColor(new Color(170,170,170));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
+            g2.dispose();
+        }
+
+        @Override
+        protected void paintChildren(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+            super.paintChildren(g2);
+            g2.dispose();
+        }
     }
 }
