@@ -35,7 +35,14 @@ public final class SettingsStore {
     private static final String KEY_SHOW_WIDGET_OPTIONS = "showWidgetOptions";
     private static final String KEY_UI_SCALE = "uiScale";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
-    
+    // General extensions
+    private static final String KEY_DATE_FORMAT = "dateFormat";
+    private static final String KEY_OPEN_LAST = "openLastOnStartup";
+    private static final String KEY_SPELLCHECK = "spellCheckEnabled";
+    private static final String KEY_AUTOSAVE_ON_BLUR = "autosaveOnFocusLoss";
+    public static final String KEY_BACKUP_FREQ = "backup.frequency";
+    public static final String KEY_BACKUP_KEEP = "backup.keep";
+    public static final String KEY_LAST_BACKUP_EPOCH = "backup.last.epoch";
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
@@ -58,6 +65,13 @@ public final class SettingsStore {
     private static final boolean DEF_SHOW_WIDGET_OPTIONS = true;
     private static final float DEF_UI_SCALE = 1.0f;
     private static final boolean DEF_LOW_POWER_MODE = false;
+    private static final String  DEF_DATE_FORMAT = "yyyy-MM-dd";
+    private static final boolean DEF_OPEN_LAST = false;
+    private static final boolean DEF_SPELLCHECK = false;
+    private static final boolean DEF_AUTOSAVE_ON_BLUR = false;
+    public static final String DEF_BACKUP_FREQ = "Off";
+    public static final int DEF_BACKUP_KEEP = 7;
+    public static final long DEF_LAST_BACKUP_EPOCH = 0L;
 
     // Singleton handling
     private static SettingsStore instance;
@@ -210,5 +224,36 @@ public final class SettingsStore {
     public void setUIScale(float scale) {
         float clamped = Math.max(0.5f, Math.min(3.0f, scale));
         props.setProperty(KEY_UI_SCALE, String.valueOf(clamped));
+    }
+
+    // --- New General settings ---
+    public String getDateFormat(){ return props.getProperty(KEY_DATE_FORMAT, DEF_DATE_FORMAT); }
+    public void setDateFormat(String fmt){ if(fmt!=null && !fmt.trim().isEmpty()) props.setProperty(KEY_DATE_FORMAT, fmt); }
+
+    public boolean isOpenLastOnStartup(){ return Boolean.parseBoolean(props.getProperty(KEY_OPEN_LAST, String.valueOf(DEF_OPEN_LAST))); }
+    public void setOpenLastOnStartup(boolean b){ props.setProperty(KEY_OPEN_LAST, String.valueOf(b)); }
+
+    public boolean isSpellCheckEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_SPELLCHECK, String.valueOf(DEF_SPELLCHECK))); }
+    public void setSpellCheckEnabled(boolean b){ props.setProperty(KEY_SPELLCHECK, String.valueOf(b)); }
+
+    public boolean isAutosaveOnFocusLoss(){ return Boolean.parseBoolean(props.getProperty(KEY_AUTOSAVE_ON_BLUR, String.valueOf(DEF_AUTOSAVE_ON_BLUR))); }
+    public void setAutosaveOnFocusLoss(boolean b){ props.setProperty(KEY_AUTOSAVE_ON_BLUR, String.valueOf(b)); }
+
+    public String getBackupFrequency(){ return props.getProperty(KEY_BACKUP_FREQ, DEF_BACKUP_FREQ); }
+    public void setBackupFrequency(String v){ if(v!=null) props.setProperty(KEY_BACKUP_FREQ, v); }
+
+    public int getBackupKeepCount(){ return Integer.parseInt(props.getProperty(KEY_BACKUP_KEEP, String.valueOf(DEF_BACKUP_KEEP))); }
+    public void setBackupKeepCount(int n){ props.setProperty(KEY_BACKUP_KEEP, String.valueOf(Math.max(1, n))); }
+
+    // Backup bookkeeping
+    public long getLastBackupEpochMillis() {
+        try {
+            return Long.parseLong(props.getProperty(KEY_LAST_BACKUP_EPOCH, String.valueOf(DEF_LAST_BACKUP_EPOCH)));
+        } catch (NumberFormatException e) {
+            return DEF_LAST_BACKUP_EPOCH;
+        }
+    }
+    public void setLastBackupEpochMillis(long epoch) {
+        props.setProperty(KEY_LAST_BACKUP_EPOCH, String.valueOf(Math.max(0L, epoch)));
     }
 }

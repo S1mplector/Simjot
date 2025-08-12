@@ -155,6 +155,14 @@ public class SettingsPanel extends JPanel {
         private final JSpinner poemFont;
         private final JSpinner autosaveSpin;
         private final JSpinner uiScaleSpinner;
+        // New controls
+        private final JComboBox<String> dateFormatBox;
+        private final JCheckBox openLastChk;
+        private final JCheckBox spellChk;
+        private final JCheckBox autosaveOnBlurChk;
+        private final JComboBox<String> backupFreqBox;
+        private final JSpinner backupKeepSpin;
+        private final JButton backupNowBtn;
         GeneralPage(){
             setLayout(new GridBagLayout());
             setOpaque(true);
@@ -196,6 +204,63 @@ public class SettingsPanel extends JPanel {
             noteLabel.setForeground(Color.GRAY);
             gc.gridx=0; gc.gridy=4; gc.gridwidth=2;
             add(noteLabel,gc);
+
+            // --- New General options ---
+            gc.gridwidth = 1;
+            String[] datePatterns = main.util.DateFormatUtil.getCommonPatterns();
+            dateFormatBox = new JComboBox<>(datePatterns);
+            dateFormatBox.setUI(new ModernComboBoxUI());
+            dateFormatBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+            dateFormatBox.setSelectedItem(store.getDateFormat());
+            gc.gridx=0; gc.gridy=5; add(label("Date format:"), gc);
+            gc.gridx=1; add(dateFormatBox, gc);
+
+            openLastChk = new JCheckBox("Open last note on startup", store.isOpenLastOnStartup());
+            openLastChk.setUI(new ModernCheckBoxUI());
+            openLastChk.setBackground(new Color(0,0,0,0));
+            gc.gridx=0; gc.gridy=6; gc.gridwidth=2; add(openLastChk, gc);
+
+            spellChk = new JCheckBox("Enable spell check", store.isSpellCheckEnabled());
+            spellChk.setUI(new ModernCheckBoxUI());
+            spellChk.setBackground(new Color(0,0,0,0));
+            gc.gridx=0; gc.gridy=7; gc.gridwidth=2; add(spellChk, gc);
+
+            autosaveOnBlurChk = new JCheckBox("Autosave on focus loss", store.isAutosaveOnFocusLoss());
+            autosaveOnBlurChk.setUI(new ModernCheckBoxUI());
+            autosaveOnBlurChk.setBackground(new Color(0,0,0,0));
+            gc.gridx=0; gc.gridy=8; gc.gridwidth=2; add(autosaveOnBlurChk, gc);
+
+            String[] freqs = new String[]{"Off","Daily","Weekly","Monthly"};
+            backupFreqBox = new JComboBox<>(freqs);
+            backupFreqBox.setUI(new ModernComboBoxUI());
+            backupFreqBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+            backupFreqBox.setSelectedItem(store.getBackupFrequency());
+            gc.gridwidth=1;
+            gc.gridx=0; gc.gridy=9; add(label("Auto-backup:"), gc);
+            gc.gridx=1; add(backupFreqBox, gc);
+
+            backupKeepSpin = new JSpinner(new SpinnerNumberModel(store.getBackupKeepCount(), 1, 100, 1));
+            backupKeepSpin.setUI(new ModernSpinnerUI());
+            ((JSpinner.DefaultEditor)backupKeepSpin.getEditor()).getTextField().setColumns(3);
+            gc.gridx=0; gc.gridy=10; add(label("Keep last N backups:"), gc);
+            gc.gridx=1; add(backupKeepSpin, gc);
+
+            // Backup Now button (Aero rounded style)
+            backupNowBtn = new main.ui.buttons.RoundedButton("Backup Now");
+            backupNowBtn.addActionListener(e -> {
+                backupNowBtn.setEnabled(false);
+                new javax.swing.SwingWorker<Void, Void>(){
+                    @Override protected Void doInBackground(){
+                        try { main.util.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
+                        return null;
+                    }
+                    @Override protected void done(){
+                        backupNowBtn.setEnabled(true);
+                        try { javax.swing.JOptionPane.showMessageDialog(GeneralPage.this, "Backup completed.", "Backup", javax.swing.JOptionPane.INFORMATION_MESSAGE); } catch (Throwable ignored) {}
+                    }
+                }.execute();
+            });
+            gc.gridx=0; gc.gridy=11; gc.gridwidth=2; add(backupNowBtn, gc);
         }
         @Override public JComponent getComponent(){ return this; }
         @Override public void apply(){
@@ -212,6 +277,14 @@ public class SettingsPanel extends JPanel {
             // Save UI scale setting
             float uiScale = ((Number) uiScaleSpinner.getValue()).floatValue();
             store.setUIScale(uiScale);
+
+            // New settings
+            store.setDateFormat((String) dateFormatBox.getSelectedItem());
+            store.setOpenLastOnStartup(openLastChk.isSelected());
+            store.setSpellCheckEnabled(spellChk.isSelected());
+            store.setAutosaveOnFocusLoss(autosaveOnBlurChk.isSelected());
+            store.setBackupFrequency((String) backupFreqBox.getSelectedItem());
+            store.setBackupKeepCount((Integer) backupKeepSpin.getValue());
         }
     }
 

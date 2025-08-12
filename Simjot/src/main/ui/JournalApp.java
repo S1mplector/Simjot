@@ -2,6 +2,8 @@ package main.ui;
 
 import java.awt.*;
 import java.io.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import javax.swing.*;
 import main.dialog.CustomConfirmDialog;
 import main.dialog.SetupWizardDialog;
@@ -23,6 +25,7 @@ import main.util.AppDirectories;
 import main.util.NotebookInfo;
 import main.util.RamMonitor;
 import main.util.SettingsStore;
+import main.util.BackupService;
 // import main.ui.buttons.MainMenuButton; // Removed as per edit hint
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.icons.AppIcon;
@@ -165,6 +168,9 @@ public class JournalApp extends JFrame {
         setVisible(true);
         switchCard(MAIN_MENU);
 
+        // Ensure backup service is watching according to settings
+        try { BackupService.get().start(); } catch (Throwable ignored) {}
+
         // After UI visible, optionally show tutorial, then force fullscreen
         SwingUtilities.invokeLater(() -> {
             showTutorialIfFirstTime();
@@ -176,6 +182,15 @@ public class JournalApp extends JFrame {
                 updateWidgetPanelVisibility();
             }
         });
+
+        // On close, attempt a due backup synchronously
+        try {
+            this.addWindowListener(new WindowAdapter(){
+                @Override public void windowClosing(WindowEvent e) {
+                    try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+                }
+            });
+        } catch (Throwable ignored) {}
     }
 
     public void switchCard(String cardName) {
