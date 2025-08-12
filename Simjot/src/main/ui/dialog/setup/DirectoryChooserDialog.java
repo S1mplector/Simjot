@@ -3,7 +3,7 @@ package main.ui.dialog.setup;
 import java.awt.*;
 import java.io.File;
 import javax.swing.*;
-import main.ui.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.panels.RoundedPanel;
 
 /**

@@ -4,11 +4,11 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import javax.swing.*;
-import main.ui.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.dialog.config.BreathingConfigDialog;
+import main.ui.features.widgets.BreathingWidget;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.widgets.BreathingWidget;
 
 /**
  * Dedicated window for the breathing exercise with controls

@@ -3,9 +3,9 @@ package main.ui.panels;
 import java.awt.*;
 import java.io.*;
 import javax.swing.*;
-
 import main.ui.app.JournalApp;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.features.entries.PoemPanel;
 
 public class EditPoemPanel extends PoemPanel {
     private File poemFile;

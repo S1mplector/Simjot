@@ -6,9 +6,9 @@ import java.util.List;
 import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.BackupService;
-import main.ui.components.ModernCheckBoxUI;
-import main.ui.components.ModernComboBoxUI;
-import main.ui.components.ModernSpinnerUI;
+import main.ui.components.checkbox.ModernCheckBoxUI;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.spinner.ModernSpinnerUI;
 
 public class QuickSettingsPresets {
 

@@ -10,24 +10,24 @@ import main.infrastructure.backup.BackupService;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.monitoring.RamMonitor;
-import main.transitions.FadeTransitionPanel;
+import main.ui.animations.transitions.FadeTransitionPanel;
+import main.ui.components.icons.AppIcon;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
+import main.ui.features.entries.EditEntryPanel;
 import main.ui.features.entries.NewEntryPanel;
+import main.ui.features.entries.NotebookEntriesPanel;
+import main.ui.features.entries.PoemPanel;
 import main.ui.features.gallery.GalleryPanel;
-import main.ui.icons.AppIcon;
+import main.ui.features.home.MainMenuPanel;
+import main.ui.features.home.MoodChartPanel;
+import main.ui.features.splash.AeroSplashScreen;
 import main.ui.panels.DrawingPanel;
-import main.ui.panels.EditEntryPanel;
 import main.ui.panels.EditPoemPanel;
-import main.ui.panels.MainMenuPanel;
-import main.ui.panels.MoodChartPanel;
-import main.ui.panels.NotebookEntriesPanel;
 import main.ui.panels.NotebookManagerPanel;
-import main.ui.panels.PoemPanel;
 import main.ui.panels.SettingsPanel;
 import main.ui.panels.ViewEntriesPanel;
-import main.ui.splash.AeroSplashScreen;
 import main.ui.theme.aero.AeroLookAndFeel;
 
 public class JournalApp extends JFrame {
@@ -406,7 +406,7 @@ public class JournalApp extends JFrame {
                     try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     publish("Preparing icons…");
-                    try { main.ui.icons.AppIcon.generateIconImages(); } catch (Throwable ignored) {}
+                    try { main.ui.components.icons.AppIcon.generateIconImages(); } catch (Throwable ignored) {}
                     try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     long start = System.nanoTime();
@@ -417,7 +417,7 @@ public class JournalApp extends JFrame {
                         String[] ids = {"notebook","pencil","image","smile","wrench","clock","tick","breath"};
                         for (int s : sizes) {
                             for (String id : ids) {
-                                try { main.ui.icons.VectorIconPainter.getImage(id, s); } catch (Throwable ignored2) {}
+                                try { main.ui.components.icons.VectorIconPainter.getImage(id, s); } catch (Throwable ignored2) {}
                             }
                         }
                     } catch (Throwable ignored) {}

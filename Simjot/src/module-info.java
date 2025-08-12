@@ -27,14 +27,13 @@ module Simjot {
 	// App and UI modules
 	exports main.ui.app;
 	exports main.ui.panels;
-	exports main.ui.buttons;
-	exports main.transitions;
+	exports main.ui.components.buttons;
+	exports main.ui.animations.transitions;
 	exports main.ui.components;
-	exports main.ui.icons;
-	exports main.ui.animations;
-	exports main.ui.widgets;
+	exports main.ui.components.icons;
+	exports main.ui.features.widgets;
 	exports main.ui.theme.aero;
-	exports main.ui.drawing;
+	exports main.ui.features.drawing;
 
 	// Drawing/data
 	exports main.drawing;
@@ -43,5 +42,5 @@ module Simjot {
 	exports main.ui.features.entries;
 	exports main.ui.features.gallery;
 	exports main.ui.features.quicksettings;
-
+	exports main.ui.features.home;
 }

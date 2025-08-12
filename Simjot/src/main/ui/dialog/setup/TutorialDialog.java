@@ -4,7 +4,7 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
-import main.ui.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.panels.RoundedPanel;
 
 /**

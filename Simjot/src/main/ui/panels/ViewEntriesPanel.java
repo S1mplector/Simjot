@@ -12,6 +12,7 @@ import main.infrastructure.io.AppDirectories;
 import main.ui.app.JournalApp;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.features.entries.EditEntryPanel;
 
 public class ViewEntriesPanel extends JPanel {
     private CardLayout cardLayout;

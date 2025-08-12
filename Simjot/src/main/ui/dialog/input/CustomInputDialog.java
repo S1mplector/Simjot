@@ -2,7 +2,7 @@ package main.ui.dialog.input;
 
 import java.awt.*;
 import javax.swing.*;
-import main.transitions.FadingButton;
+import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.panels.RoundedPanel;
 import main.ui.theme.aero.AeroTheme;

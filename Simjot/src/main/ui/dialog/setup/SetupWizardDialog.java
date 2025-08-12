@@ -6,10 +6,10 @@ import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.animations.ModernSpinner;
-import main.ui.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.icons.ModernFileIcons;
+import main.ui.components.spinner.ModernSpinner;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-import main.ui.icons.ModernFileIcons;
 
 /**
  * Simple first-launch wizard that guides the user through choosing where the

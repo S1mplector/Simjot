@@ -18,7 +18,7 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.drawing.DrawingChooserDialog;
+import main.ui.features.drawing.DrawingChooserDialog;
 
 /**
  * A modern infinite drawing panel with layers, panning, zooming, and more.

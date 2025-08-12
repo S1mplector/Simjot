@@ -75,10 +75,10 @@ public class EntryBackgroundDialog extends JDialog {
         
         // Left-aligned buttons
         JPanel leftButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        main.ui.buttons.RoundedButton galleryBtn = new main.ui.buttons.RoundedButton("Choose from Gallery...");
+        main.ui.components.buttons.RoundedButton galleryBtn = new main.ui.components.buttons.RoundedButton("Choose from Gallery...");
         galleryBtn.addActionListener(e -> selectFromGallery());
         
-        main.ui.buttons.RoundedButton removeBtn = new main.ui.buttons.RoundedButton("Remove Background");
+        main.ui.components.buttons.RoundedButton removeBtn = new main.ui.components.buttons.RoundedButton("Remove Background");
         removeBtn.addActionListener(e -> removeBackground());
         
         leftButtonPanel.add(galleryBtn);
@@ -87,10 +87,10 @@ public class EntryBackgroundDialog extends JDialog {
         
         // Right-aligned buttons
         JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        main.ui.buttons.RoundedButton okBtn = new main.ui.buttons.RoundedButton("OK");
+        main.ui.components.buttons.RoundedButton okBtn = new main.ui.components.buttons.RoundedButton("OK");
         okBtn.addActionListener(e -> saveAndClose());
         
-        main.ui.buttons.RoundedButton cancelBtn = new main.ui.buttons.RoundedButton("Cancel");
+        main.ui.components.buttons.RoundedButton cancelBtn = new main.ui.components.buttons.RoundedButton("Cancel");
         cancelBtn.addActionListener(e -> dispose());
         
         rightButtonPanel.add(okBtn);

@@ -4,7 +4,7 @@ import java.awt.*;
 import java.io.File;
 import java.util.Arrays;
 import javax.swing.*;
-import main.transitions.FadingButton;
+import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.CustomMessageDialog;

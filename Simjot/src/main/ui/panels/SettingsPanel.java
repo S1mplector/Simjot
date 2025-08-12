@@ -7,13 +7,13 @@ import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.monitoring.AppPerf;
-import main.transitions.FadingButton;
+import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
-import main.ui.buttons.RoundedButton;
-import main.ui.components.AeroScrollBarUI;
-import main.ui.components.ModernCheckBoxUI;
-import main.ui.components.ModernComboBoxUI;
-import main.ui.components.ModernSpinnerUI;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.checkbox.ModernCheckBoxUI;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.scrollbar.AeroScrollBarUI;
+import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.theme.aero.AeroPainters;
@@ -247,7 +247,7 @@ public class SettingsPanel extends JPanel {
             gc.gridx=1; add(backupKeepSpin, gc);
 
             // Backup Now button (Aero rounded style)
-            backupNowBtn = new main.ui.buttons.RoundedButton("Backup Now");
+            backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
             backupNowBtn.addActionListener(e -> {
                 backupNowBtn.setEnabled(false);
                 new javax.swing.SwingWorker<Void, Void>(){
@@ -346,7 +346,7 @@ public class SettingsPanel extends JPanel {
             boolean glow = glowChk.isSelected();
             store.setGlowEnabled(glow);
             FadingButton.setGlowEnabled(glow);
-            main.ui.buttons.ToolbarIconButton.setGlowEnabled(glow);
+            main.ui.components.buttons.ToolbarIconButton.setGlowEnabled(glow);
 
             store.setAnimationsDisabled(disableAnimationsChk.isSelected());
 

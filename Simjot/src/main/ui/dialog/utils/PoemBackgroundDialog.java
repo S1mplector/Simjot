@@ -5,7 +5,7 @@ import java.awt.image.BufferedImage;
 import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 public class PoemBackgroundDialog extends JDialog {

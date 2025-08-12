@@ -7,7 +7,7 @@ import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.dialog.message.CustomMessageDialog;
 
 /**
