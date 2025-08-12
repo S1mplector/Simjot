@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.features.entries;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -15,14 +15,15 @@ import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.RoundedToggleButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.AnimatedGlassPopup;
 import main.ui.components.MoodSlider;
-import main.ui.dialog.CustomMessageDialog;
-import main.ui.dialog.EntryBackgroundDialog;
+import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.dialog.utils.EntryBackgroundDialog;
+import main.ui.panels.TranslucentPanel;
 import main.ui.theme.aero.AeroTheme;
 import main.util.UndoRedoManager;
 

@@ -3,8 +3,9 @@ package main.ui.panels;
 import java.awt.*;
 import java.io.*;
 import javax.swing.*;
-import main.ui.JournalApp;
-import main.ui.dialog.CustomMessageDialog;
+import main.ui.app.JournalApp;
+import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.features.entries.NewEntryPanel;
 
 public class EditEntryPanel extends NewEntryPanel {
     private File fileToEdit;

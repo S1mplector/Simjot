@@ -12,11 +12,11 @@ import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
-import main.ui.dialog.CustomMessageDialog;
-import main.ui.dialog.PoemBackgroundDialog;
+import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.dialog.utils.PoemBackgroundDialog;
 
 public class PoemPanel extends JPanel {
     protected CardLayout cardLayout;
@@ -427,24 +427,6 @@ class CustomInspirationDialog extends JDialog {
     }
 }
 
-class TranslucentPanel extends JPanel {
-    public TranslucentPanel() {
-        super(new BorderLayout());
-        setOpaque(false);
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(new Color(255, 255, 255, 160)); // White with transparency
-        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
-        g2.dispose();
-    }
-}
-
-// Modern rounded text field identical to NewEntryPanel
 class ModernTextField extends JTextField{
     public ModernTextField(int cols){ super(cols); setOpaque(false); setBorder(BorderFactory.createEmptyBorder(6,10,6,10)); }
     @Override protected void paintComponent(Graphics g){

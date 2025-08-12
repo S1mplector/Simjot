@@ -9,11 +9,11 @@ import javax.swing.*;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.transitions.FadingButton;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.ModernComboBoxUI;
-import main.ui.dialog.CustomConfirmDialog;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 

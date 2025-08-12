@@ -9,7 +9,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import javax.swing.*;
 import main.infrastructure.io.AppDirectories;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.components.ModernComboBoxUI;
 

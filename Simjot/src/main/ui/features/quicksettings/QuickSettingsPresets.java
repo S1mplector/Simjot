@@ -1,4 +1,4 @@
-package main.ui.quicksettings;
+package main.ui.features.quicksettings;
 
 import java.awt.*;
 import java.util.ArrayList;

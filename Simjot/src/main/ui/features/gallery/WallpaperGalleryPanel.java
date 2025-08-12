@@ -1,4 +1,4 @@
-package main.ui.panels;
+package main.ui.features.gallery;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -8,7 +8,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.buttons.RoundedButton;
-import main.ui.dialog.CustomMessageDialog;
+import main.ui.dialog.message.CustomMessageDialog;
 
 /**
  * A comprehensive wallpaper gallery panel that allows users to select wallpapers

@@ -1,13 +1,14 @@
-package main.ui.panels;
+package main.ui.features.gallery;
 
 import java.awt.*;
 import java.io.File;
 import java.util.Arrays;
 import javax.swing.*;
 import main.transitions.FadingButton;
-import main.ui.JournalApp;
-import main.ui.dialog.CustomConfirmDialog;
-import main.ui.dialog.CustomMessageDialog;
+import main.ui.app.JournalApp;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.panels.DrawingPanel;
 
 public class GalleryPanel extends JPanel {
     private final DefaultListModel<File> model = new DefaultListModel<>();

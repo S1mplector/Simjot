@@ -1,4 +1,4 @@
-package main.ui;
+package main.ui.app;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -11,17 +11,17 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.monitoring.RamMonitor;
 import main.transitions.FadeTransitionPanel;
-import main.ui.dialog.CustomConfirmDialog;
-import main.ui.dialog.SetupWizardDialog;
-import main.ui.dialog.TutorialDialog;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.setup.SetupWizardDialog;
+import main.ui.dialog.setup.TutorialDialog;
+import main.ui.features.entries.NewEntryPanel;
+import main.ui.features.gallery.GalleryPanel;
 import main.ui.icons.AppIcon;
 import main.ui.panels.DrawingPanel;
 import main.ui.panels.EditEntryPanel;
 import main.ui.panels.EditPoemPanel;
-import main.ui.panels.GalleryPanel;
 import main.ui.panels.MainMenuPanel;
 import main.ui.panels.MoodChartPanel;
-import main.ui.panels.NewEntryPanel;
 import main.ui.panels.NotebookEntriesPanel;
 import main.ui.panels.NotebookManagerPanel;
 import main.ui.panels.PoemPanel;

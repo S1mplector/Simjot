@@ -2,7 +2,7 @@ package main.ui.widgets;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 
 /**
  * Central registry/manager for Widgets.

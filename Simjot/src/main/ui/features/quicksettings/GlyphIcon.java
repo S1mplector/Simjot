@@ -1,7 +1,7 @@
-package main.ui.quicksettings;
+package main.ui.features.quicksettings;
 
-import javax.swing.*;
 import java.awt.*;
+import javax.swing.*;
 
 /**
  * Simple text-based icon that paints a single glyph (emoji or symbol) centered.

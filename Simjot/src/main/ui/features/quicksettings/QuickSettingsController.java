@@ -1,4 +1,4 @@
-package main.ui.quicksettings;
+package main.ui.features.quicksettings;
 
 import javax.swing.*;
 import java.awt.*;

@@ -1,7 +1,7 @@
-package main.ui.quicksettings;
+package main.ui.features.quicksettings;
 
-import javax.swing.*;
 import java.util.function.Supplier;
+import javax.swing.*;
 
 public class QuickSettingsCategory {
     private final String name;

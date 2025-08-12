@@ -15,7 +15,7 @@ import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
 import main.transitions.FadingButton;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.MainMenuButton;
 import main.ui.components.DragController;
 import main.ui.theme.aero.AeroPainters;
@@ -454,7 +454,7 @@ public class MainMenuPanel extends JPanel {
         add(southPanel, BorderLayout.SOUTH);
 
         // Quick Settings: install middle-click overlay with animated orbs (encapsulated in new classes)
-        main.ui.quicksettings.QuickSettingsController.install(layeredPane, new main.ui.quicksettings.QuickSettingsController.HostApi() {
+        main.ui.features.quicksettings.QuickSettingsController.install(layeredPane, new main.ui.features.quicksettings.QuickSettingsController.HostApi() {
             @Override
             public java.awt.Window getWindow() {
                 return SwingUtilities.getWindowAncestor(MainMenuPanel.this);
@@ -729,7 +729,7 @@ public class MainMenuPanel extends JPanel {
                 btn.addActionListener(e -> {
                     if (name.equals("Breathing")) {
                         // First show our custom confirmation dialog
-                        boolean startBreathing = main.ui.dialog.CustomConfirmDialog.confirm(
+                        boolean startBreathing = main.ui.dialog.confirmation.CustomConfirmDialog.confirm(
                                 MainMenuPanel.this,
                                 "Breathing Exercise",
                                 "Would you like to start a guided breathing exercise?\n\nThis will display a calming animation overlay."
@@ -737,14 +737,14 @@ public class MainMenuPanel extends JPanel {
 
                         if (startBreathing) {
                             // Show configuration dialog for breathing widget
-                            main.ui.dialog.BreathingConfigDialog dialog
-                                    = new main.ui.dialog.BreathingConfigDialog((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
+                            main.ui.dialog.config.BreathingConfigDialog dialog
+                                    = new main.ui.dialog.config.BreathingConfigDialog((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
                             dialog.setVisible(true);
 
                             if (dialog.isConfirmed()) {
                                 // Open breathing exercise in its own window
-                                main.ui.dialog.BreathingExerciseWindow exerciseWindow
-                                        = new main.ui.dialog.BreathingExerciseWindow((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
+                                main.ui.dialog.utils.BreathingExerciseWindow exerciseWindow
+                                        = new main.ui.dialog.utils.BreathingExerciseWindow((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
                                 exerciseWindow.startExercise(
                                         dialog.getInhaleTime(),
                                         dialog.getHold1Time(),

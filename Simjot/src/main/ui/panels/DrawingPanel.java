@@ -15,9 +15,9 @@ import javax.swing.plaf.basic.BasicComboBoxUI;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.JournalApp;
-import main.ui.dialog.CustomInputDialog;
-import main.ui.dialog.CustomMessageDialog;
+import main.ui.app.JournalApp;
+import main.ui.dialog.input.CustomInputDialog;
+import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.drawing.DrawingChooserDialog;
 
 /**

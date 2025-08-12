@@ -9,9 +9,9 @@ import java.util.Arrays;
 import java.util.Date;
 import javax.swing.*;
 import main.infrastructure.io.AppDirectories;
-import main.ui.JournalApp;
-import main.ui.dialog.CustomConfirmDialog;
-import main.ui.dialog.CustomMessageDialog;
+import main.ui.app.JournalApp;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.message.CustomMessageDialog;
 
 public class ViewEntriesPanel extends JPanel {
     private CardLayout cardLayout;

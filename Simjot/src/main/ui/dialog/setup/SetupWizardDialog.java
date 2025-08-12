@@ -1,4 +1,4 @@
-package main.ui.dialog;
+package main.ui.dialog.setup;
 
 import java.awt.*;
 import java.io.File;
@@ -8,6 +8,7 @@ import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.animations.ModernSpinner;
 import main.ui.buttons.RoundedButton;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.icons.ModernFileIcons;
 
 /**

@@ -1,4 +1,4 @@
-package main.ui.dialog;
+package main.ui.dialog.setup;
 
 import java.awt.*;
 import java.io.File;

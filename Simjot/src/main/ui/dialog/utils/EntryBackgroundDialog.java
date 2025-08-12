@@ -1,29 +1,28 @@
-package main.ui.dialog;
+package main.ui.dialog.utils;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.buttons.RoundedButton;
-import main.ui.panels.WallpaperGalleryPanel;
+import main.ui.features.gallery.WallpaperGalleryPanel;
 
-public class PoemBackgroundDialog extends JDialog {
+public class EntryBackgroundDialog extends JDialog {
 
     private final JLabel previewLabel;
     private final JSlider opacitySlider;
     private String selectedImagePath = "";
     private BufferedImage selectedImage;
-    private float currentOpacity = 0.3f;
+    private float currentOpacity = 0.7f;
     
-    public PoemBackgroundDialog(Frame owner) {
-        super(owner, "Poem Background Settings", true);
+    public EntryBackgroundDialog(Frame owner) {
+        super(owner, "Entry Background Settings", true);
         setSize(500, 400);
         
         // Initialize with current settings
         SettingsStore settings = SettingsStore.get();
-        selectedImagePath = settings.getPoemBackgroundImage();
-        currentOpacity = settings.getPoemBackgroundOpacity();
+        selectedImagePath = settings.getEntryBackgroundImage();
+        currentOpacity = settings.getEntryBackgroundOpacity();
         
         // Main content panel with increased padding
         JPanel contentPanel = new JPanel(new BorderLayout(15, 15));
@@ -54,7 +53,7 @@ public class PoemBackgroundDialog extends JDialog {
         opacitySlider.setPreferredSize(new Dimension(250, 30));
         
         // Add a label to show the current opacity percentage
-        JLabel opacityValueLabel = new JLabel("30%");
+        JLabel opacityValueLabel = new JLabel("70%");
         opacityValueLabel.setPreferredSize(new Dimension(40, 20));
         
         // Update the preview in real-time when slider changes
@@ -76,10 +75,10 @@ public class PoemBackgroundDialog extends JDialog {
         
         // Left-aligned buttons
         JPanel leftButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        RoundedButton galleryBtn = new RoundedButton("Choose from Gallery...");
+        main.ui.buttons.RoundedButton galleryBtn = new main.ui.buttons.RoundedButton("Choose from Gallery...");
         galleryBtn.addActionListener(e -> selectFromGallery());
         
-        RoundedButton removeBtn = new RoundedButton("Remove Background");
+        main.ui.buttons.RoundedButton removeBtn = new main.ui.buttons.RoundedButton("Remove Background");
         removeBtn.addActionListener(e -> removeBackground());
         
         leftButtonPanel.add(galleryBtn);
@@ -88,10 +87,10 @@ public class PoemBackgroundDialog extends JDialog {
         
         // Right-aligned buttons
         JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        RoundedButton okBtn = new RoundedButton("OK");
+        main.ui.buttons.RoundedButton okBtn = new main.ui.buttons.RoundedButton("OK");
         okBtn.addActionListener(e -> saveAndClose());
         
-        RoundedButton cancelBtn = new RoundedButton("Cancel");
+        main.ui.buttons.RoundedButton cancelBtn = new main.ui.buttons.RoundedButton("Cancel");
         cancelBtn.addActionListener(e -> dispose());
         
         rightButtonPanel.add(okBtn);
@@ -189,9 +188,17 @@ public class PoemBackgroundDialog extends JDialog {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             
-            // Draw white background (default for poems)
-            g2d.setColor(Color.WHITE);
-            g2d.fillRect(0, 0, w, h);
+            // Draw checkered background (transparency pattern)
+            int size = 10;
+            boolean white = true;
+            for (int y = 0; y < h; y += size) {
+                for (int x = 0; x < w; x += size) {
+                    g2d.setColor(white ? new Color(245, 245, 245) : new Color(220, 220, 220));
+                    g2d.fillRect(x, y, size, size);
+                    white = !white;
+                }
+                if ((w / size) % 2 == 0) white = !white;
+            }
             
             // Calculate image dimensions to maintain aspect ratio
             int imgW = w;
@@ -222,7 +229,7 @@ public class PoemBackgroundDialog extends JDialog {
             previewLabel.setText("");
         } else {
             previewLabel.setIcon(null);
-            previewLabel.setText("White background (default)");
+            previewLabel.setText("No background selected");
             previewLabel.setForeground(Color.GRAY);
         }
     }
@@ -236,8 +243,8 @@ public class PoemBackgroundDialog extends JDialog {
     
     private void saveAndClose() {
         SettingsStore settings = SettingsStore.get();
-        settings.setPoemBackgroundImage(selectedImagePath);
-        settings.setPoemBackgroundOpacity(currentOpacity);
+        settings.setEntryBackgroundImage(selectedImagePath);
+        settings.setEntryBackgroundOpacity(currentOpacity);
         settings.save();
         dispose();
     }

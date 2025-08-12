@@ -1,10 +1,11 @@
-package main.ui.dialog;
+package main.ui.dialog.utils;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import javax.swing.*;
 import main.ui.buttons.RoundedButton;
+import main.ui.dialog.config.BreathingConfigDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.widgets.BreathingWidget;

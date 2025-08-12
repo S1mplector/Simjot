@@ -8,13 +8,14 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.monitoring.AppPerf;
 import main.transitions.FadingButton;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.components.AeroScrollBarUI;
 import main.ui.components.ModernCheckBoxUI;
 import main.ui.components.ModernComboBoxUI;
 import main.ui.components.ModernSpinnerUI;
-import main.ui.dialog.CustomMessageDialog;
+import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -256,7 +257,7 @@ public class SettingsPanel extends JPanel {
                     }
                     @Override protected void done(){
                         backupNowBtn.setEnabled(true);
-                        try { main.ui.dialog.CustomMessageDialog.display(GeneralPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
+                        try { main.ui.dialog.message.CustomMessageDialog.display(GeneralPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
                     }
                 }.execute();
             });

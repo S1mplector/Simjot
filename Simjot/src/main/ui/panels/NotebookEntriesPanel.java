@@ -13,12 +13,12 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import main.infrastructure.backup.NotebookInfo;
-import main.ui.JournalApp;
+import main.ui.app.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.AeroTextField;
 import main.ui.components.ModernComboBoxUI;
-import main.ui.dialog.CustomConfirmDialog;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
 
 public class NotebookEntriesPanel extends JPanel {
     private final JournalApp app;
