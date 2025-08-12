@@ -490,7 +490,7 @@ public class JournalApp extends JFrame {
                 @Override protected void done() {
                     // Create the main window; keep splash until ANY app window shows AND min duration elapsed
                     new JournalApp();
-                    final int minMs = 900; // minimum splash time
+                    final int minMs = 2000; // minimum splash time
                     javax.swing.Timer wait = new javax.swing.Timer(40, ev -> {
                         java.awt.Window[] wins = java.awt.Window.getWindows();
                         boolean otherVisible = false;
