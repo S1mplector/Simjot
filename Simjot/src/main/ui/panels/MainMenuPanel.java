@@ -444,6 +444,28 @@ public class MainMenuPanel extends JPanel {
 
         add(layeredPane, BorderLayout.CENTER);
         add(southPanel, BorderLayout.SOUTH);
+
+        // Quick Settings: install middle-click overlay with animated orbs (encapsulated in new classes)
+        main.ui.quicksettings.QuickSettingsController.install(layeredPane, new main.ui.quicksettings.QuickSettingsController.HostApi() {
+            @Override
+            public java.awt.Window getWindow() {
+                return SwingUtilities.getWindowAncestor(MainMenuPanel.this);
+            }
+
+            @Override
+            public void setWidgetsPanelVisible(boolean visible) {
+                if (widgetPanel != null) {
+                    widgetPanel.setVisible(visible);
+                    layeredPane.revalidate();
+                    layeredPane.repaint();
+                }
+            }
+
+            @Override
+            public boolean isWidgetsPanelVisible() {
+                return widgetPanel != null && widgetPanel.isVisible();
+            }
+        });
     }
 
     // Debounced resize handler to clamp the draggable widget after resizing settles
