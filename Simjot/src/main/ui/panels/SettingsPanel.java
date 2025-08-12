@@ -256,7 +256,7 @@ public class SettingsPanel extends JPanel {
                     }
                     @Override protected void done(){
                         backupNowBtn.setEnabled(true);
-                        try { javax.swing.JOptionPane.showMessageDialog(GeneralPage.this, "Backup completed.", "Backup", javax.swing.JOptionPane.INFORMATION_MESSAGE); } catch (Throwable ignored) {}
+                        try { main.dialog.CustomMessageDialog.display(GeneralPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
                     }
                 }.execute();
             });

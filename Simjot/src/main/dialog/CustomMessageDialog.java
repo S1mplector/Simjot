@@ -5,6 +5,7 @@ import javax.swing.*;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.panels.RoundedPanel;
+import main.ui.theme.aero.AeroTheme;
 
 public class CustomMessageDialog extends JDialog {
 
@@ -22,7 +23,7 @@ public class CustomMessageDialog extends JDialog {
 
         JLabel messageLabel = new JLabel("<html><body style='text-align: center;'>" + message + "</body></html>", SwingConstants.CENTER);
         messageLabel.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        messageLabel.setForeground(Color.WHITE);
+        messageLabel.setForeground(AeroTheme.TEXT_PRIMARY);
         mainPanel.add(messageLabel, BorderLayout.CENTER);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));

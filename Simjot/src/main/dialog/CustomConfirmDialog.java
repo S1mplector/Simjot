@@ -5,6 +5,7 @@ import javax.swing.*;
 import main.ui.JournalApp;
 import main.ui.panels.RoundedPanel;
 import main.ui.buttons.RoundedButton;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Modern translucent confirm dialog with Yes / No buttons matching style of other custom dialogs.
@@ -26,7 +27,7 @@ public class CustomConfirmDialog extends JDialog {
 
         JLabel lbl = new JLabel("<html><body style='text-align:center;'>"+message+"</body></html>", SwingConstants.CENTER);
         lbl.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        lbl.setForeground(Color.BLACK);
+        lbl.setForeground(AeroTheme.TEXT_PRIMARY);
         panel.add(lbl, BorderLayout.CENTER);
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0));

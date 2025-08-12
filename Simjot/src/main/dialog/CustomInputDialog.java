@@ -5,6 +5,7 @@ import javax.swing.*;
 import main.transitions.FadingButton;
 import main.ui.JournalApp;
 import main.ui.panels.RoundedPanel;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Simple modern input dialog with translucent rounded panel, OK / Cancel buttons.
@@ -26,7 +27,7 @@ public class CustomInputDialog extends JDialog {
 
         JLabel lbl = new JLabel("<html><body style='text-align:center;'>"+message+"</body></html>", SwingConstants.CENTER);
         lbl.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        lbl.setForeground(Color.WHITE);
+        lbl.setForeground(AeroTheme.TEXT_PRIMARY);
         panel.add(lbl, BorderLayout.NORTH);
 
         JTextField field = new JTextField(initial==null?"":initial, 20);
