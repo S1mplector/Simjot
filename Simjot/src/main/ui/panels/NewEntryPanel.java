@@ -13,8 +13,6 @@ import javax.swing.text.Document;
 import javax.swing.text.StyledEditorKit;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
-import main.dialog.CustomMessageDialog;
-import main.dialog.EntryBackgroundDialog;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.JournalApp;
@@ -23,6 +21,8 @@ import main.ui.buttons.RoundedToggleButton;
 import main.ui.buttons.ToolbarIconButton;
 import main.ui.components.AnimatedGlassPopup;
 import main.ui.components.MoodSlider;
+import main.ui.dialog.CustomMessageDialog;
+import main.ui.dialog.EntryBackgroundDialog;
 import main.ui.theme.aero.AeroTheme;
 import main.util.UndoRedoManager;
 

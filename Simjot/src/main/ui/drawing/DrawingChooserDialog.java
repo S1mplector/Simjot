@@ -83,7 +83,7 @@ public class DrawingChooserDialog extends JDialog {
         del.addActionListener(e->{
             File f=list.getSelectedValue();
             if(f==null) return;
-            boolean ok = main.dialog.CustomConfirmDialog.confirm(this, "Delete Drawing", "Delete '"+f.getName()+"'?" );
+            boolean ok = main.ui.dialog.CustomConfirmDialog.confirm(this, "Delete Drawing", "Delete '"+f.getName()+"'?" );
             if(ok){
                 File thumb = new File(f.getAbsolutePath().replace(".mydraw",".png"));
                 f.delete(); if(thumb.exists()) thumb.delete();

@@ -1,14 +1,13 @@
-package main.dialog;
+package main.ui.dialog;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import main.ui.widgets.BreathingWidget;
+import javax.swing.*;
 import main.ui.buttons.RoundedButton;
-import main.ui.panels.RoundedPanel;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.widgets.BreathingWidget;
 
 /**
  * Dedicated window for the breathing exercise with controls

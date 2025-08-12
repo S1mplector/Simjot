@@ -11,12 +11,12 @@ import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
 import main.core.service.SettingsStore;
-import main.dialog.CustomMessageDialog;
-import main.dialog.PoemBackgroundDialog;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.JournalApp;
 import main.ui.buttons.RoundedButton;
 import main.ui.buttons.ToolbarIconButton;
+import main.ui.dialog.CustomMessageDialog;
+import main.ui.dialog.PoemBackgroundDialog;
 
 public class PoemPanel extends JPanel {
     protected CardLayout cardLayout;

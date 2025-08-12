@@ -729,7 +729,7 @@ public class MainMenuPanel extends JPanel {
                 btn.addActionListener(e -> {
                     if (name.equals("Breathing")) {
                         // First show our custom confirmation dialog
-                        boolean startBreathing = main.dialog.CustomConfirmDialog.confirm(
+                        boolean startBreathing = main.ui.dialog.CustomConfirmDialog.confirm(
                                 MainMenuPanel.this,
                                 "Breathing Exercise",
                                 "Would you like to start a guided breathing exercise?\n\nThis will display a calming animation overlay."
@@ -737,14 +737,14 @@ public class MainMenuPanel extends JPanel {
 
                         if (startBreathing) {
                             // Show configuration dialog for breathing widget
-                            main.dialog.BreathingConfigDialog dialog
-                                    = new main.dialog.BreathingConfigDialog((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
+                            main.ui.dialog.BreathingConfigDialog dialog
+                                    = new main.ui.dialog.BreathingConfigDialog((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
                             dialog.setVisible(true);
 
                             if (dialog.isConfirmed()) {
                                 // Open breathing exercise in its own window
-                                main.dialog.BreathingExerciseWindow exerciseWindow
-                                        = new main.dialog.BreathingExerciseWindow((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
+                                main.ui.dialog.BreathingExerciseWindow exerciseWindow
+                                        = new main.ui.dialog.BreathingExerciseWindow((JFrame) SwingUtilities.getWindowAncestor(MainMenuPanel.this));
                                 exerciseWindow.startExercise(
                                         dialog.getInhaleTime(),
                                         dialog.getHold1Time(),

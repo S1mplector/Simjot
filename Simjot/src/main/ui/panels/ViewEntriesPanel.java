@@ -8,10 +8,10 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import javax.swing.*;
-import main.dialog.CustomConfirmDialog;
-import main.dialog.CustomMessageDialog;
 import main.infrastructure.io.AppDirectories;
 import main.ui.JournalApp;
+import main.ui.dialog.CustomConfirmDialog;
+import main.ui.dialog.CustomMessageDialog;
 
 public class ViewEntriesPanel extends JPanel {
     private CardLayout cardLayout;

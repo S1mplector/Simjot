@@ -13,11 +13,11 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import main.core.service.SettingsStore;
-import main.dialog.CustomInputDialog;
-import main.dialog.CustomMessageDialog;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.JournalApp;
+import main.ui.dialog.CustomInputDialog;
+import main.ui.dialog.CustomMessageDialog;
 import main.ui.drawing.DrawingChooserDialog;
 
 /**
