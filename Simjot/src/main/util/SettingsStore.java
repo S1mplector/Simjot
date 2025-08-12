@@ -35,6 +35,9 @@ public final class SettingsStore {
     private static final String KEY_SHOW_WIDGET_OPTIONS = "showWidgetOptions";
     private static final String KEY_UI_SCALE = "uiScale";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
+    // Widgets
+    private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
+    private static final String KEY_WIDGET_ENABLED_PREFIX = "widget.enabled.";
     // General extensions
     private static final String KEY_DATE_FORMAT = "dateFormat";
     private static final String KEY_OPEN_LAST = "openLastOnStartup";
@@ -65,6 +68,7 @@ public final class SettingsStore {
     private static final boolean DEF_SHOW_WIDGET_OPTIONS = true;
     private static final float DEF_UI_SCALE = 1.0f;
     private static final boolean DEF_LOW_POWER_MODE = false;
+    private static final boolean DEF_WIDGET_PANEL_VISIBLE = true;
     private static final String  DEF_DATE_FORMAT = "yyyy-MM-dd";
     private static final boolean DEF_OPEN_LAST = false;
     private static final boolean DEF_SPELLCHECK = false;
@@ -255,5 +259,22 @@ public final class SettingsStore {
     }
     public void setLastBackupEpochMillis(long epoch) {
         props.setProperty(KEY_LAST_BACKUP_EPOCH, String.valueOf(Math.max(0L, epoch)));
+    }
+
+    // --- Widgets persistence ---
+    public boolean isWidgetPanelVisible(){
+        return Boolean.parseBoolean(props.getProperty(KEY_WIDGET_PANEL_VISIBLE, String.valueOf(DEF_WIDGET_PANEL_VISIBLE)));
+    }
+    public void setWidgetPanelVisible(boolean visible){
+        props.setProperty(KEY_WIDGET_PANEL_VISIBLE, String.valueOf(visible));
+    }
+
+    public boolean isWidgetEnabled(String name){
+        if (name == null) return true;
+        return Boolean.parseBoolean(props.getProperty(KEY_WIDGET_ENABLED_PREFIX + name, String.valueOf(true)));
+    }
+    public void setWidgetEnabled(String name, boolean enabled){
+        if (name == null) return;
+        props.setProperty(KEY_WIDGET_ENABLED_PREFIX + name, String.valueOf(enabled));
     }
 }

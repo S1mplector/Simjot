@@ -201,6 +201,14 @@ public class MainMenuPanel extends JPanel {
 
         // -------- Widgets registration (centralized) ---------
         widgetManager.initializeDefault(app);
+        // Apply persisted per-widget enabled states
+        try {
+            java.util.Map<String, main.ui.widgets.Widget> all = widgetManager.getAll();
+            for (java.util.Map.Entry<String, main.ui.widgets.Widget> e : all.entrySet()) {
+                boolean enabled = SettingsStore.get().isWidgetEnabled(e.getKey());
+                e.getValue().setEnabled(enabled);
+            }
+        } catch (Exception ignored) { }
 
         // Add header and clock.
         HeaderPanel header = new HeaderPanel();
@@ -459,11 +467,14 @@ public class MainMenuPanel extends JPanel {
                     layeredPane.revalidate();
                     layeredPane.repaint();
                 }
+                // Persist
+                SettingsStore.get().setWidgetPanelVisible(visible);
+                SettingsStore.get().save();
             }
 
             @Override
             public boolean isWidgetsPanelVisible() {
-                return widgetPanel != null && widgetPanel.isVisible();
+                return SettingsStore.get().isWidgetPanelVisible();
             }
 
             @Override
@@ -477,8 +488,16 @@ public class MainMenuPanel extends JPanel {
 
             @Override
             public boolean isWidgetEnabled(String name) {
+                // Prefer persisted state; fall back to runtime if absent
+                boolean persisted = SettingsStore.get().isWidgetEnabled(name);
                 main.ui.widgets.Widget w = widgetManager.get(name);
-                return w != null && w.isEnabled();
+                if (w != null) {
+                    // Keep widget runtime state in sync with persisted
+                    if (w.isEnabled() != persisted) {
+                        w.setEnabled(persisted);
+                    }
+                }
+                return persisted;
             }
 
             @Override
@@ -487,6 +506,9 @@ public class MainMenuPanel extends JPanel {
                 if (w != null) {
                     w.setEnabled(enabled);
                 }
+                // Persist
+                SettingsStore.get().setWidgetEnabled(name, enabled);
+                SettingsStore.get().save();
             }
         });
     }
@@ -935,8 +957,8 @@ public class MainMenuPanel extends JPanel {
 
     public void updateWidgetPanelVisibility() {
         if (widgetPanel != null) {
-            // Always show widgets panel; no longer controlled by a setting
-            widgetPanel.setVisible(true);
+            boolean visible = SettingsStore.get().isWidgetPanelVisible();
+            widgetPanel.setVisible(visible);
         }
     }
 
@@ -945,7 +967,9 @@ public class MainMenuPanel extends JPanel {
         if (widgetPanel != null && layeredPane != null) {
             layeredPane.setLayer(widgetPanel, JLayeredPane.DRAG_LAYER);
             layeredPane.moveToFront(widgetPanel);
-            widgetPanel.setVisible(true);
+            // Respect persisted visibility
+            boolean visible = SettingsStore.get().isWidgetPanelVisible();
+            widgetPanel.setVisible(visible);
 
             // Clamp position to be on-screen
             Dimension parentSize = layeredPane.getSize();
