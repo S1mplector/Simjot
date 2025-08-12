@@ -14,6 +14,9 @@ import main.ui.components.ModernSpinnerUI;
 import main.util.AppDirectories;
 import main.util.SettingsStore;
 import main.util.AppPerf;
+import main.ui.components.AeroScrollBarUI;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 public class SettingsPanel extends JPanel {
 
@@ -27,10 +30,18 @@ public class SettingsPanel extends JPanel {
     public SettingsPanel(JournalApp app, CardLayout parentLayout, JPanel parentCardPanel) {
         this.app = app;
         setLayout(new BorderLayout());
+        setOpaque(true);
+        setBackground(Color.WHITE);
+        setFont(AeroTheme.defaultFont());
         buildSidebar();
         buildPages();
         add(buildSouthBar(), BorderLayout.SOUTH);
         setPreferredSize(new Dimension(600,400));
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g); // plain white background (no gradients)
     }
 
     private void buildSidebar(){
@@ -43,7 +54,7 @@ public class SettingsPanel extends JPanel {
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setSelectedIndex(0);
         sectionList.setFixedCellWidth(160);
-        sectionList.setBackground(new Color(245,245,245));
+        sectionList.setOpaque(false);
         sectionList.setCellRenderer(new SidebarCellRenderer());
         sectionList.setBorder(BorderFactory.createEmptyBorder());
         sectionList.addListSelectionListener(e->{
@@ -52,7 +63,14 @@ public class SettingsPanel extends JPanel {
                 cardLayout.show(cardsPanel, key);
             }
         });
-        add(new JScrollPane(sectionList), BorderLayout.WEST);
+        JScrollPane sp = new JScrollPane(sectionList);
+        sp.setBorder(BorderFactory.createEmptyBorder());
+        sp.setOpaque(false);
+        sp.getViewport().setOpaque(false);
+        if (sp.getVerticalScrollBar() != null) {
+            sp.getVerticalScrollBar().setUI(new AeroScrollBarUI());
+        }
+        add(sp, BorderLayout.WEST);
     }
 
     private void buildPages(){
@@ -73,23 +91,28 @@ public class SettingsPanel extends JPanel {
 
         addPage("About", new PlaceholderPage("Simjot v1.0\nCreated by Ilgaz with ❤️"));
 
+        cardsPanel.setOpaque(true);
+        cardsPanel.setBackground(Color.WHITE);
         add(cardsPanel, BorderLayout.CENTER);
         cardLayout.show(cardsPanel, "General");
     }
 
     private JPanel buildSouthBar(){
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel chrome = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        chrome.setOpaque(true);
+        chrome.setBackground(Color.WHITE);
         RoundedButton cancel = new RoundedButton("Cancel");
         cancel.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
         RoundedButton save = new RoundedButton("Save");
         save.addActionListener(e-> saveAll());
-        south.add(cancel);
-        south.add(save);
-        return south;
+        chrome.add(cancel);
+        chrome.add(save);
+        return chrome;
     }
 
     private void addPage(String name, SettingsPage page){
         pages.put(name, page);
+        // Add page directly; main area remains plain white
         cardsPanel.add(page.getComponent(), name);
     }
 
@@ -115,12 +138,15 @@ public class SettingsPanel extends JPanel {
     private static class PlaceholderPage extends JPanel implements SettingsPage{
         public PlaceholderPage(String msg){
             setLayout(new BorderLayout());
+            setOpaque(true);
             setBackground(Color.WHITE);
-            JLabel lab=new JLabel("<html><div style='text-align:center;'>"+msg+"</div></html>",SwingConstants.CENTER);
+            JLabel lab=new JLabel("<html><div style='text-align:center'>"+msg+"</div></html>",SwingConstants.CENTER);
+            lab.setForeground(AeroTheme.TEXT_PRIMARY);
+            lab.setFont(AeroTheme.defaultFont());
             add(lab, BorderLayout.CENTER);
         }
-        public JComponent getComponent(){ return this; }
-        public void apply(){}
+        @Override public JComponent getComponent(){ return this; }
+        @Override public void apply(){}
     }
 
     // ---- General ----
@@ -131,6 +157,7 @@ public class SettingsPanel extends JPanel {
         private final JSpinner uiScaleSpinner;
         GeneralPage(){
             setLayout(new GridBagLayout());
+            setOpaque(true);
             setBackground(Color.WHITE);
             GridBagConstraints gc = new GridBagConstraints();
             gc.insets=new Insets(5,5,5,5);
@@ -143,16 +170,16 @@ public class SettingsPanel extends JPanel {
             poemFont = new JSpinner(new SpinnerNumberModel(store.getPoemFontSize(), 8, 72, 1));
             poemFont.setUI(new ModernSpinnerUI());
 
-            gc.gridx=0; gc.gridy=0; add(new JLabel("Journal font size:"), gc);
+            gc.gridx=0; gc.gridy=0; add(label("Journal font size:"), gc);
             gc.gridx=1; add(journalFont, gc);
 
-            gc.gridx=0; gc.gridy=1; add(new JLabel("Poem font size:"), gc);
+            gc.gridx=0; gc.gridy=1; add(label("Poem font size:"), gc);
             gc.gridx=1; add(poemFont, gc);
 
             autosaveSpin = new JSpinner(new SpinnerNumberModel(SettingsStore.get().getAutosaveMinutes(),0,120,5));
             autosaveSpin.setUI(new ModernSpinnerUI());
             ((JSpinner.DefaultEditor)autosaveSpin.getEditor()).getTextField().setColumns(3);
-            gc.gridx=0; gc.gridy=2; add(new JLabel("Autosave interval (min):"),gc);
+            gc.gridx=0; gc.gridy=2; add(label("Autosave interval (min):"),gc);
             gc.gridx=1; add(autosaveSpin,gc);
 
             // UI Scale spinner with custom step size
@@ -161,7 +188,7 @@ public class SettingsPanel extends JPanel {
             uiScaleSpinner.setUI(new ModernSpinnerUI());
             JSpinner.NumberEditor editor = new JSpinner.NumberEditor(uiScaleSpinner, "0.00");
             uiScaleSpinner.setEditor(editor);
-            gc.gridx=0; gc.gridy=3; add(new JLabel("UI Scale:"),gc);
+            gc.gridx=0; gc.gridy=3; add(label("UI Scale:"),gc);
             gc.gridx=1; add(uiScaleSpinner,gc);
             
             // Add a detailed note about UI scale changes
@@ -170,8 +197,8 @@ public class SettingsPanel extends JPanel {
             gc.gridx=0; gc.gridy=4; gc.gridwidth=2;
             add(noteLabel,gc);
         }
-        public JComponent getComponent(){ return this; }
-        public void apply(){
+        @Override public JComponent getComponent(){ return this; }
+        @Override public void apply(){
             SettingsStore store = SettingsStore.get();
             int jf = (Integer) journalFont.getValue();
             store.setJournalFontSize(jf);
@@ -198,6 +225,7 @@ public class SettingsPanel extends JPanel {
 
         AppearancePage(){
             setLayout(new GridBagLayout());
+            setOpaque(true);
             setBackground(Color.WHITE);
             GridBagConstraints gc = new GridBagConstraints();
             gc.insets=new Insets(5,5,5,5);
@@ -212,30 +240,30 @@ public class SettingsPanel extends JPanel {
 
             glowChk = new JCheckBox("Enable button glow", store.isGlowEnabled());
             glowChk.setUI(new ModernCheckBoxUI());
-            glowChk.setBackground(Color.WHITE);
+            glowChk.setBackground(new Color(0,0,0,0));
 
             disableAnimationsChk = new JCheckBox("Disable UI animations", store.isAnimationsDisabled());
             disableAnimationsChk.setUI(new ModernCheckBoxUI());
-            disableAnimationsChk.setBackground(Color.WHITE);
+            disableAnimationsChk.setBackground(new Color(0,0,0,0));
 
             lowPowerChk = new JCheckBox("Low Power Mode (battery saver)", store.isLowPowerMode());
             lowPowerChk.setUI(new ModernCheckBoxUI());
-            lowPowerChk.setBackground(Color.WHITE);
+            lowPowerChk.setBackground(new Color(0,0,0,0));
 
             // Single background options button
             backgroundOptionsBtn = new RoundedButton("Background Options");
             backgroundOptionsBtn.addActionListener(e->openBackgroundOptions());
             
-            gc.gridx=0; gc.gridy=0; add(new JLabel("Background:"), gc);
+            gc.gridx=0; gc.gridy=0; add(label("Background:"), gc);
             gc.gridx=1; add(backgroundOptionsBtn, gc);
-            gc.gridx=0; gc.gridy=1; add(new JLabel("Theme:"), gc);
+            gc.gridx=0; gc.gridy=1; add(label("Theme:"), gc);
             gc.gridx=1; add(themeBox, gc);
             gc.gridx=0; gc.gridy=2; gc.gridwidth=2; add(glowChk, gc);
             gc.gridx=0; gc.gridy=3; gc.gridwidth=2; add(disableAnimationsChk, gc);
             gc.gridx=0; gc.gridy=4; gc.gridwidth=2; add(lowPowerChk, gc);
         }
-        public JComponent getComponent(){ return this; }
-        public void apply(){
+        @Override public JComponent getComponent(){ return this; }
+        @Override public void apply(){
             SettingsStore store = SettingsStore.get();
             String theme = (String) themeBox.getSelectedItem();
             store.setTheme(theme);
@@ -277,16 +305,16 @@ public class SettingsPanel extends JPanel {
             smoothing.setUI(new ModernCheckBoxUI());
             thumbnails= new JCheckBox("Generate thumbnails on save", st.isThumbnailGeneration());
             thumbnails.setUI(new ModernCheckBoxUI());
-            smoothing.setBackground(Color.WHITE);
-            thumbnails.setBackground(Color.WHITE);
+            smoothing.setBackground(new Color(0,0,0,0));
+            thumbnails.setBackground(new Color(0,0,0,0));
 
-            gc.gridx=0;gc.gridy=0;add(new JLabel("Default brush size:"),gc);
+            gc.gridx=0;gc.gridy=0;add(label("Default brush size:"),gc);
             gc.gridx=1;add(brushSize,gc);
             gc.gridx=0;gc.gridy=1;gc.gridwidth=2;add(smoothing,gc);
             gc.gridy=2;add(thumbnails,gc);
         }
-        public JComponent getComponent(){return this;}
-        public void apply(){
+        @Override public JComponent getComponent(){return this;}
+        @Override public void apply(){
             SettingsStore st=SettingsStore.get();
             st.setDefaultBrushSize((Integer)brushSize.getValue());
             st.setSmoothingEnabled(smoothing.isSelected());
@@ -300,6 +328,7 @@ public class SettingsPanel extends JPanel {
         private final RoundedButton clearThumbsBtn;
         StoragePage(){
             setLayout(new BoxLayout(this,BoxLayout.Y_AXIS));
+            setOpaque(true);
             setBackground(Color.WHITE);
             add(new JLabel("Simjot root folder:"));
             pathLbl=new JLabel(AppDirectories.getRoot().getAbsolutePath());
@@ -318,8 +347,8 @@ public class SettingsPanel extends JPanel {
             clearThumbsBtn.addActionListener(e->clearThumbs());
             add(clearThumbsBtn);
         }
-        public JComponent getComponent(){return this;}
-        public void apply(){}
+        @Override public JComponent getComponent(){return this;}
+        @Override public void apply(){}
 
         private void clearThumbs(){
             java.io.File dir = AppDirectories.folder(AppDirectories.Type.DRAWINGS);
@@ -333,15 +362,44 @@ public class SettingsPanel extends JPanel {
     // --- Modern sidebar renderer ----
     private static class SidebarCellRenderer extends JPanel implements ListCellRenderer<String>{
         private final JLabel lbl = new JLabel();
-        SidebarCellRenderer(){ setLayout(new FlowLayout(FlowLayout.LEFT,8,8)); setOpaque(true); add(lbl); }
+        private boolean selected;
+        SidebarCellRenderer(){
+            setLayout(new FlowLayout(FlowLayout.LEFT,8,8));
+            setOpaque(false);
+            lbl.setFont(AeroTheme.defaultFont().deriveFont(14f));
+            add(lbl);
+        }
         @Override public Component getListCellRendererComponent(JList<? extends String> list, String value,int idx,boolean sel,boolean focus){
+            this.selected = sel;
             lbl.setText(value);
-            lbl.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            lbl.setForeground(sel?Color.WHITE:Color.DARK_GRAY);
-            setBackground(sel?new Color(0,120,215):new Color(245,245,245));
+            lbl.setForeground(AeroTheme.TEXT_PRIMARY); // keep text dark even when selected
             setPreferredSize(new Dimension(list.getFixedCellWidth(),40));
             return this;
         }
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            if (selected) {
+                Rectangle r = new Rectangle(4, 4, getWidth()-8, getHeight()-8);
+                Color top = new Color(240,248,255,230); // light azure
+                Color bottom = new Color(221,236,248,230);
+                AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
+                AeroPainters.paintGlassOverlay(g2, r, 10);
+                g2.setColor(new Color(0,0,0,40));
+                g2.drawRoundRect(r.x, r.y, r.width-1, r.height-1, 10, 10);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    // Convenience label styled for Aero theme
+    private JLabel label(String text){
+        JLabel l = new JLabel(text);
+        l.setFont(AeroTheme.defaultFont());
+        l.setForeground(AeroTheme.TEXT_PRIMARY);
+        return l;
     }
     
 
