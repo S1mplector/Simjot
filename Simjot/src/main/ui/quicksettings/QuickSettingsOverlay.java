@@ -23,17 +23,18 @@ public class QuickSettingsOverlay extends JComponent {
     private final Timer timer;
 
     // Visual layout
-    private final int radius = 56; // orbit radius
-    private final float angularSpeed = (float) Math.toRadians(120); // radians/sec clockwise
+    private final int radius = 84; // increased orbit radius for more spacing
     private final int spawnIntervalMs = 220; // ms between orb spawns
-    private final int orbDiameter = 26;
+    private final int orbDiameter = 34; // larger orbs
 
     // Menu panel for the currently selected category
     private JComponent menuPanel;
     private int selectedIndex = 0;
     private boolean menuShown = false;
-
     private Rectangle menuBoundsCache = new Rectangle(0,0,0,0);
+
+    // Final layout
+    private Point[] finalPositions;
 
     public QuickSettingsOverlay(List<QuickSettingsCategory> categories, Point spawnPoint, Runnable onClose) {
         this.categories = categories;
@@ -42,6 +43,7 @@ public class QuickSettingsOverlay extends JComponent {
 
         setOpaque(false);
         setFocusable(true);
+        computeFinalLayout();
 
         // Input handling
         addMouseListener(new MouseAdapter() {
@@ -80,8 +82,11 @@ public class QuickSettingsOverlay extends JComponent {
     private void onTick() {
         long elapsed = System.currentTimeMillis() - startMillis;
 
-        // Spawn next orb if time
-        while (nextSpawnIndex < categories.size() && elapsed >= nextSpawnIndex * (long) spawnIntervalMs) {
+        // Spawn next orb strictly one-by-one: only after previous has settled
+        boolean canSpawn = nextSpawnIndex < categories.size()
+                && elapsed >= nextSpawnIndex * (long) spawnIntervalMs
+                && (nextSpawnIndex == 0 || (orbs.size() >= nextSpawnIndex && orbs.get(nextSpawnIndex - 1).isSettled()));
+        if (canSpawn) {
             orbs.add(new Orb(nextSpawnIndex));
             nextSpawnIndex++;
         }
@@ -92,8 +97,8 @@ public class QuickSettingsOverlay extends JComponent {
             o.update(dt);
         }
 
-        // Show menu after all spawned (small delay for polish)
-        if (!menuShown && nextSpawnIndex >= categories.size() && elapsed > categories.size() * (long) spawnIntervalMs + 120) {
+        // After all spawned and each has finished animating to final spot, show menu
+        if (!menuShown && nextSpawnIndex >= categories.size() && allOrbsSettled()) {
             showMenuFor(selectedIndex);
         }
 
@@ -173,29 +178,63 @@ public class QuickSettingsOverlay extends JComponent {
     public void doLayout() {
         super.doLayout();
         layoutMenuPanel();
+        // Recompute final positions if needed (defensive)
+        computeFinalLayout();
     }
 
     private Point getOrbitCenter() {
         return new Point(spawnPoint.x + radius, spawnPoint.y);
     }
 
-    private class Orb {
-        private float angle = (float) Math.PI; // start at spawn point (leftmost on the circle)
-        private float alpha = 0f; // fade in
+    private void computeFinalLayout() {
+        int n = Math.max(1, categories.size());
+        finalPositions = new Point[n];
+        double step = Math.PI * 2.0 / n;
+        Point c = getOrbitCenter();
+        for (int i = 0; i < n; i++) {
+            double ang = Math.PI - i * step;
+            int x = Math.round(c.x + (float) Math.cos(ang) * radius);
+            int y = Math.round(c.y + (float) Math.sin(ang) * radius);
+            finalPositions[i] = new Point(x, y);
+        }
+    }
 
+    private boolean allOrbsSettled() {
+        if (orbs.isEmpty()) return false;
+        for (Orb o : orbs) {
+            if (!o.isSettled()) return false;
+        }
+        return true;
+    }
+
+    // removed legacy freeze method (no longer needed with direct-to-target animation)
+
+    private class Orb {
+        private float alpha = 0f; // fade in
+        private float t = 0f;     // 0..1 animation progress to final position
         private final int categoryIndex;
+        private final Point startPoint;  // spawn origin (spawnPoint)
+        private final Point targetPoint; // final spaced position for this index
+        private final float moveDuration = 0.26f; // seconds per orb move
 
         Orb(int categoryIndex) {
             this.categoryIndex = categoryIndex;
+            this.startPoint = new Point(spawnPoint);
+            this.targetPoint = finalPositions[categoryIndex];
         }
 
         void update(float dt) {
             // Fade to 1
             alpha += dt * 5f; // ~200ms
             if (alpha > 1f) alpha = 1f;
-            // Rotate clockwise => decreasing angle
-            angle -= angularSpeed * dt;
+            // Progress movement to target
+            if (t < 1f) {
+                t += dt / moveDuration;
+                if (t > 1f) t = 1f;
+            }
         }
+
+        boolean isSettled() { return t >= 1f; }
 
         Rectangle getBounds() {
             Point p = position();
@@ -203,10 +242,15 @@ public class QuickSettingsOverlay extends JComponent {
             return new Rectangle(p.x - d / 2, p.y - d / 2, d, d);
         }
 
+        private float easeOutCubic(float x) {
+            float inv = 1f - x;
+            return 1f - inv * inv * inv;
+        }
+
         Point position() {
-            Point c = getOrbitCenter();
-            int x = Math.round(c.x + (float) Math.cos(angle) * radius);
-            int y = Math.round(c.y + (float) Math.sin(angle) * radius);
+            float k = easeOutCubic(t);
+            int x = Math.round(startPoint.x + (targetPoint.x - startPoint.x) * k);
+            int y = Math.round(startPoint.y + (targetPoint.y - startPoint.y) * k);
             return new Point(x, y);
         }
 
@@ -235,7 +279,39 @@ public class QuickSettingsOverlay extends JComponent {
             g2.setPaint(new GradientPaint(x, y, new Color(255,255,255,180), x, y + d/2f, new Color(255,255,255,0)));
             g2.fillOval(x + 3, y + 3, d - 6, d - 10);
             g2.setColor(new Color(0, 70, 160, 200));
+            g2.setStroke(new BasicStroke(selected ? 2f : 1f));
             g2.drawOval(x, y, d, d);
+
+            // Icon or letter
+            javax.swing.Icon icon = categories.get(categoryIndex).getIcon();
+            if (icon != null) {
+                // Try to scale ImageIcon, otherwise center as-is
+                int pad = 8;
+                int avail = d - pad * 2;
+                if (icon instanceof ImageIcon) {
+                    Image img = ((ImageIcon) icon).getImage().getScaledInstance(avail, avail, Image.SCALE_SMOOTH);
+                    ImageIcon scaled = new ImageIcon(img);
+                    int ix = x + (d - scaled.getIconWidth()) / 2;
+                    int iy = y + (d - scaled.getIconHeight()) / 2;
+                    scaled.paintIcon(null, g2, ix, iy);
+                } else {
+                    int ix = x + (d - icon.getIconWidth()) / 2;
+                    int iy = y + (d - icon.getIconHeight()) / 2;
+                    icon.paintIcon(null, g2, ix, iy);
+                }
+            } else {
+                // Fallback: first letter
+                String letter = categories.get(categoryIndex).getName().substring(0, 1).toUpperCase();
+                Font oldF = g2.getFont();
+                Font f = oldF.deriveFont(Font.BOLD, d * 0.5f);
+                g2.setFont(f);
+                FontMetrics fm = g2.getFontMetrics();
+                int tw = fm.stringWidth(letter);
+                int th = fm.getAscent();
+                g2.setColor(new Color(255,255,255,230));
+                g2.drawString(letter, x + (d - tw) / 2, y + (d + th) / 2 - 4);
+                g2.setFont(oldF);
+            }
 
             g2.setComposite(old);
         }
