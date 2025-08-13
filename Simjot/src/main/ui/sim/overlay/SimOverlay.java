@@ -33,17 +33,17 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private double[] orbT = new double[ORB_COUNT]; // 0..1 progress per orb
     private float panelT = 0f; // 0..1 expansion of text panel
 
+    // Heart animation (reuse style from HeaderPanel but simplified: pulse scale with small spring)
+    private float heartScale = 1f;
+    private double heartPhase = 0;       // continuous phase
+    private double lastBeatValue = 0;    // for peak detection
+    private float heartSpring = 0f;      // overshoot after peak
+
     // Orb/emotion configuration
     private static final int ORB_COUNT = 5;
     private static final int ORB_RADIUS = 16; // circle radius
     private static final int ORB_RING_RADIUS = 42; // distance from center
-    private static final Color[] ORB_COLORS = new Color[]{
-            new Color(255, 214, 102), // warm happy
-            new Color(180, 180, 200), // neutral
-            new Color(120, 170, 255), // sad/blue
-            new Color(255, 115, 115), // angry/red
-            new Color(140, 220, 170)  // calm/green
-    };
+    private static final int HEART_CLEARANCE = 8; // extra spacing between heart and orbs
 
     public SimOverlay() {
         setOpaque(false);
@@ -132,6 +132,25 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             double speed = Math.PI / 120; // ~1.5 sec per rotation
             spinAngle += speed;
             if (spinAngle > Math.PI * 2) spinAngle -= Math.PI * 2;
+
+            // Heart pulse animation (cosine ease-in-out + small spring at peaks)
+            heartPhase += 0.05; // speed similar to header
+            double eased = (1 - Math.cos(heartPhase)) * 0.5; // 0..1
+            boolean justPeaked = (eased > 0.98 && lastBeatValue <= 0.98);
+            if (justPeaked) {
+                heartSpring = 0.08f; // overshoot amount
+            }
+            if (eased < 0.5) {
+                // allow next peak
+            }
+            lastBeatValue = eased;
+            if (heartSpring > 0f) {
+                heartSpring *= 0.90f; // damping
+                if (heartSpring < 0.001f) heartSpring = 0f;
+            }
+            float baseAmp = 0.06f; // subtle
+            heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + heartSpring;
+
             needsRepaint = true;
             if (needsRepaint) repaint();
         });
@@ -211,23 +230,70 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         int centerX = padding + leftW / 2;
         int centerY = h / 2 + 6; // slightly lower to balance header
 
+        // Beating heart at center of spinning orbs (reused style, simplified)
+        {
+            Graphics2D gh = (Graphics2D) g2.create();
+            gh.translate(centerX, centerY);
+            gh.scale(heartScale, heartScale);
+            Shape heart = createHeartShape();
+            Rectangle hb = heart.getBounds();
+            // Soft shadow
+            Graphics2D gShadow = (Graphics2D) gh.create();
+            gShadow.translate(0, 3);
+            gShadow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f));
+            gShadow.setColor(new Color(0,0,0,60));
+            gShadow.fill(heart);
+            gShadow.dispose();
+            // Gradient fill (bluish, matching header)
+            float cxh = hb.x + hb.width * 0.45f;
+            float cyh = hb.y + hb.height * 0.35f;
+            float rh = Math.max(hb.width, hb.height) * 0.75f;
+            RadialGradientPaint heartPaint = new RadialGradientPaint(
+                    new Point2D.Float(cxh, cyh), rh,
+                    new float[]{0f, 1f},
+                    new Color[]{new Color(153,209,255,210), new Color(0,84,153,190)}
+            );
+            gh.setPaint(heartPaint);
+            gh.fill(heart);
+            // Outline
+            gh.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            gh.setColor(new Color(255,255,255,28));
+            gh.draw(heart);
+            gh.dispose();
+        }
+
         // Draw spinning orbs in a ring with per-orb progress
         for (int i = 0; i < ORB_COUNT; i++) {
             double p = clamp01(orbT[i]);
             if (p <= 0.0) continue; // not visible yet
             double eased = easeOutCubic((float)p);
             double theta = spinAngle + (Math.PI * 2 * i / ORB_COUNT);
-            int radial = (int)Math.round(ORB_RING_RADIUS * eased);
+            int radial = (int)Math.round((ORB_RING_RADIUS + HEART_CLEARANCE) * eased);
             int ox = (int) Math.round(centerX + radial * Math.cos(theta));
             int oy = (int) Math.round(centerY + radial * Math.sin(theta));
             int d = ORB_RADIUS * 2;
             // Orb shadow/glow
             g2.setColor(new Color(0, 0, 0, (int)(40 * p)));
             g2.fillOval(ox - ORB_RADIUS, oy - ORB_RADIUS + 2, d, d);
-            // Orb body
-            g2.setColor(ORB_COLORS[i % ORB_COLORS.length]);
+            // Orb body (metallic silver gradient)
+            float gx = ox - ORB_RADIUS;
+            float gy = oy - ORB_RADIUS;
+            RadialGradientPaint metallic = new RadialGradientPaint(
+                    new Point2D.Float(gx + ORB_RADIUS * 0.6f, gy + ORB_RADIUS * 0.4f),
+                    ORB_RADIUS,
+                    new float[]{0f, 0.6f, 1f},
+                    new Color[]{
+                            new Color(255,255,255, 230), // bright specular
+                            new Color(200,200,205, 255),  // mid silver
+                            new Color(150,150,155, 255)   // edge dark
+                    }
+            );
+            Paint oldPaint = g2.getPaint();
+            g2.setPaint(metallic);
             g2.fillOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
-            g2.setColor(new Color(0, 0, 0, 90));
+            g2.setPaint(oldPaint);
+            // Thin dark edge for definition
+            g2.setColor(new Color(60, 60, 65, 160));
             g2.drawOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
             // Vector symbol centered with alpha
             Composite old = g2.getComposite();
@@ -308,6 +374,16 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         double s = 1.70158;
         double u = t - 1;
         return (float)(1 + u*u*((s + 1)*u + s));
+    }
+
+    // Heart vector path (same proportions as HeaderPanel)
+    private Shape createHeartShape() {
+        Path2D.Double path = new Path2D.Double();
+        path.moveTo(0, -14);
+        path.curveTo(-18, -35, -42, -7, 0, 22);
+        path.curveTo(42, -7, 18, -35, 0, -14);
+        path.closePath();
+        return path;
     }
 
     // Draw abstract vector symbols for emotions (index-based)
