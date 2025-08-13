@@ -153,7 +153,14 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     @Override
     public void onSpeak(String message) {
-        showMessage(message);
+        // Ensure UI updates occur on the EDT
+        SwingUtilities.invokeLater(() -> showMessage(message));
+    }
+
+    @Override
+    public void onSpeakStart() {
+        // Show a placeholder immediately so the overlay appears even if no tokens are emitted
+        SwingUtilities.invokeLater(() -> showMessage("…"));
     }
 
     /** Unsubscribe from event bus and hide overlay. */

@@ -12,6 +12,8 @@ public final class SimEventBus {
         default void onCardSwitched(String cardId) {}
         default void onMoodChanged(double value) {}
         default void onSpeak(String message) {}
+        default void onSpeakStart() {}
+        default void onSpeakEnd() {}
     }
 
     private static SimEventBus INSTANCE;
@@ -44,6 +46,14 @@ public final class SimEventBus {
     public void emitSpeak(String message){
         System.out.println("[SimBus] speak preview=\"" + preview(message) + "\"");
         for(var l:listeners) l.onSpeak(message);
+    }
+    public void emitSpeakStart(){
+        System.out.println("[SimBus] speakStart");
+        for (var l: listeners) l.onSpeakStart();
+    }
+    public void emitSpeakEnd(){
+        System.out.println("[SimBus] speakEnd");
+        for (var l: listeners) l.onSpeakEnd();
     }
 
     private static String preview(String s){

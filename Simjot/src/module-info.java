@@ -10,7 +10,8 @@ module Simjot {
 	
 	exports main.core.service;
 	exports main.core.model;
-	exports main.core.sim;
+	    // exports main.core.sim; // removed: now empty after moving SimSettings to prefs
+	exports main.core.sim.prefs;
 	exports main.core.sim.api;
 	exports main.core.sim.engine;
 	exports main.core.sim.data;

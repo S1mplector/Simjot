@@ -1,20 +1,21 @@
 package main.core.sim.engine;
 
-import java.time.Duration;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import main.core.sim.api.SimEventBus;
 import main.core.sim.data.SimDataGateway;
 import main.core.sim.llm.api.SimLLMClient;
-import main.core.sim.llm.api.SimLLMRequest;
-import main.core.sim.llm.api.SimLLMResponse;
 import main.core.sim.llm.ollama.OllamaClient;
 import main.core.sim.llm.prompt.PromptBuilder;
+import main.core.sim.memory.MemoryStore;
 import main.core.sim.persona.SimPersonality;
 import main.core.sim.prefs.SimSettings;
+import main.core.sim.state.UserState;
 
 /**
  * Core decision engine: subscribes to Sim events and emits friendly overlay messages.
@@ -25,18 +26,31 @@ public final class SimBrain implements SimEventBus.Listener {
     private final SimPersonality personality;
     private final SimDataGateway data;
 
+    // Proactive context and memory
+    private final UserState userState = new UserState();
+    private final MemoryStore memory = new MemoryStore();
+
     // Optional LLM
-    private final ExecutorService llmExec = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Sim-LLM");
-        t.setDaemon(true);
-        return t;
-    });
     private volatile SimLLMClient llm;
     private volatile long lastLlmMs = 0L;
+
+    // Streaming turn handling (cancel on typing, emit as tokens arrive)
+    private final TurnManager turns = new TurnManager();
 
     // Simple cooldowns to avoid spamming overlay
     private long lastSpeakMs = 0L;
     private long lastTypingCheckMs = 0L;
+    // Same-trigger cooldown tracking
+    private String lastTriggerKey = "";
+    private long lastTriggerMs = 0L;
+
+    // Scheduler
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "Sim-Brain-Tick");
+        t.setDaemon(true);
+        return t;
+    });
+    private ScheduledFuture<?> tickFuture;
 
     public SimBrain(SimSettings settings, SimPersonality personality, SimDataGateway data) {
         this.settings = settings;
@@ -51,11 +65,15 @@ public final class SimBrain implements SimEventBus.Listener {
                 this.llm = null;
             }
         }
+        // Start lightweight proactive evaluation loop
+        startTickLoop();
     }
 
     public void shutdown(){
         SimEventBus.get().removeListener(this);
-        try { llmExec.shutdownNow(); } catch (Throwable ignored) {}
+        try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
+        try { if (tickFuture != null) tickFuture.cancel(true); } catch (Throwable ignored) {}
+        try { scheduler.shutdownNow(); } catch (Throwable ignored) {}
     }
 
     @Override
@@ -65,6 +83,8 @@ public final class SimBrain implements SimEventBus.Listener {
             System.out.println("[SimBrain] typing ignored: settings disabled or null text");
             return;
         }
+        // Cancel any ongoing streamed response as soon as user types again
+        try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
         long now = System.currentTimeMillis();
         if (now - lastTypingCheckMs < 1000L) { // rate-limit checks
             System.out.println("[SimBrain] typing ignored: rate-limited");
@@ -79,54 +99,23 @@ public final class SimBrain implements SimEventBus.Listener {
             return;
         }
 
-        // Try LLM if enabled; otherwise fallback to heuristic
-        if (settings.isLlmEnabled()) {
-            if (llm == null) {
-                try { 
-                    llm = new OllamaClient(settings.getOllamaEndpoint(), settings.getOllamaModel()); 
-                    System.out.println("[SimBrain] LLM client created: endpoint=" + settings.getOllamaEndpoint() + ", model=" + settings.getOllamaModel());
-                } catch (Throwable ignored) {
-                    System.out.println("[SimBrain] LLM client creation failed");
-                }
-            }
-            if (llm != null && (now - lastLlmMs) >= 3_000L) { // 3s debounce, LLM-only mode
-                lastLlmMs = now;
-                final String sys = PromptBuilder.systemPrompt(personality.getType());
-                final String usr = PromptBuilder.userFromTyping(text);
-                System.out.println("[SimBrain] submitting LLM request; debounce ok");
-                llmExec.submit(() -> {
-                    try {
-                        SimLLMRequest req = new SimLLMRequest(sys, usr, 120, 0.7);
-                        long t0 = System.currentTimeMillis();
-                        SimLLMResponse resp = llm.generate(req, Duration.ofSeconds(15));
-                        long dt = System.currentTimeMillis() - t0;
-                        String out = resp == null ? "" : resp.text;
-                        System.out.println("[SimBrain] LLM response in " + dt + "ms, empty=" + (out==null || out.isBlank()));
-                        if (out != null && !out.isBlank()) {
-                            // Emit on EDT
-                            try { 
-                                System.out.println("[SimBrain] emitSpeak from LLM");
-                                SimEventBus.get().emitSpeak(out); 
-                            } catch (Throwable ignored) {
-                                System.out.println("[SimBrain] emitSpeak failed: " + ignored.getMessage());
-                            }
-                        }
-                    } catch (Exception e) {
-                        System.out.println("[SimBrain] LLM request failed: " + e);
-                        // LLM-only: do nothing on failure
-                    }
-                });
-                return;
-            }
-            // If LLM is enabled but not available or debounced, do nothing (LLM-only mode)
-            if (llm == null) System.out.println("[SimBrain] LLM is null; skipping");
-            else System.out.println("[SimBrain] LLM debounced; skipping");
+        // Update user state and episodic memory (for later summaries)
+        try { userState.onTyping(latestText); } catch (Throwable ignored) {}
+        try { memory.addEpisodic(latestText.length() > 140 ? latestText.substring(0, 140) + "…" : latestText); } catch (Throwable ignored) {}
+
+        // Crisis intent detection (self-harm / suicide). Immediate, safe response; bypass LLM.
+        if (isCrisisText(text)) {
+            System.out.println("[SimBrain] crisis intent detected; speaking immediately");
+            String msg = crisisMessage(personality.getType());
+            speakNow(msg); // bypass quiet hours and cooldowns for safety
             return;
         }
 
-        // If LLM is disabled, retain heuristic behavior
-        if (looksNegative(text)) {
-            System.out.println("[SimBrain] heuristic negative detected; speaking");
+        // Do not start LLM while user is actively typing.
+        // Proactive nudge will be evaluated in tick() after a short pause.
+        // However, if LLM is disabled, we can still use a quick heuristic nudge here.
+        if (!settings.isLlmEnabled() && looksNegative(text)) {
+            System.out.println("[SimBrain] heuristic negative detected (LLM off); speaking");
             speakOncePer(20000L, messageFor("negative"));
         }
     }
@@ -138,11 +127,11 @@ public final class SimBrain implements SimEventBus.Listener {
             System.out.println("[SimBrain] mood ignored: settings disabled");
             return;
         }
-        // Assume mood slider scale roughly 0-10; treat <=3 as low, >=8 as high
-        if (value <= 3.0) {
+        // Assume mood slider scale 0–100; treat <=20 as low, >=80 as high
+        if (value <= 20.0) {
             System.out.println("[SimBrain] low mood -> speak");
             speakOncePer(25000L, messageFor("lowMood"));
-        } else if (value >= 9.0) {
+        } else if (value >= 80.0) {
             System.out.println("[SimBrain] high mood -> speak");
             speakOncePer(30000L, messageFor("highMood"));
         }
@@ -158,6 +147,143 @@ public final class SimBrain implements SimEventBus.Listener {
     }
 
     // --- Helpers ---
+
+    private void startTickLoop() {
+        try {
+            if (tickFuture != null && !tickFuture.isCancelled()) tickFuture.cancel(true);
+        } catch (Throwable ignored) {}
+        tickFuture = scheduler.scheduleAtFixedRate(this::tick, 2, 2, TimeUnit.SECONDS);
+    }
+
+    // Periodic proactive evaluation: short pause, negative tone, repeated edits, reminders (stub)
+    private void tick() {
+        if (!settings.isEnabled()) return;
+        // Avoid overlapping with an active user turn: if just typed very recently, skip
+        long sinceType = userState.millisSinceLastTyping();
+        String last = userState.getLastText();
+        if (last == null) last = "";
+
+        String trimmed = last.trim();
+        int len = trimmed.length();
+        boolean negativeTone = looksNegative(trimmed);
+        // Trigger A: short pause while composing something substantial (1.8s)
+        boolean shortPause = sinceType >= 1800L && len >= 60;
+        // Trigger B: many shrink events (proxy for repeated corrections)
+        boolean repeatedEdits = userState.getShrinkEvents() >= 3 && len >= 30;
+        // Trigger C: negative tone with a smaller pause
+        boolean negativePause = negativeTone && sinceType >= 1200L && len >= 40;
+
+        if (!(shortPause || repeatedEdits || negativePause)) return;
+        if (isQuietHoursNow()) return;
+
+        long now = System.currentTimeMillis();
+        // Global cooldown across proactive messages
+        if (now - lastSpeakMs < 15000L) return;
+
+        // Prepare LLM if enabled; otherwise use heuristic nudge
+        if (settings.isLlmEnabled()) ensureLlm();
+
+        String trigger;
+        String triggerKey;
+        long baseCooldownMs;
+        if (negativePause) {
+            trigger = "negative tone after short pause";
+            triggerKey = "negativePause";
+            baseCooldownMs = 25000L;
+        } else if (shortPause) {
+            trigger = "short pause while typing";
+            triggerKey = "shortPause";
+            baseCooldownMs = 45000L;
+        } else { // repeatedEdits
+            trigger = "repeated corrections while typing";
+            triggerKey = "repeatedEdits";
+            baseCooldownMs = 40000L;
+        }
+
+        // Same-trigger cooldown with simple backoff tied to empty-stream streak
+        int emptyStreak = 0;
+        try { emptyStreak = turns.getEmptyNoTokenStreak(); } catch (Throwable ignored) {}
+        long sameTriggerCooldown = baseCooldownMs + Math.min(60000L, emptyStreak * 5000L);
+        if (triggerKey.equals(lastTriggerKey) && (now - lastTriggerMs) < sameTriggerCooldown) {
+            return;
+        }
+        String preview = last.length() > 200 ? last.substring(0, 199) + "…" : last;
+
+        if (llm != null) {
+            String sys = PromptBuilder.systemPromptWithContext(
+                    personality.getType(),
+                    /*moodLabel*/ null,
+                    /*moodValence*/ null,
+                    /*recentInputPreview*/ preview,
+                    /*conversationSummary*/ safeSummary(),
+                    /*triggerReason*/ trigger
+            );
+            String usr = PromptBuilder.userFromTyping(preview);
+            String preface;
+            if ("negativePause".equals(triggerKey)) {
+                preface = "Hey, I noticed your tone might be heavy—prefer a reframe or a tiny next step?";
+            } else if ("shortPause".equals(triggerKey)) {
+                preface = "Hey, I noticed you’re drafting—want a 2‑minute nudge or a quick outline?";
+            } else { // repeatedEdits
+                preface = "Hey, I saw a few rapid edits—want a suggestion or a confident checkpoint?";
+            }
+            // Heuristic reasoning lines from recent text
+            String feeling = detectFeeling(trimmed);
+            if (feeling != null && !feeling.isBlank()) {
+                preface += "\nYou said you were feeling " + feeling + ".";
+            }
+            String topic = topicSnippet(trimmed);
+            if (topic != null && !topic.isBlank()) {
+                preface += "\nWould you like to talk more about " + topic + "?";
+            }
+            // Add a brief memory hint if we have one
+            try {
+                String fact = memory.getFactsSummary(1);
+                if (fact != null && !fact.isBlank()) {
+                    preface += " You once mentioned: " + fact + ".";
+                }
+            } catch (Throwable ignored) {}
+            lastSpeakMs = now;
+            lastTriggerKey = triggerKey;
+            lastTriggerMs = now;
+            try {
+                System.out.println("[SimBrain] proactive tick -> streaming LLM due to " + trigger);
+                turns.maybeSpeakProactively(llm, sys, usr, preface);
+            } catch (Throwable ignored) {
+                System.out.println("[SimBrain] proactive turn start failed");
+            }
+        } else {
+            // Heuristic fallback
+            lastSpeakMs = now;
+            String msg = negativeTone ? messageFor("negative") : messageFor("greet");
+            try { SimEventBus.get().emitSpeak(msg); } catch (Throwable ignored) {}
+        }
+
+        // Reset edit burst counter to avoid immediate retriggering
+        userState.resetShrinkCounter();
+    }
+
+    private void ensureLlm() {
+        if (llm == null) {
+            try {
+                llm = new OllamaClient(settings.getOllamaEndpoint(), settings.getOllamaModel());
+            } catch (Throwable ignored) {
+                llm = null;
+            }
+        }
+    }
+
+    private String safeSummary() {
+        try {
+            String facts = memory.getFactsSummary(3);
+            String convo = memory.getConversationSummary();
+            if (facts.isBlank()) return convo;
+            if (convo == null || convo.isBlank()) return "Facts: " + facts;
+            return "Facts: " + facts + " | Recent: " + convo;
+        } catch (Throwable t) {
+            return "";
+        }
+    }
 
     private void speakOncePer(long minIntervalMs, String msg) {
         long now = System.currentTimeMillis();
@@ -178,13 +304,54 @@ public final class SimBrain implements SimEventBus.Listener {
         }
     }
 
+    // Bypass cooldowns and quiet hours for emergency messages only
+    private void speakNow(String msg) {
+        lastSpeakMs = System.currentTimeMillis();
+        try {
+            System.out.println("[SimBrain] emitSpeak immediate");
+            SimEventBus.get().emitSpeak(msg);
+        } catch (Throwable ignored) {
+            System.out.println("[SimBrain] emitSpeak failed: " + ignored.getMessage());
+        }
+    }
+
     private boolean looksNegative(String text) {
         String lt = text.toLowerCase();
         // Very small keyword set; can be expanded later or replaced by sentiment
-        String[] bad = {"sad", "anxious", "tired", "lonely", "failed", "hopeless", "overwhelmed", "angry", "worthless", "depressed"};
+        String[] bad = {"sad", "anxious", "tired", "lonely", "failed", "hopeless", "overwhelmed", "angry", "worthless", "depressed", "depressing", "boring", "dull", "numb", "empty"};
         int hits = 0;
         for (String k : bad) { if (lt.contains(k)) hits++; }
         return hits >= 2 || (hits == 1 && lt.contains("very"));
+    }
+
+    // Detect self-harm / suicide intent in text (simple lexical pass; improve later)
+    private boolean isCrisisText(String text) {
+        String lt = text.toLowerCase();
+        String[] crisis = {
+                "kill myself", "suicide", "end my life", "take my life",
+                "i don't want to live", "i dont want to live", "die by suicide",
+                "helium" // appears in certain self-harm contexts; keep broad
+        };
+        for (String k : crisis) {
+            if (lt.contains(k)) return true;
+        }
+        return false;
+    }
+
+    // Immediate, supportive, non-instructional crisis message
+    private String crisisMessage(SimPersonality.Type t) {
+        switch (t) {
+            case GENTLE:
+                return "I’m really sorry you’re feeling this way. Your life matters. If you can, please reach out to someone right now—" +
+                        "a close friend, family member, or a professional. If you’re in immediate danger, contact local emergency services.";
+            case PROACTIVE:
+                return "I’m deeply concerned for your safety. You’re not alone, and help is available right now. " +
+                        "Please reach out to someone you trust or a professional. If you’re in immediate danger, call local emergency services.";
+            case NEUTRAL:
+            default:
+                return "I’m sorry you’re hurting. You matter. Consider contacting someone you trust or a professional right now. " +
+                        "If you’re in immediate danger, call local emergency services.";
+        }
     }
 
     private String messageFor(String kind) {
