@@ -38,6 +38,7 @@ public class NewEntryPanel extends JPanel {
     protected JTextField titleField;
     protected JTextPane contentArea;
     protected MoodSlider moodSlider;
+    private DetailedMoodPanel detailedMoodPanel; // collapsible detailed mood panel
     private JLabel saveStatusLabel;
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
@@ -251,26 +252,32 @@ public class NewEntryPanel extends JPanel {
         expandMoodBtn.setPreferredSize(new Dimension(28, 28));
         expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
         expandMoodBtn.addActionListener(e -> {
-            Window win = SwingUtilities.getWindowAncestor(this);
-            DetailedMoodDialog dlg = new DetailedMoodDialog(win);
-            dlg.setLocationRelativeTo(this);
-            dlg.setVisible(true);
-            if (dlg.isOkPressed()) {
-                int composite = dlg.getCompositeScore(); // 0-100
-                moodSlider.setValue(composite);
-                recordMood(composite); // save immediately to mood chart data
-                // Optional feedback
-                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this),
-                        "Mood Logged",
-                        "Detailed mood saved (" + composite + ")",
-                        false).showDialog();
-            }
+            boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
+            if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
+            // flip arrow
+            expandMoodBtn.setText(next ? "\u2039" : "\u203A"); // ‹ when open, › when closed
         });
         bottomToolbar.add(expandMoodBtn);
 
-        // Add both toolbar rows to the container
+        // Stack bottom toolbar and the collapsible detailed panel vertically
+        JPanel bottomStack = new JPanel();
+        bottomStack.setOpaque(false);
+        bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
+        bottomStack.add(bottomToolbar);
+        // create detailed panel with save handler -> update mood slider and persist
+        detailedMoodPanel = new DetailedMoodPanel(composite -> {
+            moodSlider.setValue(composite);
+            recordMood(composite);
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this),
+                    "Mood Logged",
+                    "Detailed mood saved (" + composite + ")",
+                    false).showDialog();
+        });
+        bottomStack.add(detailedMoodPanel);
+
+        // Add toolbars to container
         toolbarContainer.add(topToolbar, BorderLayout.NORTH);
-        toolbarContainer.add(bottomToolbar, BorderLayout.CENTER);
+        toolbarContainer.add(bottomStack, BorderLayout.CENTER);
         toolbarContainer.add(rightToolbar, BorderLayout.EAST);
 
         add(toolbarContainer, BorderLayout.NORTH);
