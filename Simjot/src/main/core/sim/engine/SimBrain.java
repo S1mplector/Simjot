@@ -219,30 +219,11 @@ public final class SimBrain implements SimEventBus.Listener {
                     /*triggerReason*/ trigger
             );
             String usr = PromptBuilder.userFromTyping(preview);
-            String preface;
-            if ("negativePause".equals(triggerKey)) {
-                preface = "Hey, I noticed your tone might be heavy—prefer a reframe or a tiny next step?";
-            } else if ("shortPause".equals(triggerKey)) {
-                preface = "Hey, I noticed you’re drafting—want a 2‑minute nudge or a quick outline?";
-            } else { // repeatedEdits
-                preface = "Hey, I saw a few rapid edits—want a suggestion or a confident checkpoint?";
-            }
-            // Heuristic reasoning lines from recent text
-            String feeling = detectFeeling(trimmed);
-            if (feeling != null && !feeling.isBlank()) {
-                preface += "\nYou said you were feeling " + feeling + ".";
-            }
-            String topic = topicSnippet(trimmed);
-            if (topic != null && !topic.isBlank()) {
-                preface += "\nWould you like to talk more about " + topic + "?";
-            }
-            // Add a brief memory hint if we have one
+            String memoryHint = null;
             try {
-                String fact = memory.getFactsSummary(1);
-                if (fact != null && !fact.isBlank()) {
-                    preface += " You once mentioned: " + fact + ".";
-                }
+                memoryHint = memory.getFactsSummary(1);
             } catch (Throwable ignored) {}
+            String preface = NudgePrefaceBuilder.buildPreface(triggerKey, trimmed, memoryHint);
             lastSpeakMs = now;
             lastTriggerKey = triggerKey;
             lastTriggerMs = now;
@@ -330,6 +311,8 @@ public final class SimBrain implements SimEventBus.Listener {
         String[] crisis = {
                 "kill myself", "suicide", "end my life", "take my life",
                 "i don't want to live", "i dont want to live", "die by suicide",
+                "rather die", "i would rather die", "would rather die than",
+                "i'm going to die", "im going to die", "going to die",
                 "helium" // appears in certain self-harm contexts; keep broad
         };
         for (String k : crisis) {
@@ -408,4 +391,5 @@ public final class SimBrain implements SimEventBus.Listener {
             return false;
         }
     }
+
 }
