@@ -42,7 +42,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         glowChk.setUI(new ModernCheckBoxUI());
         glowChk.setBackground(new Color(0, 0, 0, 0));
 
-        disableAnimationsChk = new JCheckBox("Disable UI animations", store.isAnimationsDisabled());
+        disableAnimationsChk = new JCheckBox("Disable transition animations", store.isAnimationsDisabled());
         disableAnimationsChk.setUI(new ModernCheckBoxUI());
         disableAnimationsChk.setBackground(new Color(0, 0, 0, 0));
 

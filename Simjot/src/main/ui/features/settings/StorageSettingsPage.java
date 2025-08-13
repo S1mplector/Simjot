@@ -1,28 +1,134 @@
 package main.ui.features.settings;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.io.File;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.BasicStroke;
+import java.awt.FontMetrics;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTree;
+import javax.swing.ScrollPaneConstants;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
+import javax.swing.SwingWorker;
+import javax.swing.SwingConstants;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeSelectionModel;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.dialog.message.CustomMessageDialog;
+import javax.swing.Timer;
+import main.infrastructure.monitoring.AppPerf;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
     private final RoundedButton clearThumbsBtn;
+    private JTree dirTree;
+    private DefaultTreeModel treeModel;
+    private final Timer spinnerTimer;
+    private float spinnerAngle = 0f;
 
     StorageSettingsPage() {
-        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        setLayout(new BorderLayout());
         setOpaque(true);
         setBackground(Color.WHITE);
-        add(new JLabel("Simjot root folder:"));
+
+        // Center contents using a wrapper panel with GridBagLayout
+        JPanel centerWrapper = new JPanel(new GridBagLayout());
+        centerWrapper.setOpaque(false);
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(6, 6, 6, 6);
+        gc.fill = GridBagConstraints.NONE;
+
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
+        // Title and path (centered)
+        JLabel title = new JLabel("Simjot root folder:");
+        title.setAlignmentX(0.5f);
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+        // allow full-width so CENTER alignment is visible
+        Dimension titlePref = title.getPreferredSize();
+        title.setMaximumSize(new Dimension(Integer.MAX_VALUE, titlePref.height));
+        content.add(title);
+
         pathLbl = new JLabel(AppDirectories.getRoot().getAbsolutePath());
         pathLbl.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        add(pathLbl);
+        pathLbl.setForeground(new Color(0,0,0,150));
+        pathLbl.setAlignmentX(0.5f);
+        pathLbl.setHorizontalAlignment(SwingConstants.CENTER);
+        Dimension pathPref = pathLbl.getPreferredSize();
+        pathLbl.setMaximumSize(new Dimension(Integer.MAX_VALUE, pathPref.height));
+        content.add(Box.createVerticalStrut(4));
+        content.add(pathLbl);
+
+        content.add(Box.createVerticalStrut(12));
+
+        // Directory tree with sizes and descriptions (Aero-like glass card)
+        treeModel = buildTreeModel();
+        dirTree = new JTree(treeModel);
+        dirTree.setRootVisible(true);
+        dirTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        dirTree.setRowHeight(44);
+        dirTree.setOpaque(false);
+        dirTree.setCellRenderer(new StorageTreeCellRenderer());
+        // Expand root so all folder rows are visible
+        try { dirTree.expandRow(0); } catch (Exception ignored) {}
+
+        JScrollPane treeScroll = new JScrollPane(dirTree);
+        treeScroll.setPreferredSize(new Dimension(480, 260));
+        treeScroll.setOpaque(false);
+        treeScroll.getViewport().setOpaque(false);
+        treeScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+        treeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        JPanel glassCard = new GlassCardPanel();
+        glassCard.setLayout(new BorderLayout());
+        glassCard.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        JLabel treeTitle = new JLabel("Storage structure");
+        treeTitle.setFont(treeTitle.getFont().deriveFont(Font.BOLD));
+        JLabel treeSub = new JLabel("Folders, descriptions and sizes");
+        treeSub.setFont(treeSub.getFont().deriveFont(Font.PLAIN, 11f));
+        treeSub.setForeground(new Color(0,0,0,120));
+
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.add(treeTitle);
+        header.add(treeSub);
+        glassCard.add(header, BorderLayout.NORTH);
+        glassCard.add(treeScroll, BorderLayout.CENTER);
+        content.add(glassCard);
+        // Ensure the tree is tall enough to show all rows without scrolling
+        adjustTreeHeight(treeScroll);
+
+        content.add(Box.createVerticalStrut(12));
+
+        // Actions
+        JPanel actions = new JPanel();
+        actions.setOpaque(false);
+        actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
 
         RoundedButton openBtn = new RoundedButton("Open in Explorer");
         openBtn.addActionListener(e -> {
@@ -30,11 +136,43 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
                 Desktop.getDesktop().open(AppDirectories.getRoot());
             } catch (Exception ignored) {}
         });
-        add(openBtn);
+        actions.add(openBtn);
+        actions.add(Box.createHorizontalStrut(8));
 
         clearThumbsBtn = new RoundedButton("Clear thumbnails cache");
         clearThumbsBtn.addActionListener(e -> clearThumbs());
-        add(clearThumbsBtn);
+        actions.add(clearThumbsBtn);
+        actions.add(Box.createHorizontalStrut(8));
+
+        RoundedButton refreshBtn = new RoundedButton("Refresh sizes");
+        refreshBtn.addActionListener(e -> computeSizesAsync());
+        actions.add(refreshBtn);
+
+        RoundedButton revealBtn = new RoundedButton("Reveal selected");
+        revealBtn.addActionListener(e -> revealSelected());
+        actions.add(Box.createHorizontalStrut(8));
+        actions.add(revealBtn);
+
+        content.add(Box.createVerticalStrut(8));
+        content.add(actions);
+
+        // Interactions: double-click open, context menu
+        installTreeInteractions();
+
+        // Compute sizes asynchronously on load
+        computeSizesAsync();
+
+        // Spinner animation timer for renderer
+        spinnerTimer = new Timer(AppPerf.getAnimationDelay(), e -> {
+            spinnerAngle += 0.08f;
+            if (spinnerAngle > Math.PI * 2) spinnerAngle -= Math.PI * 2;
+            if (dirTree != null) dirTree.repaint();
+        });
+        spinnerTimer.start();
+
+        gc.gridx = 0; gc.gridy = 0;
+        centerWrapper.add(content, gc);
+        add(centerWrapper, BorderLayout.CENTER);
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -50,5 +188,370 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             }
         }
         CustomMessageDialog.display(this, "Cleanup", deleted + " thumbnails deleted.", false);
+    }
+
+    // ---- Tree helpers ----
+    private DefaultTreeModel buildTreeModel() {
+        File root = AppDirectories.getRoot();
+        StorageNode rootInfo = StorageNode.root(root);
+        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(rootInfo);
+        for (AppDirectories.Type t : AppDirectories.Type.values()) {
+            File f = AppDirectories.folder(t);
+            StorageNode info = StorageNode.leaf(t, f, t.folderName(), describe(t));
+            DefaultMutableTreeNode child = new DefaultMutableTreeNode(info);
+            rootNode.add(child);
+        }
+        return new DefaultTreeModel(rootNode);
+    }
+
+    private static String describe(AppDirectories.Type t) {
+        switch (t) {
+            case ENTRIES: return "Journal entries";
+            case POEMS: return "Poems";
+            case DRAWINGS: return "Drawings & thumbnails";
+            case MOOD_DATA: return "Mood tracking data";
+            case SETTINGS: return "App settings";
+            case TASKS: return "Tasks";
+            case WALLPAPERS: return "Wallpapers";
+            default: return t.name();
+        }
+    }
+
+    private static long folderSize(File f) {
+        if (f == null || !f.exists()) return 0L;
+        if (f.isFile()) return f.length();
+        long total = 0L;
+        File[] list = f.listFiles();
+        if (list != null) {
+            for (File c : list) {
+                total += folderSize(c);
+            }
+        }
+        return total;
+    }
+
+    private static String formatSize(long bytes) {
+        double b = bytes;
+        String[] units = {"B", "KB", "MB", "GB", "TB"};
+        int idx = 0;
+        while (b >= 1024 && idx < units.length - 1) {
+            b /= 1024.0;
+            idx++;
+        }
+        return String.format(idx == 0 ? "%.0f %s" : "%.1f %s", b, units[idx]);
+    }
+
+    // Ensure the scroll container is tall enough to show all rows without scrolling
+    private void adjustTreeHeight(JScrollPane scroll) {
+        int rows = dirTree.getRowCount();
+        int rowH = dirTree.getRowHeight() > 0 ? dirTree.getRowHeight() : 24;
+        int headerH = 40; // title + subtitle area inside glass card
+        int vPad = 16;    // inner padding of glass card
+        int contentH = rows * rowH;
+        int totalH = headerH + contentH + vPad;
+        Dimension pref = scroll.getPreferredSize();
+        Dimension newSize = new Dimension(pref.width, totalH);
+        scroll.setPreferredSize(newSize);
+        scroll.setMinimumSize(newSize);
+        dirTree.setPreferredSize(new Dimension(pref.width - 24, contentH));
+        scroll.revalidate();
+    }
+
+    // ---- Interactions & actions ----
+    private void installTreeInteractions() {
+        dirTree.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    TreePath path = dirTree.getPathForLocation(e.getX(), e.getY());
+                    if (path != null) openPath(path);
+                }
+                if (e.isPopupTrigger() || (e.getButton() == MouseEvent.BUTTON3)) {
+                    showContextMenu(e);
+                }
+            }
+            @Override public void mousePressed(MouseEvent e) { if (e.isPopupTrigger()) showContextMenu(e); }
+            @Override public void mouseReleased(MouseEvent e) { if (e.isPopupTrigger()) showContextMenu(e); }
+        });
+    }
+
+    private void showContextMenu(MouseEvent e) {
+        TreePath path = dirTree.getPathForLocation(e.getX(), e.getY());
+        if (path == null) return;
+        dirTree.setSelectionPath(path);
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem open = new JMenuItem("Open");
+        open.addActionListener(a -> openPath(path));
+        JMenuItem copy = new JMenuItem("Copy path");
+        copy.addActionListener(a -> copyPath(path));
+        menu.add(open);
+        menu.add(copy);
+        menu.show(dirTree, e.getX(), e.getY());
+    }
+
+    private void openPath(TreePath path) {
+        Object last = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+        if (!(last instanceof StorageNode)) return;
+        StorageNode n = (StorageNode) last;
+        try { Desktop.getDesktop().open(n.file); } catch (Exception ignored) {}
+    }
+
+    private void copyPath(TreePath path) {
+        Object last = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+        if (!(last instanceof StorageNode)) return;
+        StorageNode n = (StorageNode) last;
+        try {
+            java.awt.datatransfer.StringSelection ss = new java.awt.datatransfer.StringSelection(n.file.getAbsolutePath());
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(ss, null);
+        } catch (Exception ignored) {}
+    }
+
+    private void revealSelected() {
+        TreePath sel = dirTree.getSelectionPath();
+        if (sel == null) return;
+        openPath(sel);
+    }
+
+    // ---- Async sizes ----
+    private void computeSizesAsync() {
+        // Mark as loading
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) treeModel.getRoot();
+        for (int i = 0; i < root.getChildCount(); i++) {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) root.getChildAt(i);
+            Object uo = child.getUserObject();
+            if (uo instanceof StorageNode) {
+                StorageNode sn = (StorageNode) uo;
+                sn.size = null; // unknown
+                sn.loading = true;
+                treeModel.nodeChanged(child);
+            }
+        }
+
+        new SwingWorker<Void, NodeSizeUpdate>() {
+            @Override protected Void doInBackground() {
+                for (int i = 0; i < root.getChildCount(); i++) {
+                    DefaultMutableTreeNode child = (DefaultMutableTreeNode) root.getChildAt(i);
+                    Object uo = child.getUserObject();
+                    if (uo instanceof StorageNode) {
+                        StorageNode sn = (StorageNode) uo;
+                        long size = folderSize(sn.file);
+                        publish(new NodeSizeUpdate(child, size));
+                    }
+                }
+                return null;
+            }
+
+            @Override protected void process(java.util.List<NodeSizeUpdate> chunks) {
+                for (NodeSizeUpdate upd : chunks) {
+                    Object uo = ((DefaultMutableTreeNode) upd.node).getUserObject();
+                    if (uo instanceof StorageNode) {
+                        StorageNode sn = (StorageNode) uo;
+                        sn.size = upd.size;
+                        sn.loading = false;
+                        treeModel.nodeChanged(upd.node);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    private static class NodeSizeUpdate {
+        final DefaultMutableTreeNode node; final long size;
+        NodeSizeUpdate(DefaultMutableTreeNode node, long size) { this.node = node; this.size = size; }
+    }
+
+    // ---- Model ----
+    private static class StorageNode {
+        final AppDirectories.Type type; // null for root
+        final File file;
+        final String name;
+        final String description; // null for root
+        volatile Long size; // null when loading/unknown
+        volatile boolean loading;
+
+        private StorageNode(AppDirectories.Type type, File file, String name, String description, Long size, boolean loading) {
+            this.type = type; this.file = file; this.name = name; this.description = description; this.size = size; this.loading = loading;
+        }
+        static StorageNode root(File f) { return new StorageNode(null, f, f.getName(), null, null, false); }
+        static StorageNode leaf(AppDirectories.Type t, File f, String name, String desc) { return new StorageNode(t, f, name, desc, null, true); }
+        @Override public String toString() { return name; }
+    }
+
+    // ---- Renderer ----
+    private class StorageTreeCellRenderer extends JPanel implements javax.swing.tree.TreeCellRenderer {
+        private final JLabel nameLbl = new JLabel();
+        private final JLabel descLbl = new JLabel();
+        private final SizeBadgeLabel sizeLbl = new SizeBadgeLabel();
+        private final SpinnerCanvas spinner = new SpinnerCanvas();
+        private final JPanel rightPanel = new JPanel();
+        private boolean selected;
+
+        StorageTreeCellRenderer() {
+            setOpaque(false);
+            setLayout(new BorderLayout(8, 0));
+            JPanel text = new JPanel();
+            text.setOpaque(false);
+            text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+            nameLbl.setFont(nameLbl.getFont().deriveFont(Font.BOLD));
+            descLbl.setFont(descLbl.getFont().deriveFont(11f));
+            descLbl.setForeground(new Color(0,0,0,140));
+            text.add(nameLbl);
+            text.add(descLbl);
+
+            add(new IconCanvas(), BorderLayout.WEST);
+            add(text, BorderLayout.CENTER);
+            rightPanel.setOpaque(false);
+            rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.X_AXIS));
+            spinner.setAlignmentY(0.5f);
+            sizeLbl.setAlignmentY(0.5f);
+            rightPanel.add(spinner);
+            rightPanel.add(Box.createHorizontalStrut(6));
+            rightPanel.add(sizeLbl);
+            add(rightPanel, BorderLayout.EAST);
+        }
+
+        @Override
+        public java.awt.Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+            selected = sel;
+            Object uo = ((DefaultMutableTreeNode) value).getUserObject();
+            if (uo instanceof StorageNode) {
+                StorageNode n = (StorageNode) uo;
+                nameLbl.setText(n.name);
+                descLbl.setText(n.description == null ? n.file.getAbsolutePath() : n.description);
+                boolean loading = (n.size == null);
+                spinner.setVisible(loading);
+                sizeLbl.setVisible(!loading);
+                sizeLbl.setText(loading ? "" : formatSize(n.size));
+            } else {
+                nameLbl.setText(String.valueOf(value));
+                descLbl.setText("");
+                spinner.setVisible(false);
+                sizeLbl.setVisible(false);
+            }
+            return this;
+        }
+
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            if (selected) {
+                int arc = 12;
+                g2.setColor(new Color(90, 150, 255, 60));
+                g2.fillRoundRect(2, 2, getWidth()-4, getHeight()-4, arc, arc);
+                g2.setColor(new Color(90, 150, 255, 100));
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.drawRoundRect(2, 2, getWidth()-4, getHeight()-4, arc, arc);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
+
+        private static class IconCanvas extends JPanel {
+            IconCanvas() { setOpaque(false); setPreferredSize(new Dimension(28, 28)); }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int x = 2, y = 5; int fw = 20, fh = 14;
+                drawFolderIcon(g2, x, y, fw, fh, new Color(255, 204, 77));
+                g2.dispose();
+            }
+        }
+
+        private class SpinnerCanvas extends JPanel {
+            SpinnerCanvas() { setOpaque(false); setPreferredSize(new Dimension(16, 16)); }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight();
+                int r = Math.min(w, h) / 2 - 2;
+                int cx = w / 2, cy = h / 2;
+                float thickness = Math.max(2f, Math.min(w, h) * 0.18f);
+                g2.setStroke(new BasicStroke(thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                Color base = new Color(0, 120, 215);
+                g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 60));
+                g2.drawArc(cx - r, cy - r, r * 2, r * 2, 0, 360);
+                g2.setColor(base);
+                g2.drawArc(cx - r, cy - r, r * 2, r * 2, (int) Math.toDegrees(spinnerAngle), 90);
+                g2.dispose();
+            }
+        }
+    }
+
+    private static class SizeBadgeLabel extends JLabel {
+        private boolean muted;
+        private final int padX = 8;
+        private final int padY = 4;
+        void setMuted(boolean m) { this.muted = m; repaint(); }
+        @Override public boolean isOpaque() { return false; }
+        @Override public Dimension getPreferredSize() {
+            String text = getText();
+            if (text == null || text.isEmpty()) return new Dimension(0, 0);
+            FontMetrics fm = getFontMetrics(getFont());
+            int w = fm.stringWidth(text) + padX * 2;
+            int h = fm.getAscent() + fm.getDescent() + padY * 2;
+            return new Dimension(w, h);
+        }
+        @Override public Dimension getMaximumSize() { return getPreferredSize(); }
+        @Override protected void paintComponent(Graphics g) {
+            String text = getText();
+            if (text == null || text.isEmpty()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            FontMetrics fm = getFontMetrics(getFont());
+            int w = fm.stringWidth(text) + padX * 2;
+            int h = fm.getAscent() + fm.getDescent() + padY * 2;
+            int x = 0;
+            int y = Math.max(0, (getHeight() - h) / 2);
+            int arc = h;
+            Color bg = muted ? new Color(0,0,0,20) : new Color(0,0,0,35);
+            Color fg = new Color(0,0,0,180);
+            g2.setColor(bg);
+            g2.fillRoundRect(x, y, w, h, arc, arc);
+            g2.setColor(fg);
+            int textX = x + padX;
+            int textY = y + padY + fm.getAscent();
+            g2.drawString(text, textX, textY);
+            g2.dispose();
+        }
+    }
+
+    // ---- Glass card panel ----
+    private static class GlassCardPanel extends JPanel {
+        GlassCardPanel() { setOpaque(false); }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int arc = 18;
+            int shadow = 8;
+            // shadow
+            g2.setColor(new Color(0,0,0,25));
+            g2.fill(new RoundRectangle2D.Float(shadow/2f, shadow/2f, getWidth()-shadow, getHeight()-shadow, arc+6, arc+6));
+            // glass body
+            g2.setColor(new Color(255,255,255,190));
+            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth()-shadow, getHeight()-shadow, arc, arc));
+            // border
+            g2.setColor(new Color(255,255,255,220));
+            g2.setStroke(new BasicStroke(1f));
+            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth()-shadow-1f, getHeight()-shadow-1f, arc, arc));
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    // ---- Vector icon drawing ----
+    private static void drawFolderIcon(Graphics2D g2, int x, int y, int w, int h, Color base) {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Color darker = base.darker();
+        int tabH = Math.max(4, h/3);
+        // tab
+        g2.setColor(base);
+        g2.fillRoundRect(x, y, (int)(w*0.55), tabH, 4, 4);
+        // body
+        g2.setColor(base);
+        g2.fillRoundRect(x, y+tabH-2, w, h-tabH+2, 4, 4);
+        // outline
+        g2.setColor(darker);
+        g2.setStroke(new BasicStroke(1f));
+        g2.drawRoundRect(x, y, (int)(w*0.55), tabH, 4, 4);
+        g2.drawRoundRect(x, y+tabH-2, w, h-tabH+2, 4, 4);
     }
 }

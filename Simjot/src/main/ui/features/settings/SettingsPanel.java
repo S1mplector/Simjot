@@ -41,7 +41,6 @@ public class SettingsPanel extends JPanel {
     private void buildSidebar(){
         sectionModel.addElement("General");
         sectionModel.addElement("Appearance");
-        sectionModel.addElement("Drawing");
         sectionModel.addElement("Storage");
         sectionModel.addElement("About");
 
@@ -76,9 +75,7 @@ public class SettingsPanel extends JPanel {
         AppearanceSettingsPage appearance = new AppearanceSettingsPage();
         addPage("Appearance", appearance);
 
-        // Drawing page fully implemented
-        DrawingSettingsPage drawPage = new DrawingSettingsPage();
-        addPage("Drawing", drawPage);
+        // Drawing page implemented but intentionally hidden from settings UI
 
         StorageSettingsPage storagePage = new StorageSettingsPage();
         addPage("Storage", storagePage);

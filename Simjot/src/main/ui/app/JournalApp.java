@@ -465,6 +465,7 @@ public class JournalApp extends JFrame {
 
                     // Light metadata warmup: discover root from config and touch top-level entries
                     publish("Scanning workspace…");
+                    publish("Reading configuration…");
                     try {
                         java.io.File cfg = new java.io.File(System.getProperty("user.home"), ".simjournal_config.txt");
                         java.io.File root = null;
@@ -478,10 +479,13 @@ public class JournalApp extends JFrame {
                             }
                         }
                         if (root != null) {
+                            publish("Checking workspace folders…");
                             java.io.File[] list = root.listFiles();
                             if (list != null) {
+                                publish("Indexing top-level items…");
                                 int n = Math.min(list.length, 200); // soft cap
                                 for (int i=0; i<n; i++) { java.io.File f = list[i]; f.exists(); /* touch */ }
+                                publish("Preparing UI…");
                             }
                         }
                     } catch (Throwable ignored) {}
@@ -491,6 +495,8 @@ public class JournalApp extends JFrame {
                         long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
                         if (elapsedMs < 2500) Thread.sleep(50); // tiny debounce, keep UI responsive
                     } catch (Throwable ignored) {}
+
+                    publish("Starting UI…");
 
                     // Filesystem prep is performed when JournalApp constructs the UI (root selection).
                     // We keep splash visible until the frame is created to avoid flicker.
