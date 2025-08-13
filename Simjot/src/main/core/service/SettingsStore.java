@@ -271,8 +271,8 @@ public final class SettingsStore {
     }
 
     public boolean isWidgetEnabled(String name){
-        if (name == null) return true;
-        return Boolean.parseBoolean(props.getProperty(KEY_WIDGET_ENABLED_PREFIX + name, String.valueOf(true)));
+        if (name == null) return false;
+        return Boolean.parseBoolean(props.getProperty(KEY_WIDGET_ENABLED_PREFIX + name, String.valueOf(false)));
     }
     public void setWidgetEnabled(String name, boolean enabled){
         if (name == null) return;

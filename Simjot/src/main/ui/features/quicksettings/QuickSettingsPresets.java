@@ -79,23 +79,7 @@ public class QuickSettingsPresets {
         toggle.addActionListener(e -> host.setWidgetsPanelVisible(toggle.isSelected()));
         p.add(toggle);
 
-        // Individual widgets
-        List<String> names = host.getWidgetNames();
-        if (names != null && !names.isEmpty()) {
-            p.add(Box.createRigidArea(new Dimension(0, 6)));
-            JLabel wlbl = new JLabel("Enable/Disable Widgets");
-            wlbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-            p.add(wlbl);
-            for (String name : names) {
-                boolean on = host.isWidgetEnabled(name);
-                JCheckBox wcb = new JCheckBox(name, on);
-                wcb.setUI(new ModernCheckBoxUI());
-                wcb.setOpaque(false);
-                wcb.setAlignmentX(Component.LEFT_ALIGNMENT);
-                wcb.addActionListener(ev -> host.setWidgetEnabled(name, wcb.isSelected()));
-                p.add(wcb);
-            }
-        }
+        // Note: Per-widget enable/disable controls are temporarily removed.
 
         return p;
     }
