@@ -243,6 +243,30 @@ public class NewEntryPanel extends JPanel {
 
         moodSlider = new MoodSlider();
         bottomToolbar.add(moodSlider);
+        // Detailed mood logging expand button
+        RoundedButton expandMoodBtn = new RoundedButton("\u203A"); // single-glyph arrow ›
+        expandMoodBtn.setToolTipText("Open detailed mood logging");
+        expandMoodBtn.setForeground(AeroTheme.TEXT_PRIMARY);
+        // Make the button compact
+        expandMoodBtn.setPreferredSize(new Dimension(28, 28));
+        expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
+        expandMoodBtn.addActionListener(e -> {
+            Window win = SwingUtilities.getWindowAncestor(this);
+            DetailedMoodDialog dlg = new DetailedMoodDialog(win);
+            dlg.setLocationRelativeTo(this);
+            dlg.setVisible(true);
+            if (dlg.isOkPressed()) {
+                int composite = dlg.getCompositeScore(); // 0-100
+                moodSlider.setValue(composite);
+                recordMood(composite); // save immediately to mood chart data
+                // Optional feedback
+                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this),
+                        "Mood Logged",
+                        "Detailed mood saved (" + composite + ")",
+                        false).showDialog();
+            }
+        });
+        bottomToolbar.add(expandMoodBtn);
 
         // Add both toolbar rows to the container
         toolbarContainer.add(topToolbar, BorderLayout.NORTH);
