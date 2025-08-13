@@ -42,6 +42,7 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("General");
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
+        sectionModel.addElement("Sim");
         sectionModel.addElement("About");
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -80,6 +81,10 @@ public class SettingsPanel extends JPanel {
         StorageSettingsPage storagePage = new StorageSettingsPage();
         addPage("Storage", storagePage);
 
+        // Sim (AI companion)
+        SimSettingsPage simPage = new SimSettingsPage();
+        addPage("Sim", simPage);
+
         addPage("About", new PlaceholderPage("Simjot v1.0\nCreated by Ilgaz with ❤️"));
 
         cardsPanel.setOpaque(true);
@@ -108,8 +113,27 @@ public class SettingsPanel extends JPanel {
     }
 
     private void saveAll(){
+        // Capture Sim enable flag before applying changes
+        boolean wasSimEnabled;
+        try { wasSimEnabled = main.core.sim.SimSettings.get().isEnabled(); } catch (Throwable t) { wasSimEnabled = false; }
+
         pages.values().forEach(SettingsPage::apply);
         SettingsStore.get().save();
+
+        // Determine Sim enable flag after saving
+        boolean nowSimEnabled;
+        try { nowSimEnabled = main.core.sim.SimSettings.get().isEnabled(); } catch (Throwable t) { nowSimEnabled = false; }
+
+        // Toggle Sim runtime if changed
+        if (wasSimEnabled != nowSimEnabled) {
+            try {
+                if (nowSimEnabled) {
+                    app.enableSimFeatures();
+                } else {
+                    app.disableSimFeatures();
+                }
+            } catch (Throwable ignored) {}
+        }
 
         // Refresh main menu so background / theme update instantly
         app.recreateMainMenuPanel();

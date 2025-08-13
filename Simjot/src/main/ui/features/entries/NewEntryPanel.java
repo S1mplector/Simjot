@@ -13,6 +13,7 @@ import javax.swing.text.Document;
 import javax.swing.text.StyledEditorKit;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
+import main.core.sim.SimEventBus;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
@@ -244,6 +245,12 @@ public class NewEntryPanel extends JPanel {
 
         moodSlider = new MoodSlider();
         bottomToolbar.add(moodSlider);
+        // Emit Sim mood changes (Phase 2 hook)
+        moodSlider.addChangeListener(e -> {
+            try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
+        });
+
+        // Add both toolbar rows to the container
         // Detailed mood logging expand button
         RoundedButton expandMoodBtn = new RoundedButton("\u203A"); // single-glyph arrow ›
         expandMoodBtn.setToolTipText("Open detailed mood logging");
@@ -312,16 +319,19 @@ public class NewEntryPanel extends JPanel {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
+                emitTypingSnapshot();
             }
 
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
+                emitTypingSnapshot();
             }
 
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
+                emitTypingSnapshot();
             }
         });
 
@@ -380,6 +390,20 @@ public class NewEntryPanel extends JPanel {
         bottomPanel.add(saveButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
+    }
+
+    // --- Sim helpers ---
+    private void emitTypingSnapshot() {
+        try {
+            Document doc = contentArea.getDocument();
+            String all = doc.getText(0, doc.getLength());
+            // Truncate to avoid huge payloads
+            int max = 500;
+            String snapshot = all.length() > max ? all.substring(all.length() - max) : all;
+            SimEventBus.get().emitTyping(snapshot);
+        } catch (BadLocationException | RuntimeException ignored) {
+            // ignore
+        }
     }
 
     private JPanel createFormattingToolbar() {

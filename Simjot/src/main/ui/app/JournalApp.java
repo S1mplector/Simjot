@@ -29,6 +29,14 @@ import main.ui.features.notebooks.NotebookManagerPanel;
 import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.theme.aero.AeroLookAndFeel;
+// Sim integration
+import main.core.sim.SimSettings;
+import main.core.sim.SimEventBus;
+import main.core.sim.SimBrain;
+import main.core.sim.SimScheduler;
+import main.core.sim.SimPersonality;
+import main.core.sim.SimDataGateway;
+import main.ui.sim.SimOverlay;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -68,6 +76,11 @@ public class JournalApp extends JFrame {
     // Added for openExistingEntryEditor method
     private final java.util.Map<String, JPanel> cardMap = new java.util.HashMap<>();
 
+    // --- Sim components ---
+    private SimOverlay simOverlay;
+    private SimBrain simBrain;
+    private SimScheduler simScheduler;
+
     public JournalApp() {
         super("Simjot");
         // Set the application icon
@@ -79,6 +92,50 @@ public class JournalApp extends JFrame {
         } else {
             System.exit(0);
         }
+
+    }
+
+    // --- Sim runtime control ---
+    public void enableSimFeatures() {
+        try {
+            if (simOverlay == null) {
+                simOverlay = new SimOverlay();
+                JLayeredPane lp = getLayeredPane();
+                Dimension pref = simOverlay.getPreferredSize();
+                simOverlay.setBounds(16, 16, pref.width, pref.height);
+                lp.add(simOverlay, JLayeredPane.POPUP_LAYER);
+            }
+            if (simBrain == null) {
+                SimSettings simSettings = SimSettings.get();
+                SimPersonality personality = new SimPersonality(simSettings.getPersonality());
+                simBrain = new SimBrain(simSettings, personality, SimDataGateway.get());
+            }
+            if (simScheduler == null) {
+                simScheduler = new SimScheduler();
+            }
+            revalidate();
+            repaint();
+        } catch (Throwable ignored) {}
+    }
+
+    public void disableSimFeatures() {
+        try {
+            if (simBrain != null) {
+                simBrain.shutdown();
+                simBrain = null;
+            }
+            if (simScheduler != null) {
+                // If SimScheduler gains a shutdown in future, call it here
+                simScheduler = null;
+            }
+            if (simOverlay != null) {
+                try { simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
+                try { getLayeredPane().remove(simOverlay); } catch (Throwable ignored) {}
+                simOverlay = null;
+            }
+            revalidate();
+            repaint();
+        } catch (Throwable ignored) {}
     }
 
     private void loadOrChooseRootFolder() {
@@ -164,6 +221,13 @@ public class JournalApp extends JFrame {
         setGlassPane(fadePanel);
         fadePanel.setVisible(true);
 
+        // --- Sim: overlay + brain + scheduler ---
+        try {
+            if (SimSettings.get().isEnabled()) {
+                enableSimFeatures();
+            }
+        } catch (Throwable ignored) {}
+
         setVisible(true);
         switchCard(MAIN_MENU);
 
@@ -194,6 +258,8 @@ public class JournalApp extends JFrame {
 
     public void switchCard(String cardName) {
         FadeTransitionPanel fadePanel = (FadeTransitionPanel) getGlassPane();
+        // Emit Sim event for card switch
+        try { SimEventBus.get().emitCardSwitched(cardName); } catch (Throwable ignored) {}
 
         if (SettingsStore.get().isAnimationsDisabled() || !firstSwitchDone) {
             // If animations are off, or it's the first switch, do it instantly.

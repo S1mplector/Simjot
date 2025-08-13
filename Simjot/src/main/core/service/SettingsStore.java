@@ -278,4 +278,25 @@ public final class SettingsStore {
         if (name == null) return;
         props.setProperty(KEY_WIDGET_ENABLED_PREFIX + name, String.valueOf(enabled));
     }
+
+    // -------- Generic accessors (for feature modules like Sim) -------- //
+    public boolean getFlag(String key, boolean def) {
+        if (key == null) return def;
+        return Boolean.parseBoolean(props.getProperty(key, String.valueOf(def)));
+    }
+
+    public void setFlag(String key, boolean value) {
+        if (key == null) return;
+        props.setProperty(key, String.valueOf(value));
+    }
+
+    public String getValue(String key, String def) {
+        if (key == null) return def;
+        return props.getProperty(key, def);
+    }
+
+    public void setValue(String key, String value) {
+        if (key == null) return;
+        props.setProperty(key, value == null ? "" : value);
+    }
 }
