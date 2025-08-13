@@ -508,8 +508,9 @@ public class JournalApp extends JFrame {
                 }
 
                 @Override protected void done() {
-                    // Create the main window; keep splash until ANY app window shows AND min duration elapsed
-                    new JournalApp();
+                    // Start the poll timer BEFORE constructing the UI, so that a modal first-run wizard
+                    // won't block splash dismissal on the EDT. The timer will dispose the splash once
+                    // any other window (e.g., the setup wizard) is showing and the minimum time elapsed.
                     final int minMs = 2000; // minimum splash time
                     javax.swing.Timer wait = new javax.swing.Timer(40, ev -> {
                         java.awt.Window[] wins = java.awt.Window.getWindows();
@@ -525,6 +526,9 @@ public class JournalApp extends JFrame {
                     });
                     wait.setRepeats(true);
                     wait.start();
+
+                    // Create the main window (may open a modal SetupWizardDialog on first run).
+                    new JournalApp();
                 }
             }.execute();
         });
