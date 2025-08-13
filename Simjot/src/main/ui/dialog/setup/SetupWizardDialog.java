@@ -221,22 +221,9 @@ public class SetupWizardDialog extends JDialog {
             }
         }
 
-        // ------------------------------------------------------------
-        // Ask if the user wants a stock wallpaper first. If yes we open the
-        // gallery chooser; otherwise we keep a blank background.
-        // ------------------------------------------------------------
-
-        boolean pickStock = CustomConfirmDialog.confirm(this,
-                "Wallpaper","Would you like one of our stock wallpapers?");
-
-        if(pickStock){
-            WallpaperChooser chooser = new WallpaperChooser(this);
-            chooser.setVisible(true); // blocks until user chooses or skips
-        }else{
-            SettingsStore.get().setBackgroundImage("");
-        }
-
-        // The chooser (if shown) already writes preference. Persist either way.
+        // Default to no wallpaper on first setup. The user can choose one later
+        // from the appearance settings. No prompts shown here to streamline setup.
+        SettingsStore.get().setBackgroundImage("");
         SettingsStore.get().save();
 
         spinner.setVisible(false);

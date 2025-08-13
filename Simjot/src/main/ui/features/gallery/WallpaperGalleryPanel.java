@@ -169,12 +169,32 @@ private JPanel buttonPanel;
     }
     
     private void loadBuiltInWallpapers() {
+        // 1) Add vector-generated gray gradient wallpapers
+        try {
+            java.util.List<String> ids = java.util.List.of(
+                GeneratedWallpapers.ID_LINEAR,
+                GeneratedWallpapers.ID_DIAGONAL,
+                GeneratedWallpapers.ID_RADIAL
+            );
+            for (String id : ids) {
+                String name = switch (id) {
+                    case GeneratedWallpapers.ID_LINEAR -> "Gray Gradient (Linear)";
+                    case GeneratedWallpapers.ID_DIAGONAL -> "Gray Gradient (Diagonal)";
+                    case GeneratedWallpapers.ID_RADIAL -> "Gray Gradient (Radial)";
+                    default -> id;
+                };
+                Image thumb = GeneratedWallpapers.render(id, 300, 168);
+                WallpaperItem item = new WallpaperItem(name, id, "Vector", thumb);
+                model.addElement(item);
+            }
+        } catch (Exception ignored) {}
+
+        // 2) Include any existing bundled JPGs (if present)
         String[] builtInWallpapers = {
             "img/wallpapers/bg1.jpg",
             "img/wallpapers/bg2.jpg", 
             "img/wallpapers/bg3.jpg"
         };
-        
         for (String wallpaperPath : builtInWallpapers) {
             try {
                 Image img = ResourceLoader.createImage("Simjot/" + wallpaperPath);

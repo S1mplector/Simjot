@@ -174,7 +174,15 @@ public class MainMenuPanel extends JPanel {
         String bgPath = SettingsStore.get().getBackgroundImage();
         JPanel content;
         if (bgPath != null && !bgPath.isEmpty()) {
-            if (bgPath.startsWith("res:")) {
+            if (bgPath.startsWith("gen:")) {
+                // Generated vector wallpaper (gradient variations)
+                String id = bgPath;
+                // Render a large backing image; BackgroundPanel will scale efficiently and cache
+                Image img = main.ui.features.gallery.GeneratedWallpapers.render(id, 2560, 1440);
+                BackgroundPanel bg = new BackgroundPanel(img);
+                bg.setOpacityOverride(1.0f);
+                content = bg;
+            } else if (bgPath.startsWith("res:")) {
                 // Built-in resource (class-path) – strip prefix
                 String resPath = bgPath.substring(4);
                 Image img = ResourceLoader.createImage("Simjot/" + resPath);
