@@ -113,6 +113,12 @@ public class JournalApp extends JFrame {
             if (simScheduler == null) {
                 simScheduler = new SimScheduler();
             }
+            // Always (re)start scheduler with latest settings and personality
+            try {
+                SimSettings s = SimSettings.get();
+                SimPersonality p = new SimPersonality(s.getPersonality());
+                simScheduler.start(s, p, SimDataGateway.get());
+            } catch (Throwable ignored) {}
             revalidate();
             repaint();
         } catch (Throwable ignored) {}
@@ -125,7 +131,7 @@ public class JournalApp extends JFrame {
                 simBrain = null;
             }
             if (simScheduler != null) {
-                // If SimScheduler gains a shutdown in future, call it here
+                try { simScheduler.stop(); } catch (Throwable ignored) {}
                 simScheduler = null;
             }
             if (simOverlay != null) {

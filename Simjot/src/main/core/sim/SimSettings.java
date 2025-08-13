@@ -10,6 +10,9 @@ public final class SimSettings {
     private static final String KEY_PERSONALITY = "sim.personality"; // gentle|neutral|proactive
     private static final String KEY_USE_LLM = "sim.use_llm";
     private static final String KEY_QUIET_HOURS = "sim.quiet_hours"; // e.g., "22:00-07:00"
+    private static final String KEY_NUDGE_MIN = "sim.nudge_minutes"; // integer minutes between checks
+    private static final String KEY_OLLAMA_ENDPOINT = "sim.ollama.endpoint"; // e.g., http://localhost:11434
+    private static final String KEY_OLLAMA_MODEL = "sim.ollama.model"; // e.g., llama3:instruct
 
     private static SimSettings INSTANCE;
 
@@ -43,7 +46,8 @@ public final class SimSettings {
     }
 
     public boolean isLlmEnabled() {
-        return store.getFlag(KEY_USE_LLM, false);
+        // Default to enabled so Sim is ready to use Ollama when available
+        return store.getFlag(KEY_USE_LLM, true);
     }
 
     public void setLlmEnabled(boolean value) {
@@ -56,5 +60,37 @@ public final class SimSettings {
 
     public void setQuietHours(String hours) {
         store.setValue(KEY_QUIET_HOURS, hours == null ? "" : hours);
+    }
+
+    // --- Nudge interval (minutes) ---
+    public int getNudgeIntervalMinutes() {
+        try {
+            int val = Integer.parseInt(store.getValue(KEY_NUDGE_MIN, "30"));
+            return Math.max(5, Math.min(120, val)); // clamp 5..120
+        } catch (NumberFormatException e) {
+            return 30;
+        }
+    }
+
+    public void setNudgeIntervalMinutes(int minutes) {
+        int v = Math.max(5, Math.min(120, minutes));
+        store.setValue(KEY_NUDGE_MIN, String.valueOf(v));
+    }
+
+    // --- Ollama settings (for next step integration) ---
+    public String getOllamaEndpoint() {
+        return store.getValue(KEY_OLLAMA_ENDPOINT, "http://localhost:11434");
+    }
+
+    public void setOllamaEndpoint(String endpoint) {
+        store.setValue(KEY_OLLAMA_ENDPOINT, endpoint == null ? "http://localhost:11434" : endpoint);
+    }
+
+    public String getOllamaModel() {
+        return store.getValue(KEY_OLLAMA_MODEL, "mistral:7b-instruct");
+    }
+
+    public void setOllamaModel(String model) {
+        store.setValue(KEY_OLLAMA_MODEL, model == null ? "llama3.1:8b-instruct" : model);
     }
 }

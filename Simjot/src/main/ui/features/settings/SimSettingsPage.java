@@ -3,6 +3,8 @@ package main.ui.features.settings;
 import java.awt.*;
 import javax.swing.*;
 import main.core.sim.SimSettings;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.spinner.ModernSpinnerUI;
 
 public class SimSettingsPage implements SettingsPage {
     private final JPanel panel = new JPanel(new GridBagLayout());
@@ -10,6 +12,9 @@ public class SimSettingsPage implements SettingsPage {
     private final JComboBox<String> personality = new JComboBox<>(new String[]{"gentle","neutral","proactive"});
     private final JCheckBox useLlm = new JCheckBox("Allow AI model (Ollama)");
     private final JTextField quietHours = new JTextField(12);
+    private final JSpinner nudgeMinutes = new JSpinner(new SpinnerNumberModel(30, 5, 120, 5));
+    private final JTextField ollamaEndpoint = new JTextField(18);
+    private final JTextField ollamaModel = new JTextField(18);
 
     public SimSettingsPage(){
         panel.setOpaque(true);
@@ -17,6 +22,19 @@ public class SimSettingsPage implements SettingsPage {
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(8,12,8,12);
         gc.anchor = GridBagConstraints.WEST;
+        // Match checkbox visuals used elsewhere in settings
+        enableSim.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        enableSim.setBackground(new Color(0,0,0,0));
+        useLlm.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        useLlm.setBackground(new Color(0,0,0,0));
+        // Modernize controls for consistency
+        personality.setUI(new ModernComboBoxUI());
+        personality.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        nudgeMinutes.setUI(new ModernSpinnerUI());
+        try {
+            ((JSpinner.DefaultEditor) nudgeMinutes.getEditor()).getTextField().setColumns(3);
+        } catch (Throwable ignored) {}
+
         gc.gridx = 0; gc.gridy = 0;
         panel.add(enableSim, gc);
         gc.gridy++;
@@ -29,12 +47,40 @@ public class SimSettingsPage implements SettingsPage {
         gc.gridx = 1;
         panel.add(quietHours, gc);
 
+        // Nudge interval
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("Nudge interval (minutes)"), gc);
+        gc.gridx = 1;
+        panel.add(nudgeMinutes, gc);
+
+        // Ollama settings
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("Ollama endpoint"), gc);
+        gc.gridx = 1;
+        panel.add(ollamaEndpoint, gc);
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("Ollama model"), gc);
+        gc.gridx = 1;
+        panel.add(ollamaModel, gc);
+
         // Load current settings
         SimSettings s = SimSettings.get();
         enableSim.setSelected(s.isEnabled());
         personality.setSelectedItem(s.getPersonality());
         useLlm.setSelected(s.isLlmEnabled());
         quietHours.setText(s.getQuietHours());
+        nudgeMinutes.setValue(s.getNudgeIntervalMinutes());
+        ollamaEndpoint.setText(s.getOllamaEndpoint());
+        ollamaModel.setText(s.getOllamaModel());
+
+        // Enable/disable Ollama fields based on checkbox
+        Runnable toggleOllamaFields = () -> {
+            boolean on = useLlm.isSelected();
+            ollamaEndpoint.setEnabled(on);
+            ollamaModel.setEnabled(on);
+        };
+        useLlm.addActionListener(e -> toggleOllamaFields.run());
+        toggleOllamaFields.run();
     }
 
     @Override
@@ -47,5 +93,8 @@ public class SimSettingsPage implements SettingsPage {
         s.setPersonality((String) personality.getSelectedItem());
         s.setLlmEnabled(useLlm.isSelected());
         s.setQuietHours(quietHours.getText());
+        try { s.setNudgeIntervalMinutes((Integer) nudgeMinutes.getValue()); } catch (Exception ignored) {}
+        s.setOllamaEndpoint(ollamaEndpoint.getText());
+        s.setOllamaModel(ollamaModel.getText());
     }
 }
