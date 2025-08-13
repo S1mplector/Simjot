@@ -6,10 +6,16 @@
  */
 module Simjot {
 	requires transitive java.desktop;
+    requires java.net.http;
 	
 	exports main.core.service;
 	exports main.core.model;
 	exports main.core.sim;
+	exports main.core.sim.api;
+	exports main.core.sim.engine;
+	exports main.core.sim.data;
+	exports main.core.sim.persona;
+	exports main.core.sim.llm.api;
 
 	// Infrastructure
 	exports main.infrastructure.monitoring;
@@ -33,7 +39,7 @@ module Simjot {
 	exports main.ui.features.widgets;
 	exports main.ui.theme.aero;
 	exports main.ui.features.drawing;
-	exports main.ui.sim;
+	exports main.ui.sim.overlay;
 
 	// Feature panels
 	exports main.ui.features.entries;

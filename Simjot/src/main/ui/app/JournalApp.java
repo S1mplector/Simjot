@@ -6,6 +6,12 @@ import java.awt.event.WindowEvent;
 import java.io.*;
 import javax.swing.*;
 import main.core.service.SettingsStore;
+import main.core.sim.api.SimEventBus;
+import main.core.sim.data.SimDataGateway;
+import main.core.sim.engine.SimBrain;
+import main.core.sim.engine.SimScheduler;
+import main.core.sim.persona.SimPersonality;
+import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.BackupService;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
@@ -28,15 +34,8 @@ import main.ui.features.home.MoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
 import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
+import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
-// Sim integration
-import main.core.sim.SimSettings;
-import main.core.sim.SimEventBus;
-import main.core.sim.SimBrain;
-import main.core.sim.SimScheduler;
-import main.core.sim.SimPersonality;
-import main.core.sim.SimDataGateway;
-import main.ui.sim.SimOverlay;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;

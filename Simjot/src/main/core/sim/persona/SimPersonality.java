@@ -1,4 +1,4 @@
-package main.core.sim;
+package main.core.sim.persona;
 
 /**
  * Describes Sim's tone and proactivity.

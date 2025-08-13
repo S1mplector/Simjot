@@ -1,10 +1,14 @@
-package main.core.sim;
+package main.core.sim.engine;
 
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import main.core.sim.api.SimEventBus;
+import main.core.sim.data.SimDataGateway;
+import main.core.sim.persona.SimPersonality;
+import main.core.sim.prefs.SimSettings;
 
 /**
  * Periodic tasks for Sim (Phase 1 stub).

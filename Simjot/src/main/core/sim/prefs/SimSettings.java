@@ -1,4 +1,4 @@
-package main.core.sim;
+package main.core.sim.prefs;
 
 import main.core.service.SettingsStore;
 
@@ -87,10 +87,10 @@ public final class SimSettings {
     }
 
     public String getOllamaModel() {
-        return store.getValue(KEY_OLLAMA_MODEL, "mistral:7b-instruct");
+        return store.getValue(KEY_OLLAMA_MODEL, "deepseek-r1:1.5b");
     }
 
     public void setOllamaModel(String model) {
-        store.setValue(KEY_OLLAMA_MODEL, model == null ? "llama3.1:8b-instruct" : model);
+        store.setValue(KEY_OLLAMA_MODEL, model == null ? "deepseek-r1:1.5b" : model);
     }
 }

@@ -13,7 +13,7 @@ import javax.swing.text.Document;
 import javax.swing.text.StyledEditorKit;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
-import main.core.sim.SimEventBus;
+import main.core.sim.api.SimEventBus;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;

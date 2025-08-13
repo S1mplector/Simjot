@@ -2,7 +2,7 @@ package main.ui.features.settings;
 
 import java.awt.*;
 import javax.swing.*;
-import main.core.sim.SimSettings;
+import main.core.sim.prefs.SimSettings;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.spinner.ModernSpinnerUI;
 

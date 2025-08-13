@@ -1,10 +1,12 @@
-package main.ui.sim;
+package main.ui.sim.overlay;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import main.core.sim.SimEventBus;
+import java.awt.geom.*;
+import javax.swing.*;
+import main.core.sim.api.SimEventBus;
+import main.ui.theme.aero.AeroPainters;
 
 /**
  * Minimal overlay for Sim. Added to the JFrame layered pane.
@@ -35,7 +37,6 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final int ORB_COUNT = 5;
     private static final int ORB_RADIUS = 16; // circle radius
     private static final int ORB_RING_RADIUS = 42; // distance from center
-    private static final String[] EMOJIS = new String[]{"🙂","😐","😢","😠","😌"};
     private static final Color[] ORB_COLORS = new Color[]{
             new Color(255, 214, 102), // warm happy
             new Color(180, 180, 200), // neutral
@@ -185,11 +186,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         g2.setComposite(AlphaComposite.SrcOver.derive(a));
         g2.translate(0, entranceOffsetY);
 
-        // Outer container background (subtle)
-        g2.setColor(new Color(255, 255, 255, 255));
-        g2.fillRoundRect(0, 0, w - 1, h - 1, 18, 18);
-        g2.setColor(new Color(0, 0, 0, 140));
-        g2.drawRoundRect(0, 0, w - 1, h - 1, 18, 18);
+        // No outer frame/background — keep canvas transparent behind orbs and panel
 
         // Close icon (simple ×)
         int cx = w - CLOSE_SIZE - 6;
@@ -225,15 +222,10 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             g2.fillOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
             g2.setColor(new Color(0, 0, 0, 90));
             g2.drawOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
-            // Emoji centered with alpha
+            // Vector symbol centered with alpha
             Composite old = g2.getComposite();
             g2.setComposite(AlphaComposite.SrcOver.derive((float)p));
-            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
-            String emo = EMOJIS[i % EMOJIS.length];
-            FontMetrics fm = g2.getFontMetrics();
-            int ttw = fm.stringWidth(emo);
-            int tth = fm.getAscent();
-            g2.drawString(emo, ox - ttw / 2, oy + tth / 2 - 4);
+            drawEmotionSymbol(g2, ox, oy, ORB_RADIUS - 4, i);
             g2.setComposite(old);
         }
 
@@ -244,10 +236,30 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             float pe = easeOutBack(panelT);
             int currentW = Math.max(0, Math.min(rightW, (int)Math.round(rightW * pe)));
             if (currentW > 0) {
+                int arc = 14;
+                Rectangle panelRect = new Rectangle(rightX, panelY, currentW, panelH);
+                // Base fill
                 g2.setColor(new Color(255, 255, 255, 255));
-                g2.fillRoundRect(rightX, panelY, currentW, panelH, 14, 14);
+                g2.fillRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, arc, arc);
+                // Border
                 g2.setColor(new Color(0, 0, 0, 120));
-                g2.drawRoundRect(rightX, panelY, currentW, panelH, 14, 14);
+                g2.drawRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, arc, arc);
+                // Inner shadow for depth
+                AeroPainters.paintInnerShadow(g2, panelRect, arc, new Color(0, 0, 0), 8, 70);
+                // Gloss highlight band (top)
+                Shape oldClip = g2.getClip();
+                g2.setClip(new Rectangle(panelRect.x + 2, panelRect.y + 2, panelRect.width - 4, Math.max(0, panelRect.height / 2 - 2)));
+                GradientPaint gloss = new GradientPaint(
+                        panelRect.x, panelRect.y,
+                        new Color(255, 255, 255, 110),
+                        panelRect.x, panelRect.y + panelRect.height / 2f,
+                        new Color(255, 255, 255, 0)
+                );
+                Paint oldPaint = g2.getPaint();
+                g2.setPaint(gloss);
+                g2.fillRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, arc, arc);
+                g2.setPaint(oldPaint);
+                g2.setClip(oldClip);
             }
         }
 
@@ -289,6 +301,88 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         double s = 1.70158;
         double u = t - 1;
         return (float)(1 + u*u*((s + 1)*u + s));
+    }
+
+    // Draw abstract vector symbols for emotions (index-based)
+    // 0: joy (sunburst), 1: neutral (square), 2: low mood (droplet),
+    // 3: anger (bolt), 4: calm (wave)
+    private void drawEmotionSymbol(Graphics2D g2, int cx, int cy, int r, int idx) {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Stroke oldStroke = g2.getStroke();
+        g2.setColor(new Color(0, 0, 0, 180));
+        g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        switch (idx % ORB_COUNT) {
+            case 0: { // joy: sunburst
+                int inner = Math.max(2, r/4);
+                // center dot
+                g2.fill(new Ellipse2D.Double(cx - inner/2.0, cy - inner/2.0, inner, inner));
+                // rays
+                int rays = 8;
+                for (int i = 0; i < rays; i++) {
+                    double a = (Math.PI * 2 * i) / rays;
+                    int x1 = (int)Math.round(cx + (r*0.3) * Math.cos(a));
+                    int y1 = (int)Math.round(cy + (r*0.3) * Math.sin(a));
+                    int x2 = (int)Math.round(cx + (r*0.9) * Math.cos(a));
+                    int y2 = (int)Math.round(cy + (r*0.9) * Math.sin(a));
+                    g2.drawLine(x1, y1, x2, y2);
+                }
+                break;
+            }
+            case 1: { // neutral: square
+                int s = Math.max(3, r/2);
+                g2.drawRect(cx - s/2, cy - s/2, s, s);
+                break;
+            }
+            case 2: { // low mood: droplet
+                Path2D drop = new Path2D.Double();
+                drop.moveTo(cx, cy - r/2.0);
+                drop.curveTo(cx + r/3.0, cy - r/6.0, cx + r/3.0, cy + r/3.0, cx, cy + r/2.0);
+                drop.curveTo(cx - r/3.0, cy + r/3.0, cx - r/3.0, cy - r/6.0, cx, cy - r/2.0);
+                g2.draw(drop);
+                break;
+            }
+            case 3: { // anger: fire (flame)
+                // Outer flame silhouette
+                Path2D flame = new Path2D.Double();
+                double topY = cy - r * 0.55;
+                double bottomY = cy + r * 0.5;
+                double leftX = cx - r * 0.35;
+                double rightX = cx + r * 0.35;
+                flame.moveTo(cx, topY);
+                flame.curveTo(cx + r * 0.25, cy - r * 0.45,
+                               rightX, cy - r * 0.05,
+                               cx + r * 0.15, cy + r * 0.15);
+                flame.curveTo(cx + r * 0.05, cy + r * 0.35,
+                               cx + r * 0.05, bottomY,
+                               cx, bottomY);
+                flame.curveTo(cx - r * 0.05, bottomY,
+                               cx - r * 0.05, cy + r * 0.35,
+                               cx - r * 0.15, cy + r * 0.15);
+                flame.curveTo(leftX,  cy - r * 0.05,
+                               cx - r * 0.25, cy - r * 0.45,
+                               cx, topY);
+                // Fill then outline for clarity at small sizes
+                Paint oldPaint = g2.getPaint();
+                g2.setPaint(new Color(0, 0, 0, 160));
+                g2.fill(flame);
+                g2.setPaint(oldPaint);
+                g2.draw(flame);
+                break;
+            }
+            default: { // calm: wave
+                Path2D wave = new Path2D.Double();
+                double amplitude = r * 0.3;
+                double length = r * 1.4;
+                double startX = cx - length/2.0;
+                double step = length / 4.0;
+                wave.moveTo(startX, cy);
+                wave.curveTo(startX + step*0.5, cy - amplitude, startX + step*1.5, cy + amplitude, startX + step*2.0, cy);
+                wave.curveTo(startX + step*2.5, cy - amplitude, startX + step*3.5, cy + amplitude, startX + step*4.0, cy);
+                g2.draw(wave);
+                break;
+            }
+        }
+        g2.setStroke(oldStroke);
     }
 
     private void startEntrySequence() {

@@ -1,4 +1,4 @@
-package main.core.sim;
+package main.core.sim.data;
 
 import java.io.BufferedReader;
 import java.io.File;

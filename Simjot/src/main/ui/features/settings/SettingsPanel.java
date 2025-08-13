@@ -115,14 +115,14 @@ public class SettingsPanel extends JPanel {
     private void saveAll(){
         // Capture Sim enable flag before applying changes
         boolean wasSimEnabled;
-        try { wasSimEnabled = main.core.sim.SimSettings.get().isEnabled(); } catch (Throwable t) { wasSimEnabled = false; }
+        try { wasSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable t) { wasSimEnabled = false; }
 
         pages.values().forEach(SettingsPage::apply);
         SettingsStore.get().save();
 
         // Determine Sim enable flag after saving
         boolean nowSimEnabled;
-        try { nowSimEnabled = main.core.sim.SimSettings.get().isEnabled(); } catch (Throwable t) { nowSimEnabled = false; }
+        try { nowSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable t) { nowSimEnabled = false; }
 
         // Toggle Sim runtime if changed
         if (wasSimEnabled != nowSimEnabled) {
