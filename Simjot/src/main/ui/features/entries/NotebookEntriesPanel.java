@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import java.text.SimpleDateFormat;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -37,6 +38,76 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
+
+    // Renderer for entry cards inside a notebook
+    private static class EntryCardRenderer extends JPanel implements ListCellRenderer<File> {
+        private final JLabel title = new JLabel();
+        private final JLabel meta = new JLabel();
+        private final Color cardBg = new Color(248, 249, 252);
+        private final Color cardBorder = new Color(210, 216, 228);
+        private final Color metaColor = new Color(105, 110, 120);
+        private final Color accent = new Color(88, 133, 255);
+        private final Color selectedBg = new Color(235, 240, 255);
+        private final Color selectedBorder = new Color(88, 133, 255);
+        private boolean selected;
+
+        EntryCardRenderer() {
+            setOpaque(false);
+            setLayout(new BorderLayout(10, 0));
+            JPanel content = new JPanel(new BorderLayout());
+            content.setOpaque(false);
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
+            title.setForeground(new Color(0x2B, 0x2B, 0x2B));
+            meta.setFont(meta.getFont().deriveFont(12f));
+            meta.setForeground(metaColor);
+            content.add(title, BorderLayout.NORTH);
+            content.add(meta, BorderLayout.SOUTH);
+            add(content, BorderLayout.CENTER);
+            // Extra left padding so text never collides with the left accent bar
+            setBorder(BorderFactory.createEmptyBorder(8, 22, 8, 12));
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<? extends File> list, File value, int index, boolean isSelected, boolean cellHasFocus) {
+            // Title will be set externally via putClientProperty on the list for this renderer
+            @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
+            @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
+            String t = titles != null ? titles.getOrDefault(value, value.getName()) : value.getName();
+            int wc = wordCounts != null ? wordCounts.getOrDefault(value, 0) : 0;
+
+            // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
+            Date created = new Date(value.lastModified());
+            try {
+                String nm = value.getName();
+                String base = nm.contains(".") ? nm.substring(0, nm.lastIndexOf('.')) : nm;
+                SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                created = fmt.parse(base);
+            } catch (Exception ignored) {}
+            Date modified = new Date(value.lastModified());
+
+            title.setText((t==null||t.isBlank())?"Untitled":t);
+            SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
+            meta.setText(String.format("%s  •  Created %s  •  Last edited %s", wc+" words", df.format(created), df.format(modified)));
+            this.selected = isSelected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int arc = 14;
+            int w = getWidth(), h = getHeight();
+            g2.setColor(selected ? selectedBg : cardBg);
+            g2.fillRoundRect(3, 2, w - 6, h - 4, arc, arc);
+            g2.setColor(accent);
+            g2.fillRoundRect(6, 8, 6, h - 16, 6, 6);
+            g2.setColor(selected ? selectedBorder : cardBorder);
+            g2.drawRoundRect(3, 2, w - 6, h - 4, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
 
     public NotebookEntriesPanel(JournalApp app, NotebookInfo nb){
         this.app = app; this.nb = nb;
@@ -75,14 +146,12 @@ public class NotebookEntriesPanel extends JPanel {
         sortBox.addActionListener(e->update());
 
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setCellRenderer((JList<? extends File> l, File f, int i, boolean s, boolean fcs)->{
-            String name = titles.getOrDefault(f, f.getName());
-            int wc = wordCounts.getOrDefault(f, 0);
-            JLabel lab=new JLabel(name+"  ("+wc+" words)");
-            lab.setOpaque(true);
-            lab.setBackground(s?new Color(0,120,215,30):Color.WHITE);
-            return lab;
-        });
+        // Attach shared maps for renderer access
+        list.putClientProperty("titles", titles);
+        list.putClientProperty("wordCounts", wordCounts);
+        list.setBackground(new Color(247, 247, 249));
+        list.setFixedCellHeight(84);
+        list.setCellRenderer(new EntryCardRenderer());
         list.addMouseListener(new MouseAdapter(){
             public void mouseClicked(MouseEvent e){
                 if(e.getClickCount()==2){ openSelected(); }

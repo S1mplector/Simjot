@@ -19,9 +19,81 @@ public class ViewEntriesPanel extends JPanel {
     private JPanel cardPanel;
     private JournalApp app;
 
-    private JList<String> journalList, poemList;
+    private JList<EntryItem> journalList, poemList;
     private File[] journalFiles, poemFiles;
     private JTextPane previewPane;
+
+    // Lightweight model for rendering cards
+    private static class EntryItem {
+        final File file;
+        final String title;
+        final int wordCount;
+        final Date created;
+        final Date modified;
+        EntryItem(File file, String title, int wordCount, Date created, Date modified) {
+            this.file = file; this.title = title; this.wordCount = wordCount; this.created = created; this.modified = modified;
+        }
+        @Override public String toString() { return title; }
+    }
+
+    // Card renderer
+    private static class EntryCardRenderer extends JPanel implements ListCellRenderer<EntryItem> {
+        private final JLabel title = new JLabel();
+        private final JLabel meta = new JLabel();
+        private final Color cardBg = new Color(248, 249, 252);
+        private final Color cardBorder = new Color(210, 216, 228);
+        private final Color metaColor = new Color(105, 110, 120);
+        private final Color accent = new Color(88, 133, 255);
+        private final Color selectedBg = new Color(235, 240, 255);
+        private final Color selectedBorder = new Color(88, 133, 255);
+        private boolean selected;
+
+        EntryCardRenderer() {
+            setOpaque(false);
+            setLayout(new BorderLayout(10, 0));
+            JPanel content = new JPanel(new BorderLayout());
+            content.setOpaque(false);
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
+            title.setForeground(new Color(0x2B, 0x2B, 0x2B));
+            meta.setFont(meta.getFont().deriveFont(12f));
+            meta.setForeground(metaColor);
+            content.add(title, BorderLayout.NORTH);
+            content.add(meta, BorderLayout.SOUTH);
+            add(content, BorderLayout.CENTER);
+            // Extra left padding so text never collides with the left accent bar
+            setBorder(BorderFactory.createEmptyBorder(8, 22, 8, 12));
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<? extends EntryItem> list, EntryItem value, int index, boolean isSelected, boolean cellHasFocus) {
+            title.setText(value.title != null && !value.title.isBlank() ? value.title : "Untitled");
+            SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
+            String metaText = String.format("%s  •  Created %s  •  Last edited %s",
+                    value.wordCount + " words", df.format(value.created), df.format(value.modified));
+            meta.setText(metaText);
+            this.selected = isSelected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int arc = 14;
+            int w = getWidth(), h = getHeight();
+            // background
+            g2.setColor(selected ? selectedBg : cardBg);
+            g2.fillRoundRect(3, 2, w - 6, h - 4, arc, arc);
+            // left accent
+            g2.setColor(accent);
+            g2.fillRoundRect(6, 8, 6, h - 16, 6, 6);
+            // border
+            g2.setColor(selected ? selectedBorder : cardBorder);
+            g2.drawRoundRect(3, 2, w - 6, h - 4, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
 
     public ViewEntriesPanel(JournalApp app, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -62,11 +134,14 @@ public class ViewEntriesPanel extends JPanel {
         journalLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         journalPanel.add(journalLabel, BorderLayout.NORTH);
 
-        DefaultListModel<String> journalModel = new DefaultListModel<>();
+        DefaultListModel<EntryItem> journalModel = new DefaultListModel<>();
         journalList = new JList<>(journalModel);
-        journalList.setBackground(new Color(255, 255, 255));
+        journalList.setBackground(new Color(247, 247, 249));
         journalList.setForeground(Color.BLACK);
         journalList.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        journalList.setCellRenderer(new EntryCardRenderer());
+        journalList.setFixedCellHeight(84);
+        journalList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         journalList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         JScrollPane journalScroll = new JScrollPane(journalList);
         journalScroll.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -82,11 +157,14 @@ public class ViewEntriesPanel extends JPanel {
         poemLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         poemPanel.add(poemLabel, BorderLayout.NORTH);
 
-        DefaultListModel<String> poemModel = new DefaultListModel<>();
+        DefaultListModel<EntryItem> poemModel = new DefaultListModel<>();
         poemList = new JList<>(poemModel);
-        poemList.setBackground(new Color(255, 255, 255));
+        poemList.setBackground(new Color(247, 247, 249));
         poemList.setForeground(Color.BLACK);
         poemList.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        poemList.setCellRenderer(new EntryCardRenderer());
+        poemList.setFixedCellHeight(84);
+        poemList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         poemList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         JScrollPane poemScroll = new JScrollPane(poemList);
         poemScroll.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -159,7 +237,7 @@ public class ViewEntriesPanel extends JPanel {
 
     private enum EntryType { JOURNAL, POEM }
 
-    private void addHoverListener(JList<String> list, File[] files, EntryType type) {
+    private void addHoverListener(JList<EntryItem> list, File[] files, EntryType type) {
         list.addMouseMotionListener(new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -212,7 +290,7 @@ public class ViewEntriesPanel extends JPanel {
 
     public void reloadData() {
         // Reload Journal Entries
-        DefaultListModel<String> journalModel = (DefaultListModel<String>) journalList.getModel();
+        DefaultListModel<EntryItem> journalModel = (DefaultListModel<EntryItem>) journalList.getModel();
         journalModel.clear();
         File entriesFolder = AppDirectories.folder(AppDirectories.Type.ENTRIES);
         journalFiles = (entriesFolder.exists() && entriesFolder.isDirectory()) ?
@@ -222,23 +300,14 @@ public class ViewEntriesPanel extends JPanel {
             Arrays.sort(journalFiles, (f1, f2) ->
                 Long.compare(f2.lastModified(), f1.lastModified())
             );
-            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yy HH:mm");
             for (File f : journalFiles) {
-                String dateTime = sdf.format(new Date(f.lastModified()));
-                String title;
-                try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
-                    title = reader.readLine();
-                    if (title == null || title.trim().isEmpty()) title = "Untitled";
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                    title = "Error reading file";
-                }
-                journalModel.addElement(dateTime + " - " + title);
+                EntryItem item = buildEntryItemFromFile(f, true);
+                journalModel.addElement(item);
             }
         }
 
         // Reload Poem Entries
-        DefaultListModel<String> poemModel = (DefaultListModel<String>) poemList.getModel();
+        DefaultListModel<EntryItem> poemModel = (DefaultListModel<EntryItem>) poemList.getModel();
         poemModel.clear();
         File poemsFolder = AppDirectories.folder(AppDirectories.Type.POEMS);
         poemFiles = (poemsFolder.exists() && poemsFolder.isDirectory())
@@ -248,21 +317,42 @@ public class ViewEntriesPanel extends JPanel {
             Arrays.sort(poemFiles, (f1, f2) ->
                 Long.compare(f2.lastModified(), f1.lastModified())
             );
-            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yy HH:mm");
             for (File f : poemFiles) {
-                String dateTime = sdf.format(new Date(f.lastModified()));
-                String title;
-                try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
-                    title = reader.readLine();
-                    if (title == null || title.trim().isEmpty()) title = "Untitled";
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                    title = "Error reading file";
-                }
-                poemModel.addElement(dateTime + " - " + title);
+                EntryItem item = buildEntryItemFromFile(f, false);
+                poemModel.addElement(item);
             }
         }
 
+    }
+
+    private static EntryItem buildEntryItemFromFile(File f, boolean isJournal) {
+        String title;
+        int words = 0;
+        try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
+            title = reader.readLine();
+            if (title == null || title.trim().isEmpty()) title = "Untitled";
+            // skip blank
+            reader.readLine();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    String[] w = line.trim().split("\\s+");
+                    words += w.length;
+                }
+            }
+        } catch (IOException ex) {
+            title = "Error reading file";
+        }
+        // Created from timestamp in filename if present
+        Date created = new Date(f.lastModified());
+        try {
+            String name = f.getName();
+            String base = name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name;
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            created = fmt.parse(base);
+        } catch (Exception ignored) {}
+        Date modified = new Date(f.lastModified());
+        return new EntryItem(f, title, words, created, modified);
     }
 
     private void deleteSelectedEntry() {
