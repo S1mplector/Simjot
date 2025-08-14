@@ -11,6 +11,7 @@ import main.core.sim.api.SimEventBus;
 import main.core.sim.data.SimDataGateway;
 import main.core.sim.llm.api.SimLLMClient;
 import main.core.sim.llm.ollama.OllamaClient;
+import main.core.sim.llm.openai.OpenAIClient;
 import main.core.sim.llm.prompt.PromptBuilder;
 import main.core.sim.memory.MemoryStore;
 import main.core.sim.persona.SimPersonality;
@@ -33,6 +34,8 @@ public final class SimBrain implements SimEventBus.Listener {
     // Optional LLM
     private volatile SimLLMClient llm;
     private volatile long lastLlmMs = 0L;
+    // Track which provider the current llm instance was created for
+    private volatile String llmProviderActive = null;
 
     // Streaming turn handling (cancel on typing, emit as tokens arrive)
     private final TurnManager turns = new TurnManager();
@@ -62,7 +65,7 @@ public final class SimBrain implements SimEventBus.Listener {
         // Prepare LLM client lazily based on settings
         if (settings.isLlmEnabled()) {
             try {
-                this.llm = new OllamaClient(settings.getOllamaEndpoint(), settings.getOllamaModel());
+                this.llm = createClientFromSettings();
             } catch (Throwable ignored) {
                 this.llm = null;
             }
@@ -325,11 +328,53 @@ public final class SimBrain implements SimEventBus.Listener {
     }
 
     private void ensureLlm() {
-        if (llm == null) {
+        String desired;
+        try { desired = settings.getLlmProvider(); } catch (Throwable t) { desired = "ollama"; }
+        if (desired == null || desired.isBlank()) desired = "ollama";
+        desired = desired.toLowerCase(java.util.Locale.ROOT);
+
+        // Recreate client if none or provider changed
+        if (llm == null || llmProviderActive == null || !desired.equals(llmProviderActive)) {
             try {
-                llm = new OllamaClient(settings.getOllamaEndpoint(), settings.getOllamaModel());
+                if (llm != null) {
+                    System.out.println("[SimBrain] switching LLM provider from " + llmProviderActive + " to " + desired);
+                }
+                llm = createClientFromSettings();
             } catch (Throwable ignored) {
                 llm = null;
+            }
+        }
+    }
+
+    private SimLLMClient createClientFromSettings() {
+        String provider;
+        try {
+            provider = settings.getLlmProvider();
+        } catch (Throwable t) {
+            provider = "ollama";
+        }
+        if (provider == null || provider.isBlank()) provider = "ollama";
+        provider = provider.toLowerCase(java.util.Locale.ROOT);
+        switch (provider) {
+            case "openai": {
+                String apiKey = "";
+                String model = "gpt-4o-mini";
+                String baseUrl = "https://api.openai.com";
+                try { apiKey = settings.getOpenAIApiKey(); } catch (Throwable ignored) {}
+                try { model = settings.getOpenAIModel(); } catch (Throwable ignored) {}
+                try { baseUrl = settings.getOpenAIBaseUrl(); } catch (Throwable ignored) {}
+                if (apiKey == null) apiKey = "";
+                if (model == null || model.isBlank()) model = "gpt-4o-mini";
+                if (baseUrl == null || baseUrl.isBlank()) baseUrl = "https://api.openai.com";
+                llmProviderActive = "openai";
+                return new OpenAIClient(apiKey, model, baseUrl);
+            }
+            case "ollama":
+            default: {
+                String endpoint = settings.getOllamaEndpoint();
+                String model = settings.getOllamaModel();
+                llmProviderActive = "ollama";
+                return new OllamaClient(endpoint, model);
             }
         }
     }

@@ -10,11 +10,13 @@ public class SimSettingsPage implements SettingsPage {
     private final JPanel panel = new JPanel(new GridBagLayout());
     private final JCheckBox enableSim = new JCheckBox("Enable Sim (AI companion)");
     private final JComboBox<String> personality = new JComboBox<>(new String[]{"gentle","neutral","proactive"});
-    private final JCheckBox useLlm = new JCheckBox("Allow AI model (Ollama)");
+    private final JCheckBox useLlm = new JCheckBox("Allow AI model");
+    private final JComboBox<String> llmProvider = new JComboBox<>(new String[]{"ollama","openai"});
     private final JTextField quietHours = new JTextField(12);
     private final JSpinner nudgeMinutes = new JSpinner(new SpinnerNumberModel(30, 5, 120, 5));
     private final JTextField ollamaEndpoint = new JTextField(18);
     private final JTextField ollamaModel = new JTextField(18);
+    private final JPasswordField openaiApiKey = new JPasswordField(24);
 
     public SimSettingsPage(){
         panel.setOpaque(true);
@@ -34,6 +36,9 @@ public class SimSettingsPage implements SettingsPage {
         try {
             ((JSpinner.DefaultEditor) nudgeMinutes.getEditor()).getTextField().setColumns(3);
         } catch (Throwable ignored) {}
+        // Provider combobox styling
+        llmProvider.setUI(new ModernComboBoxUI());
+        llmProvider.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
 
         gc.gridx = 0; gc.gridy = 0;
         panel.add(enableSim, gc);
@@ -42,6 +47,10 @@ public class SimSettingsPage implements SettingsPage {
         gc.gridx = 1; panel.add(personality, gc);
         gc.gridx = 0; gc.gridy++;
         panel.add(useLlm, gc);
+        gc.gridy++;
+        panel.add(new JLabel("LLM provider"), gc);
+        gc.gridx = 1;
+        panel.add(llmProvider, gc);
         gc.gridy++;
         panel.add(new JLabel("Quiet hours (e.g., 22:00-07:00)"), gc);
         gc.gridx = 1;
@@ -63,24 +72,38 @@ public class SimSettingsPage implements SettingsPage {
         gc.gridx = 1;
         panel.add(ollamaModel, gc);
 
+        // OpenAI settings
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("OpenAI API key"), gc);
+        gc.gridx = 1;
+        panel.add(openaiApiKey, gc);
+
         // Load current settings
         SimSettings s = SimSettings.get();
         enableSim.setSelected(s.isEnabled());
         personality.setSelectedItem(s.getPersonality());
         useLlm.setSelected(s.isLlmEnabled());
+        llmProvider.setSelectedItem(s.getLlmProvider());
         quietHours.setText(s.getQuietHours());
         nudgeMinutes.setValue(s.getNudgeIntervalMinutes());
         ollamaEndpoint.setText(s.getOllamaEndpoint());
         ollamaModel.setText(s.getOllamaModel());
+        openaiApiKey.setText(s.getOpenAIApiKey());
 
-        // Enable/disable Ollama fields based on checkbox
-        Runnable toggleOllamaFields = () -> {
-            boolean on = useLlm.isSelected();
-            ollamaEndpoint.setEnabled(on);
-            ollamaModel.setEnabled(on);
+        // Enable/disable provider-specific fields based on checkbox and provider
+        Runnable toggleLlmFields = () -> {
+            boolean llmOn = useLlm.isSelected();
+            llmProvider.setEnabled(llmOn);
+            String provider = (String) llmProvider.getSelectedItem();
+            boolean isOllama = llmOn && "ollama".equalsIgnoreCase(provider);
+            boolean isOpenAI = llmOn && "openai".equalsIgnoreCase(provider);
+            ollamaEndpoint.setEnabled(isOllama);
+            ollamaModel.setEnabled(isOllama);
+            openaiApiKey.setEnabled(isOpenAI);
         };
-        useLlm.addActionListener(e -> toggleOllamaFields.run());
-        toggleOllamaFields.run();
+        useLlm.addActionListener(e -> toggleLlmFields.run());
+        llmProvider.addActionListener(e -> toggleLlmFields.run());
+        toggleLlmFields.run();
     }
 
     @Override
@@ -92,9 +115,14 @@ public class SimSettingsPage implements SettingsPage {
         s.setEnabled(enableSim.isSelected());
         s.setPersonality((String) personality.getSelectedItem());
         s.setLlmEnabled(useLlm.isSelected());
+        s.setLlmProvider((String) llmProvider.getSelectedItem());
         s.setQuietHours(quietHours.getText());
         try { s.setNudgeIntervalMinutes((Integer) nudgeMinutes.getValue()); } catch (Exception ignored) {}
         s.setOllamaEndpoint(ollamaEndpoint.getText());
         s.setOllamaModel(ollamaModel.getText());
+        // Only persist API key if visible/enabled and LLM is on
+        if (useLlm.isSelected() && openaiApiKey.isEnabled()) {
+            s.setOpenAIApiKey(new String(openaiApiKey.getPassword()));
+        }
     }
 }

@@ -13,6 +13,11 @@ public final class SimSettings {
     private static final String KEY_NUDGE_MIN = "sim.nudge_minutes"; // integer minutes between checks
     private static final String KEY_OLLAMA_ENDPOINT = "sim.ollama.endpoint"; // e.g., http://localhost:11434
     private static final String KEY_OLLAMA_MODEL = "sim.ollama.model"; // e.g., llama3:instruct
+    // LLM provider selection and OpenAI settings
+    private static final String KEY_LLM_PROVIDER = "sim.llm.provider"; // ollama|openai
+    private static final String KEY_OPENAI_API_KEY = "sim.openai.api_key"; // stored locally
+    private static final String KEY_OPENAI_MODEL = "sim.openai.model"; // e.g., gpt-4o-mini
+    private static final String KEY_OPENAI_BASE_URL = "sim.openai.base_url"; // default https://api.openai.com
 
     private static SimSettings INSTANCE;
 
@@ -92,5 +97,40 @@ public final class SimSettings {
 
     public void setOllamaModel(String model) {
         store.setValue(KEY_OLLAMA_MODEL, model == null ? "deepseek-r1:1.5b" : model);
+    }
+
+    // --- LLM provider selection ---
+    public String getLlmProvider() {
+        return store.getValue(KEY_LLM_PROVIDER, "ollama");
+    }
+
+    public void setLlmProvider(String provider) {
+        String p = (provider == null || provider.isBlank()) ? "ollama" : provider.toLowerCase();
+        store.setValue(KEY_LLM_PROVIDER, p);
+    }
+
+    // --- OpenAI settings ---
+    public String getOpenAIApiKey() {
+        return store.getValue(KEY_OPENAI_API_KEY, "");
+    }
+
+    public void setOpenAIApiKey(String apiKey) {
+        store.setValue(KEY_OPENAI_API_KEY, apiKey == null ? "" : apiKey);
+    }
+
+    public String getOpenAIModel() {
+        return store.getValue(KEY_OPENAI_MODEL, "gpt-4o-mini");
+    }
+
+    public void setOpenAIModel(String model) {
+        store.setValue(KEY_OPENAI_MODEL, model == null ? "gpt-4o-mini" : model);
+    }
+
+    public String getOpenAIBaseUrl() {
+        return store.getValue(KEY_OPENAI_BASE_URL, "https://api.openai.com");
+    }
+
+    public void setOpenAIBaseUrl(String baseUrl) {
+        store.setValue(KEY_OPENAI_BASE_URL, baseUrl == null ? "https://api.openai.com" : baseUrl);
     }
 }
