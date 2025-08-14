@@ -3,8 +3,8 @@ package main.core.sim.engine;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import main.core.sim.api.SimEventBus;
@@ -14,6 +14,7 @@ import main.core.sim.llm.ollama.OllamaClient;
 import main.core.sim.llm.openai.OpenAIClient;
 import main.core.sim.llm.prompt.PromptBuilder;
 import main.core.sim.memory.MemoryStore;
+import main.core.sim.memory.PersistentMemoryStore;
 import main.core.sim.persona.SimPersonality;
 import main.core.sim.prefs.SimSettings;
 import main.core.sim.state.UserState;
@@ -30,6 +31,7 @@ public final class SimBrain implements SimEventBus.Listener {
     // Proactive context and memory
     private final UserState userState = new UserState();
     private final MemoryStore memory = new MemoryStore();
+    private final PersistentMemoryStore persistent = new PersistentMemoryStore();
 
     // Optional LLM
     private volatile SimLLMClient llm;
@@ -48,6 +50,10 @@ public final class SimBrain implements SimEventBus.Listener {
     private long lastTriggerMs = 0L;
     // Track last mood value for contextual replies
     private volatile Double lastMoodValue = null;
+    // Live per-entry emotion tags (short-lived, per current entry). Used to enrich prompts.
+    private static final long EMOTION_FRESH_MS = 15 * 60 * 1000L; // 15 minutes
+    private final java.util.ArrayDeque<EmotionTag> recentEmotions = new java.util.ArrayDeque<>(24);
+    private volatile String currentEmotionEntryId = null;
 
     // Scheduler
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -72,6 +78,15 @@ public final class SimBrain implements SimEventBus.Listener {
         }
         // Start lightweight proactive evaluation loop
         startTickLoop();
+
+        // Load persistent memories and ingest notebooks in background
+        try { persistent.load(); } catch (Throwable ignored) {}
+        scheduler.execute(() -> {
+            try { persistent.ingestAllNotebooks(this.data); } catch (Throwable ignored) {}
+        });
+
+        // Schedule a gentle on-launch check-in
+        scheduler.schedule(this::startupCheckIn, 3, TimeUnit.SECONDS);
     }
 
     public void shutdown(){
@@ -107,6 +122,8 @@ public final class SimBrain implements SimEventBus.Listener {
         // Update user state and episodic memory (for later summaries)
         try { userState.onTyping(latestText); } catch (Throwable ignored) {}
         try { memory.addEpisodic(latestText.length() > 140 ? latestText.substring(0, 140) + "…" : latestText); } catch (Throwable ignored) {}
+        // Derive and persist durable facts opportunistically from live typing
+        try { persistent.ingestText(latestText); } catch (Throwable ignored) {}
 
         // Crisis intent detection (self-harm / suicide). Immediate, safe response; bypass LLM.
         if (isCrisisText(text)) {
@@ -141,6 +158,22 @@ public final class SimBrain implements SimEventBus.Listener {
         } else if (value >= 80.0) {
             System.out.println("[SimBrain] high mood -> speak");
             speakOncePer(30000L, messageFor("highMood"));
+        }
+    }
+
+    @Override
+    public void onEmotionTagged(String entryId, String emotion, double intensity) {
+        // Normalize inputs
+        String e = emotion == null ? "" : emotion.trim().toLowerCase(java.util.Locale.ROOT);
+        if (e.isEmpty()) return;
+        if (intensity < 0) intensity = 0; else if (intensity > 100) intensity = 100;
+        long now = System.currentTimeMillis();
+        currentEmotionEntryId = entryId; // track which entry emotions relate to
+        synchronized (recentEmotions) {
+            recentEmotions.addLast(new EmotionTag(now, entryId, e, intensity));
+            // bound by size
+            while (recentEmotions.size() > 24) recentEmotions.removeFirst();
+            pruneOldEmotions(now);
         }
     }
 
@@ -186,15 +219,18 @@ public final class SimBrain implements SimEventBus.Listener {
         if (!settings.isEnabled()) return;
         String txt = userText == null ? "" : userText.trim();
         if (txt.isEmpty()) return;
+        // Derive and persist durable facts from chat messages as well
+        try { persistent.ingestText(txt); } catch (Throwable ignored) {}
         // Safety: crisis detection inside chat path
         if (isCrisisText(txt)) {
             speakNow(crisisMessage(personality.getType()));
             return;
         }
-        // Fast path: greetings like "how are you" -> heuristic, on-brand reply
-        if (isGreeting(txt)) {
-            String reply = composeGreetingReply();
-            try { SimEventBus.get().emitSpeak(reply); } catch (Throwable ignored) {}
+        // Detect goodbyes and exit overlay gracefully
+        if (isGoodbye(txt)) {
+            String bye = farewellMessage();
+            try { SimEventBus.get().emitSpeak(bye); } catch (Throwable ignored) {}
+            try { SimEventBus.get().emitQuitRequested(); } catch (Throwable ignored) {}
             lastSpeakMs = System.currentTimeMillis();
             return;
         }
@@ -208,6 +244,8 @@ public final class SimBrain implements SimEventBus.Listener {
                     "Reply concisely (1–3 sentences), compassionate and supportive.",
                     "Ask at most one brief follow-up question if it helps them open up.",
                     moodContextForPrompt(),
+                    emotionsContextForPrompt(),
+                    factsContextForPrompt(),
                     "If they greet you (e.g., 'how are you'), briefly say how you're doing and reciprocate, optionally acknowledging their recent mood.",
                     "Plain text only.\n\nUser:", txt);
             try {
@@ -302,9 +340,13 @@ public final class SimBrain implements SimEventBus.Listener {
                     /*triggerReason*/ trigger
             );
             String usr = PromptBuilder.userFromTyping(preview);
+            String emo = emotionsContextForPrompt();
+            if (emo != null && !emo.isBlank()) usr = usr + "\n\n" + emo;
             String memoryHint = null;
             try {
-                memoryHint = memory.getFactsSummary(1);
+                String m1 = persistent.getFactsSummary(1);
+                if (m1 == null || m1.isBlank()) m1 = memory.getFactsSummary(1);
+                memoryHint = m1;
             } catch (Throwable ignored) {}
             String preface = NudgePrefaceBuilder.buildPreface(triggerKey, trimmed, memoryHint);
             lastSpeakMs = now;
@@ -381,7 +423,8 @@ public final class SimBrain implements SimEventBus.Listener {
 
     private String safeSummary() {
         try {
-            String facts = memory.getFactsSummary(3);
+            String facts = persistent.getFactsSummary(3);
+            if (facts == null || facts.isBlank()) facts = memory.getFactsSummary(3);
             String convo = memory.getConversationSummary();
             if (facts.isBlank()) return convo;
             if (convo == null || convo.isBlank()) return "Facts: " + facts;
@@ -389,6 +432,47 @@ public final class SimBrain implements SimEventBus.Listener {
         } catch (Throwable t) {
             return "";
         }
+    }
+
+    // Include a compact facts context line for prompts
+    private String factsContextForPrompt() {
+        try {
+            String f = persistent.getFactsSummary(2);
+            if (f == null || f.isBlank()) f = memory.getFactsSummary(2);
+            if (f == null || f.isBlank()) return "";
+            return "Known user facts: " + f + ".";
+        } catch (Throwable ignored) { return ""; }
+    }
+
+    private void startupCheckIn() {
+        if (!settings.isEnabled()) return;
+        if (isQuietHoursNow()) return;
+        try {
+            String facts = persistent.getFactsSummary(2);
+            if (facts == null || facts.isBlank()) facts = memory.getFactsSummary(2);
+            String msg;
+            if (facts != null && !facts.isBlank()) {
+                msg = "Hi — just checking in. How’s your day starting? I remember " + facts + ". Anything you’d like to talk about today?";
+            } else {
+                msg = "Hi — how’s your day going? I’m here if you want to jot or chat for a minute.";
+            }
+            speakOncePer(10000L, msg);
+        } catch (Throwable ignored) {}
+    }
+
+    private String farewellMessage() {
+        switch (personality.getType()) {
+            case GENTLE: return "Okay—take good care. I’m here whenever you want to talk.";
+            case PROACTIVE: return "Got it! I’ll tuck away for now—ping me anytime.";
+            case NEUTRAL:
+            default: return "Okay, talk soon.";
+        }
+    }
+
+    private boolean isGoodbye(String txt) {
+        String t = txt.toLowerCase(java.util.Locale.ROOT).trim();
+        // simple forms: bye, goodbye, see you, talk later, quit, exit
+        return t.matches(".*\\b(bye|goodbye|see you|talk later|gotta go|time to go|quit|exit)\\b.*");
     }
 
     private void speakOncePer(long minIntervalMs, String msg) {
@@ -562,4 +646,57 @@ public final class SimBrain implements SimEventBus.Listener {
         }
     }
 
+    // --- Emotions helpers ---
+    private static final class EmotionTag {
+        final long ts;
+        final String entryId;
+        final String emotion;
+        final double intensity;
+        EmotionTag(long ts, String entryId, String emotion, double intensity) {
+            this.ts = ts; this.entryId = entryId; this.emotion = emotion; this.intensity = intensity;
+        }
+    }
+
+    private void pruneOldEmotions(long nowMs) {
+        while (!recentEmotions.isEmpty()) {
+            EmotionTag head = recentEmotions.peekFirst();
+            if (head == null) break;
+            if (nowMs - head.ts > EMOTION_FRESH_MS) recentEmotions.removeFirst(); else break;
+        }
+    }
+
+    private String emotionsContextForPrompt() {
+        long now = System.currentTimeMillis();
+        java.util.List<EmotionTag> fresh;
+        synchronized (recentEmotions) {
+            pruneOldEmotions(now);
+            fresh = new java.util.ArrayList<>(recentEmotions);
+        }
+        if (fresh.isEmpty()) return "";
+        // Prefer current entry emotions if available; otherwise take last few
+        java.util.LinkedHashMap<String, Double> byEmotion = new java.util.LinkedHashMap<>();
+        for (int i = fresh.size()-1; i >= 0; i--) {
+            EmotionTag t = fresh.get(i);
+            if (currentEmotionEntryId != null && t.entryId != null && !currentEmotionEntryId.equals(t.entryId)) continue;
+            // keep the most recent intensity per emotion label
+            if (!byEmotion.containsKey(t.emotion)) byEmotion.put(t.emotion, t.intensity);
+            if (byEmotion.size() >= 3) break;
+        }
+        if (byEmotion.isEmpty()) {
+            // fallback: take most recent up to 3 regardless of entry
+            for (int i = fresh.size()-1; i >= 0 && byEmotion.size() < 3; i--) {
+                EmotionTag t = fresh.get(i);
+                if (!byEmotion.containsKey(t.emotion)) byEmotion.put(t.emotion, t.intensity);
+            }
+        }
+        if (byEmotion.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("Current emotions (live): ");
+        int i = 0;
+        for (var e : byEmotion.entrySet()) {
+            if (i++ > 0) sb.append(", ");
+            sb.append(e.getKey()).append(' ').append(Math.round(e.getValue())).append("%");
+        }
+        sb.append('.');
+        return sb.toString();
+    }
 }

@@ -19,6 +19,10 @@ public final class SimEventBus {
         // Phase 2 chat events
         default void onChatMessage(String userText) {}
         default void onChatEnded() {}
+        // App-level: request Sim overlay to quit/close gracefully
+        default void onQuitRequested() {}
+        // Real-time per-entry emotion tag (e.g., "sad", 0..100). entryId can be null if not applicable
+        default void onEmotionTagged(String entryId, String emotion, double intensity) {}
     }
 
     private static SimEventBus INSTANCE;
@@ -77,6 +81,19 @@ public final class SimEventBus {
     public void emitChatEnded(){
         System.out.println("[SimBus] chatEnded");
         for (var l: listeners) l.onChatEnded();
+    }
+
+    // App-level: request all listeners to quit/close gracefully
+    public void emitQuitRequested(){
+        System.out.println("[SimBus] quitRequested");
+        for (var l: listeners) l.onQuitRequested();
+    }
+
+    // Real-time per-entry emotion tag emitter
+    public void emitEmotionTagged(String entryId, String emotion, double intensity){
+        System.out.println("[SimBus] emotionTagged entry=" + String.valueOf(entryId) +
+                " emotion=" + String.valueOf(emotion) + " intensity=" + intensity);
+        for (var l: listeners) l.onEmotionTagged(entryId, emotion, intensity);
     }
 
     private static String preview(String s){

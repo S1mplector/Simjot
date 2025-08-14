@@ -14,7 +14,6 @@ import main.ui.theme.aero.AeroPainters;
 public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private String message = "Hi, I’m Sim.";
     private Point dragAnchor = null;
-    private static final int CLOSE_SIZE = 14; // hit area for close (top-right)
 
     // Animation state
     private Timer animTimer;
@@ -56,7 +55,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private boolean chatMode = false;
     private java.util.List<ChatLine> chatHistory = new java.util.ArrayList<>();
     private JTextField chatInput;
-    private Rectangle chatExitRect = null; // small "x" inside panel to end chat
+    // Close buttons removed; dismiss via typing 'bye'
     private int streamingAssistantIndex = -1; // index of assistant line being streamed
     private Rectangle lastPanelRect = null; // updated during paint for layout
     // Streaming typing indicator state
@@ -82,20 +81,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         // Drag to move
         MouseAdapter ma = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                if (isInCloseHotspot(e.getPoint())) {
-                    // Dispose or exit chat depending on mode
-                    if (chatMode) {
-                        endChatMode();
-                    } else {
-                        startDisposeSequence();
-                    }
-                    return;
-                }
-                // Chat inline exit box inside panel
-                if (chatMode && chatExitRect != null && chatExitRect.contains(e.getPoint())) {
-                    endChatMode();
-                    return;
-                }
+                // Close buttons removed; dismiss via typing 'bye'
                 // CTA button clicks (when visible)
                 if (ctaVisible) {
                     if (chatBtnRect != null && chatBtnRect.contains(e.getPoint())) {
@@ -128,9 +114,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             @Override public void mouseMoved(MouseEvent e) {
                 boolean hand = false;
                 chatHover = false; notHover = false;
-                if (isInCloseHotspot(e.getPoint())) {
-                    hand = true;
-                } else if (ctaVisible && !chatMode) {
+                if (ctaVisible && !chatMode) {
                     if (chatBtnRect != null && chatBtnRect.contains(e.getPoint())) { chatHover = true; hand = true; }
                     if (notNowBtnRect != null && notNowBtnRect.contains(e.getPoint())) { notHover = true; hand = true; }
                 }
@@ -277,6 +261,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         try { transcript.endAssistantTurn(); } catch (Throwable ignored) {}
     }
 
+    @Override
+    public void onQuitRequested() {
+        // Gracefully end chat (if any) and dispose the overlay with animation
+        SwingUtilities.invokeLater(() -> {
+            try { endChatModeInternal(true); } catch (Throwable ignored) {}
+            startDisposeSequence();
+        });
+    }
+
     /** Unsubscribe from event bus and hide overlay. */
     public void disposeOverlay() {
         try { SimEventBus.get().removeListener(this); } catch (Throwable ignored) {}
@@ -309,22 +302,6 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
         // No outer frame/background — keep canvas transparent behind orbs and panel
 
-        // Close icon: reuse shared vector icon (same as Pomodoro/Sticky -> id "delete")
-        int cx = w - CLOSE_SIZE - 6;
-        int cy = 6;
-        try {
-            java.awt.image.BufferedImage img = main.ui.components.icons.VectorIconPainter.getImage("delete", Math.max(14, CLOSE_SIZE));
-            if (img != null) {
-                int ix = cx + (CLOSE_SIZE - img.getWidth()) / 2;
-                int iy = cy + (CLOSE_SIZE - img.getHeight()) / 2;
-                g2.drawImage(img, ix, iy, null);
-            } else {
-                // Fallback: minimal X
-                g2.setColor(new Color(0,0,0,120));
-                g2.drawLine(cx + 3, cy + 3, cx + CLOSE_SIZE - 3, cy + CLOSE_SIZE - 3);
-                g2.drawLine(cx + 3, cy + CLOSE_SIZE - 3, cx + CLOSE_SIZE - 3, cy + 3);
-            }
-        } catch (Throwable ignored) {}
 
         // Layout: left area for orbs, right area for text panel
         int padding = 14;
@@ -438,30 +415,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 g2.setPaint(oldPaint);
                 g2.setClip(oldClip);
 
-                // Chat exit button (visible only in chat mode). Place at top-right of the chat panel (scroll area)
-                if (chatMode) {
-                    int pad = 10;
-                    int headerH = 20; // must match chat scroll layout below
-                    int xChat = panelRect.x + pad + 2;
-                    int yChat = panelRect.y + headerH + 8 + entranceOffsetY;
-                    int wChat = panelRect.width - pad*2 - 4;
-                    int size = Math.max(12, CLOSE_SIZE);
-                    int ex = xChat + wChat - size;
-                    int ey = yChat + 2;
-                    chatExitRect = new Rectangle(ex, ey, size, size);
-                    try {
-                        java.awt.image.BufferedImage img = main.ui.components.icons.VectorIconPainter.getImage("delete", size);
-                        if (img != null) {
-                            g2.drawImage(img, ex, ey, null);
-                        } else {
-                            g2.setColor(new Color(0,0,0,120));
-                            g2.drawLine(ex + 3, ey + 3, ex + size - 3, ey + size - 3);
-                            g2.drawLine(ex + 3, ey + size - 3, ex + size - 3, ey + 3);
-                        }
-                    } catch (Throwable ignored) {}
-                } else {
-                    chatExitRect = null;
-                }
+                // Close button removed; no inline chat exit icon
 
                 // Store for input layout
                 lastPanelRect = panelRect;
@@ -768,11 +722,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         return lines;
     }
 
-    private boolean isInCloseHotspot(Point p) {
-        int w = getWidth();
-        Rectangle r = new Rectangle(w - CLOSE_SIZE - 6, 6, CLOSE_SIZE, CLOSE_SIZE);
-        return r.contains(p);
-    }
+    // Close hotspot removed
 
     // --- Chat helpers ---
     private enum Role { USER, ASSISTANT }
@@ -830,6 +780,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     private void layoutInputField() {
+        // During graceful quit, input may already be removed; avoid NPEs during layout ticks
+        if (chatInput == null) return;
         if (lastPanelRect == null) return;
         int pad = 10;
         int x = lastPanelRect.x + pad + 4;
