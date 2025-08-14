@@ -122,16 +122,11 @@ public final class TurnManager {
         } catch (Exception e) {
             System.out.println("[TurnManager] doStreamOrFallback failed: " + e);
         } finally {
-            // If no tokens were produced and it wasn't cancelled, emit a brief friendly fallback
+            // If no tokens were produced and it wasn't cancelled, do not emit static fallbacks.
             try {
                 if (!hadToken[0] && !cancelled[0] && allowFallback) {
-                    // Increment empty-stream streak and emit generic fallback only if no preface was shown
                     emptyNoTokenStreak.incrementAndGet();
-                    if (preface == null || preface.isBlank()) {
-                        SimEventBus.get().emitSpeak("I’m here if you want a quick suggestion or summary.");
-                    }
                 } else {
-                    // Reset streak if we had content or were cancelled
                     emptyNoTokenStreak.set(0);
                 }
             } catch (Throwable ignored) {}

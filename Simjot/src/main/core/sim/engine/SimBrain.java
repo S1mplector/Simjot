@@ -22,6 +22,7 @@ import main.core.sim.state.UserState;
  import main.core.sim.retrieval.RecencyBuffer;
  import main.core.sim.retrieval.RetrievalRanker;
  import main.core.sim.critic.CriticPromptDecorator;
+ import main.core.sim.proactive.ProactiveTriggerEngine;
 
 /**
  * Core decision engine: subscribes to Sim events and emits friendly overlay messages.
@@ -140,12 +141,47 @@ public final class SimBrain implements SimEventBus.Listener {
         // remember last mood for contextual chat replies
         lastMoodValue = value;
         // Assume mood slider scale 0–100; treat <=20 as low, >=80 as high
-        if (value <= 20.0) {
-            System.out.println("[SimBrain] low mood -> speak");
-            speakOncePer(25000L, messageFor("lowMood"));
-        } else if (value >= 80.0) {
-            System.out.println("[SimBrain] high mood -> speak");
-            speakOncePer(30000L, messageFor("highMood"));
+        if (value <= 20.0 || value >= 80.0) {
+            boolean isLow = value <= 20.0;
+            System.out.println("[SimBrain] " + (isLow?"low":"high") + " mood -> engine");
+            if (settings.isLlmEnabled()) ensureLlm();
+            long now = System.currentTimeMillis();
+            ProactiveTriggerEngine.Input in = new ProactiveTriggerEngine.Input();
+            in.nowMs = now;
+            in.enabled = settings.isEnabled();
+            in.quietHours = isQuietHoursNow();
+            String last = userState.getLastText();
+            if (last == null) last = "";
+            String trimmed = last.trim();
+            in.lastText = last;
+            in.millisSinceLastType = userState.millisSinceLastTyping();
+            in.negativeTone = looksNegative(trimmed);
+            in.shrinkEvents = userState.getShrinkEvents();
+            try { in.emptyNoTokenStreak = turns.getEmptyNoTokenStreak(); } catch (Throwable ignored) {}
+            in.lastTriggerKey = lastTriggerKey;
+            in.lastTriggerAtMs = lastTriggerMs;
+            in.holdOffEntryStart = shouldHoldOffForEntryStart(trimmed);
+            in.preview = safeSummary();
+            in.conversationSummary = safeSummary();
+            in.emotionsContext = emotionsContextForPrompt();
+            in.personalityType = personality.getType();
+            in.persistent = persistent;
+            in.session = memory;
+            in.recency = recency;
+
+            ProactiveTriggerEngine.Output out = ProactiveTriggerEngine.evaluateMoodCheckIn(in, isLow);
+            if (!out.fire) return;
+            if (llm != null) {
+                lastSpeakMs = now;
+                lastTriggerKey = out.triggerKey;
+                lastTriggerMs = now;
+                try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
+                try {
+                    turns.maybeSpeakProactively(llm, out.systemPrompt, out.userPrompt, out.preface);
+                } catch (Throwable ignored) {}
+            } else {
+                try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
+            }
         }
     }
 
@@ -170,7 +206,44 @@ public final class SimBrain implements SimEventBus.Listener {
         // Could greet on returning to main menu in proactive mode (optional)
         if (!settings.isEnabled() || cardId == null) return;
         if (personality.getType() == SimPersonality.Type.PROACTIVE && "Main Menu".equalsIgnoreCase(cardId)) {
-            speakOncePer(60000L, messageFor("greet"));
+            if (settings.isLlmEnabled()) ensureLlm();
+            long now = System.currentTimeMillis();
+            ProactiveTriggerEngine.Input in = new ProactiveTriggerEngine.Input();
+            in.nowMs = now;
+            in.enabled = settings.isEnabled();
+            in.quietHours = isQuietHoursNow();
+            String last = userState.getLastText();
+            if (last == null) last = "";
+            String trimmed = last.trim();
+            in.lastText = last;
+            in.millisSinceLastType = userState.millisSinceLastTyping();
+            in.negativeTone = looksNegative(trimmed);
+            in.shrinkEvents = userState.getShrinkEvents();
+            try { in.emptyNoTokenStreak = turns.getEmptyNoTokenStreak(); } catch (Throwable ignored) {}
+            in.lastTriggerKey = lastTriggerKey;
+            in.lastTriggerAtMs = lastTriggerMs;
+            in.holdOffEntryStart = shouldHoldOffForEntryStart(trimmed);
+            in.preview = last;
+            in.conversationSummary = safeSummary();
+            in.emotionsContext = emotionsContextForPrompt();
+            in.personalityType = personality.getType();
+            in.persistent = persistent;
+            in.session = memory;
+            in.recency = recency;
+
+            ProactiveTriggerEngine.Output out = ProactiveTriggerEngine.evaluateMenuGreeting(in);
+            if (!out.fire) return;
+            if (llm != null) {
+                lastSpeakMs = now;
+                lastTriggerKey = out.triggerKey;
+                lastTriggerMs = now;
+                try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
+                try {
+                    turns.maybeSpeakProactively(llm, out.systemPrompt, out.userPrompt, out.preface);
+                } catch (Throwable ignored) {}
+            } else {
+                try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
+            }
         }
         // Heuristic: when switching into an editor, treat as a new entry start
         if (cardId.startsWith("Editor_")) {
@@ -207,10 +280,7 @@ public final class SimBrain implements SimEventBus.Listener {
                 // fall through to heuristic
             }
         }
-        // Heuristic fallback if LLM is unavailable
-        try {
-            SimEventBus.get().emitSpeak("Would you like to share a bit more about what’s on your mind right now?");
-        } catch (Throwable ignored) {}
+        // No static fallback when LLM unavailable; suppress output
     }
 
     @Override
@@ -258,10 +328,7 @@ public final class SimBrain implements SimEventBus.Listener {
                 return;
             } catch (Throwable ignored) {}
         }
-        // Heuristic fallback if LLM is unavailable
-        try {
-            SimEventBus.get().emitSpeak("Thanks for sharing. Would a tiny next step help, like jotting how you’d like to feel by tonight?");
-        } catch (Throwable ignored) {}
+        // No static fallback when LLM unavailable; suppress output
     }
 
     @Override
@@ -280,106 +347,59 @@ public final class SimBrain implements SimEventBus.Listener {
         tickFuture = scheduler.scheduleAtFixedRate(this::tick, 2, 2, TimeUnit.SECONDS);
     }
 
-    // Periodic proactive evaluation: short pause, negative tone, repeated edits, reminders (stub)
+    // Periodic proactive evaluation delegated to ProactiveTriggerEngine
     private void tick() {
         if (!settings.isEnabled()) return;
-        // Avoid overlapping with an active user turn: if just typed very recently, skip
-        long sinceType = userState.millisSinceLastTyping();
-        String last = userState.getLastText();
-        if (last == null) last = "";
-
-        String trimmed = last.trim();
-        int len = trimmed.length();
-        boolean negativeTone = looksNegative(trimmed);
-        // Trigger A: short pause while composing something substantial (1.8s)
-        boolean shortPause = sinceType >= 1800L && len >= 60;
-        // Trigger B: many shrink events (proxy for repeated corrections)
-        boolean repeatedEdits = userState.getShrinkEvents() >= 3 && len >= 30;
-        // Trigger C: negative tone with a smaller pause
-        boolean negativePause = negativeTone && sinceType >= 1200L && len >= 40;
-
-        if (!(shortPause || repeatedEdits || negativePause)) return;
-        if (isQuietHoursNow()) return;
-
         long now = System.currentTimeMillis();
         // Global cooldown across proactive messages
         if (now - lastSpeakMs < 15000L) return;
+        if (isQuietHoursNow()) return;
 
-        // Prepare LLM if enabled; otherwise use heuristic nudge
+        String last = userState.getLastText();
+        if (last == null) last = "";
+        String trimmed = last.trim();
+
+        // Prepare LLM if enabled
         if (settings.isLlmEnabled()) ensureLlm();
 
-        String trigger;
-        String triggerKey;
-        long baseCooldownMs;
-        if (negativePause) {
-            trigger = "negative tone after short pause";
-            triggerKey = "negativePause";
-            baseCooldownMs = 25000L;
-        } else if (shortPause) {
-            trigger = "short pause while typing";
-            triggerKey = "shortPause";
-            baseCooldownMs = 45000L;
-        } else { // repeatedEdits
-            trigger = "repeated corrections while typing";
-            triggerKey = "repeatedEdits";
-            baseCooldownMs = 40000L;
-        }
+        // Build input for the engine
+        ProactiveTriggerEngine.Input in = new ProactiveTriggerEngine.Input();
+        in.nowMs = now;
+        in.enabled = settings.isEnabled();
+        in.quietHours = isQuietHoursNow();
+        in.lastText = last;
+        in.millisSinceLastType = userState.millisSinceLastTyping();
+        in.negativeTone = looksNegative(trimmed);
+        in.shrinkEvents = userState.getShrinkEvents();
+        try { in.emptyNoTokenStreak = turns.getEmptyNoTokenStreak(); } catch (Throwable ignored) {}
+        in.lastTriggerKey = lastTriggerKey;
+        in.lastTriggerAtMs = lastTriggerMs;
+        in.holdOffEntryStart = shouldHoldOffForEntryStart(trimmed);
+        in.preview = last.length() > 200 ? last.substring(0,199) + "…" : last;
+        in.conversationSummary = safeSummary();
+        in.emotionsContext = emotionsContextForPrompt();
+        in.personalityType = personality.getType();
+        in.persistent = persistent;
+        in.session = memory;
+        in.recency = recency;
 
-        // Same-trigger cooldown with simple backoff tied to empty-stream streak
-        int emptyStreak = 0;
-        try { emptyStreak = turns.getEmptyNoTokenStreak(); } catch (Throwable ignored) {}
-        long sameTriggerCooldown = baseCooldownMs + Math.min(60000L, emptyStreak * 5000L);
-        if (triggerKey.equals(lastTriggerKey) && (now - lastTriggerMs) < sameTriggerCooldown) {
-            return;
-        }
-        String preview = last.length() > 200 ? last.substring(0, 199) + "…" : last;
+        ProactiveTriggerEngine.Output out = ProactiveTriggerEngine.evaluate(in);
+        if (!out.fire) return;
 
         if (llm != null) {
-            // If we're at the start of an entry and the text hasn't evolved much from the opening,
-            // hold off to avoid premature interruption.
-            if (shouldHoldOffForEntryStart(trimmed)) {
-                // Light backoff to avoid re-checking every tick
-                lastSpeakMs = now; // reuse speak cooldown as a soft backoff window
-                return;
-            }
-            String sys = CriticPromptDecorator.decorateSystem(
-                    PromptBuilder.systemPromptWithContext(
-                    personality.getType(),
-                    /*moodLabel*/ null,
-                    /*moodValence*/ null,
-                    /*recentInputPreview*/ preview,
-                    /*conversationSummary*/ safeSummary(),
-                    /*triggerReason*/ trigger
-            ));
-            String usr = PromptBuilder.userFromTyping(preview);
-            String emo = emotionsContextForPrompt();
-            if (emo != null && !emo.isBlank()) usr = usr + "\n\n" + emo;
-            // Add richer retrieval context
-            String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 4, 4);
-            if (ctx != null && !ctx.isBlank()) usr = "Context: " + ctx + "\n\n" + usr;
-            String memoryHint = null;
-            try {
-                String m1 = persistent.getFactsSummary(1);
-                if (m1 == null || m1.isBlank()) m1 = memory.getFactsSummary(1);
-                memoryHint = m1;
-            } catch (Throwable ignored) {}
-            String preface = NudgePrefaceBuilder.buildPreface(triggerKey, trimmed, memoryHint);
             lastSpeakMs = now;
-            lastTriggerKey = triggerKey;
+            lastTriggerKey = out.triggerKey;
             lastTriggerMs = now;
-            try { triggerStats.record(triggerKey); } catch (Throwable ignored) {}
+            try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
             try {
-                System.out.println("[SimBrain] proactive tick -> streaming LLM due to " + trigger);
-                turns.maybeSpeakProactively(llm, sys, usr, preface);
+                System.out.println("[SimBrain] proactive tick -> streaming LLM (" + out.triggerKey + ")");
+                turns.maybeSpeakProactively(llm, out.systemPrompt, out.userPrompt, out.preface);
             } catch (Throwable ignored) {
                 System.out.println("[SimBrain] proactive turn start failed");
             }
         } else {
-            // Heuristic fallback
-            lastSpeakMs = now;
-            String msg = negativeTone ? messageFor("negative") : messageFor("greet");
-            try { SimEventBus.get().emitSpeak(msg); } catch (Throwable ignored) {}
-            try { triggerStats.record(triggerKey); } catch (Throwable ignored) {}
+            // LLM unavailable: suppress speech but record that a trigger would have fired
+            try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
         }
 
         // Reset edit burst counter to avoid immediate retriggering
@@ -412,11 +432,7 @@ public final class SimBrain implements SimEventBus.Listener {
             speakNow(msg);
             return;
         }
-        // If LLM is off, allow a gentle heuristic nudge on negative tone
-        if (!settings.isLlmEnabled() && looksNegative(trimmed)) {
-            System.out.println("[SimBrain] heuristic negative detected (LLM off); speaking");
-            speakOncePer(20000L, messageFor("negative"));
-        }
+        // If LLM is off, do not emit pre-written nudges; proactive messages are LLM-only now
     }
 
     // --- Entry-start evaluation and suppression ---
