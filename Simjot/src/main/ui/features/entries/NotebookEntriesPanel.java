@@ -15,7 +15,6 @@ import javax.swing.event.DocumentListener;
 import java.text.SimpleDateFormat;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.input.AeroTextField;
@@ -116,8 +115,9 @@ public class NotebookEntriesPanel extends JPanel {
 
         // Top bar
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        RoundedButton backBtn = new RoundedButton("< Notebooks");
-        backBtn.setBackground(new Color(240,240,240)); backBtn.setForeground(Color.DARK_GRAY);
+        // Replace text back button with PNG back icon button
+        ToolbarIconButton backBtn = new ToolbarIconButton("back");
+        backBtn.setToolTipText("Back to Notebooks");
         backBtn.addActionListener(e->app.switchCard(JournalApp.NOTEBOOK_MANAGER));
 
         ToolbarIconButton newBtn = new ToolbarIconButton("new");

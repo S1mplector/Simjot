@@ -6,11 +6,12 @@ import java.util.Map;
 import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.components.icons.ImageIconRenderer;
 
 public class SettingsPanel extends JPanel {
 
@@ -97,9 +98,12 @@ public class SettingsPanel extends JPanel {
         JPanel chrome = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         chrome.setOpaque(true);
         chrome.setBackground(Color.WHITE);
-        RoundedButton cancel = new RoundedButton("Cancel");
+        // Icon buttons for Cancel/Save using centralized PNG renderer
+        ToolbarIconButton cancel = new ToolbarIconButton("back");
+        cancel.setToolTipText("Cancel");
         cancel.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
-        RoundedButton save = new RoundedButton("Save");
+        ToolbarIconButton save = new ToolbarIconButton("save");
+        save.setToolTipText("Save Settings");
         save.addActionListener(e-> saveAll());
         chrome.add(cancel);
         chrome.add(save);
@@ -159,6 +163,25 @@ public class SettingsPanel extends JPanel {
         @Override public Component getListCellRendererComponent(JList<? extends String> list, String value,int idx,boolean sel,boolean focus){
             this.selected = sel;
             lbl.setText(value);
+            // Attach an icon next to the section name using centralized PNG renderer
+            String id = switch (value.toLowerCase()){
+                case "general" -> "general_settings";
+                case "appearance" -> "appearance_settings";
+                case "storage" -> "storage_settings";
+                case "sim" -> "sim_settings";
+                case "about" -> "about_settings";
+                default -> null;
+            };
+            javax.swing.Icon icon = null;
+            if (id != null){
+                String res = ImageIconRenderer.mapIdToResource(id);
+                if (res != null){
+                    java.awt.image.BufferedImage buf = ImageIconRenderer.get(res, 20, true);
+                    if (buf != null) icon = new ImageIcon(buf);
+                }
+            }
+            lbl.setIcon(icon);
+            lbl.setIconTextGap(8);
             lbl.setForeground(AeroTheme.TEXT_PRIMARY); // keep text dark even when selected
             setPreferredSize(new Dimension(list.getFixedCellWidth(),40));
             return this;

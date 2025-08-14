@@ -187,8 +187,9 @@ public class NewEntryPanel extends JPanel {
         JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topToolbar.setOpaque(false);
 
-        // Back button
-        RoundedButton backButton = new RoundedButton("Back");
+        // Back button (PNG icon via centralized renderer)
+        ToolbarIconButton backButton = new ToolbarIconButton("back");
+        backButton.setToolTipText("Back to Main Menu");
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
         topToolbar.add(backButton);
 
@@ -371,7 +372,9 @@ public class NewEntryPanel extends JPanel {
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setOpaque(false);
 
-        RoundedButton saveButton = new RoundedButton("Save Entry");
+        // Save button (PNG icon via centralized renderer)
+        ToolbarIconButton saveButton = new ToolbarIconButton("save");
+        saveButton.setToolTipText("Save Entry");
         saveButton.addActionListener(e -> saveEntry());
 
         // Word count label

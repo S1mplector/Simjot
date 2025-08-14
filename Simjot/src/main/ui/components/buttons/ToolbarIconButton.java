@@ -3,8 +3,8 @@ package main.ui.components.buttons;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import javax.swing.*;
-import main.infrastructure.io.ResourceLoader;
 import main.ui.components.icons.VectorIconPainter;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -16,7 +16,7 @@ import main.ui.theme.aero.AeroTheme;
 
 public class ToolbarIconButton extends JButton {
     private final String id;
-    private ImageIcon icon;
+    private final String resourcePath; // centralized PNG path (may be null)
     private boolean selected;
     private boolean glow;
     private Timer glowTimer;
@@ -30,13 +30,9 @@ public class ToolbarIconButton extends JButton {
         setPreferredSize(new Dimension(40,40));
         setFocusPainted(false); setBorderPainted(false); setContentAreaFilled(false);
 
-        // attempt load bitmap resource from Simjot/img/{id}.png
-        // Skip loading for ids we always render as vector to avoid missing-file warnings
-        if ("trash".equals(id) || "new".equals(id) || "delete".equals(id) || "cork".equals(id) || "options".equals(id)) {
-            this.icon = null;
-        } else {
-            this.icon = ResourceLoader.createImageIcon("Simjot/img/"+id+".png");
-        }
+        // Centralized mapping for PNGs; fallback to legacy img/{id}.png
+        String mapped = ImageIconRenderer.mapIdToResource(this.id);
+        this.resourcePath = (mapped != null) ? mapped : ("img/" + id + ".png");
 
         INSTANCES.add(this);
         setGlow(globalGlow);
@@ -82,11 +78,17 @@ public class ToolbarIconButton extends JButton {
         g2.setColor(new Color(180,180,180));
         g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
 
-        // Draw icon/vector. For 'trash', 'new', 'delete', 'cork', and 'options', prefer vector rendering.
+        // Draw icon via centralized renderer; fallback to vector
         boolean painted=false;
-        if(!("trash".equals(id) || "new".equals(id) || "delete".equals(id) || "cork".equals(id) || "options".equals(id)) && icon!=null){
-            icon.paintIcon(this,g2,(getWidth()-icon.getIconWidth())/2,(getHeight()-icon.getIconHeight())/2);
-            painted=true;
+        int size = Math.min(getWidth(), getHeight()) - 8;
+        int ix = (getWidth()-size)/2;
+        int iy = (getHeight()-size)/2;
+        if (resourcePath != null) {
+            java.awt.image.BufferedImage buf = ImageIconRenderer.get(resourcePath, size, true);
+            if (buf != null) {
+                g2.drawImage(buf, ix, iy, null);
+                painted = true;
+            }
         }
         if(!painted){ drawVector(g2); }
 

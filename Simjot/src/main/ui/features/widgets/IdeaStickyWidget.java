@@ -6,6 +6,7 @@ import java.io.*;
 import java.util.*;
 import javax.swing.*;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
@@ -124,8 +125,8 @@ public class IdeaStickyWidget implements Widget {
         JButton btnColor = makeHeaderButton(iconFor("settings", 16), "Color");
         JButton btnSave  = makeHeaderButton(iconFor("save", 16), "Save");
         JButton btnNew   = makeHeaderButton(iconFor("plus", 16), "New note");
-        // Reuse the entry manager "delete entry" icon style for close
-        JButton btnClose = makeHeaderButton(iconFor("delete", 16), "Close");
+        // Use dedicated close PNG icon
+        JButton btnClose = makeHeaderButton(iconFor("close", 16), "Close");
         Dimension tiny = new Dimension(22, 22);
         for (JButton b : new JButton[]{btnList, btnColor, btnSave, btnNew, btnClose}) {
             b.setPreferredSize(tiny);
@@ -179,7 +180,7 @@ public class IdeaStickyWidget implements Widget {
         return b;
     }
 
-    // Vector icon factory for mini buttons
+    // Icon factory for mini buttons: prefer PNGs, fallback to vector/primitive
     private Icon iconFor(String name, int size) {
         return new Icon() {
             @Override public int getIconWidth() { return size; }
@@ -188,19 +189,39 @@ public class IdeaStickyWidget implements Widget {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int s = size;
-                // For icons we want to reuse exactly, delegate to shared painter
-                if ("settings".equals(name) || "delete".equals(name) || "+".equals(name) || "plus".equals(name) || "save".equals(name) || "list".equals(name)) {
-                    java.awt.image.BufferedImage img = main.ui.components.icons.VectorIconPainter.getImage(name, s);
+
+                // Try PNG first
+                String pngName = switch (name) {
+                    case "close" -> "close";
+                    case "settings", "gear" -> "settings";
+                    case "+", "plus", "new" -> "write";
+                    case "save" -> "save";
+                    case "list" -> "list";
+                    case "delete" -> "delete_entry"; // keep compatibility
+                    default -> null;
+                };
+                if (pngName != null) {
+                    Image img = ResourceLoader.createImage("Simjot/img/icons/" + pngName + ".png");
                     if (img != null) {
-                        g2.drawImage(img, x, y, null);
+                        g2.drawImage(img.getScaledInstance(s, s, Image.SCALE_SMOOTH), x, y, null);
+                        g2.dispose();
+                        return;
+                    }
+                }
+
+                // Fallback to shared vector painter for known ids
+                if ("settings".equals(name) || "delete".equals(name) || "+".equals(name) || "plus".equals(name) || "save".equals(name) || "list".equals(name)) {
+                    java.awt.image.BufferedImage buf = main.ui.components.icons.VectorIconPainter.getImage(name, s);
+                    if (buf != null) {
+                        g2.drawImage(buf, x, y, null);
                     } else {
-                        // Fallback to vector if cache miss due to unknown id
                         main.ui.components.icons.VectorIconPainter.paint(g2, name, x, y, s);
                     }
                     g2.dispose();
                     return;
                 }
-                // Otherwise, draw minimal monochrome glyphs using theme text color
+
+                // Primitive glyph fallback
                 g2.setColor(AeroTheme.TEXT_PRIMARY);
                 g2.setStroke(new BasicStroke(Math.max(1.6f, s/10f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 int m = 2;
@@ -212,29 +233,20 @@ public class IdeaStickyWidget implements Widget {
                         g2.drawLine(cx, y + m, cx, y + h - m);
                         break;
                     }
-                    case "close": { // fallback X (kept for compatibility)
+                    case "close": {
                         g2.drawLine(x + m, y + m, x + w - m, y + h - m);
                         g2.drawLine(x + m, y + h - m, x + w - m, y + m);
                         break;
                     }
                     case "save": {
-                        // Floppy: outer square + notch + label line
                         g2.drawRoundRect(x + m, y + m, w - 2*m, h - 2*m, 3, 3);
-                        // header notch
                         int header = y + m + (h - 2*m)/3;
                         g2.drawLine(x + m, header, x + w - m, header);
-                        // inner label rectangle
                         int lw = (w - 2*m)/3;
                         g2.drawRect(x + m + 2, y + m + 2, lw, lw);
                         break;
                     }
-                    case "gear": // legacy alias; map to settings shared painter
-                    case "settings": {
-                        main.ui.components.icons.VectorIconPainter.paint(g2, "wrench", x, y, s);
-                        break;
-                    }
                     case "list": {
-                        // three horizontal lines
                         int left = x + m, right = x + w - m;
                         int y1 = y + m + 2;
                         int y2 = cy;

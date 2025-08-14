@@ -8,6 +8,7 @@ import javax.swing.Timer;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadingButton;
 import main.ui.components.icons.VectorIconPainter;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -103,12 +104,23 @@ public class MainMenuButton extends FadingButton {
             int x = xStart + (int)((xCenter - xStart) * progress);
 
             int y = (getHeight() - size) / 2;
-            // Icons use theme primary text color for better contrast
-            g2Icon.setColor(AeroTheme.TEXT_PRIMARY);
-            drawVector(g2Icon, iconId, x, y, size);
+            // Prefer centralized PNG renderer (with caching & shadow); fallback to vector
+            String resPath = ImageIconRenderer.mapIdToResource(iconId);
+            boolean drawn = false;
+            if (resPath != null) {
+                ImageIconRenderer.draw(g2Icon, resPath, x, y, size, this, true);
+                drawn = true;
+            }
+            if (!drawn) {
+                // Icons use theme primary text color for better contrast
+                g2Icon.setColor(AeroTheme.TEXT_PRIMARY);
+                drawVector(g2Icon, iconId, x, y, size);
+            }
             g2Icon.dispose();
         }
     }
+
+    // PNG path resolution is centralized in ImageIconRenderer.mapIdToResource
 
     private void drawVector(Graphics2D g2, String id, int x, int y, int s){
         g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));

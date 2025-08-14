@@ -18,12 +18,15 @@ public class ResourceLoader {
             return url;
         }
 
-        // Fallback: look for the file on disk relative to the working directory or in the Simjot folder
+        // Fallbacks for development environment where resources aren't copied to output:
+        // 1) relative to working directory
         java.io.File file = new java.io.File(path);
-        if (!file.exists()) {
-            // Try with "Simjot/" prefix (useful when running from project root)
-            file = new java.io.File("Simjot/" + path);
-        }
+        // 2) under project root: Simjot/<path>
+        if (!file.exists()) file = new java.io.File("Simjot/" + path);
+        // 3) typical Maven-style resources dir
+        if (!file.exists()) file = new java.io.File("src/main/resources/" + path);
+        // 4) typical within Simjot module
+        if (!file.exists()) file = new java.io.File("Simjot/src/main/resources/" + path);
         try {
             return file.exists() ? file.toURI().toURL() : null;
         } catch (java.net.MalformedURLException e) {

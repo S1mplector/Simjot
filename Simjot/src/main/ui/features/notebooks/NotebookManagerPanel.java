@@ -77,88 +77,33 @@ public class NotebookManagerPanel extends JPanel {
     }
 
     private static BufferedImage createIcon(NotebookInfo nb){
-        final int S = 100;
-        BufferedImage img = new BufferedImage(S, S, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = img.createGraphics();
+        final int S = 100; // tile icon canvas
+        final int ICON_SIZE = 72;
+        BufferedImage canvas = new BufferedImage(S, S, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = canvas.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 
-        // Base sizing
-        int s = 72; // icon content size
-        int x = (S - s) / 2;
-        int y = (S - s) / 2;
-        int arc = Math.max(10, s / 6);
+        // Use centralized PNG renderer (with caching + subtle shadow)
+        String id = "notebook"; // could be extended to read from nb metadata
+        String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource(id);
+        java.awt.image.BufferedImage scaled = (res != null)
+                ? main.ui.components.icons.ImageIconRenderer.get(res, ICON_SIZE, true)
+                : null;
 
-        // --- Soft drop shadow (behind book) ---
-        {
-            int sh = 6;
-            Rectangle shadowRect = new Rectangle(x + 3, y + 5, s - 2, s - 2);
-            for (int i = sh; i >= 1; i--) {
-                int a = (int) (22 * (i / (float) sh));
-                g2.setColor(new Color(0, 0, 0, a));
-                g2.setStroke(new BasicStroke(i * 1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.draw(new java.awt.geom.RoundRectangle2D.Float(
-                        shadowRect.x + 1, shadowRect.y + 1,
-                        shadowRect.width - 2, shadowRect.height - 2,
-                        arc, arc));
-            }
+        int x = (S - ICON_SIZE) / 2;
+        int y = (S - ICON_SIZE) / 2;
+        if (scaled != null) {
+            g2.drawImage(scaled, x, y, null);
+        } else {
+            // Fallback: simple vector placeholder
+            g2.setColor(new Color(230,230,230));
+            g2.fillRoundRect(x, y, ICON_SIZE, ICON_SIZE, 10, 10);
+            g2.setColor(new Color(180,180,180));
+            g2.drawRoundRect(x, y, ICON_SIZE, ICON_SIZE, 10, 10);
         }
-
-        // --- Page block on the right ---
-        int pageW = Math.max(16, s / 4);
-        Rectangle pageRect = new Rectangle(x + s - pageW - 6, y + 8, pageW, s - 16);
-        // Page fill
-        AeroPainters.paintVerticalGradient(g2, pageRect,
-                new Color(255, 255, 255), new Color(240, 240, 240), arc - 6);
-        // Page lines
-        g2.setStroke(new BasicStroke(1f));
-        g2.setColor(new Color(0, 0, 0, 45));
-        int lines = 4;
-        for (int i = 0; i < lines; i++) {
-            int yy = pageRect.y + pageRect.height / (lines + 1) * (i + 1);
-            g2.drawLine(pageRect.x + 6, yy, pageRect.x + pageRect.width - 6, yy);
-        }
-        // Page inner stroke
-        AeroPainters.paintInnerStroke(g2, pageRect, arc - 6, new Color(0, 0, 0, 35));
-
-        // --- Spine (left) ---
-        int spineW = Math.max(12, s / 5);
-        Rectangle spine = new Rectangle(x, y, spineW, s);
-        AeroPainters.paintVerticalGradient(g2, spine, AeroTheme.AERO_BLUE_DARK, AeroTheme.AERO_BLUE, arc);
-        // Spine highlight strip
-        g2.setColor(new Color(255, 255, 255, 100));
-        g2.fill(new java.awt.geom.RoundRectangle2D.Float(
-                spine.x + 2, spine.y + 2, Math.max(3, spineW / 5f), spine.height - 4, arc, arc));
-
-        // --- Cover (center area excluding spine and a bit of page) ---
-        int coverX = x + spineW - 1;
-        int coverW = s - spineW - (S - (pageRect.x + pageRect.width)) - 4; // leave space to the pages
-        Rectangle coverRect = new Rectangle(coverX, y, coverW, s);
-
-        // Outer glow halo
-        AeroPainters.paintOuterGlow(g2, coverRect, arc, AeroTheme.AERO_BLUE_LIGHT, 4, 60);
-        // Cover gradient
-        AeroPainters.paintVerticalGradient(g2, coverRect, AeroTheme.AERO_BLUE_LIGHT, AeroTheme.AERO_BLUE, arc);
-        // Glass highlight overlay
-        AeroPainters.paintGlassOverlay(g2, coverRect, arc);
-        // Border accent
-        g2.setColor(new Color(0, 0, 0, 70));
-        g2.setStroke(new BasicStroke(1.2f));
-        g2.draw(new java.awt.geom.RoundRectangle2D.Float(coverRect.x + 0.5f, coverRect.y + 0.5f,
-                coverRect.width - 1f, coverRect.height - 1f, arc, arc));
-
-        // --- Elastic band/bookmark near the right edge of the cover ---
-        int bandX = coverRect.x + coverRect.width - Math.max(10, s / 10);
-        g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g2.setColor(new Color(AeroTheme.AERO_BLUE_DARK.getRed(), AeroTheme.AERO_BLUE_DARK.getGreen(), AeroTheme.AERO_BLUE_DARK.getBlue(), 160));
-        g2.drawLine(bandX, coverRect.y + arc / 2, bandX, coverRect.y + coverRect.height - arc / 2);
-
-        // Subtle separator between cover and page block
-        g2.setColor(new Color(0, 0, 0, 35));
-        g2.drawLine(pageRect.x - 1, pageRect.y + 2, pageRect.x - 1, pageRect.y + pageRect.height - 2);
-
         g2.dispose();
-        return img;
+        return canvas;
     }
 
     private static int countEntries(NotebookInfo nb){
