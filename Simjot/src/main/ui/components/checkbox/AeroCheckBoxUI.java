@@ -17,6 +17,23 @@ public class AeroCheckBoxUI extends BasicCheckBoxUI {
     };
 
     @Override
+    public void installUI(JComponent c) {
+        super.installUI(c);
+        // Reserve space so text doesn't shift when toggled/pressed
+        if (c instanceof AbstractButton) {
+            AbstractButton b = (AbstractButton) c;
+            if (b.getIcon() == null) {
+                b.setIcon(DUMMY_ICON);
+            }
+            if (b.getIconTextGap() < 6) {
+                b.setIconTextGap(6);
+            }
+            b.setFocusPainted(false);
+            b.setOpaque(false);
+        }
+    }
+
+    @Override
     public synchronized void paint(Graphics g, JComponent c) {
         AbstractButton b = (AbstractButton) c;
         ButtonModel model = b.getModel();
@@ -42,7 +59,14 @@ public class AeroCheckBoxUI extends BasicCheckBoxUI {
 
         // Paint box
         Graphics2D g2 = (Graphics2D) g.create();
+        g2.setClip(0, 0, c.getWidth(), c.getHeight());
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        // Clear background first to avoid ghosting on press/rollover
+        Color bg = (c.getParent() != null ? c.getParent().getBackground() : c.getBackground());
+        g2.setComposite(AlphaComposite.SrcOver);
+        g2.setColor(bg);
+        g2.fillRect(0, 0, c.getWidth(), c.getHeight());
         int box = 16;
         int x = iconRect.x + (iconRect.width - box) / 2;
         int y = iconRect.y + (iconRect.height - box) / 2;

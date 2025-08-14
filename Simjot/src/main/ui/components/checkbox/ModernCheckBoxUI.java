@@ -14,6 +14,24 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
         @Override public int getIconWidth() { return 18; } // Reserve space for the box
         @Override public int getIconHeight() { return 18; }
     };
+    
+    @Override
+    public void installUI(JComponent c) {
+        super.installUI(c);
+        // Ensure layout and preferred size reserve space for the checkbox box
+        if (c instanceof AbstractButton) {
+            AbstractButton b = (AbstractButton) c;
+            if (b.getIcon() == null) {
+                b.setIcon(DUMMY_ICON);
+            }
+            if (b.getIconTextGap() < 6) {
+                b.setIconTextGap(6);
+            }
+            b.setFocusPainted(false);
+            // Avoid background fill artifacts; let parent paint background
+            b.setOpaque(false);
+        }
+    }
 
     @Override
     public synchronized void paint(Graphics g, JComponent c) {
@@ -41,7 +59,15 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
 
         // Paint the check box
         Graphics2D g2 = (Graphics2D) g.create();
+        g2.setClip(0, 0, c.getWidth(), c.getHeight());
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        // Clear background to avoid artifacts when component/background is translucent
+        Color bg = (c.getParent() != null ? c.getParent().getBackground() : c.getBackground());
+        g2.setComposite(AlphaComposite.SrcOver);
+        g2.setColor(bg);
+        g2.fillRect(0, 0, c.getWidth(), c.getHeight());
 
         int boxSize = 16;
         int x = iconRect.x + (iconRect.width - boxSize) / 2;
