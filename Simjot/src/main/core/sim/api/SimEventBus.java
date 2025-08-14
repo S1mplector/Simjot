@@ -14,6 +14,11 @@ public final class SimEventBus {
         default void onSpeak(String message) {}
         default void onSpeakStart() {}
         default void onSpeakEnd() {}
+        // User clicked a CTA to chat more; Phase 1: request a single follow-up turn
+        default void onChatFollowupRequested() {}
+        // Phase 2 chat events
+        default void onChatMessage(String userText) {}
+        default void onChatEnded() {}
     }
 
     private static SimEventBus INSTANCE;
@@ -54,6 +59,24 @@ public final class SimEventBus {
     public void emitSpeakEnd(){
         System.out.println("[SimBus] speakEnd");
         for (var l: listeners) l.onSpeakEnd();
+    }
+
+    // Phase 1 chat: user asked to continue the conversation with one more reply
+    public void emitChatFollowupRequested(){
+        System.out.println("[SimBus] chatFollowupRequested");
+        for (var l: listeners) l.onChatFollowupRequested();
+    }
+
+    // Phase 2 chat: user sent a chat message
+    public void emitChatMessage(String userText){
+        System.out.println("[SimBus] chatMessage len=" + (userText==null?0:userText.length()));
+        for (var l: listeners) l.onChatMessage(userText);
+    }
+
+    // Phase 2 chat: user ended chat session
+    public void emitChatEnded(){
+        System.out.println("[SimBus] chatEnded");
+        for (var l: listeners) l.onChatEnded();
     }
 
     private static String preview(String s){

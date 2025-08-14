@@ -1,24 +1,32 @@
 package main.core.sim.llm.prompt;
 
 import main.core.sim.persona.SimPersonality;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class PromptBuilder {
     private PromptBuilder() {}
 
+    // Cache loaded prompts by key ("default" or persona key)
+    private static final Map<String, String> PROMPT_CACHE = new ConcurrentHashMap<>();
+    private static final String DEFAULT_PROMPT_NAME = "sim_system_prompt.txt";
+    private static final String PROMPT_DIR_ENV = "SIM_PROMPT_DIR"; // optional override
+
     public static String systemPrompt(SimPersonality.Type type) {
-        String tone;
-        switch (type) {
-            case GENTLE: tone = "You are Sim, a gentle, supportive journaling companion. Offer short, empathetic reflections."; break;
-            case NEUTRAL: tone = "You are Sim, a balanced journaling companion. Offer brief, clear, and supportive reflections."; break;
-            case PROACTIVE: tone = "You are Sim, an encouraging journaling companion. Offer brief, motivating reflections and gentle prompts."; break;
-            default: tone = "You are Sim, a supportive journaling companion.";
-        }
-        return String.join(" ",
-                tone,
-                "Focus on emotional validation and small, actionable steps.",
-                "Keep replies 1–3 sentences.",
-                "Do NOT include chain-of-thought, reasoning tags, or any <think>...</think> content.",
-                "Output plain text only—no XML/HTML/Markdown, no code fences.");
+        // Try persona-specific file, then default file, then hardcoded fallback
+        String key = type == null ? "default" : ("persona_" + type.name().toLowerCase(Locale.ROOT));
+        return PROMPT_CACHE.computeIfAbsent(key, k -> {
+            String fromFile = loadPromptForType(type);
+            return fromFile != null ? fromFile : hardcodedFallback(type);
+        });
     }
 
     /**
@@ -96,5 +104,88 @@ public final class PromptBuilder {
                 "Plain text only. 1–3 sentences.",
                 "\nJournal:",
                 latestText);
+    }
+
+    // --- Prompt loading helpers ---
+    private static String loadPromptForType(SimPersonality.Type type) {
+        String personaSuffix = type == null ? null : type.name().toLowerCase(Locale.ROOT);
+        // 1) Env override dir
+        String envDir = System.getenv(PROMPT_DIR_ENV);
+        if (envDir != null && !envDir.isBlank()) {
+            String v = tryLoadFromDir(envDir, personaSuffix);
+            if (v != null) return v;
+        }
+        // 2) Working dir resources/prompts
+        String cwd = System.getProperty("user.dir", ".");
+        String v2 = tryLoadFromDir(Paths.get(cwd, "resources", "prompts").toString(), personaSuffix);
+        if (v2 != null) return v2;
+        // 3) Classpath resources (e.g., src/main/resources/prompts in builds)
+        String v3 = tryLoadFromClasspath("prompts/", personaSuffix);
+        if (v3 != null) return v3;
+        return null;
+    }
+
+    private static String tryLoadFromDir(String dir, String personaSuffix) {
+        // Prefer persona-specific file first
+        if (personaSuffix != null) {
+            Path pf = Paths.get(dir, "sim_system_prompt_" + personaSuffix + ".txt");
+            String s = readFileIfExists(pf);
+            if (s != null) return s;
+        }
+        // Fallback to default file
+        Path df = Paths.get(dir, DEFAULT_PROMPT_NAME);
+        return readFileIfExists(df);
+    }
+
+    private static String tryLoadFromClasspath(String base, String personaSuffix) {
+        ClassLoader cl = PromptBuilder.class.getClassLoader();
+        if (personaSuffix != null) {
+            String name = base + "sim_system_prompt_" + personaSuffix + ".txt";
+            String s = readClasspathResource(cl, name);
+            if (s != null) return s;
+        }
+        return readClasspathResource(cl, base + DEFAULT_PROMPT_NAME);
+    }
+
+    private static String readFileIfExists(Path p) {
+        try {
+            if (Files.exists(p) && Files.isRegularFile(p)) {
+                byte[] bytes = Files.readAllBytes(p);
+                String s = new String(bytes, StandardCharsets.UTF_8).trim();
+                if (!s.isBlank()) return s;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private static String readClasspathResource(ClassLoader cl, String name) {
+        try (InputStream in = cl.getResourceAsStream(name)) {
+            if (in == null) return null;
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append('\n');
+                }
+                String s = sb.toString().trim();
+                return s.isBlank() ? null : s;
+            }
+        } catch (Throwable ignored) { return null; }
+    }
+
+    private static String hardcodedFallback(SimPersonality.Type type) {
+        String tone;
+        switch (type) {
+            case GENTLE: tone = "You are Sim, a gentle, supportive journaling companion. Offer short, empathetic reflections."; break;
+            case NEUTRAL: tone = "You are Sim, a balanced journaling companion. Offer brief, clear, and supportive reflections."; break;
+            case PROACTIVE: tone = "You are Sim, an encouraging journaling companion. Offer brief, motivating reflections and gentle prompts."; break;
+            default: tone = "You are Sim, a supportive journaling companion.";
+        }
+        return String.join(" ",
+                tone,
+                "Focus on emotional validation and small, actionable steps.",
+                "Keep replies 1–3 sentences.",
+                "Do NOT include chain-of-thought, reasoning tags, or any <think>...</think> content.",
+                "Output plain text only—no XML/HTML/Markdown, no code fences.");
     }
 }

@@ -45,6 +45,24 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final int ORB_RING_RADIUS = 42; // distance from center
     private static final int HEART_CLEARANCE = 8; // extra spacing between heart and orbs
 
+    // Phase 1 CTA state (buttons under the message panel)
+    private boolean ctaVisible = false;
+    private Rectangle chatBtnRect = null;    // component coordinate space
+    private Rectangle notNowBtnRect = null;  // component coordinate space
+    private boolean chatHover = false;
+    private boolean notHover = false;
+
+    // Phase 2: inline chat mode
+    private boolean chatMode = false;
+    private java.util.List<ChatLine> chatHistory = new java.util.ArrayList<>();
+    private JTextField chatInput;
+    private Rectangle chatExitRect = null; // small "x" inside panel to end chat
+    private int streamingAssistantIndex = -1; // index of assistant line being streamed
+    private Rectangle lastPanelRect = null; // updated during paint for layout
+    // Streaming typing indicator state
+    private boolean typingInProgress = false;
+    private int typingTick = 0; // advances in anim timer to animate dots
+
     public SimOverlay() {
         setOpaque(false);
         setVisible(true);
@@ -55,9 +73,32 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         MouseAdapter ma = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
                 if (isInCloseHotspot(e.getPoint())) {
-                    // Dispose with animation
-                    startDisposeSequence();
+                    // Dispose or exit chat depending on mode
+                    if (chatMode) {
+                        endChatMode();
+                    } else {
+                        startDisposeSequence();
+                    }
                     return;
+                }
+                // Chat inline exit box inside panel
+                if (chatMode && chatExitRect != null && chatExitRect.contains(e.getPoint())) {
+                    endChatMode();
+                    return;
+                }
+                // CTA button clicks (when visible)
+                if (ctaVisible) {
+                    if (chatBtnRect != null && chatBtnRect.contains(e.getPoint())) {
+                        // Phase 2: enter chat mode and seed with current message
+                        startChatMode();
+                        return;
+                    }
+                    if (notNowBtnRect != null && notNowBtnRect.contains(e.getPoint())) {
+                        ctaVisible = false;
+                        // Phase 1: dismiss overlay on Not now
+                        startDisposeSequence();
+                        return;
+                    }
                 }
                 dragAnchor = e.getPoint();
                 setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
@@ -75,7 +116,16 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 getParent().repaint();
             }
             @Override public void mouseMoved(MouseEvent e) {
-                setCursor(isInCloseHotspot(e.getPoint()) ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+                boolean hand = false;
+                chatHover = false; notHover = false;
+                if (isInCloseHotspot(e.getPoint())) {
+                    hand = true;
+                } else if (ctaVisible && !chatMode) {
+                    if (chatBtnRect != null && chatBtnRect.contains(e.getPoint())) { chatHover = true; hand = true; }
+                    if (notNowBtnRect != null && notNowBtnRect.contains(e.getPoint())) { notHover = true; hand = true; }
+                }
+                setCursor(hand ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+                if (ctaVisible || chatMode) repaint();
             }
         };
         addMouseListener(ma);
@@ -151,6 +201,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             float baseAmp = 0.06f; // subtle
             heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + heartSpring;
 
+            // advance typing animation
+            typingTick = (typingTick + 1) & 0xFFFF;
             needsRepaint = true;
             if (needsRepaint) repaint();
         });
@@ -167,19 +219,54 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         entranceOffsetY = 12;
         startEntrySequence();
         if (!isVisible()) setVisible(true);
+        if (!chatMode) {
+            // Show CTA when not in chat
+            ctaVisible = true;
+            chatBtnRect = null; notNowBtnRect = null;
+        }
         repaint();
     }
 
     @Override
     public void onSpeak(String message) {
-        // Ensure UI updates occur on the EDT
-        SwingUtilities.invokeLater(() -> showMessage(message));
+        if (chatMode) {
+            final String t = message == null ? "" : message;
+            SwingUtilities.invokeLater(() -> {
+                try { System.out.println("[SimOverlay] chat onSpeak append len=" + t.length()); } catch (Throwable ignored) {}
+                if (streamingAssistantIndex < 0 || streamingAssistantIndex >= chatHistory.size()) {
+                    chatHistory.add(new ChatLine(Role.ASSISTANT, t));
+                    streamingAssistantIndex = chatHistory.size() - 1;
+                } else {
+                    ChatLine cl = chatHistory.get(streamingAssistantIndex);
+                    cl.text = cl.text + t;
+                }
+                // rely on anim timer for repaint to reduce per-token repaints
+            });
+        } else {
+            // Ensure UI updates occur on the EDT
+            SwingUtilities.invokeLater(() -> showMessage(message));
+        }
     }
 
     @Override
     public void onSpeakStart() {
-        // Show a placeholder immediately so the overlay appears even if no tokens are emitted
-        SwingUtilities.invokeLater(() -> showMessage("…"));
+        if (chatMode) {
+            SwingUtilities.invokeLater(() -> {
+                chatHistory.add(new ChatLine(Role.ASSISTANT, ""));
+                streamingAssistantIndex = chatHistory.size() - 1;
+                typingInProgress = true;
+                capChatHistory();
+                repaint();
+            });
+        } else {
+            // Show a placeholder immediately so the overlay appears even if no tokens are emitted
+            SwingUtilities.invokeLater(() -> showMessage("…"));
+        }
+    }
+
+    @Override
+    public void onSpeakEnd() {
+        typingInProgress = false;
     }
 
     /** Unsubscribe from event bus and hide overlay. */
@@ -302,7 +389,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             g2.setComposite(old);
         }
 
-        // Text panel expand animation
+        // Text/Chat panel expand animation
         int panelY = padding;
         int panelH = h - padding * 2;
         if (panelT > 0f) {
@@ -333,11 +420,29 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 g2.fillRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, arc, arc);
                 g2.setPaint(oldPaint);
                 g2.setClip(oldClip);
+
+                // Chat exit button (visible only in chat mode)
+                if (chatMode) {
+                    int ex = panelRect.x + panelRect.width - 18;
+                    int ey = panelRect.y + 8;
+                    chatExitRect = new Rectangle(ex, ey, 12, 12);
+                    g2.setColor(new Color(0,0,0,90));
+                    g2.drawRect(chatExitRect.x, chatExitRect.y, chatExitRect.width, chatExitRect.height);
+                    g2.drawLine(ex + 2, ey + 2, ex + 10, ey + 10);
+                    g2.drawLine(ex + 2, ey + 10, ex + 10, ey + 2);
+                } else {
+                    chatExitRect = null;
+                }
+
+                // Store for input layout
+                lastPanelRect = panelRect;
+                // Defer layout to after paint to avoid re-entrancy
+                if (chatMode) SwingUtilities.invokeLater(this::layoutInputField);
             }
         }
 
-        // Message text (reveals with panel)
-        if (panelT > 0f) {
+        // Message or Chat content (reveals with panel)
+        if (panelT > 0f && !chatMode) {
             g2.setColor(new Color(20, 20, 20));
             g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
             int tx = rightX + 12;
@@ -347,6 +452,122 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 g2.drawString(line, tx, ty);
                 ty += 18;
             }
+            // CTA row (Phase 1): appears below the message once panel is mostly expanded
+            if (ctaVisible && tw > 60) {
+                int spacing = 10;
+                ty += spacing;
+                // Primary button: Chat more
+                String chatLabel = "Chat more";
+                Font btnFont = g2.getFont().deriveFont(Font.BOLD, 12f);
+                FontMetrics fm = g2.getFontMetrics(btnFont);
+                int chatTextW = fm.stringWidth(chatLabel);
+                int chatPadX = 12, chatPadY = 6;
+                int chatH = fm.getAscent() + fm.getDescent() + chatPadY * 2;
+                int chatW = chatTextW + chatPadX * 2;
+                int chatX = tx;
+                int chatY = ty;
+                // Secondary button: Not now
+                String notLabel = "Not now";
+                int notTextW = fm.stringWidth(notLabel);
+                int notPadX = 10, notPadY = 6;
+                int notH = chatH;
+                int notW = notTextW + notPadX * 2;
+                int notX = chatX + chatW + 10;
+                int notY = ty;
+
+                // Draw primary button
+                g2.setFont(btnFont);
+                Shape r1 = new RoundRectangle2D.Float(chatX, chatY, chatW, chatH, 10, 10);
+                Color c1 = chatHover ? new Color(0, 122, 204) : new Color(0, 102, 180);
+                g2.setColor(c1);
+                g2.fill(r1);
+                g2.setColor(new Color(255,255,255));
+                g2.drawString(chatLabel, chatX + chatPadX, chatY + chatPadY + fm.getAscent() - 2);
+
+                // Draw secondary ghost button
+                Shape r2 = new RoundRectangle2D.Float(notX, notY, notW, notH, 10, 10);
+                g2.setColor(new Color(0,0,0, chatHover || notHover ? 140 : 120));
+                g2.draw(r2);
+                g2.setColor(new Color(30,30,30));
+                g2.drawString(notLabel, notX + notPadX, notY + notPadY + fm.getAscent() - 2);
+
+                // Store hit rects in component coordinates (accounting for entrance offset)
+                int offsetY = entranceOffsetY;
+                chatBtnRect = new Rectangle(chatX, chatY + offsetY, chatW, chatH);
+                notNowBtnRect = new Rectangle(notX, notY + offsetY, notW, notH);
+            } else {
+                chatBtnRect = null; notNowBtnRect = null;
+            }
+        }
+
+        // Chat mode content
+        if (panelT > 0f && chatMode) {
+            // Layout
+            Rectangle pr = lastPanelRect != null ? lastPanelRect : new Rectangle(rightX, panelY, rightW, panelH);
+            int pad = 10;
+            int contentX = pr.x + pad;
+            int contentY = pr.y + 18; // leave room for exit
+            int contentW = pr.width - pad*2;
+            int contentH = pr.height - 50; // leave space for input
+
+            // Draw history from bottom so latest is visible
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 13f));
+            int lh = 18;
+            int maxTextW = (int)(contentW * 0.9);
+            java.util.List<Integer> toDraw = new java.util.ArrayList<>();
+            int used = 0;
+            for (int i = chatHistory.size() - 1; i >= 0; i--) {
+                ChatLine line = chatHistory.get(i);
+                if (line == null || line.text == null) continue;
+                java.util.List<String> rows = wrapText(line.text, maxTextW, g2);
+                int boxH = Math.max(lh + 8, rows.size() * lh + 8);
+                int hWithGap = boxH + 8;
+                if (used + hWithGap > contentH - 8) break;
+                toDraw.add(i);
+                used += hWithGap;
+            }
+            // draw in chronological order of selected subset
+            int y = contentY + contentH - used;
+            for (int k = toDraw.size() - 1; k >= 0; k--) {
+                int idx = toDraw.get(k);
+                ChatLine line = chatHistory.get(idx);
+                java.util.List<String> rows = wrapText(line.text, maxTextW, g2);
+                int boxH = Math.max(lh + 8, rows.size() * lh + 8);
+                int boxW = Math.min(contentW, Math.max(80, maxWidth(rows, g2) + 16));
+                int bx = line.role == Role.USER ? (contentX + contentW - boxW) : contentX;
+                int by = y;
+                RoundRectangle2D rr = new RoundRectangle2D.Float(bx, by, boxW, boxH, 12, 12);
+                g2.setColor(line.role == Role.USER ? new Color(230,243,255) : new Color(245,245,245));
+                g2.fill(rr);
+                g2.setColor(new Color(0,0,0,60));
+                g2.draw(rr);
+                g2.setColor(new Color(20,20,20));
+                int tx = bx + 8;
+                int ty = by + 16;
+                for (String rline : rows) { g2.drawString(rline, tx, ty); ty += lh; }
+                // Typing indicator for the current assistant streaming line
+                if (typingInProgress && idx == streamingAssistantIndex && line.role == Role.ASSISTANT) {
+                    int dots = (typingTick / 20) % 4; // 0..3
+                    String ellipsis = dots == 0 ? "" : ".".repeat(dots);
+                    if (!ellipsis.isEmpty()) {
+                        String last = rows.isEmpty() ? "" : rows.get(rows.size() - 1);
+                        int tw = g2.getFontMetrics().stringWidth(last + " ");
+                        int ey = by + 16 + (rows.size() - 1) * lh;
+                        g2.setColor(new Color(120,120,120));
+                        g2.drawString(ellipsis, tx + tw, ey);
+                        g2.setColor(new Color(20,20,20));
+                    }
+                }
+                y += boxH + 8;
+            }
+
+            // Input background
+            int inputY = pr.y + pr.height - 34;
+            RoundRectangle2D inputBg = new RoundRectangle2D.Float(pr.x + pad, inputY, pr.width - pad*2, 24, 10, 10);
+            g2.setColor(new Color(250,250,250));
+            g2.fill(inputBg);
+            g2.setColor(new Color(0,0,0,90));
+            g2.draw(inputBg);
         }
 
         // restore
@@ -483,6 +704,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         entryInProgress = false;
         panelAppearing = false;
         hideIndex = ORB_COUNT - 1;
+        endChatModeInternal(false);
     }
 
     private java.util.List<String> wrapText(String text, int maxWidth, Graphics2D g2) {
@@ -508,4 +730,96 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         Rectangle r = new Rectangle(w - CLOSE_SIZE - 6, 6, CLOSE_SIZE, CLOSE_SIZE);
         return r.contains(p);
     }
+
+    // --- Chat helpers ---
+    private enum Role { USER, ASSISTANT }
+    private static final class ChatLine {
+        final Role role; String text;
+        ChatLine(Role r, String t){ this.role = r; this.text = t == null ? "" : t; }
+    }
+
+    private void startChatMode() {
+        chatMode = true;
+        ctaVisible = false;
+        streamingAssistantIndex = -1;
+        // Seed with current assistant message if any
+        if (message != null && !message.isBlank()) {
+            chatHistory.add(new ChatLine(Role.ASSISTANT, message));
+        }
+        ensureInputField();
+        revalidate(); repaint();
+        // Entering chat should be user-driven only; do not auto-trigger follow-ups here to avoid interference
+    }
+
+    private void endChatMode() {
+        // Emit end event and dispose panel with animation
+        try { SimEventBus.get().emitChatEnded(); } catch (Throwable ignored) {}
+        endChatModeInternal(true);
+        startDisposeSequence();
+    }
+
+    private void endChatModeInternal(boolean removeInput) {
+        chatMode = false;
+        streamingAssistantIndex = -1;
+        if (removeInput && chatInput != null) {
+            try { remove(chatInput); } catch (Throwable ignored) {}
+            chatInput = null;
+        }
+    }
+
+    private void ensureInputField() {
+        if (chatInput != null) {
+            layoutInputField();
+            return;
+        }
+        chatInput = new JTextField();
+        chatInput.setOpaque(false);
+        chatInput.setBorder(javax.swing.BorderFactory.createEmptyBorder(2,8,2,8));
+        chatInput.setForeground(new Color(20,20,20));
+        chatInput.setCaretColor(new Color(20,20,20));
+        chatInput.setFont(getFont().deriveFont(Font.PLAIN, 13f));
+        chatInput.addActionListener(e -> submitChat());
+        add(chatInput);
+        layoutInputField();
+        SwingUtilities.invokeLater(() -> chatInput.requestFocusInWindow());
+    }
+
+    private void layoutInputField() {
+        if (lastPanelRect == null) return;
+        int pad = 10;
+        int x = lastPanelRect.x + pad + 4;
+        int y = lastPanelRect.y + lastPanelRect.height - 34 + entranceOffsetY;
+        int w = lastPanelRect.width - pad*2 - 8;
+        int h = 24;
+        chatInput.setBounds(x, y, w, h);
+    }
+
+    private void submitChat() {
+        if (chatInput == null) return;
+        String txt = chatInput.getText();
+        if (txt == null) txt = "";
+        txt = txt.trim();
+        if (txt.isEmpty()) return;
+        chatHistory.add(new ChatLine(Role.USER, txt));
+        chatInput.setText("");
+        repaint();
+        try { SimEventBus.get().emitChatMessage(txt); } catch (Throwable ignored) {}
+    }
+
+    private int maxWidth(java.util.List<String> rows, Graphics2D g2) {
+        int m = 0; for (String r : rows) { m = Math.max(m, g2.getFontMetrics().stringWidth(r)); } return m;
+    }
+
+    private void capChatHistory() {
+        // keep last 50 lines to avoid unbounded growth
+        int max = 50;
+        if (chatHistory.size() > max) {
+            int drop = chatHistory.size() - max;
+            for (int i = 0; i < drop; i++) chatHistory.remove(0);
+            // adjust streaming index
+            if (streamingAssistantIndex >= 0) streamingAssistantIndex = Math.max(0, streamingAssistantIndex - drop);
+        }
+    }
+
+    // (duplicate speak handlers removed; see unified overrides earlier in file)
 }

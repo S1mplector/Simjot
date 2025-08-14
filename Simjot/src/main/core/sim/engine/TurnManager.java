@@ -38,20 +38,33 @@ public final class TurnManager {
     public void maybeSpeakProactively(SimLLMClient llm, String system, String user) {
         cancelIfUserTyping(); // cancel any ongoing stream before starting a new one
         cancelling.set(false);
-        inFlight = exec.submit(() -> doStreamOrFallback(llm, system, user, null, Duration.ofSeconds(20)));
+        inFlight = exec.submit(() -> doStreamOrFallback(llm, system, user, null, Duration.ofSeconds(20), true));
     }
 
     public void maybeSpeakProactively(SimLLMClient llm, String system, String user, String preface) {
         cancelIfUserTyping();
         cancelling.set(false);
-        inFlight = exec.submit(() -> doStreamOrFallback(llm, system, user, preface, Duration.ofSeconds(20)));
+        inFlight = exec.submit(() -> doStreamOrFallback(llm, system, user, preface, Duration.ofSeconds(20), true));
+    }
+
+    // Overload allowing callers to disable generic fallback emission
+    public void maybeSpeakProactively(SimLLMClient llm, String system, String user, boolean allowFallback) {
+        cancelIfUserTyping();
+        cancelling.set(false);
+        inFlight = exec.submit(() -> doStreamOrFallback(llm, system, user, null, Duration.ofSeconds(20), allowFallback));
+    }
+
+    public void maybeSpeakProactively(SimLLMClient llm, String system, String user, String preface, boolean allowFallback) {
+        cancelIfUserTyping();
+        cancelling.set(false);
+        inFlight = exec.submit(() -> doStreamOrFallback(llm, system, user, preface, Duration.ofSeconds(20), allowFallback));
     }
 
     public int getEmptyNoTokenStreak() {
         return emptyNoTokenStreak.get();
     }
 
-    private void doStreamOrFallback(SimLLMClient llm, String system, String user, String preface, Duration timeout) {
+    private void doStreamOrFallback(SimLLMClient llm, String system, String user, String preface, Duration timeout, boolean allowFallback) {
         SimEventBus.get().emitSpeakStart();
         // Emit contextual preface immediately so overlay reflects the trigger reason
         try {
@@ -95,7 +108,7 @@ public final class TurnManager {
                 onComplete.run();
             }
             // If still no content, try a very short micro-fallback with a specialized prompt
-            if (!hadToken[0] && !cancelled[0]) {
+            if (!hadToken[0] && !cancelled[0] && allowFallback) {
                 String microSystem = "You are a supportive assistant. Respond with one empathetic 15–25 word nudge tailored to the user's recent thoughts and situation. Be concise, friendly, and actionable.";
                 String microUser = user + (preface != null && !preface.isBlank() ? ("\nTrigger: " + preface) : "");
                 try {
@@ -111,7 +124,7 @@ public final class TurnManager {
         } finally {
             // If no tokens were produced and it wasn't cancelled, emit a brief friendly fallback
             try {
-                if (!hadToken[0] && !cancelled[0]) {
+                if (!hadToken[0] && !cancelled[0] && allowFallback) {
                     // Increment empty-stream streak and emit generic fallback only if no preface was shown
                     emptyNoTokenStreak.incrementAndGet();
                     if (preface == null || preface.isBlank()) {

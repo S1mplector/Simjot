@@ -43,6 +43,8 @@ public final class SimBrain implements SimEventBus.Listener {
     // Same-trigger cooldown tracking
     private String lastTriggerKey = "";
     private long lastTriggerMs = 0L;
+    // Track last mood value for contextual replies
+    private volatile Double lastMoodValue = null;
 
     // Scheduler
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -127,6 +129,8 @@ public final class SimBrain implements SimEventBus.Listener {
             System.out.println("[SimBrain] mood ignored: settings disabled");
             return;
         }
+        // remember last mood for contextual chat replies
+        lastMoodValue = value;
         // Assume mood slider scale 0–100; treat <=20 as low, >=80 as high
         if (value <= 20.0) {
             System.out.println("[SimBrain] low mood -> speak");
@@ -144,6 +148,82 @@ public final class SimBrain implements SimEventBus.Listener {
         if (personality.getType() == SimPersonality.Type.PROACTIVE && "Main Menu".equalsIgnoreCase(cardId)) {
             speakOncePer(60000L, messageFor("greet"));
         }
+    }
+
+    @Override
+    public void onChatFollowupRequested() {
+        // Phase 1: produce a single brief follow-up reply
+        if (!settings.isEnabled()) return;
+        long now = System.currentTimeMillis();
+        lastSpeakMs = now; // prevent immediate other nudges
+
+        if (settings.isLlmEnabled()) ensureLlm();
+        if (llm != null) {
+            try {
+                String sys = PromptBuilder.systemPrompt(personality.getType());
+                String usr = String.join(" ",
+                        "The user tapped 'Chat more' after your previous supportive message.",
+                        "Respond with ONE short, compassionate follow-up question (1 sentence).",
+                        "No preface, no meta; plain text only.");
+                // Disable generic fallback in overlay chat follow-up
+                turns.maybeSpeakProactively(llm, sys, usr, /*allowFallback=*/false);
+                return;
+            } catch (Throwable ignored) {
+                // fall through to heuristic
+            }
+        }
+        // Heuristic fallback if LLM is unavailable
+        try {
+            SimEventBus.get().emitSpeak("Would you like to share a bit more about what’s on your mind right now?");
+        } catch (Throwable ignored) {}
+    }
+
+    @Override
+    public void onChatMessage(String userText) {
+        if (!settings.isEnabled()) return;
+        String txt = userText == null ? "" : userText.trim();
+        if (txt.isEmpty()) return;
+        // Safety: crisis detection inside chat path
+        if (isCrisisText(txt)) {
+            speakNow(crisisMessage(personality.getType()));
+            return;
+        }
+        // Fast path: greetings like "how are you" -> heuristic, on-brand reply
+        if (isGreeting(txt)) {
+            String reply = composeGreetingReply();
+            try { SimEventBus.get().emitSpeak(reply); } catch (Throwable ignored) {}
+            lastSpeakMs = System.currentTimeMillis();
+            return;
+        }
+        lastSpeakMs = System.currentTimeMillis();
+        if (settings.isLlmEnabled()) ensureLlm();
+        if (llm != null) {
+            String sys = PromptBuilder.systemPrompt(personality.getType());
+            // Provide mood context and guidance for reciprocal greetings and empathy
+            String usr = String.join(" ",
+                    "The user is chatting with you in a small overlay.",
+                    "Reply concisely (1–3 sentences), compassionate and supportive.",
+                    "Ask at most one brief follow-up question if it helps them open up.",
+                    moodContextForPrompt(),
+                    "If they greet you (e.g., 'how are you'), briefly say how you're doing and reciprocate, optionally acknowledging their recent mood.",
+                    "Plain text only.\n\nUser:", txt);
+            try {
+                // Disable generic fallback inside overlay chat messages
+                turns.maybeSpeakProactively(llm, sys, usr, /*allowFallback=*/false);
+                return;
+            } catch (Throwable ignored) {}
+        }
+        // Heuristic fallback if LLM is unavailable
+        try {
+            SimEventBus.get().emitSpeak("Thanks for sharing. Would a tiny next step help, like jotting how you’d like to feel by tonight?");
+        } catch (Throwable ignored) {}
+    }
+
+    @Override
+    public void onChatEnded() {
+        try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
+        // No other state needed now; cooldown prevents immediate nudges
+        lastSpeakMs = System.currentTimeMillis();
     }
 
     // --- Helpers ---
@@ -367,6 +447,51 @@ public final class SimBrain implements SimEventBus.Listener {
             default:
                 return "";
         }
+    }
+
+    // --- Greeting handling helpers (overlay chat UX) ---
+    private boolean isGreeting(String text) {
+        if (text == null) return false;
+        String t = text.toLowerCase(java.util.Locale.ROOT).trim();
+        // Normalize trailing punctuation
+        t = t.replaceAll("[!?.]+$", "");
+        if (t.isEmpty()) return false;
+        if (t.equals("hi") || t.equals("hello") || t.equals("hey")) return true;
+        if (t.startsWith("hi ") || t.startsWith("hello ") || t.startsWith("hey ")) return true;
+        if (t.contains("how are you") || t.contains("how are u")) return true;
+        if (t.contains("how's it going") || t.contains("hows it going")) return true;
+        if (t.equals("sup") || t.equals("what's up") || t.equals("whats up")) return true;
+        return false;
+    }
+
+    private String composeGreetingReply() {
+        String moodBit;
+        Double mv = lastMoodValue;
+        if (mv == null) {
+            moodBit = " How are you feeling right now?";
+        } else if (mv <= 20.0) {
+            moodBit = " I noticed your mood was a bit low earlier—how are you feeling now?";
+        } else if (mv >= 80.0) {
+            moodBit = " I saw your mood was high earlier—love that energy! How are you feeling now?";
+        } else {
+            moodBit = " How are you feeling right now?";
+        }
+        switch (personality.getType()) {
+            case GENTLE:
+                return "I’m doing okay, thanks for asking." + moodBit;
+            case PROACTIVE:
+                return "I’m doing well and I’m here for you." + moodBit;
+            case NEUTRAL:
+            default:
+                return "I’m doing well, thanks." + moodBit;
+        }
+    }
+
+    private String moodContextForPrompt() {
+        Double mv = lastMoodValue;
+        if (mv == null) return "";
+        String bucket = mv <= 20.0 ? "low" : (mv >= 80.0 ? "high" : "neutral");
+        return "Recent user mood: " + bucket + " (" + String.format(java.util.Locale.ROOT, "%.0f", mv) + ").";
     }
 
     private boolean isQuietHoursNow() {

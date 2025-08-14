@@ -102,7 +102,9 @@ public final class OllamaClient implements SimLLMClient {
             }
             try (InputStream is = resp.body(); InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8); BufferedReader br = new BufferedReader(isr)) {
                 String line;
-                StringBuilder acc = new StringBuilder();
+                StringBuilder acc = new StringBuilder(1024);
+                String lastEmitted = "";
+                boolean finalized = false;
                 while ((line = br.readLine()) != null) {
                     if (cancelled != null && cancelled.getAsBoolean()) {
                         System.out.println("[OllamaClient] stream cancelled by caller");
@@ -113,25 +115,106 @@ public final class OllamaClient implements SimLLMClient {
                     String piece = extractResponseField(line);
                     if (piece != null && !piece.isBlank()) {
                         acc.append(piece);
-                        // Emit small chunks to reduce choppiness
-                        if (acc.length() >= 80 || piece.endsWith("\n")) {
-                            String out = sanitize(acc.toString());
-                            if (!out.isBlank()) {
-                                try { onToken.accept(out); } catch (Throwable ignored) {}
+                        // Drop everything up to and including the last </think> if present
+                        String visibleSrc = decodeUnicodeish(acc.toString());
+                        int lastThinkEnd = java.util.regex.Pattern.compile("(?i)</think>").matcher(visibleSrc).results()
+                                .mapToInt(r -> r.end()).reduce(-1, (a,b) -> b);
+                        int lastThinkOpen = java.util.regex.Pattern.compile("(?i)<think>").matcher(visibleSrc).results()
+                                .mapToInt(r -> r.start()).reduce(-1, (a,b) -> b);
+                        if (lastThinkEnd > 0) {
+                            // If we have a closing tag, drop all content up to it
+                            visibleSrc = visibleSrc.substring(lastThinkEnd);
+                        } else if (lastThinkOpen >= 0) {
+                            // We are inside an open <think> ... (no closing yet). Suppress everything from the open tag onward.
+                            visibleSrc = visibleSrc.substring(0, lastThinkOpen);
+                        }
+                        String sanitized = sanitize(visibleSrc);
+                        // If we have a first sentence boundary, finalize to that to prevent trailing meta
+                        if (!finalized) {
+                            int end = firstSentenceEnd(sanitized);
+                            if (end >= 0) {
+                                String candidate = sanitized.substring(0, end + 1).trim();
+                                // Avoid finalizing on weak one-word greetings; wait for more content
+                                if (!isWeakGreeting(candidate)) {
+                                    sanitized = candidate;
+                                }
                             }
-                            acc.setLength(0);
+                        }
+                        // Delta-emit only the new visible portion after filtering meta
+                        if (sanitized.length() > lastEmitted.length()) {
+                            String delta = sanitized.substring(lastEmitted.length());
+                            // Insert a boundary space if needed to avoid concatenation across token boundaries
+                            if (!lastEmitted.isEmpty() && !delta.isEmpty()) {
+                                char prev = lastEmitted.charAt(lastEmitted.length() - 1);
+                                char next = delta.charAt(0);
+                                boolean prevIsPunct = (prev == '.' || prev == '!' || prev == '?' || prev == ';' || prev == ':');
+                                boolean nextIsWord = Character.isLetterOrDigit(next);
+                                if (!Character.isWhitespace(prev) && !Character.isWhitespace(next)) {
+                                    // Case 1: both sides are alnum -> add a space
+                                    if (Character.isLetterOrDigit(prev) && nextIsWord) {
+                                        delta = " " + delta;
+                                    }
+                                    // Case 2: prev is closing punctuation and next begins a word -> add a space
+                                    else if (prevIsPunct && nextIsWord) {
+                                        delta = " " + delta;
+                                    }
+                                }
+                            }
+                            if (!delta.isBlank()) {
+                                try { onToken.accept(delta); } catch (Throwable ignored) {}
+                            }
+                            lastEmitted = sanitized;
+                            if (!finalized) {
+                                int end = firstSentenceEnd(lastEmitted);
+                                if (end >= 0) {
+                                    String candidate = lastEmitted.substring(0, end + 1).trim();
+                                    if (!isWeakGreeting(candidate)) {
+                                        finalized = true;
+                                        break; // stop reading further to avoid late meta/templates
+                                    }
+                                }
+                            }
                         }
                     }
-                    // Detect done: naive check for "\"done\":true" in line
-                    if (line.contains("\"done\":true")) {
-                        break;
+                }
+                // Final flush in case remaining sanitized text wasn't emitted
+                String visibleSrc = decodeUnicodeish(acc.toString());
+                int lastThinkEnd = java.util.regex.Pattern.compile("(?i)</think>").matcher(visibleSrc).results()
+                        .mapToInt(r -> r.end()).reduce(-1, (a,b) -> b);
+                int lastThinkOpen = java.util.regex.Pattern.compile("(?i)<think>").matcher(visibleSrc).results()
+                        .mapToInt(r -> r.start()).reduce(-1, (a,b) -> b);
+                if (lastThinkEnd > 0) {
+                    visibleSrc = visibleSrc.substring(lastThinkEnd);
+                } else if (lastThinkOpen >= 0) {
+                    visibleSrc = visibleSrc.substring(0, lastThinkOpen);
+                }
+                String sanitized = sanitize(visibleSrc);
+                if (sanitized != null && !sanitized.isEmpty()) {
+                    int end = firstSentenceEnd(sanitized);
+                    if (end >= 0) {
+                        String candidate = sanitized.substring(0, end + 1).trim();
+                        if (!isWeakGreeting(candidate)) {
+                            sanitized = candidate;
+                        }
                     }
                 }
-                // Flush any remainder
-                if (acc.length() > 0) {
-                    String out = sanitize(acc.toString());
-                    if (!out.isBlank()) {
-                        try { onToken.accept(out); } catch (Throwable ignored) {}
+                if (sanitized.length() > 0 && sanitized.length() > lastEmitted.length()) {
+                    String delta = sanitized.substring(lastEmitted.length());
+                    if (!lastEmitted.isEmpty() && !delta.isEmpty()) {
+                        char prev = lastEmitted.charAt(lastEmitted.length() - 1);
+                        char next = delta.charAt(0);
+                        boolean prevIsPunct = (prev == '.' || prev == '!' || prev == '?' || prev == ';' || prev == ':');
+                        boolean nextIsWord = Character.isLetterOrDigit(next);
+                        if (!Character.isWhitespace(prev) && !Character.isWhitespace(next)) {
+                            if (Character.isLetterOrDigit(prev) && nextIsWord) {
+                                delta = " " + delta;
+                            } else if (prevIsPunct && nextIsWord) {
+                                delta = " " + delta;
+                            }
+                        }
+                    }
+                    if (!delta.isBlank()) {
+                        try { onToken.accept(delta); } catch (Throwable ignored) {}
                     }
                 }
             }
@@ -143,55 +226,196 @@ public final class OllamaClient implements SimLLMClient {
 
     // Convert escaped unicode sequences and remove DeepSeek reasoning tags
     private static String sanitize(String s) {
-        if (s == null) return null;
+        if (s == null || s.isBlank()) return s;
         String out = s;
-        // Normalize any lost backslashes (defensive when naive parsing removed them)
-        out = out.replace("u003c", "\\u003c").replace("u003e", "\\u003e").replace("u0026", "\\u0026");
-        // Unescape common HTML-ish escapes from JSON form
-        out = out.replace("\\u003c", "<").replace("\\u003e", ">").replace("\\u0026", "&");
-        // Remove DeepSeek chain-of-thought between <think> ... </think>
+        // Decode common unicode-escape sequences that may appear without backslashes from JSON piping
+        out = decodeUnicodeish(out);
+        // Strip DeepSeek/Reasoning chain-of-thought blocks entirely
         out = out.replaceAll("(?is)<think>.*?</think>", "");
-        // Also strip leftover tags if model emitted malformed ones
         out = out.replace("<think>", "").replace("</think>", "");
-        // Trim whitespace and stray quotes
-        out = out.trim();
-        if (out.startsWith("\"") && out.endsWith("\"") && out.length() >= 2) {
-            out = out.substring(1, out.length()-1);
+        // Also drop fenced reasoning markers that some models use
+        out = out.replaceAll("(?is)```(thinking|reasoning)[\n\r].*?```", "");
+        // Normalize quotes and whitespace early
+        out = out.replace('\r', ' ').replace('\n', ' ');
+        out = out.replace('\u2019', '\''); // smart apostrophe to ASCII
+        out = out.replace('\u2018', '\'');
+        out = out.replace('\u201C', '"').replace('\u201D', '"');
+        out = out.replaceAll("\\s+", " ").trim();
+        // Remove early meta/planning preamble up to first conversational cue
+        String lower = out.toLowerCase(java.util.Locale.ROOT);
+        String[] cues = new String[]{
+                "hi ", "hello", "hey ", "sure", "great", "i'm ", "i am ", "how can i", "how may i", "happy to", "what can i", "how can we", "thanks for"
+        };
+        int firstCue = -1;
+        for (String c : cues) {
+            int idx = lower.indexOf(c);
+            if (idx >= 0) {
+                if (firstCue < 0 || idx < firstCue) firstCue = idx;
+            }
         }
-        out = out.trim();
+        if (firstCue > 0) {
+            out = out.substring(firstCue).trim();
+            lower = out.toLowerCase(java.util.Locale.ROOT);
+        }
+        // Also drop leading fillers like "okay,", "alright,"
+        out = out.replaceFirst("(?i)^(okay|alright|ok)\\s*,\\s*", "").trim();
+        // If the model provided a suggested final in quotes, prefer the last quoted segment
+        java.util.regex.Pattern qp = java.util.regex.Pattern.compile("\"([^\"]{8,})\"");
+        java.util.regex.Matcher qm = qp.matcher(out);
+        String quoted = null;
+        while (qm.find()) { quoted = qm.group(1).trim(); }
+        if (quoted != null && !quoted.toLowerCase(java.util.Locale.ROOT).contains("<think")) {
+            out = quoted;
+        }
+        // Fix missing spaces after punctuation due to tokenization
+        out = out.replaceAll("([.!?,;:])(\\S)", "$1 $2");
+        // Final refinement keeps user-facing sentences only
         out = refinePlaintext(out);
+        // Gentle warmth tweak for starkly generic lines
+        String tl = out.trim().toLowerCase(java.util.Locale.ROOT);
+        if (tl.equals("how can i assist you today?") || tl.equals("how can i help?")) {
+            out = "How can I help right now?";
+        }
         return out.trim();
     }
 
-    private static String[] sentenceSplit(String text) {
-        if (text == null) return new String[0];
-        String t = text.replace('\n', ' ').replaceAll("\\s+", " ").trim();
-        if (t.isEmpty()) return new String[0];
-        return t.split("(?<=[.!?])\\s+");
+    // Decode sequences like \\u003c or u003c to '<', and common smart quotes
+    private static String decodeUnicodeish(String in) {
+        if (in == null || in.isEmpty()) return in;
+        String t = in;
+        // Handle both \\uXXXX and uXXXX variants for a few common codes first
+        t = t.replaceAll("(?i)\\\\?u003c", "<"); // '<'
+        t = t.replaceAll("(?i)\\\\?u003e", ">"); // '>'
+        t = t.replaceAll("(?i)\\\\?u0026", "&"); // '&'
+        t = t.replaceAll("(?i)\\\\?u2019", "'");
+        t = t.replaceAll("(?i)\\\\?u2018", "'");
+        t = t.replaceAll("(?i)\\\\?u201c", "\"");
+        t = t.replaceAll("(?i)\\\\?u201d", "\"");
+        // Generic \\uXXXX unescape
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\\\u([0-9a-fA-F]{4})");
+        java.util.regex.Matcher m = p.matcher(t);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            int cp = Integer.parseInt(m.group(1), 16);
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(String.valueOf((char) cp)));
+        }
+        m.appendTail(sb);
+        // Also handle bare uXXXX (without leading backslash)
+        p = java.util.regex.Pattern.compile("(?i)u([0-9a-fA-F]{4})");
+        m = p.matcher(sb.toString());
+        StringBuffer sb2 = new StringBuffer();
+        while (m.find()) {
+            int cp = Integer.parseInt(m.group(1), 16);
+            m.appendReplacement(sb2, java.util.regex.Matcher.quoteReplacement(String.valueOf((char) cp)));
+        }
+        m.appendTail(sb2);
+        return sb2.toString();
     }
 
     // Heuristic filter: prefer direct, second-person supportive sentences; remove meta/analysis
     private static String refinePlaintext(String text) {
         if (text == null || text.isBlank()) return text;
-        String t = text.replace('\n', ' ').replaceAll("\\s+", " ").trim();
+        String t = text.trim();
+        String lower = t.toLowerCase(java.util.Locale.ROOT);
+        // Unglue some very common phrases observed from small models
+        t = t
+                .replaceAll("(?i)\\bhowareyou\\b", "How are you")
+                .replaceAll("(?i)\\bhowareyoudoing\\b", "How are you doing")
+                .replaceAll("(?i)\\bhowareyoudoingtoday\\b", "How are you doing today")
+                .replaceAll("(?i)\\bhowcanIassistyoutoday\\b", "How can I assist you today")
+                .replaceAll("(?i)\\byoumeanlisteningtoyou\\b", "You mean listening to you")
+                .replaceAll("(?i)\\biam\\b", "I am")
+                .replaceAll("(?i)\\bim\\b", "I’m")
+        ;
+        // If string has no spaces and is long, try a light fix for question starts
+        if (!t.contains(" ") && t.length() >= 10) {
+            if (lower.startsWith("howareyou")) t = "How are you?";
+            else if (lower.startsWith("howcan")) t = "How can I help?";
+        }
+        // Add missing terminal punctuation for questions
+        if (t.matches("(?i).*(how|what|why|can|could|would|do you|are you).*") && !t.endsWith("?") && t.length() <= 80) {
+            t = t + "?";
+        }
+        // Remove trailing assistant meta markers sometimes produced by templates
+        t = t.replaceAll("\\s*\\(as an ai.*$", "");
         // Sentence split on ., !, ? keeping delimiters
         String[] raw = t.split("(?<=[.!?])\\s+");
         java.util.List<String> keep = new java.util.ArrayList<>();
         java.util.Set<String> banWords = new java.util.HashSet<>(java.util.Arrays.asList(
-                "the user", "user's", "they wrote", "journal", "entry", "query", "question", "let me", "i will", "i'll", "i think", "thinking", "approach this"
+                // meta/process and third-person analysis
+                "the user", "user's", "they wrote", "journal", "entry", "query", "question", "approach this", "respond ", "respond", "analysis", "chain-of-thought", "chain of thought",
+                // first-person meta planning
+                "let me", "i will", "i'll", "i think", "thinking", "i should", "i need", "maybe", "let's", "okay", "alright", "something like", "so the user", "here's my response", "putting it together", "it's clear", "my tone", "the tone", "i aim to", "i strive to", "i'll make sure", "i will ensure", "the goal is", "as an ai", "i cannot", "i can't", "i'm designed to",
+                // template-y meta
+                "to show empathy", "that should", "cover it", "without getting", "lengthy", "i shouldn't", "avoid any"
         ));
         for (String s : raw) {
-            String lc = s.toLowerCase(java.util.Locale.ROOT).trim();
+            String trimmed = s.trim();
+            if (trimmed.isEmpty()) continue;
+            String lc = trimmed.toLowerCase(java.util.Locale.ROOT);
             boolean banned = false;
             for (String w : banWords) { if (lc.contains(w)) { banned = true; break; } }
             if (banned) continue;
-            // Prefer second person
-            boolean second = lc.contains(" you ") || lc.startsWith("you ") || lc.contains(" your ") || lc.startsWith("it's ok") || lc.startsWith("it's okay");
-            if (second || keep.isEmpty()) keep.add(s.trim());
-            if (keep.size() >= 3) break;
+            // Accept user-facing sentences
+            boolean second = lc.contains(" you ") || lc.startsWith("you ") || lc.contains(" your ") || lc.endsWith("?");
+            boolean greeting = lc.startsWith("hi ") || lc.startsWith("hello") || lc.startsWith("hey ") || lc.startsWith("sure") || lc.startsWith("thanks ");
+            boolean firstPersonStatus = lc.startsWith("i'm ") || lc.startsWith("i am ");
+            if (second || greeting || firstPersonStatus) {
+                keep.add(trimmed);
+            }
+            if (keep.size() >= 2) break; // keep at most two sentences
         }
-        if (keep.isEmpty()) return text.trim();
-        return String.join(" ", keep).trim();
+        if (keep.isEmpty()) return ""; // suppress meta-only content entirely
+        String joined = String.join(" ", keep).trim();
+        // Final punctuation spacing pass
+        joined = joined.replaceAll("([.!?,;:])(\\S)", "$1 $2");
+        // Remove dangling quotes
+        if ((joined.startsWith("\"") && !joined.endsWith("\"")) || (joined.endsWith("\"") && !joined.startsWith("\""))) {
+            joined = joined.replace("\"", "");
+        }
+        return joined;
+    }
+
+    // Return the index of the first sentence-ending punctuation (., !, ?) or -1 if none
+    private static int firstSentenceEnd(String s) {
+        if (s == null || s.isEmpty()) return -1;
+        final int n = s.length();
+        for (int i = 0; i < n; i++) {
+            char c = s.charAt(i);
+            if (c == '.' || c == '!' || c == '?') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // Heuristic: consider very short, generic greetings as weak; do not finalize stream on these alone
+    private static boolean isWeakGreeting(String s) {
+        if (s == null) return true;
+        String t = s.trim();
+        if (t.isEmpty()) return true;
+        String lc = t.toLowerCase(java.util.Locale.ROOT);
+        // strip terminal punctuation
+        while (!lc.isEmpty()) {
+            char last = lc.charAt(lc.length() - 1);
+            if (last == '.' || last == '!' || last == '?' || last == '"' || last == '\'') {
+                lc = lc.substring(0, lc.length() - 1);
+            } else break;
+        }
+        lc = lc.trim();
+        // One or two-word greetings are considered weak
+        String[] words = lc.split("\\s+");
+        if (words.length <= 2) {
+            java.util.Set<String> greet = new java.util.HashSet<>(java.util.Arrays.asList(
+                    "hi", "hello", "hey", "hiya", "howdy", "thanks", "thank you"
+            ));
+            if (greet.contains(lc)) return true;
+            if (words.length == 2 && (greet.contains(words[0]) || greet.contains(words[1]))) return true;
+        }
+        // Also treat text shorter than 5 visible letters as weak
+        int letters = 0;
+        for (int i = 0; i < lc.length(); i++) if (Character.isLetter(lc.charAt(i))) letters++;
+        return letters < 5;
     }
 
     // Build minimal JSON; avoids external JSON deps
@@ -210,10 +434,14 @@ public final class OllamaClient implements SimLLMClient {
           .append("\"prompt\":\"").append(esc(prompt)).append('\"')
           .append(',')
           .append("\"stream\":false,")
-          .append("\"num_predict\":").append(Math.max(64, maxTokens))
+          // Give non-streaming enough room for 1–2 short sentences by default
+          .append("\"num_predict\":").append(Math.max(160, maxTokens))
           .append(',')
           .append("\"options\":{")
           .append("\"temperature\":").append(String.format(java.util.Locale.ROOT, "%.3f", temperature)).append(',')
+          .append("\"top_p\":0.9,")
+          .append("\"top_k\":60,")
+          .append("\"repeat_penalty\":1.12,")
           .append("\"stop\":[");
         for (int i = 0; i < stops.length; i++) {
             if (i > 0) sb.append(',');
@@ -227,7 +455,6 @@ public final class OllamaClient implements SimLLMClient {
 
     private static String toGenerateStreamJson(String model, String system, String user, int maxTokens, double temperature) {
         String prompt = (system == null || system.isBlank() ? "" : (system + "\n\n")) + (user == null ? "" : user);
-        String[] stops = new String[]{"</think>", "<think>", "<think", "</think", "<|endofthink|>"};
         StringBuilder sb = new StringBuilder(512 + prompt.length());
         sb.append('{')
           .append("\"model\":\"").append(esc(model)).append('\"')
@@ -239,12 +466,9 @@ public final class OllamaClient implements SimLLMClient {
           .append(',')
           .append("\"options\":{")
           .append("\"temperature\":").append(String.format(java.util.Locale.ROOT, "%.3f", temperature)).append(',')
-          .append("\"stop\":[");
-        for (int i = 0; i < stops.length; i++) {
-            if (i > 0) sb.append(',');
-            sb.append('\"').append(esc(stops[i])).append('\"');
-        }
-        sb.append(']')
+          .append("\"top_p\":0.9,")
+          .append("\"top_k\":60,")
+          .append("\"repeat_penalty\":1.12")
           .append('}')
           .append('}');
         return sb.toString();
