@@ -18,10 +18,13 @@ import main.core.sim.memory.PersistentMemoryStore;
 import main.core.sim.persona.SimPersonality;
 import main.core.sim.prefs.SimSettings;
 import main.core.sim.state.UserState;
+ import main.core.sim.proactive.TriggerStatsStore;
+ import main.core.sim.retrieval.RecencyBuffer;
+ import main.core.sim.retrieval.RetrievalRanker;
+ import main.core.sim.critic.CriticPromptDecorator;
 
 /**
  * Core decision engine: subscribes to Sim events and emits friendly overlay messages.
- * Phase 3: very lightweight local heuristics (no LLM).
  */
 public final class SimBrain implements SimEventBus.Listener {
     private final SimSettings settings;
@@ -32,6 +35,9 @@ public final class SimBrain implements SimEventBus.Listener {
     private final UserState userState = new UserState();
     private final MemoryStore memory = new MemoryStore();
     private final PersistentMemoryStore persistent = new PersistentMemoryStore();
+    // Add lightweight stores for proactive stats and recency-aware retrieval
+    private final TriggerStatsStore triggerStats = new TriggerStatsStore();
+    private final RecencyBuffer recency = new RecencyBuffer(30, 60 * 60 * 1000L); // last 1h snippets
 
     // Optional LLM
     private volatile SimLLMClient llm;
@@ -44,7 +50,11 @@ public final class SimBrain implements SimEventBus.Listener {
 
     // Simple cooldowns to avoid spamming overlay
     private long lastSpeakMs = 0L;
-    private long lastTypingCheckMs = 0L;
+    // Typing debounce (replace coarse rate-limit)
+    private static final long TYPING_DEBOUNCE_MS = 1200L;
+    private final Object typingLock = new Object();
+    private volatile String latestTyping = "";
+    private java.util.concurrent.ScheduledFuture<?> typingEvalFuture;
     // Same-trigger cooldown tracking
     private String lastTriggerKey = "";
     private long lastTriggerMs = 0L;
@@ -54,6 +64,11 @@ public final class SimBrain implements SimEventBus.Listener {
     private static final long EMOTION_FRESH_MS = 15 * 60 * 1000L; // 15 minutes
     private final java.util.ArrayDeque<EmotionTag> recentEmotions = new java.util.ArrayDeque<>(24);
     private volatile String currentEmotionEntryId = null;
+
+    // Entry-start evaluation state (to suppress early nudges if content hasn't diverged yet)
+    private volatile long entryStartTimeMs = 0L;
+    private volatile String entryStartSnapshot = "";
+    private volatile long entryStartSuppressedUntilMs = 0L;
 
     // Scheduler
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -105,40 +120,13 @@ public final class SimBrain implements SimEventBus.Listener {
         }
         // Cancel any ongoing streamed response as soon as user types again
         try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
-        long now = System.currentTimeMillis();
-        if (now - lastTypingCheckMs < 1000L) { // rate-limit checks
-            System.out.println("[SimBrain] typing ignored: rate-limited");
-            return;
-        }
-        lastTypingCheckMs = now;
-
-        // Only analyze if there's some meaningful text
-        String text = latestText.trim();
-        if (text.length() < 10) {
-            System.out.println("[SimBrain] typing ignored: below length threshold (" + text.length() + ")");
-            return;
-        }
-
-        // Update user state and episodic memory (for later summaries)
-        try { userState.onTyping(latestText); } catch (Throwable ignored) {}
-        try { memory.addEpisodic(latestText.length() > 140 ? latestText.substring(0, 140) + "…" : latestText); } catch (Throwable ignored) {}
-        // Derive and persist durable facts opportunistically from live typing
-        try { persistent.ingestText(latestText); } catch (Throwable ignored) {}
-
-        // Crisis intent detection (self-harm / suicide). Immediate, safe response; bypass LLM.
-        if (isCrisisText(text)) {
-            System.out.println("[SimBrain] crisis intent detected; speaking immediately");
-            String msg = crisisMessage(personality.getType());
-            speakNow(msg); // bypass quiet hours and cooldowns for safety
-            return;
-        }
-
-        // Do not start LLM while user is actively typing.
-        // Proactive nudge will be evaluated in tick() after a short pause.
-        // However, if LLM is disabled, we can still use a quick heuristic nudge here.
-        if (!settings.isLlmEnabled() && looksNegative(text)) {
-            System.out.println("[SimBrain] heuristic negative detected (LLM off); speaking");
-            speakOncePer(20000L, messageFor("negative"));
+        // Debounce evaluation instead of per-keystroke rate-limit
+        synchronized (typingLock) {
+            latestTyping = latestText;
+            if (typingEvalFuture != null) {
+                try { typingEvalFuture.cancel(false); } catch (Throwable ignored) {}
+            }
+            typingEvalFuture = scheduler.schedule(this::evaluateTyping, TYPING_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -184,6 +172,12 @@ public final class SimBrain implements SimEventBus.Listener {
         if (personality.getType() == SimPersonality.Type.PROACTIVE && "Main Menu".equalsIgnoreCase(cardId)) {
             speakOncePer(60000L, messageFor("greet"));
         }
+        // Heuristic: when switching into an editor, treat as a new entry start
+        if (cardId.startsWith("Editor_")) {
+            entryStartTimeMs = System.currentTimeMillis();
+            entryStartSnapshot = "";
+            entryStartSuppressedUntilMs = 0L;
+        }
     }
 
     @Override
@@ -196,11 +190,16 @@ public final class SimBrain implements SimEventBus.Listener {
         if (settings.isLlmEnabled()) ensureLlm();
         if (llm != null) {
             try {
-                String sys = PromptBuilder.systemPrompt(personality.getType());
+                String sys = CriticPromptDecorator.decorateSystem(
+                        PromptBuilder.systemPrompt(personality.getType())
+                );
                 String usr = String.join(" ",
                         "The user tapped 'Chat more' after your previous supportive message.",
                         "Respond with ONE short, compassionate follow-up question (1 sentence).",
                         "No preface, no meta; plain text only.");
+                // Add a small retrieval context
+                String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 3, 3);
+                if (ctx != null && !ctx.isBlank()) usr = "Context: " + ctx + "\n\n" + usr;
                 // Disable generic fallback in overlay chat follow-up
                 turns.maybeSpeakProactively(llm, sys, usr, /*allowFallback=*/false);
                 return;
@@ -221,6 +220,7 @@ public final class SimBrain implements SimEventBus.Listener {
         if (txt.isEmpty()) return;
         // Derive and persist durable facts from chat messages as well
         try { persistent.ingestText(txt); } catch (Throwable ignored) {}
+        try { recency.add(txt); } catch (Throwable ignored) {}
         // Safety: crisis detection inside chat path
         if (isCrisisText(txt)) {
             speakNow(crisisMessage(personality.getType()));
@@ -237,7 +237,9 @@ public final class SimBrain implements SimEventBus.Listener {
         lastSpeakMs = System.currentTimeMillis();
         if (settings.isLlmEnabled()) ensureLlm();
         if (llm != null) {
-            String sys = PromptBuilder.systemPrompt(personality.getType());
+            String sys = CriticPromptDecorator.decorateSystem(
+                    PromptBuilder.systemPrompt(personality.getType())
+            );
             // Provide mood context and guidance for reciprocal greetings and empathy
             String usr = String.join(" ",
                     "The user is chatting with you in a small overlay.",
@@ -248,6 +250,8 @@ public final class SimBrain implements SimEventBus.Listener {
                     factsContextForPrompt(),
                     "If they greet you (e.g., 'how are you'), briefly say how you're doing and reciprocate, optionally acknowledging their recent mood.",
                     "Plain text only.\n\nUser:", txt);
+            String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 5, 5);
+            if (ctx != null && !ctx.isBlank()) usr = "Context: " + ctx + "\n\n" + usr;
             try {
                 // Disable generic fallback inside overlay chat messages
                 turns.maybeSpeakProactively(llm, sys, usr, /*allowFallback=*/false);
@@ -331,17 +335,28 @@ public final class SimBrain implements SimEventBus.Listener {
         String preview = last.length() > 200 ? last.substring(0, 199) + "…" : last;
 
         if (llm != null) {
-            String sys = PromptBuilder.systemPromptWithContext(
+            // If we're at the start of an entry and the text hasn't evolved much from the opening,
+            // hold off to avoid premature interruption.
+            if (shouldHoldOffForEntryStart(trimmed)) {
+                // Light backoff to avoid re-checking every tick
+                lastSpeakMs = now; // reuse speak cooldown as a soft backoff window
+                return;
+            }
+            String sys = CriticPromptDecorator.decorateSystem(
+                    PromptBuilder.systemPromptWithContext(
                     personality.getType(),
                     /*moodLabel*/ null,
                     /*moodValence*/ null,
                     /*recentInputPreview*/ preview,
                     /*conversationSummary*/ safeSummary(),
                     /*triggerReason*/ trigger
-            );
+            ));
             String usr = PromptBuilder.userFromTyping(preview);
             String emo = emotionsContextForPrompt();
             if (emo != null && !emo.isBlank()) usr = usr + "\n\n" + emo;
+            // Add richer retrieval context
+            String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 4, 4);
+            if (ctx != null && !ctx.isBlank()) usr = "Context: " + ctx + "\n\n" + usr;
             String memoryHint = null;
             try {
                 String m1 = persistent.getFactsSummary(1);
@@ -352,6 +367,7 @@ public final class SimBrain implements SimEventBus.Listener {
             lastSpeakMs = now;
             lastTriggerKey = triggerKey;
             lastTriggerMs = now;
+            try { triggerStats.record(triggerKey); } catch (Throwable ignored) {}
             try {
                 System.out.println("[SimBrain] proactive tick -> streaming LLM due to " + trigger);
                 turns.maybeSpeakProactively(llm, sys, usr, preface);
@@ -363,10 +379,95 @@ public final class SimBrain implements SimEventBus.Listener {
             lastSpeakMs = now;
             String msg = negativeTone ? messageFor("negative") : messageFor("greet");
             try { SimEventBus.get().emitSpeak(msg); } catch (Throwable ignored) {}
+            try { triggerStats.record(triggerKey); } catch (Throwable ignored) {}
         }
 
         // Reset edit burst counter to avoid immediate retriggering
         userState.resetShrinkCounter();
+    }
+
+    // --- Debounced typing evaluation ---
+    private void evaluateTyping() {
+        String text;
+        synchronized (typingLock) { text = latestTyping; }
+        if (!settings.isEnabled() || text == null) return;
+        String trimmed = text.trim();
+        if (trimmed.length() < 10) {
+            System.out.println("[SimBrain] typing ignored after debounce: short (" + trimmed.length() + ")");
+            return;
+        }
+        // Update state and memory once per debounce fire
+        try { userState.onTyping(text); } catch (Throwable ignored) {}
+        try { memory.addEpisodic(trimmed.length() > 140 ? trimmed.substring(0, 140) + "…" : trimmed); } catch (Throwable ignored) {}
+        try { persistent.ingestText(text); } catch (Throwable ignored) {}
+        try { recency.add(trimmed); } catch (Throwable ignored) {}
+
+        // Capture initial snapshot for entry-start suppression
+        maybeCaptureEntryStartSnapshot(trimmed);
+
+        // Crisis detection remains immediate
+        if (isCrisisText(trimmed)) {
+            System.out.println("[SimBrain] crisis intent detected; speaking immediately");
+            String msg = crisisMessage(personality.getType());
+            speakNow(msg);
+            return;
+        }
+        // If LLM is off, allow a gentle heuristic nudge on negative tone
+        if (!settings.isLlmEnabled() && looksNegative(trimmed)) {
+            System.out.println("[SimBrain] heuristic negative detected (LLM off); speaking");
+            speakOncePer(20000L, messageFor("negative"));
+        }
+    }
+
+    // --- Entry-start evaluation and suppression ---
+    private void maybeCaptureEntryStartSnapshot(String trimmedText) {
+        // If we recently switched into an editor or there's no snapshot yet, capture a short opening
+        if (entryStartSnapshot == null || entryStartSnapshot.isEmpty()) {
+            if (trimmedText.length() >= 40) {
+                entryStartSnapshot = trimmedText.substring(0, Math.min(180, trimmedText.length()));
+                if (entryStartTimeMs == 0L) entryStartTimeMs = System.currentTimeMillis();
+            }
+        }
+    }
+
+    private boolean shouldHoldOffForEntryStart(String currentText) {
+        long now = System.currentTimeMillis();
+        // Only consider within the first few minutes and if we have a snapshot
+        if (entryStartSnapshot == null || entryStartSnapshot.isEmpty()) return false;
+        if (entryStartTimeMs == 0L) return false;
+        if (now < entryStartSuppressedUntilMs) return true; // temporary backoff window
+        long elapsed = now - entryStartTimeMs;
+        if (elapsed > 5 * 60 * 1000L) return false; // after 5 minutes, stop suppressing
+
+        // Compute simple token overlap ratio between snapshot and current
+        double sim = jaccardSimilarity(entryStartSnapshot, currentText);
+        if (sim >= 0.85) { // very similar => likely still expanding the opening idea
+            // set a small suppression window to avoid frequent checks
+            entryStartSuppressedUntilMs = now + 10000L; // 10s
+            return true;
+        }
+        return false;
+    }
+
+    private static double jaccardSimilarity(String a, String b) {
+        java.util.Set<String> sa = tokenize(a);
+        java.util.Set<String> sb = tokenize(b);
+        if (sa.isEmpty() || sb.isEmpty()) return 0.0;
+        int inter = 0;
+        for (String t : sa) if (sb.contains(t)) inter++;
+        int union = sa.size() + sb.size() - inter;
+        return union == 0 ? 0.0 : (double) inter / union;
+    }
+
+    private static java.util.Set<String> tokenize(String s) {
+        java.util.Set<String> set = new java.util.HashSet<>();
+        String[] parts = s.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^a-z0-9\u00C0-\u024F\s]", " ")
+                .split("\\s+");
+        for (String p : parts) {
+            if (p.length() >= 2) set.add(p);
+        }
+        return set;
     }
 
     private void ensureLlm() {
