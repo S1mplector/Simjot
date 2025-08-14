@@ -63,11 +63,21 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private boolean typingInProgress = false;
     private int typingTick = 0; // advances in anim timer to animate dots
 
+    // New: scrollable chat components
+    private final ChatTranscriptModel transcript = new ChatTranscriptModel();
+    private final ChatViewPanel chatView = new ChatViewPanel(transcript);
+
     public SimOverlay() {
         setOpaque(false);
         setVisible(true);
+        setLayout(null); // we'll position children manually
         // Listen for speak events
         try { SimEventBus.get().addListener(this); } catch (Throwable ignored) {}
+
+        // Integrate scrollable chat view but keep it hidden until chatMode
+        chatView.setOpaque(false);
+        chatView.getScrollPane().setVisible(false);
+        add(chatView.getScrollPane());
 
         // Drag to move
         MouseAdapter ma = new MouseAdapter() {
@@ -233,13 +243,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             final String t = message == null ? "" : message;
             SwingUtilities.invokeLater(() -> {
                 try { System.out.println("[SimOverlay] chat onSpeak append len=" + t.length()); } catch (Throwable ignored) {}
-                if (streamingAssistantIndex < 0 || streamingAssistantIndex >= chatHistory.size()) {
-                    chatHistory.add(new ChatLine(Role.ASSISTANT, t));
-                    streamingAssistantIndex = chatHistory.size() - 1;
-                } else {
-                    ChatLine cl = chatHistory.get(streamingAssistantIndex);
-                    cl.text = cl.text + t;
-                }
+                // Route to transcript model (scrollable chat)
+                transcript.appendAssistantTokens(t);
                 // rely on anim timer for repaint to reduce per-token repaints
             });
         } else {
@@ -252,8 +257,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     public void onSpeakStart() {
         if (chatMode) {
             SwingUtilities.invokeLater(() -> {
-                chatHistory.add(new ChatLine(Role.ASSISTANT, ""));
-                streamingAssistantIndex = chatHistory.size() - 1;
+                // Start a streaming assistant turn in the transcript
+                transcript.beginAssistantTurn();
+                streamingAssistantIndex = -1; // transcript manages streaming
                 typingInProgress = true;
                 capChatHistory();
                 repaint();
@@ -267,6 +273,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     @Override
     public void onSpeakEnd() {
         typingInProgress = false;
+        // Close current assistant turn in transcript if any
+        try { transcript.endAssistantTurn(); } catch (Throwable ignored) {}
     }
 
     /** Unsubscribe from event bus and hide overlay. */
@@ -283,7 +291,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     @Override
     public Dimension getPreferredSize() {
         // Wider to fit orbs + text panel
-        return new Dimension(420, 160);
+        return new Dimension(420, 240);
     }
 
     @Override
@@ -301,13 +309,22 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
         // No outer frame/background — keep canvas transparent behind orbs and panel
 
-        // Close icon (simple ×)
+        // Close icon: reuse shared vector icon (same as Pomodoro/Sticky -> id "delete")
         int cx = w - CLOSE_SIZE - 6;
         int cy = 6;
-        g2.setColor(new Color(0,0,0,90));
-        g2.drawRect(cx, cy, CLOSE_SIZE, CLOSE_SIZE);
-        g2.drawLine(cx + 3, cy + 3, cx + CLOSE_SIZE - 3, cy + CLOSE_SIZE - 3);
-        g2.drawLine(cx + 3, cy + CLOSE_SIZE - 3, cx + CLOSE_SIZE - 3, cy + 3);
+        try {
+            java.awt.image.BufferedImage img = main.ui.components.icons.VectorIconPainter.getImage("delete", Math.max(14, CLOSE_SIZE));
+            if (img != null) {
+                int ix = cx + (CLOSE_SIZE - img.getWidth()) / 2;
+                int iy = cy + (CLOSE_SIZE - img.getHeight()) / 2;
+                g2.drawImage(img, ix, iy, null);
+            } else {
+                // Fallback: minimal X
+                g2.setColor(new Color(0,0,0,120));
+                g2.drawLine(cx + 3, cy + 3, cx + CLOSE_SIZE - 3, cy + CLOSE_SIZE - 3);
+                g2.drawLine(cx + 3, cy + CLOSE_SIZE - 3, cx + CLOSE_SIZE - 3, cy + 3);
+            }
+        } catch (Throwable ignored) {}
 
         // Layout: left area for orbs, right area for text panel
         int padding = 14;
@@ -421,15 +438,27 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 g2.setPaint(oldPaint);
                 g2.setClip(oldClip);
 
-                // Chat exit button (visible only in chat mode)
+                // Chat exit button (visible only in chat mode). Place at top-right of the chat panel (scroll area)
                 if (chatMode) {
-                    int ex = panelRect.x + panelRect.width - 18;
-                    int ey = panelRect.y + 8;
-                    chatExitRect = new Rectangle(ex, ey, 12, 12);
-                    g2.setColor(new Color(0,0,0,90));
-                    g2.drawRect(chatExitRect.x, chatExitRect.y, chatExitRect.width, chatExitRect.height);
-                    g2.drawLine(ex + 2, ey + 2, ex + 10, ey + 10);
-                    g2.drawLine(ex + 2, ey + 10, ex + 10, ey + 2);
+                    int pad = 10;
+                    int headerH = 20; // must match chat scroll layout below
+                    int xChat = panelRect.x + pad + 2;
+                    int yChat = panelRect.y + headerH + 8 + entranceOffsetY;
+                    int wChat = panelRect.width - pad*2 - 4;
+                    int size = Math.max(12, CLOSE_SIZE);
+                    int ex = xChat + wChat - size;
+                    int ey = yChat + 2;
+                    chatExitRect = new Rectangle(ex, ey, size, size);
+                    try {
+                        java.awt.image.BufferedImage img = main.ui.components.icons.VectorIconPainter.getImage("delete", size);
+                        if (img != null) {
+                            g2.drawImage(img, ex, ey, null);
+                        } else {
+                            g2.setColor(new Color(0,0,0,120));
+                            g2.drawLine(ex + 3, ey + 3, ex + size - 3, ey + size - 3);
+                            g2.drawLine(ex + 3, ey + size - 3, ex + size - 3, ey + 3);
+                        }
+                    } catch (Throwable ignored) {}
                 } else {
                     chatExitRect = null;
                 }
@@ -439,6 +468,19 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 // Defer layout to after paint to avoid re-entrancy
                 if (chatMode) SwingUtilities.invokeLater(this::layoutInputField);
             }
+        }
+
+        // Position chat scroll view within the panel (above input line), visible only in chat mode
+        if (lastPanelRect != null) {
+            int pad = 10;
+            int headerH = 20; // space for inline title/close row
+            int inputH = 34;  // reserved height for input at bottom
+            int x = lastPanelRect.x + pad + 2;
+            int y = lastPanelRect.y + headerH + 8 + entranceOffsetY;
+            int wv = lastPanelRect.width - pad*2 - 4;
+            int hv = Math.max(40, lastPanelRect.height - headerH - inputH - 16);
+            chatView.getScrollPane().setBounds(x, y, wv, hv);
+            chatView.getScrollPane().setVisible(chatMode);
         }
 
         // Message or Chat content (reveals with panel)
@@ -500,8 +542,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             }
         }
 
-        // Chat mode content
-        if (panelT > 0f && chatMode) {
+        // Chat mode content (manual painted bubbles)
+        // Disabled: replaced by scrollable ChatViewPanel
+        if (panelT > 0f && chatMode && false) {
             // Layout
             Rectangle pr = lastPanelRect != null ? lastPanelRect : new Rectangle(rightX, panelY, rightW, panelH);
             int pad = 10;
@@ -745,6 +788,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         // Seed with current assistant message if any
         if (message != null && !message.isBlank()) {
             chatHistory.add(new ChatLine(Role.ASSISTANT, message));
+            try { transcript.appendSystem(" "); } catch (Throwable ignored) {} // spacer to ensure repaint
+            try { transcript.beginAssistantTurn(); transcript.appendAssistantTokens(message); transcript.endAssistantTurn(); } catch (Throwable ignored) {}
         }
         ensureInputField();
         revalidate(); repaint();
@@ -801,6 +846,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         txt = txt.trim();
         if (txt.isEmpty()) return;
         chatHistory.add(new ChatLine(Role.USER, txt));
+        try { transcript.appendUser(txt); } catch (Throwable ignored) {}
         chatInput.setText("");
         repaint();
         try { SimEventBus.get().emitChatMessage(txt); } catch (Throwable ignored) {}
