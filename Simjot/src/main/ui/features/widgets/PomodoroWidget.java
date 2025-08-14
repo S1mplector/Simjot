@@ -101,7 +101,7 @@ public class PomodoroWidget implements Widget {
     public String getName() { return "Pomodoro"; }
 
     @Override
-    public String getIconId() { return "clock"; }
+    public String getIconId() { return "pomodoro_widget"; }
 
     private void ensureDialog() {
         if (dialog != null) return;

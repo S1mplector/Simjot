@@ -22,16 +22,16 @@ public class WidgetManager {
             @Override public void stop() { enabled = false; }
             @Override public boolean isEnabled() { return enabled; }
             @Override public String getName() { return "Breathing"; }
-            @Override public String getIconId() { return "breath"; }
+            @Override public String getIconId() { return "breathing_widget"; }
         });
 
         widgets.put("Pomodoro", new PomodoroWidget(app) {
             @Override public String getName() { return "Pomodoro"; }
-            @Override public String getIconId() { return "clock"; }
+            @Override public String getIconId() { return "pomodoro_widget"; }
         });
         widgets.put("Idea Sticky", new IdeaStickyWidget(app) {
             @Override public String getName() { return "Idea Sticky"; }
-            @Override public String getIconId() { return "pencil"; }
+            @Override public String getIconId() { return "sticky_widget"; }
         });
     }
 

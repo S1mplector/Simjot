@@ -123,6 +123,10 @@ public final class ImageIconRenderer {
             case "storage_settings", "settings_storage" -> "img/icons/storage_settings.png";
             case "sim_settings", "settings_sim" -> "img/icons/sim_settings.png";
             case "about_settings", "settings_about" -> "img/icons/about_settings.png";
+            // Widget buttons
+            case "breathing_widget", "widget_breathing" -> "img/icons/breathing_widget.png";
+            case "pomodoro_widget", "widget_pomodoro" -> "img/icons/pomodoro_widget.png";
+            case "sticky_widget", "widget_sticky" -> "img/icons/sticky_widget.png";
             default -> null;
         };
     }

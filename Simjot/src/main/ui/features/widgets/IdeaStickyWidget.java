@@ -72,7 +72,7 @@ public class IdeaStickyWidget implements Widget {
 
     @Override public String getName() { return "Idea Sticky"; }
 
-    @Override public String getIconId() { return "pencil"; }
+    @Override public String getIconId() { return "sticky_widget"; }
 
     private void ensureDialog() {
         if (dialog != null) return;

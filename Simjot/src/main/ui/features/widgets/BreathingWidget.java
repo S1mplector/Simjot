@@ -45,6 +45,11 @@ public class BreathingWidget extends JComponent implements Widget {
         setVisible(false);
     }
 
+    @Override
+    public String getIconId() {
+        return "breathing_widget";
+    }
+
     // ------------------------------------------------------------------------
     // Widget API
     // ------------------------------------------------------------------------
