@@ -27,6 +27,7 @@ import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.components.indicators.SaveIndicatorPanel;
 import main.infrastructure.backup.NotebookInfo;
 
 public class EntryPanel extends AbstractEditorPanel {
@@ -38,7 +39,7 @@ public class EntryPanel extends AbstractEditorPanel {
     protected JTextPane contentArea;
     protected MoodSlider moodSlider;
     private DetailedMoodPanel detailedMoodPanel; // collapsible detailed mood panel
-    private JLabel saveStatusLabel;
+    private SaveIndicatorPanel saveIndicator;
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
@@ -325,12 +326,9 @@ public class EntryPanel extends AbstractEditorPanel {
         wordCountLabel.setBorder(new EmptyBorder(0, 10, 5, 0));
         bottomPanel.add(wordCountLabel);
 
-        // Save status label (autosave indicator)
-        saveStatusLabel = new JLabel(" ");
-        saveStatusLabel.setForeground(new Color(100, 100, 100));
-        saveStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        saveStatusLabel.setBorder(new EmptyBorder(0, 10, 5, 10));
-        bottomPanel.add(saveStatusLabel);
+        // Save state indicator (reusable component)
+        saveIndicator = new SaveIndicatorPanel();
+        bottomPanel.add(saveIndicator);
         bottomPanel.add(saveButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
@@ -340,11 +338,14 @@ public class EntryPanel extends AbstractEditorPanel {
         if (delayMs > 0) {
             autosaveManager = new AutosaveManager(delayMs,
                     this::saveEntry,
-                    () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
-                    () -> { if (saveStatusLabel != null) {
-                        java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
-                        saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
-                    } isAutosaving = false; });
+                    () -> { isAutosaving = true; if (saveIndicator != null) saveIndicator.setSaving(); },
+                    () -> { 
+                        if (saveIndicator != null) {
+                            long ts = (currentFile != null && currentFile.exists()) ? currentFile.lastModified() : System.currentTimeMillis();
+                            saveIndicator.setSavedFromTimestamp(ts);
+                        }
+                        isAutosaving = false; 
+                    });
         } else {
             autosaveManager = null; // autosave disabled
         }
@@ -546,20 +547,38 @@ public class EntryPanel extends AbstractEditorPanel {
     // Called by the "Save Entry" button.
     // This is overridden in EditEntryPanel to update an existing file.
     protected void saveEntry() {
-        String title = titleField.getText().trim();
-        String content = contentArea.getText();
-        if (title.isEmpty() && content.trim().isEmpty()) {
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or content.", true).showDialog();
+        // Snapshot UI state on EDT to avoid touching Swing components from autosave thread
+        final String[] titleHolder = new String[1];
+        final String[] contentHolder = new String[1];
+        final int[] moodHolder = new int[1];
+        try {
+            if (SwingUtilities.isEventDispatchThread()) {
+                titleHolder[0] = titleField.getText().trim();
+                contentHolder[0] = contentArea.getText();
+                moodHolder[0] = moodSlider.getValue();
+            } else {
+                SwingUtilities.invokeAndWait(() -> {
+                    titleHolder[0] = titleField.getText().trim();
+                    contentHolder[0] = contentArea.getText();
+                    moodHolder[0] = moodSlider.getValue();
+                });
+            }
+        } catch (Exception invokeErr) {
+            // If we cannot read UI state, fail gracefully
             return;
         }
-        int moodValue = moodSlider.getValue(); // 0 - 100
+        String title = titleHolder[0];
+        String content = contentHolder[0];
+        if (title.isEmpty() && content.trim().isEmpty()) {
+            SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or content.", true).showDialog());
+            return;
+        }
+        int moodValue = moodHolder[0]; // 0 - 100
         recordMood(moodValue);
 
         try {
             // Update status to Saving…
-            if (saveStatusLabel != null) {
-                saveStatusLabel.setText("Saving…");
-            }
+            if (saveIndicator != null) saveIndicator.setSaving();
             // Ensure target folder exists
             if (journalFolder != null && !journalFolder.exists()) {
                 //noinspection ResultOfMethodCallIgnored
@@ -593,20 +612,15 @@ public class EntryPanel extends AbstractEditorPanel {
 
             String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
             if (!isAutosaving) {
-                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+                SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog());
             }
 
             // Update status to Saved · time
-            if (saveStatusLabel != null) {
-                SimpleDateFormat tf = new SimpleDateFormat("h:mm a");
-                saveStatusLabel.setText("Saved • " + tf.format(new Date()));
-            }
+            if (saveIndicator != null) saveIndicator.setSaved(new Date());
         } catch (IOException ex) {
             ex.printStackTrace();
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog();
-            if (saveStatusLabel != null) {
-                saveStatusLabel.setText("Error saving");
-            }
+            SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog());
+            if (saveIndicator != null) saveIndicator.setError("Error saving");
         }
     }
 
@@ -631,12 +645,16 @@ public class EntryPanel extends AbstractEditorPanel {
     @Override
     protected void safeLoadFile(File f) {
         loadExistingEntry(f);
+        if (saveIndicator != null && f != null) {
+            saveIndicator.setSavedFromTimestamp(f.lastModified());
+        }
     }
 
     @Override
     protected void clearEditor() {
         titleField.setText("");
         contentArea.setText("");
+        if (saveIndicator != null) saveIndicator.clear();
     }
 
     @Override

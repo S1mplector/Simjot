@@ -29,6 +29,8 @@ public class AutosaveManager {
                 timer.stop();
                 if (saving) return; // avoid overlapping saves
                 saving = true;
+                // Signal UI that an autosave is actually starting now (after debounce)
+                SwingUtilities.invokeLater(onStart);
                 // Run save off the EDT to avoid UI stalls (especially with short delays)
                 new Thread(() -> {
                     try {
@@ -49,9 +51,7 @@ public class AutosaveManager {
     }
 
     public void markDirty() {
-        if (!timer.isRunning() && !saving) {
-            onStart.run();
-        }
+        // Just (re)start the debounce timer. We will call onStart when the save actually begins.
         timer.restart();
     }
 

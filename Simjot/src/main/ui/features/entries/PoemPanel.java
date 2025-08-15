@@ -18,6 +18,7 @@ import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
+import main.ui.components.indicators.SaveIndicatorPanel;
 import main.infrastructure.backup.NotebookInfo;
 
 public class PoemPanel extends AbstractEditorPanel {
@@ -35,7 +36,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Helpers
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
-    private JLabel saveStatusLabel;
+    private SaveIndicatorPanel saveIndicator;
     private volatile boolean isAutosaving = false;
     private AutosaveManager autosaveManager;
     // 'currentFile' is inherited from AbstractEditorPanel
@@ -219,10 +220,8 @@ public class PoemPanel extends AbstractEditorPanel {
         ToolbarIconButton saveButton = EditorUIUtils.createSaveButton("Save Poem", this::savePoem);
         JPanel eastPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         eastPanel.setOpaque(false);
-        saveStatusLabel = new JLabel(" ");
-        saveStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        saveStatusLabel.setForeground(Color.DARK_GRAY);
-        eastPanel.add(saveStatusLabel);
+        saveIndicator = new SaveIndicatorPanel();
+        eastPanel.add(saveIndicator);
         eastPanel.add(saveButton);
         bottomPanel.add(eastPanel, BorderLayout.EAST);
 
@@ -233,11 +232,14 @@ public class PoemPanel extends AbstractEditorPanel {
         if (delayMs > 0) {
             autosaveManager = new AutosaveManager(delayMs,
                     this::savePoem,
-                    () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
-                    () -> { if (saveStatusLabel != null) {
-                        java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
-                        saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
-                    } isAutosaving = false; });
+                    () -> { isAutosaving = true; if (saveIndicator != null) saveIndicator.setSaving(); },
+                    () -> { 
+                        if (saveIndicator != null) {
+                            long ts = (currentFile != null && currentFile.exists()) ? currentFile.lastModified() : System.currentTimeMillis();
+                            saveIndicator.setSavedFromTimestamp(ts);
+                        }
+                        isAutosaving = false; 
+                    });
         } else {
             autosaveManager = null; // autosave disabled
         }
@@ -271,6 +273,7 @@ public class PoemPanel extends AbstractEditorPanel {
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or some content for your poem.", true).showDialog();
             return;
         }
+        if (saveIndicator != null) saveIndicator.setSaving();
         // 'journalFolder' already points to the poems directory provided by AppDirectories
         if (!journalFolder.exists()) {
             journalFolder.mkdirs();
@@ -303,12 +306,14 @@ public class PoemPanel extends AbstractEditorPanel {
             if (!isAutosaving) {
                 new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
             }
+            if (saveIndicator != null) saveIndicator.setSaved(new Date());
             
             // Don't clear fields - keep content like NewEntryPanel does
             // This allows continuous editing of the same poem
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving poem.", true).showDialog();
+            if (saveIndicator != null) saveIndicator.setError("Error saving");
         }
     }
 
@@ -342,12 +347,16 @@ public class PoemPanel extends AbstractEditorPanel {
     @Override
     protected void safeLoadFile(File f) {
         loadExistingPoem(f);
+        if (saveIndicator != null && f != null) {
+            saveIndicator.setSavedFromTimestamp(f.lastModified());
+        }
     }
 
     @Override
     protected void clearEditor() {
         poemTitleField.setText("");
         poemTextArea.setText("");
+        if (saveIndicator != null) saveIndicator.clear();
     }
 
     @Override
