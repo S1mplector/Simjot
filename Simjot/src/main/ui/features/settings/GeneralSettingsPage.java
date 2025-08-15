@@ -4,9 +4,11 @@ import java.awt.Color;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
@@ -61,6 +63,12 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         uiScaleSpinner.setUI(new ModernSpinnerUI());
         JSpinner.NumberEditor editor = new JSpinner.NumberEditor(uiScaleSpinner, "0.00");
         uiScaleSpinner.setEditor(editor);
+        // Ensure the NumberEditor matches our ModernSpinnerUI styling (avoid inner beveled frame look)
+        JFormattedTextField uiScaleTf = editor.getTextField();
+        uiScaleTf.setOpaque(false);
+        uiScaleTf.setBackground(Color.WHITE);
+        uiScaleTf.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        uiScaleTf.setForeground(Color.DARK_GRAY);
         gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("UI Scale:"), gc);
         gc.gridx = 1; add(uiScaleSpinner, gc);
 
