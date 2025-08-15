@@ -27,6 +27,7 @@ import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
+import main.infrastructure.backup.NotebookInfo;
 
 public class EntryPanel extends AbstractEditorPanel {
 
@@ -118,8 +119,15 @@ public class EntryPanel extends AbstractEditorPanel {
         JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topToolbar.setOpaque(false);
 
-        // Back button (via EditorUIUtils)
-        ToolbarIconButton backButton = EditorUIUtils.createBackButton(app);
+        // Back button -> return to this notebook's entries manager
+        NotebookInfo nbInfo = new NotebookInfo(
+                journalFolder.getName(),
+                NotebookInfo.Type.JOURNAL,
+                journalFolder,
+                journalFolder.lastModified(),
+                null
+        );
+        ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
         topToolbar.add(backButton);
 
         // Right-side settings (cork icon) button

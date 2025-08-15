@@ -2,6 +2,7 @@ package main.ui.components.util;
 
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.infrastructure.backup.NotebookInfo;
 
 /**
  * Utility methods for creating common editor toolbar buttons
@@ -24,5 +25,15 @@ public final class EditorUIUtils {
         }
         save.addActionListener(e -> onSave.run());
         return save;
+    }
+
+    /**
+     * Back button that returns to the entries manager for the given notebook.
+     */
+    public static ToolbarIconButton createBackToEntriesButton(JournalApp app, NotebookInfo nb) {
+        ToolbarIconButton back = new ToolbarIconButton("back");
+        back.setToolTipText("Back to Entries");
+        back.addActionListener(e -> app.openNotebookEntries(nb));
+        return back;
     }
 }

@@ -18,6 +18,7 @@ import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
+import main.infrastructure.backup.NotebookInfo;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -76,8 +77,15 @@ public class PoemPanel extends AbstractEditorPanel {
         JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topToolbar.setOpaque(false);
 
-        // Back button (via EditorUIUtils)
-        ToolbarIconButton backButton = EditorUIUtils.createBackButton(app);
+        // Back button -> return to this notebook's entries manager
+        NotebookInfo nbInfo = new NotebookInfo(
+                journalFolder.getName(),
+                NotebookInfo.Type.POETRY,
+                journalFolder,
+                journalFolder.lastModified(),
+                null
+        );
+        ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
         topToolbar.add(backButton);
         
         // Right-side settings (cork icon) button
