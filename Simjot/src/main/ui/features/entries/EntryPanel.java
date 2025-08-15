@@ -25,6 +25,8 @@ import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.components.fields.ModernTextField;
+import main.ui.components.util.EditorUIUtils;
 
 public class EntryPanel extends AbstractEditorPanel {
 
@@ -40,6 +42,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private AnimatedGlassPopup formatPopup;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private AutosaveManager autosaveManager;
+    private volatile boolean isAutosaving = false;
     // Formatting toggle buttons (to reflect current caret/selection state)
     private JToggleButton boldBtn;
     private JToggleButton italicBtn;
@@ -115,10 +118,8 @@ public class EntryPanel extends AbstractEditorPanel {
         JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topToolbar.setOpaque(false);
 
-        // Back button (PNG icon via centralized renderer)
-        ToolbarIconButton backButton = new ToolbarIconButton("back");
-        backButton.setToolTipText("Back to Main Menu");
-        backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
+        // Back button (via EditorUIUtils)
+        ToolbarIconButton backButton = EditorUIUtils.createBackButton(app);
         topToolbar.add(backButton);
 
         // Right-side settings (cork icon) button
@@ -306,10 +307,8 @@ public class EntryPanel extends AbstractEditorPanel {
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setOpaque(false);
 
-        // Save button (PNG icon via centralized renderer)
-        ToolbarIconButton saveButton = new ToolbarIconButton("save");
-        saveButton.setToolTipText("Save Entry");
-        saveButton.addActionListener(e -> saveEntry());
+        // Save button (via EditorUIUtils)
+        ToolbarIconButton saveButton = EditorUIUtils.createSaveButton("Save Entry", this::saveEntry);
 
         // Word count label
         JLabel wordCountLabel = new JLabel("Words: 0");
@@ -331,11 +330,11 @@ public class EntryPanel extends AbstractEditorPanel {
         // --- Autosave wiring ---
         autosaveManager = new AutosaveManager(1500,
                 this::saveEntry,
-                () -> { if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
+                () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
                 () -> { if (saveStatusLabel != null) {
                     java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
                     saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
-                }});
+                } isAutosaving = false; });
     }
 
     // --- Sim helpers ---
@@ -548,6 +547,12 @@ public class EntryPanel extends AbstractEditorPanel {
             if (saveStatusLabel != null) {
                 saveStatusLabel.setText("Saving…");
             }
+            // Ensure target folder exists
+            if (journalFolder != null && !journalFolder.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                journalFolder.mkdirs();
+            }
+
             File file;
             boolean isNewFile = false;
 
@@ -555,7 +560,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 // First save - create new file
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
                 String timestamp = sdf.format(new Date());
-                String filename = timestamp + ".txt";
+                String filename = timestamp + fileExtension();
                 file = new File(journalFolder, filename);
                 currentFile = file;
                 isNewFile = true;
@@ -574,7 +579,9 @@ public class EntryPanel extends AbstractEditorPanel {
             LastSaveTracker.markSaved();
 
             String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+            if (!isAutosaving) {
+                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+            }
 
             // Update status to Saved · time
             if (saveStatusLabel != null) {
@@ -607,56 +614,6 @@ public class EntryPanel extends AbstractEditorPanel {
         contentArea.setFont(f.deriveFont((float) newSize));
     }
 
-    // Modern rounded text field identical to NotePanel
-    private static class ModernTextField extends JTextField {
-
-        private String placeholder = null;
-
-        public ModernTextField(int cols) {
-            super(cols);
-            setOpaque(false);
-            setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-            setForeground(AeroTheme.TEXT_PRIMARY);
-        }
-
-        public void setPlaceholder(String placeholder) {
-            this.placeholder = placeholder;
-            repaint();
-        }
-
-        public String getPlaceholder() {
-            return placeholder;
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.WHITE);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-            super.paintComponent(g2);
-
-            // Draw placeholder text if empty and unfocused
-            if ((getText() == null || getText().isEmpty()) && !isFocusOwner() && placeholder != null) {
-                g2.setFont(getFont());
-                g2.setColor(new Color(130, 130, 130));
-                FontMetrics fm = g2.getFontMetrics();
-                int textY = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
-                g2.drawString(placeholder, 12, textY);
-            }
-            g2.dispose();
-        }
-
-        @Override
-        protected void paintBorder(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
-            g2.dispose();
-        }
-    }
-
     // --- AbstractEditorPanel hooks and remaining interface bits ---
     @Override
     protected void safeLoadFile(File f) {
@@ -676,7 +633,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     @Override
     public String fileExtension() {
-        return ".txt";
+        return ".note";
     }
 
     @Override

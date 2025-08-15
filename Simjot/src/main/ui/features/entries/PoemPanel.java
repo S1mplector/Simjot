@@ -14,6 +14,8 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.TranslucentPanel;
+import main.ui.components.fields.ModernTextField;
+import main.ui.components.util.EditorUIUtils;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
 
@@ -32,8 +34,9 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Helpers
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
-    private AutosaveManager autosaveManager;
     private JLabel saveStatusLabel;
+    private volatile boolean isAutosaving = false;
+    private AutosaveManager autosaveManager;
     // 'currentFile' is inherited from AbstractEditorPanel
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
@@ -73,9 +76,8 @@ public class PoemPanel extends AbstractEditorPanel {
         JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topToolbar.setOpaque(false);
 
-        // Back button
-        RoundedButton backButton = new RoundedButton("Back");
-        backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
+        // Back button (via EditorUIUtils)
+        ToolbarIconButton backButton = EditorUIUtils.createBackButton(app);
         topToolbar.add(backButton);
         
         // Right-side settings (cork icon) button
@@ -99,6 +101,10 @@ public class PoemPanel extends AbstractEditorPanel {
 
         poemTitleField = new ModernTextField(24);
         poemTitleField.setFont(new Font("Serif", Font.BOLD, 16));
+        // Placeholder for consistency with EntryPanel
+        if (poemTitleField instanceof ModernTextField mtf) {
+            mtf.setPlaceholder("Untitled poem");
+        }
         topToolbar.add(poemTitleField);
 
         // Font buttons (A- / A+)
@@ -201,8 +207,8 @@ public class PoemPanel extends AbstractEditorPanel {
         centerFlow.add(inspireButton);
         bottomPanel.add(centerFlow, BorderLayout.CENTER);
 
-        RoundedButton saveButton = new RoundedButton("Save Poem");
-        saveButton.addActionListener(e -> savePoem());
+        // Save button (via EditorUIUtils)
+        ToolbarIconButton saveButton = EditorUIUtils.createSaveButton("Save Poem", this::savePoem);
         JPanel eastPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         eastPanel.setOpaque(false);
         saveStatusLabel = new JLabel(" ");
@@ -217,11 +223,11 @@ public class PoemPanel extends AbstractEditorPanel {
         // --- Autosave wiring ---
         autosaveManager = new AutosaveManager(1500,
                 this::savePoem,
-                () -> { if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
+                () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
                 () -> { if (saveStatusLabel != null) {
                     java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
                     saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
-                }});
+                } isAutosaving = false; });
     }
 
     private void updateStanzaCount(JLabel label) {
@@ -281,7 +287,9 @@ public class PoemPanel extends AbstractEditorPanel {
             }
             
             String message = isNewFile ? "Poem saved successfully!" : "Poem updated successfully!";
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+            if (!isAutosaving) {
+                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
+            }
             
             // Don't clear fields - keep content like NewEntryPanel does
             // This allows continuous editing of the same poem
@@ -403,24 +411,7 @@ class CustomInspirationDialog extends JDialog {
     }
 }
 
-class ModernTextField extends JTextField{
-    public ModernTextField(int cols){ super(cols); setOpaque(false); setBorder(BorderFactory.createEmptyBorder(6,10,6,10)); }
-    @Override protected void paintComponent(Graphics g){
-        Graphics2D g2=(Graphics2D)g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(Color.WHITE);
-        g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-        super.paintComponent(g2);
-        g2.dispose();
-    }
-    @Override protected void paintBorder(Graphics g){
-        Graphics2D g2=(Graphics2D)g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(Color.LIGHT_GRAY);
-        g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
-        g2.dispose();
-    }
-}
+// ModernTextField is now shared: main.ui.components.fields.ModernTextField
 
 class StyledComboBoxUI extends BasicComboBoxUI {
     @Override

@@ -22,10 +22,10 @@ import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
 import main.ui.features.drawing.DrawingPanel;
-import main.ui.features.entries.EntryPanel;
+import main.ui.features.entries.NotebookEditor;
+import main.ui.features.entries.NotebookEditorFactory;
+import main.ui.features.entries.NotebookEditorType;
 import main.ui.features.entries.NotebookEntriesPanel;
-import main.ui.features.entries.PoemPanel;
-import main.ui.features.entries.ViewEntriesPanel;
 import main.ui.features.gallery.GalleryPanel;
 import main.ui.features.home.MainMenuPanel;
 import main.ui.features.home.MoodChartPanel;
@@ -51,7 +51,6 @@ public class JournalApp extends JFrame {
     // Card identifiers
     public static final String MAIN_MENU = "Main Menu";
     public static final String NEW_ENTRY = "New Entry";
-    public static final String VIEW_ENTRIES = "View Entries";
     public static final String MOOD_CHART = "Mood Chart";
     public static final String NEW_POEM = "New Poem";
     public static final String SETTINGS = "Settings";
@@ -72,6 +71,9 @@ public class JournalApp extends JFrame {
 
     // Added for openExistingEntryEditor method
     private final java.util.Map<String, JPanel> cardMap = new java.util.HashMap<>();
+
+    // Factory/DI for editors
+    private NotebookEditorFactory editorFactory;
 
     // --- Sim components ---
     private SimOverlay simOverlay;
@@ -189,15 +191,19 @@ public class JournalApp extends JFrame {
         mainMenuPanel = createMainMenuPanel();
         cardPanel.add(mainMenuPanel, MAIN_MENU);
 
-        // "New" creation panels points to new subfolders
-        cardPanel.add(
-                new EntryPanel(this, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel),
-                NEW_ENTRY);
-        cardPanel.add(new PoemPanel(this, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel),
-                NEW_POEM);
+        // Editor factory/DI
+        editorFactory = new NotebookEditorFactory(this, cardLayout, cardPanel);
 
-        // View Entries
-        cardPanel.add(new ViewEntriesPanel(this, cardLayout, cardPanel), VIEW_ENTRIES);
+        // "New" creation panels (use factory)
+        {
+            NotebookEditor e = editorFactory.create(NotebookEditorType.ENTRY);
+            cardPanel.add(e.getMainComponent(), NEW_ENTRY);
+        }
+        {
+            NotebookEditor p = editorFactory.create(NotebookEditorType.POEM);
+            cardPanel.add(p.getMainComponent(), NEW_POEM);
+        }
+
 
         // Additional Panels
         cardPanel.add(new MoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
@@ -413,13 +419,12 @@ public class JournalApp extends JFrame {
      */
     public void openNewEntryEditor(NotebookInfo nb) {
         String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
-        JPanel editor;
-        switch (nb.getType()) {
-            case JOURNAL -> editor = new EntryPanel(this, nb.getFolder(), cardLayout, cardPanel);
-            case POETRY -> editor = new PoemPanel(this, nb.getFolder(), cardLayout, cardPanel);
-            default -> throw new IllegalStateException("Unexpected value: " + nb.getType());
-        }
-        cardPanel.add(editor, cardId);
+        java.io.File targetFolder = nb.getFolder();
+        NotebookEditor editor = switch (nb.getType()) {
+            case JOURNAL -> editorFactory.createInFolder(NotebookEditorType.ENTRY, targetFolder);
+            case POETRY -> editorFactory.createInFolder(NotebookEditorType.POEM, targetFolder);
+        };
+        cardPanel.add(editor.getMainComponent(), cardId);
         switchCard(cardId);
     }
 
@@ -431,21 +436,18 @@ public class JournalApp extends JFrame {
             return;
         }
 
-        JPanel editor;
-        switch (nb.getType()) {
-            case JOURNAL -> editor = new EntryPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
-            case POETRY -> editor = new PoemPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
-            default -> {
-                return;
-            }
-        }
-        cardPanel.add(editor, cardId);
+        NotebookEditor editor = editorFactory.createForFile(file);
+        cardPanel.add(editor.getMainComponent(), cardId);
         showCardImmediate(cardId);
-        cardMap.put(cardId, editor);
+        cardMap.put(cardId, (JPanel) editor.getMainComponent());
     }
 
     public JPanel getCardPanel() {
         return cardPanel;
+    }
+
+    public NotebookEditorFactory getEditorFactory() {
+        return editorFactory;
     }
 
     public void refreshNotebookManager() {

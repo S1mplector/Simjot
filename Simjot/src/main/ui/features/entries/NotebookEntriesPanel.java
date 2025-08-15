@@ -13,6 +13,7 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.text.SimpleDateFormat;
+import java.nio.file.*;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
@@ -37,6 +38,20 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
+
+    // Debounced search and background metadata loader
+    private final javax.swing.Timer searchDebounce = new javax.swing.Timer(200, e -> update());
+    private SwingWorker<Void, FileMeta> metaLoader;
+
+    // Folder watch
+    private WatchService watchService;
+    private Thread watchThread;
+    private volatile boolean watchRunning;
+
+    private static class FileMeta {
+        final File file; final int wc; final String title;
+        FileMeta(File f, int wc, String title){ this.file=f; this.wc=wc; this.title=title; }
+    }
 
     // Renderer for entry cards inside a notebook
     private static class EntryCardRenderer extends JPanel implements ListCellRenderer<File> {
@@ -86,7 +101,8 @@ public class NotebookEntriesPanel extends JPanel {
 
             title.setText((t==null||t.isBlank())?"Untitled":t);
             SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
-            meta.setText(String.format("%s  •  Created %s  •  Last edited %s", wc+" words", df.format(created), df.format(modified)));
+            String size = NotebookEntriesPanel.humanReadableSize(value.length());
+            meta.setText(String.format("%s  •  %s  •  Created %s  •  Last edited %s", size, wc+" words", df.format(created), df.format(modified)));
             this.selected = isSelected;
             return this;
         }
@@ -136,10 +152,12 @@ public class NotebookEntriesPanel extends JPanel {
         top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn);
         add(top,BorderLayout.NORTH);
 
+        // Debounce search updates to avoid frequent resorting/filtering while typing
+        searchDebounce.setRepeats(false);
         searchField.getDocument().addDocumentListener(new DocumentListener(){
-            public void insertUpdate(DocumentEvent e){update();}
-            public void removeUpdate(DocumentEvent e){update();}
-            public void changedUpdate(DocumentEvent e){update();}
+            @Override public void insertUpdate(DocumentEvent e){ searchDebounce.restart(); }
+            @Override public void removeUpdate(DocumentEvent e){ searchDebounce.restart(); }
+            @Override public void changedUpdate(DocumentEvent e){ searchDebounce.restart(); }
         });
         sortBox.setUI(new ModernComboBoxUI());
         sortBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
@@ -153,7 +171,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.setFixedCellHeight(84);
         list.setCellRenderer(new EntryCardRenderer());
         list.addMouseListener(new MouseAdapter(){
-            public void mouseClicked(MouseEvent e){
+            @Override public void mouseClicked(MouseEvent e){
                 if(e.getClickCount()==2){ openSelected(); }
             }
         });
@@ -163,28 +181,67 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void loadFiles(){
+        // Cancel any ongoing metadata load
+        if (metaLoader != null && !metaLoader.isDone()) {
+            metaLoader.cancel(true);
+        }
+
         File folder = nb.getFolder();
+        java.util.Set<String> exts = app.getEditorFactory().getRegisteredExtensions();
         File[] arr = folder.listFiles((d,name)->{
-            String s=name.toLowerCase();
-            return s.endsWith(".txt")||s.endsWith(".md")||s.endsWith(".rtf")||s.endsWith(".note")||s.endsWith(".poem");
+            String s = name.toLowerCase();
+            int dot = s.lastIndexOf('.');
+            String ext = dot>=0 ? s.substring(dot) : "";
+            return exts.contains(ext);
         });
+        titles.clear();
+        wordCounts.clear();
         if(arr!=null){
             allFiles = Arrays.asList(arr);
+            // Seed placeholders fast on EDT
             for(File f: allFiles){
-                wordCounts.put(f, calculateWordCount(f));
-                titles.put(f, extractTitle(f));
+                titles.put(f, null);
+                wordCounts.put(f, 0);
             }
+
+            // Load real metadata in background and live-update UI
+            metaLoader = new SwingWorker<>() {
+                @Override protected Void doInBackground() {
+                    for (File f : allFiles) {
+                        if (isCancelled()) break;
+                        int wc = calculateWordCount(f);
+                        String t = extractTitle(f);
+                        publish(new FileMeta(f, wc, t));
+                    }
+                    return null;
+                }
+                @Override protected void process(java.util.List<FileMeta> chunks) {
+                    for (FileMeta m : chunks) {
+                        titles.put(m.file, m.title);
+                        wordCounts.put(m.file, m.wc);
+                    }
+                    // Re-apply filter/sort as data enriches
+                    update();
+                }
+            };
+            metaLoader.execute();
+        } else {
+            allFiles = java.util.Collections.emptyList();
         }
     }
 
     private void update(){
-        String q = searchField.getText().toLowerCase();
-        List<File> filtered = allFiles.stream().filter(f->f.getName().toLowerCase().contains(q)).collect(Collectors.toList());
+        String q = searchField.getText()==null? "" : searchField.getText().toLowerCase();
+        List<File> filtered = allFiles.stream().filter(f -> {
+            String name = f.getName().toLowerCase();
+            String title = java.util.Objects.toString(titles.get(f), f.getName()).toLowerCase();
+            return name.contains(q) || title.contains(q);
+        }).collect(Collectors.toList());
         switch(sortBox.getSelectedIndex()){
             case 0 -> filtered.sort(Comparator.comparingLong(File::lastModified).reversed());
             case 1 -> filtered.sort(Comparator.comparingLong(File::lastModified));
-            case 2 -> filtered.sort(Comparator.comparing((File fl)-> titles.getOrDefault(fl, fl.getName()), String.CASE_INSENSITIVE_ORDER));
-            case 3 -> filtered.sort(Comparator.comparing((File fl)-> titles.getOrDefault(fl, fl.getName()), String.CASE_INSENSITIVE_ORDER).reversed());
+            case 2 -> filtered.sort(Comparator.comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER));
+            case 3 -> filtered.sort(Comparator.comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER).reversed());
             case 4 -> filtered.sort(Comparator.comparingInt((File f)->wordCounts.getOrDefault(f,0)).reversed());
             case 5 -> filtered.sort(Comparator.comparingInt((File f)->wordCounts.getOrDefault(f,0)));
         }
@@ -199,9 +256,23 @@ public class NotebookEntriesPanel extends JPanel {
     private void deleteSelected(){
         File f = list.getSelectedValue();
         if(f==null) return;
-        String title = titles.getOrDefault(f, f.getName());
+        String title = java.util.Objects.toString(titles.get(f), f.getName());
         boolean ok = CustomConfirmDialog.confirm(this, "Delete Entry", "Delete entry '"+title+"'?");
-        if(ok){ f.delete(); loadFiles(); update(); }
+        if(!ok) return;
+        if(!f.exists()){
+            loadFiles(); update();
+            return;
+        }
+        boolean deleted = false;
+        try {
+            deleted = f.delete();
+        } catch (SecurityException se) {
+            deleted = false;
+        }
+        if(!deleted){
+            JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
+        }
+        loadFiles(); update();
     }
 
     private void deleteNotebook(){
@@ -253,5 +324,68 @@ public class NotebookEntriesPanel extends JPanel {
     
 
     // ensure list refresh when panel becomes visible
-    @Override public void addNotify(){ super.addNotify(); refresh(); }
-} 
+    @Override public void addNotify(){
+        super.addNotify();
+        startWatching();
+        refresh();
+    }
+
+    @Override public void removeNotify(){
+        stopWatching();
+        super.removeNotify();
+    }
+
+    private void startWatching(){
+        stopWatching();
+        try {
+            Path path = nb.getFolder().toPath();
+            watchService = FileSystems.getDefault().newWatchService();
+            path.register(watchService,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_DELETE);
+            watchRunning = true;
+            watchThread = new Thread(() -> {
+                while (watchRunning) {
+                    try {
+                        WatchKey key = watchService.take();
+                        for (WatchEvent<?> event : key.pollEvents()) {
+                            // Debounce a bit by coalescing via Swing EDT
+                            SwingUtilities.invokeLater(this::refresh);
+                        }
+                        key.reset();
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    } catch (Exception ignored) {
+                        // ignore and continue
+                    }
+                }
+            }, "NotebookEntriesWatcher");
+            watchThread.setDaemon(true);
+            watchThread.start();
+        } catch (Exception ignored) {
+            // If watch service fails, we simply won't auto-refresh
+        }
+    }
+
+    private void stopWatching(){
+        watchRunning = false;
+        if (watchThread != null) {
+            watchThread.interrupt();
+            watchThread = null;
+        }
+        if (watchService != null) {
+            try { watchService.close(); } catch (Exception ignored) {}
+            watchService = null;
+        }
+    }
+
+    // --- Helpers ---
+    static String humanReadableSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = ("KMGTPE").charAt(exp - 1) + "";
+        return String.format(java.util.Locale.US, "%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+}
