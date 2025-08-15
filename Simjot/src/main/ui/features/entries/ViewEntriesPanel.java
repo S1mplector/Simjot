@@ -403,15 +403,15 @@ public class ViewEntriesPanel extends JPanel {
     private void openJournalFile(File file) {
         if (!cardPanel.isAncestorOf(this)) return; // Check if panel is still in hierarchy
         String cardName = "editJournal-" + file.getName();
-        EditEntryPanel editPanel = new EditEntryPanel(app, file, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel);
-        cardPanel.add(editPanel, cardName);
+        EntryPanel panel = new EntryPanel(app, file, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel);
+        cardPanel.add(panel, cardName);
         cardLayout.show(cardPanel, cardName);
     }
 
     private void openPoemFile(File file) {
         String cardName = "editPoem-" + file.getName();
-        EditPoemPanel editPanel = new EditPoemPanel(app, file, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel);
-        cardPanel.add(editPanel, cardName);
+        PoemPanel panel = new PoemPanel(app, file, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel);
+        cardPanel.add(panel, cardName);
         cardLayout.show(cardPanel, cardName);
     }
 

@@ -22,9 +22,7 @@ import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
 import main.ui.features.drawing.DrawingPanel;
-import main.ui.features.entries.EditEntryPanel;
-import main.ui.features.entries.EditPoemPanel;
-import main.ui.features.entries.NewEntryPanel;
+import main.ui.features.entries.EntryPanel;
 import main.ui.features.entries.NotebookEntriesPanel;
 import main.ui.features.entries.PoemPanel;
 import main.ui.features.entries.ViewEntriesPanel;
@@ -193,7 +191,7 @@ public class JournalApp extends JFrame {
 
         // "New" creation panels points to new subfolders
         cardPanel.add(
-                new NewEntryPanel(this, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel),
+                new EntryPanel(this, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel),
                 NEW_ENTRY);
         cardPanel.add(new PoemPanel(this, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel),
                 NEW_POEM);
@@ -417,7 +415,7 @@ public class JournalApp extends JFrame {
         String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
         JPanel editor;
         switch (nb.getType()) {
-            case JOURNAL -> editor = new NewEntryPanel(this, nb.getFolder(), cardLayout, cardPanel);
+            case JOURNAL -> editor = new EntryPanel(this, nb.getFolder(), cardLayout, cardPanel);
             case POETRY -> editor = new PoemPanel(this, nb.getFolder(), cardLayout, cardPanel);
             default -> throw new IllegalStateException("Unexpected value: " + nb.getType());
         }
@@ -435,8 +433,8 @@ public class JournalApp extends JFrame {
 
         JPanel editor;
         switch (nb.getType()) {
-            case JOURNAL -> editor = new EditEntryPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
-            case POETRY -> editor = new EditPoemPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
+            case JOURNAL -> editor = new EntryPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
+            case POETRY -> editor = new PoemPanel(this, file, nb.getFolder(), cardLayout, cardPanel);
             default -> {
                 return;
             }

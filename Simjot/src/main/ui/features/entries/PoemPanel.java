@@ -1,7 +1,6 @@
 package main.ui.features.entries;
 
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -11,7 +10,6 @@ import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
 import main.core.service.SettingsStore;
-import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
@@ -19,11 +17,8 @@ import main.ui.components.containers.TranslucentPanel;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
 
-public class PoemPanel extends JPanel {
-    protected CardLayout cardLayout;
-    protected JPanel cardPanel;
-    protected File journalFolder;
-    protected JournalApp app;
+public class PoemPanel extends AbstractEditorPanel {
+    // inherited: app, journalFolder, cardLayout, cardPanel
 
     // Components for poem writing
     protected JTextField poemTitleField;
@@ -35,125 +30,35 @@ public class PoemPanel extends JPanel {
         "Luminescence", "Redolent", "Somnambulist", "Susurrus", "Opalescent", "Reverie"
     };
 
-    // Background system
-    private Image backgroundImage;
-    private BufferedImage cachedScaled;
-    private int cachedPanelW = -1;
-    private int cachedPanelH = -1;
-    private int cachedX = 0;
-    private int cachedY = 0;
-    private float cachedOpacity = -1f;
-    private String cachedBgPath = null;
-    private File currentFile = null; // Track the current file being edited
+    // Helpers
+    private final BackgroundPainter backgroundPainter = new BackgroundPainter();
+    private AutosaveManager autosaveManager;
+    private JLabel saveStatusLabel;
+    // 'currentFile' is inherited from AbstractEditorPanel
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
-        this.app = app;
-        this.journalFolder = journalFolder;
-        this.cardLayout = cardLayout;
-        this.cardPanel = cardPanel;
-        setLayout(new BorderLayout());
-        setOpaque(false);
+        super(app, journalFolder, cardLayout, cardPanel);
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
     }
 
-    // Paint the background image scaled to fill the panel with white default.
+    // Unified constructor: if poemFileToEdit is non-null, load it and save updates to same file
+    public PoemPanel(JournalApp app, File poemFileToEdit, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
+        this(app, journalFolder, cardLayout, cardPanel);
+        if (poemFileToEdit != null) {
+            this.currentFile = poemFileToEdit;
+            loadExistingPoem(poemFileToEdit);
+        }
+    }
+
+    // Paint the background image via helper (with white base)
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        
-        // Draw white background first
-        g.setColor(Color.WHITE);
-        g.fillRect(0, 0, getWidth(), getHeight());
-        
-        // Draw the background image with opacity if available
         String bgPath = SettingsStore.get().getPoemBackgroundImage();
-        if (bgPath != null && !bgPath.isEmpty()) {
-            // Invalidate cached image if the path changed
-            if (cachedBgPath == null || !cachedBgPath.equals(bgPath)) {
-                backgroundImage = null;
-                cachedScaled = null;
-                cachedPanelW = cachedPanelH = -1;
-                cachedOpacity = -1f;
-                cachedBgPath = bgPath;
-            }
-            // Load the background image if not already loaded
-            if (backgroundImage == null) {
-                if (bgPath.startsWith("res:")) {
-                    // Built-in resource
-                    String resPath = bgPath.substring(4);
-                    backgroundImage = ResourceLoader.createImage("Simjot/" + resPath);
-                } else {
-                    // User-selected file
-                    backgroundImage = new ImageIcon(bgPath).getImage();
-                }
-            }
-            
-            if (backgroundImage != null) {
-                int panelW = getWidth();
-                int panelH = getHeight();
-                float opacity = SettingsStore.get().getPoemBackgroundOpacity();
-                
-                // Recreate cache only if necessary
-                if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || opacity != cachedOpacity) {
-                    int imgW = backgroundImage.getWidth(this);
-                    int imgH = backgroundImage.getHeight(this);
-                    
-                    if (imgW > 0 && imgH > 0) {
-                        // Calculate scale factor to cover the panel while maintaining aspect ratio
-                        double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
-                        int drawW = (int) Math.round(imgW * scale);
-                        int drawH = (int) Math.round(imgH * scale);
-                        
-                        cachedX = (panelW - drawW) / 2;
-                        cachedY = (panelH - drawH) / 2;
-                        cachedPanelW = panelW;
-                        cachedPanelH = panelH;
-                        cachedOpacity = opacity;
-                        
-                        // Create a new image with the current opacity
-                        BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
-                        Graphics2D cg = tmp.createGraphics();
-                        
-                        // Set the composite with the current opacity
-                        AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity);
-                        cg.setComposite(ac);
-                        
-                        // Draw the image with the applied opacity
-                        cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                        cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-                        cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
-                        cg.dispose();
-                        
-                        cachedScaled = tmp;
-                    }
-                }
-                
-                // Draw the cached image
-                if (cachedScaled != null) {
-                    g.drawImage(cachedScaled, cachedX, cachedY, this);
-                }
-            } else {
-                // Graceful fallback: subtle paper-like gradient when image missing
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-                main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
-                        new Color(250, 250, 250), new Color(235, 235, 235), 0);
-                main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
-                g2.dispose();
-            }
-        } else {
-            // No path configured: draw theme fallback
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-            main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
-                    new Color(250, 250, 250), new Color(235, 235, 235), 0);
-            main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
-            g2.dispose();
-        }
+        float opacity = SettingsStore.get().getPoemBackgroundOpacity();
+        backgroundPainter.paint(g, this, bgPath, opacity, true);
     }
 
     private void initUI() {
@@ -181,9 +86,6 @@ public class PoemPanel extends JPanel {
         settingsBtn.addActionListener(e -> {
             PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
             dialog.setVisible(true);
-            // Refresh the background if it was changed
-            backgroundImage = null;
-            cachedScaled = null;
             repaint();
         });
         rightToolbar.add(settingsBtn);
@@ -280,9 +182,15 @@ public class PoemPanel extends JPanel {
         
         // Listener to update the stanza count
         poemTextArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
+        });
+        // Autosave on title change as well
+        poemTitleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
         });
 
         // Add the "Inspire Me" button to the center
@@ -295,9 +203,25 @@ public class PoemPanel extends JPanel {
 
         RoundedButton saveButton = new RoundedButton("Save Poem");
         saveButton.addActionListener(e -> savePoem());
-        bottomPanel.add(saveButton, BorderLayout.EAST);
+        JPanel eastPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        eastPanel.setOpaque(false);
+        saveStatusLabel = new JLabel(" ");
+        saveStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        saveStatusLabel.setForeground(Color.DARK_GRAY);
+        eastPanel.add(saveStatusLabel);
+        eastPanel.add(saveButton);
+        bottomPanel.add(eastPanel, BorderLayout.EAST);
 
         add(bottomPanel, BorderLayout.SOUTH);
+
+        // --- Autosave wiring ---
+        autosaveManager = new AutosaveManager(1500,
+                this::savePoem,
+                () -> { if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
+                () -> { if (saveStatusLabel != null) {
+                    java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
+                    saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
+                }});
     }
 
     private void updateStanzaCount(JLabel label) {
@@ -371,6 +295,57 @@ public class PoemPanel extends JPanel {
         Font f = poemTextArea.getFont();
         int newSize = Math.max(8, Math.min(72, f.getSize()+delta));
         poemTextArea.setFont(f.deriveFont((float)newSize));
+    }
+
+    // Load an existing poem file into the editor fields
+    private void loadExistingPoem(File poemFile) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(poemFile))) {
+            String title = reader.readLine();
+            if (title == null) title = "";
+            poemTitleField.setText(title);
+            reader.readLine(); // skip blank line
+
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+            poemTextArea.setText(content.toString());
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading poem.", true).showDialog();
+        }
+    }
+
+    // --- AbstractEditorPanel hooks and remaining interface bits ---
+    @Override
+    protected void safeLoadFile(File f) {
+        loadExistingPoem(f);
+    }
+
+    @Override
+    protected void clearEditor() {
+        poemTitleField.setText("");
+        poemTextArea.setText("");
+    }
+
+    @Override
+    protected void performSave() {
+        savePoem();
+    }
+
+    @Override
+    public String fileExtension() {
+        return ".poem";
+    }
+
+    @Override
+    public void requestInitialFocus() {
+        if (poemTitleField.getText() == null || poemTitleField.getText().isEmpty()) {
+            poemTitleField.requestFocusInWindow();
+        } else {
+            poemTextArea.requestFocusInWindow();
+        }
     }
 }
 

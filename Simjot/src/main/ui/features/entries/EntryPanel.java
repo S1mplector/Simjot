@@ -2,7 +2,6 @@ package main.ui.features.entries;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -15,7 +14,6 @@ import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
 import main.infrastructure.io.AppDirectories;
-import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
@@ -28,12 +26,9 @@ import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
 
-public class NewEntryPanel extends JPanel {
+public class EntryPanel extends AbstractEditorPanel {
 
-    protected CardLayout cardLayout;
-    protected JPanel cardPanel;
-    protected File journalFolder;
-    protected JournalApp app;
+    // inherited: app, journalFolder, cardLayout, cardPanel
 
     // UI components for the entry
     protected JTextField titleField;
@@ -43,31 +38,49 @@ public class NewEntryPanel extends JPanel {
     private JLabel saveStatusLabel;
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
-    private Image backgroundImage;
-    private BufferedImage cachedScaled;
-    private int cachedPanelW = -1;
-    private int cachedPanelH = -1;
-    private String cachedBgPath = null;
+    private final BackgroundPainter backgroundPainter = new BackgroundPainter();
+    private AutosaveManager autosaveManager;
     // Formatting toggle buttons (to reflect current caret/selection state)
     private JToggleButton boldBtn;
     private JToggleButton italicBtn;
     private JToggleButton underlineBtn;
     private JToggleButton bulletsBtn;
-    private int cachedX = 0;
-    private int cachedY = 0;
-    private float cachedOpacity = -1f;
-    private File currentFile = null; // Track the current file being edited
+    // 'currentFile' is inherited from AbstractEditorPanel
 
-    public NewEntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
-        this.app = app;
-        this.journalFolder = journalFolder;
-        this.cardLayout = cardLayout;
-        this.cardPanel = cardPanel;
-        setLayout(new BorderLayout());
-        setOpaque(false);
+    public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
+        super(app, journalFolder, cardLayout, cardPanel);
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
+    }
+
+    // Load an existing entry file into the editor fields
+    private void loadExistingEntry(File fileToEdit) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(fileToEdit))) {
+            String title = reader.readLine();
+            if (title == null) title = "";
+            titleField.setText(title);
+            reader.readLine(); // skip blank line
+
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+            contentArea.setText(content.toString());
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
+        }
+    }
+
+    // Unified constructor: if fileToEdit is non-null, load it and switch to edit mode (saving updates same file)
+    public EntryPanel(JournalApp app, File fileToEdit, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
+        this(app, journalFolder, cardLayout, cardPanel);
+        if (fileToEdit != null) {
+            this.currentFile = fileToEdit;
+            loadExistingEntry(fileToEdit);
+        }
     }
 
     // Load the paper background image from "img/paper.png"
@@ -81,98 +94,13 @@ public class NewEntryPanel extends JPanel {
         }
     }
      */
-    // Paint the background image scaled to fill the panel.
+    // Paint the background image via helper
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-
-        // Draw the background image with opacity if available
         String bgPath = SettingsStore.get().getEntryBackgroundImage();
-        if (bgPath != null && !bgPath.isEmpty()) {
-            // Invalidate cached image if the path changed
-            if (cachedBgPath == null || !cachedBgPath.equals(bgPath)) {
-                backgroundImage = null;
-                cachedScaled = null;
-                cachedPanelW = cachedPanelH = -1;
-                cachedOpacity = -1f;
-                cachedBgPath = bgPath;
-            }
-            // Load the background image if not already loaded
-            if (backgroundImage == null) {
-                if (bgPath.startsWith("res:")) {
-                    // Built-in resource
-                    String resPath = bgPath.substring(4);
-                    backgroundImage = ResourceLoader.createImage("Simjot/" + resPath);
-                } else {
-                    // User-selected file
-                    backgroundImage = new ImageIcon(bgPath).getImage();
-                }
-            }
-
-            if (backgroundImage != null) {
-                int panelW = getWidth();
-                int panelH = getHeight();
-                float opacity = SettingsStore.get().getEntryBackgroundOpacity();
-
-                // Recreate cache only if necessary
-                if (cachedScaled == null || panelW != cachedPanelW || panelH != cachedPanelH || opacity != cachedOpacity) {
-                    int imgW = backgroundImage.getWidth(this);
-                    int imgH = backgroundImage.getHeight(this);
-
-                    if (imgW > 0 && imgH > 0) {
-                        // Calculate scale factor to cover the panel while maintaining aspect ratio
-                        double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
-                        int drawW = (int) Math.round(imgW * scale);
-                        int drawH = (int) Math.round(imgH * scale);
-
-                        cachedX = (panelW - drawW) / 2;
-                        cachedY = (panelH - drawH) / 2;
-                        cachedPanelW = panelW;
-                        cachedPanelH = panelH;
-                        cachedOpacity = opacity;
-
-                        // Create a new image with the current opacity
-                        BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
-                        Graphics2D cg = tmp.createGraphics();
-
-                        // Set the composite with the current opacity
-                        AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity);
-                        cg.setComposite(ac);
-
-                        // Draw the image with the applied opacity
-                        cg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                        cg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-                        cg.drawImage(backgroundImage, 0, 0, drawW, drawH, this);
-                        cg.dispose();
-
-                        cachedScaled = tmp;
-                    }
-                }
-
-                // Draw the cached image
-                if (cachedScaled != null) {
-                    g.drawImage(cachedScaled, cachedX, cachedY, this);
-                }
-            } else {
-                // Graceful fallback: subtle paper-like gradient when image missing
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-                main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
-                        new Color(250, 250, 250), new Color(235, 235, 235), 0);
-                main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
-                g2.dispose();
-            }
-        } else {
-            // No path configured: draw theme fallback
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-            main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
-                    new Color(250, 250, 250), new Color(235, 235, 235), 0);
-            main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
-            g2.dispose();
-        }
+        float opacity = SettingsStore.get().getEntryBackgroundOpacity();
+        backgroundPainter.paint(g, this, bgPath, opacity, false);
     }
 
     private void initUI() {
@@ -201,9 +129,6 @@ public class NewEntryPanel extends JPanel {
         settingsBtn.addActionListener(e -> {
             EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
             dialog.setVisible(true);
-            // Refresh the background if it was changed
-            backgroundImage = null;
-            cachedScaled = null;
             repaint();
         });
         rightToolbar.add(settingsBtn);
@@ -321,19 +246,28 @@ public class NewEntryPanel extends JPanel {
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
+                if (autosaveManager != null) autosaveManager.markDirty();
             }
 
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
+                if (autosaveManager != null) autosaveManager.markDirty();
             }
 
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
+                if (autosaveManager != null) autosaveManager.markDirty();
             }
+        });
+        // Autosave on title change too
+        titleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
         });
 
         // Middle-click floating popup
@@ -393,6 +327,15 @@ public class NewEntryPanel extends JPanel {
         bottomPanel.add(saveButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
+
+        // --- Autosave wiring ---
+        autosaveManager = new AutosaveManager(1500,
+                this::saveEntry,
+                () -> { if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
+                () -> { if (saveStatusLabel != null) {
+                    java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
+                    saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
+                }});
     }
 
     // --- Sim helpers ---
@@ -711,6 +654,37 @@ public class NewEntryPanel extends JPanel {
             g2.setColor(Color.LIGHT_GRAY);
             g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
             g2.dispose();
+        }
+    }
+
+    // --- AbstractEditorPanel hooks and remaining interface bits ---
+    @Override
+    protected void safeLoadFile(File f) {
+        loadExistingEntry(f);
+    }
+
+    @Override
+    protected void clearEditor() {
+        titleField.setText("");
+        contentArea.setText("");
+    }
+
+    @Override
+    protected void performSave() {
+        saveEntry();
+    }
+
+    @Override
+    public String fileExtension() {
+        return ".txt";
+    }
+
+    @Override
+    public void requestInitialFocus() {
+        if (titleField.getText() == null || titleField.getText().isEmpty()) {
+            titleField.requestFocusInWindow();
+        } else {
+            contentArea.requestFocusInWindow();
         }
     }
 }

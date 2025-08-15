@@ -6,7 +6,7 @@ import javax.swing.*;
 import main.ui.app.JournalApp;
 import main.ui.dialog.message.CustomMessageDialog;
 
-public class EditEntryPanel extends NewEntryPanel {
+public class EditEntryPanel extends EntryPanel {
     private File fileToEdit;
     
     public EditEntryPanel(JournalApp app, File fileToEdit, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
