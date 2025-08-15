@@ -120,14 +120,17 @@ public class QuickSettingsPresets {
         row2.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(row2);
 
-        // Autosave interval (minutes; 0 = off)
+        // Autosave delay (seconds; 0 = off)
         JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row3.setOpaque(false);
-        row3.add(new JLabel("Autosave interval (min)"));
-        int as = store.getAutosaveMinutes();
-        JSpinner js3 = new JSpinner(new SpinnerNumberModel(as, 0, 120, 1));
+        row3.add(new JLabel("Autosave delay (s)"));
+        double asSec = store.getAutosaveDelayMs() / 1000.0;
+        double minS = 0.0;
+        double maxS = 600.0; // up to 10 minutes
+        double initS = Math.max(minS, Math.min(maxS, asSec));
+        JSpinner js3 = new JSpinner(new SpinnerNumberModel(initS, minS, maxS, 0.5));
         js3.setUI(new ModernSpinnerUI());
-        js3.addChangeListener(e -> { store.setAutosaveMinutes((Integer) js3.getValue()); store.save(); });
+        js3.addChangeListener(e -> { double v = ((Number) js3.getValue()).doubleValue(); store.setAutosaveDelayMs((int)Math.round(v * 1000)); store.save(); });
         row3.add(js3);
         row3.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(row3);

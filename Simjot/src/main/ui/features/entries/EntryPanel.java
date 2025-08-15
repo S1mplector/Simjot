@@ -336,13 +336,18 @@ public class EntryPanel extends AbstractEditorPanel {
         add(bottomPanel, BorderLayout.SOUTH);
 
         // --- Autosave wiring ---
-        autosaveManager = new AutosaveManager(1500,
-                this::saveEntry,
-                () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
-                () -> { if (saveStatusLabel != null) {
-                    java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
-                    saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
-                } isAutosaving = false; });
+        int delayMs = SettingsStore.get().getAutosaveDelayMs();
+        if (delayMs > 0) {
+            autosaveManager = new AutosaveManager(delayMs,
+                    this::saveEntry,
+                    () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
+                    () -> { if (saveStatusLabel != null) {
+                        java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
+                        saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
+                    } isAutosaving = false; });
+        } else {
+            autosaveManager = null; // autosave disabled
+        }
     }
 
     // --- Sim helpers ---

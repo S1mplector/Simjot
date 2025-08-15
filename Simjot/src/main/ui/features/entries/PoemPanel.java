@@ -229,13 +229,18 @@ public class PoemPanel extends AbstractEditorPanel {
         add(bottomPanel, BorderLayout.SOUTH);
 
         // --- Autosave wiring ---
-        autosaveManager = new AutosaveManager(1500,
-                this::savePoem,
-                () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
-                () -> { if (saveStatusLabel != null) {
-                    java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
-                    saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
-                } isAutosaving = false; });
+        int delayMs = SettingsStore.get().getAutosaveDelayMs();
+        if (delayMs > 0) {
+            autosaveManager = new AutosaveManager(delayMs,
+                    this::savePoem,
+                    () -> { isAutosaving = true; if (saveStatusLabel != null) saveStatusLabel.setText("Autosaving…"); },
+                    () -> { if (saveStatusLabel != null) {
+                        java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("h:mm a");
+                        saveStatusLabel.setText("Saved • " + tf.format(new java.util.Date()));
+                    } isAutosaving = false; });
+        } else {
+            autosaveManager = null; // autosave disabled
+        }
     }
 
     private void updateStanzaCount(JLabel label) {

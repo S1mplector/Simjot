@@ -52,10 +52,15 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 0; gc.gridy = 1; add(SettingsUi.label("Poem font size:"), gc);
         gc.gridx = 1; add(poemFont, gc);
 
-        autosaveSpin = new JSpinner(new SpinnerNumberModel(SettingsStore.get().getAutosaveMinutes(), 0, 120, 5));
+        double delaySeconds = SettingsStore.get().getAutosaveDelayMs() / 1000.0;
+        // Clamp within model bounds to avoid SpinnerNumberModel IAE on init
+        double minS = 0.0;
+        double maxS = 600.0; // up to 10 minutes
+        double initS = Math.max(minS, Math.min(maxS, delaySeconds));
+        autosaveSpin = new JSpinner(new SpinnerNumberModel(initS, minS, maxS, 0.5));
         autosaveSpin.setUI(new ModernSpinnerUI());
-        ((JSpinner.DefaultEditor) autosaveSpin.getEditor()).getTextField().setColumns(3);
-        gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Autosave interval (min):"), gc);
+        ((JSpinner.NumberEditor) autosaveSpin.getEditor()).getTextField().setColumns(4);
+        gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Autosave delay (s):"), gc);
         gc.gridx = 1; add(autosaveSpin, gc);
 
         SpinnerNumberModel uiScaleModel = new SpinnerNumberModel(store.getUIScale(), 0.5, 3.0, 0.25);
@@ -144,7 +149,8 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         int pf = (Integer) poemFont.getValue();
         store.setPoemFontSize(pf);
 
-        SettingsStore.get().setAutosaveMinutes((Integer) autosaveSpin.getValue());
+        double autosaveSec = ((Number) autosaveSpin.getValue()).doubleValue();
+        store.setAutosaveDelayMs((int)Math.round(autosaveSec * 1000));
 
         float uiScale = ((Number) uiScaleSpinner.getValue()).floatValue();
         store.setUIScale(uiScale);

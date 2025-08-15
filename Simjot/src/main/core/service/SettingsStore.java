@@ -29,7 +29,8 @@ public final class SettingsStore {
     private static final String KEY_BRUSH_SIZE   = "defaultBrushSize";
     private static final String KEY_SMOOTHING    = "strokeSmoothing";
     private static final String KEY_THUMBNAILS   = "generateThumbnails";
-    private static final String KEY_AUTOSAVE     = "autosaveMinutes";
+    private static final String KEY_AUTOSAVE     = "autosaveMinutes"; // legacy (minutes)
+    private static final String KEY_AUTOSAVE_DELAY_MS = "autosaveDelayMs"; // new (milliseconds)
     private static final String KEY_TUTORIAL_SEEN = "tutorialSeen";
     private static final String KEY_DISABLE_ANIMATIONS = "disableAnimations";
     private static final String KEY_BREATHING_OVERLAY = "breathingOverlayEnabled";
@@ -62,7 +63,8 @@ public final class SettingsStore {
     private static final int     DEF_BRUSH_SIZE  = 5;
     private static final boolean DEF_SMOOTHING   = true;
     private static final boolean DEF_THUMBNAILS  = true;
-    private static final int     DEF_AUTOSAVE    = 0;
+    private static final int     DEF_AUTOSAVE    = 0;          // legacy minutes (0 = off)
+    private static final int     DEF_AUTOSAVE_DELAY_MS = 1500; // default debounce delay
     private static final boolean DEF_TUTORIAL_SEEN = false;
     private static final boolean DEF_DISABLE_ANIMATIONS = false;
     private static final boolean DEF_BREATHING_OVERLAY = true;
@@ -198,6 +200,19 @@ public final class SettingsStore {
 
     public int getAutosaveMinutes(){ return Integer.parseInt(props.getProperty(KEY_AUTOSAVE, String.valueOf(DEF_AUTOSAVE))); }
     public void setAutosaveMinutes(int min){ props.setProperty(KEY_AUTOSAVE, String.valueOf(min)); }
+
+    // New debounce-based autosave delay in milliseconds. If not set, migrate from legacy minutes value.
+    public int getAutosaveDelayMs(){
+        try {
+            String v = props.getProperty(KEY_AUTOSAVE_DELAY_MS, null);
+            if (v != null) return Math.max(0, Integer.parseInt(v));
+        } catch (NumberFormatException ignored) {}
+        // Fallback: derive from legacy minutes if present and > 0; else use default
+        int legacyMin = getAutosaveMinutes();
+        if (legacyMin > 0) return legacyMin * 60 * 1000;
+        return DEF_AUTOSAVE_DELAY_MS;
+    }
+    public void setAutosaveDelayMs(int ms){ props.setProperty(KEY_AUTOSAVE_DELAY_MS, String.valueOf(Math.max(0, ms))); }
 
     // Tutorial seen flag
     public boolean isTutorialSeen(){ return Boolean.parseBoolean(props.getProperty(KEY_TUTORIAL_SEEN, String.valueOf(DEF_TUTORIAL_SEEN))); }

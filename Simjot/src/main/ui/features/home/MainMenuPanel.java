@@ -110,8 +110,14 @@ public class MainMenuPanel extends JPanel {
         }
 
         private void updateAutosave() {
-            int mins = SettingsStore.get().getAutosaveMinutes();
-            String auto = mins <= 0 ? "Off" : (mins + " min");
+            int delayMs = SettingsStore.get().getAutosaveDelayMs();
+            String auto;
+            if (delayMs <= 0) {
+                auto = "Off";
+            } else {
+                java.text.DecimalFormat df = new java.text.DecimalFormat("0.#");
+                auto = df.format(delayMs / 1000.0) + " s";
+            }
             long last = LastSaveTracker.getLastSaveMillis();
             String lastTxt = (last == 0L) ? "–" : java.time.LocalTime.now()
                     .withNano(0)

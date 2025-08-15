@@ -1,6 +1,7 @@
 package main.ui.features.entries;
 
 import javax.swing.Timer;
+import javax.swing.SwingUtilities;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -15,6 +16,7 @@ public class AutosaveManager {
     private final Runnable onEnd;
 
     private final Timer timer;
+    private volatile boolean saving = false;
 
     public AutosaveManager(int delayMs, Runnable onSave, Runnable onStart, Runnable onEnd) {
         this.delayMs = delayMs;
@@ -25,18 +27,29 @@ public class AutosaveManager {
             @Override
             public void actionPerformed(ActionEvent e) {
                 timer.stop();
-                try {
-                    onSave.run();
-                } finally {
-                    onEnd.run();
-                }
+                if (saving) return; // avoid overlapping saves
+                saving = true;
+                // Run save off the EDT to avoid UI stalls (especially with short delays)
+                new Thread(() -> {
+                    try {
+                        onSave.run();
+                    } finally {
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                onEnd.run();
+                            } finally {
+                                saving = false;
+                            }
+                        });
+                    }
+                }, "AutosaveWorker").start();
             }
         });
         this.timer.setRepeats(false);
     }
 
     public void markDirty() {
-        if (!timer.isRunning()) {
+        if (!timer.isRunning() && !saving) {
             onStart.run();
         }
         timer.restart();
