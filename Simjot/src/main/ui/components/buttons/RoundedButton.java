@@ -4,6 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.components.icons.ImageIconRenderer;
 
 public class RoundedButton extends JButton {
 
@@ -36,10 +37,41 @@ public class RoundedButton extends JButton {
         g2.setColor(new Color(180, 180, 180));
         g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 10, 10);
 
-        // Draw centered text
+        // Draw icon (optional) and text
         g2.setColor(getForeground());
         FontMetrics fm = g2.getFontMetrics();
-        g2.drawString(getText(), (getWidth()-fm.stringWidth(getText()))/2, ((getHeight()-fm.getHeight())/2)+fm.getAscent());
+
+        String text = getText() == null ? "" : getText();
+        String iconId = (String) getClientProperty("iconId");
+        int gap = 6;
+        int paddingX = 10;
+        int contentW = fm.stringWidth(text);
+        int iconW = 0;
+        int iconH = 0;
+        java.awt.image.BufferedImage iconImg = null;
+        if (iconId != null && !iconId.isBlank()) {
+            int target = Math.max(14, getHeight() - 12);
+            String path = ImageIconRenderer.mapIdToResource(iconId);
+            if (path != null) {
+                iconImg = ImageIconRenderer.get(path, target, true);
+                if (iconImg != null) { iconW = iconImg.getWidth(); iconH = iconImg.getHeight(); }
+            }
+        }
+        if (iconImg != null) {
+            contentW += (gap + iconW);
+        }
+        int xStart = (getWidth() - contentW) / 2;
+        // Ensure minimum left padding so icon/text don't hug the border
+        if (xStart < paddingX) xStart = paddingX;
+
+        int centerY = (getHeight() - fm.getHeight())/2 + fm.getAscent();
+        int drawX = xStart;
+        if (iconImg != null) {
+            int iy = (getHeight() - iconH) / 2;
+            g2.drawImage(iconImg, drawX, iy, null);
+            drawX += iconW + gap;
+        }
+        g2.drawString(text, drawX, centerY);
         g2.dispose();
     }
 }

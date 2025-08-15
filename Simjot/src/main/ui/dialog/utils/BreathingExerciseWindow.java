@@ -20,7 +20,6 @@ public class BreathingExerciseWindow extends JDialog {
     private final JLabel instructionLabel;
     private final JLabel phaseLabel;
     private Timer phaseTimer;
-    private int currentPhaseTime = 0;
     private String currentPhase = "Inhale";
     
     // Configuration
@@ -152,28 +151,32 @@ public class BreathingExerciseWindow extends JDialog {
         stopPhaseTimer();
         
         phaseTimer = new Timer(100, e -> {
-            currentPhaseTime++;
-            float seconds = currentPhaseTime / 10f;
-            
+            // Use the widget's wall-clock elapsed time so UI label stays in sync with the circle
+            double seconds = breathingWidget.getElapsedSeconds();
+
             // Determine current phase
             int totalCycle = inhaleTime + hold1Time + exhaleTime + hold2Time;
-            float cyclePosition = seconds % totalCycle;
-            
+            if (totalCycle <= 0) totalCycle = 1;
+            double cyclePosition = seconds % totalCycle;
+
             if (cyclePosition < inhaleTime) {
                 currentPhase = "Inhale";
-                phaseLabel.setText(currentPhase + " (" + (int)(inhaleTime - cyclePosition) + "s)");
+                phaseLabel.setText(currentPhase + " (" + (int)Math.ceil(inhaleTime - cyclePosition) + "s)");
                 phaseLabel.setForeground(new Color(100, 200, 255));
             } else if (cyclePosition < inhaleTime + hold1Time) {
                 currentPhase = "Hold";
-                phaseLabel.setText(currentPhase + " (" + (int)(inhaleTime + hold1Time - cyclePosition) + "s)");
+                double rem = inhaleTime + hold1Time - cyclePosition;
+                phaseLabel.setText(currentPhase + " (" + (int)Math.ceil(rem) + "s)");
                 phaseLabel.setForeground(new Color(255, 200, 100));
             } else if (cyclePosition < inhaleTime + hold1Time + exhaleTime) {
                 currentPhase = "Exhale";
-                phaseLabel.setText(currentPhase + " (" + (int)(inhaleTime + hold1Time + exhaleTime - cyclePosition) + "s)");
+                double rem = inhaleTime + hold1Time + exhaleTime - cyclePosition;
+                phaseLabel.setText(currentPhase + " (" + (int)Math.ceil(rem) + "s)");
                 phaseLabel.setForeground(new Color(100, 255, 200));
             } else {
                 currentPhase = "Hold Empty";
-                phaseLabel.setText(currentPhase + " (" + (int)(totalCycle - cyclePosition) + "s)");
+                double rem = totalCycle - cyclePosition;
+                phaseLabel.setText(currentPhase + " (" + (int)Math.ceil(rem) + "s)");
                 phaseLabel.setForeground(new Color(200, 150, 255));
             }
         });

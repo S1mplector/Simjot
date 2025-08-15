@@ -117,6 +117,7 @@ public final class ImageIconRenderer {
             case "list" -> "img/icons/list.png";
             case "close" -> "img/icons/close.png";
             case "save" -> "img/icons/save.png";
+            case "load" -> "img/icons/load.png";
             // Settings sidebar categories
             case "general_settings", "settings_general" -> "img/icons/general_settings.png";
             case "appearance_settings", "settings_appearance" -> "img/icons/appearance_settings.png";

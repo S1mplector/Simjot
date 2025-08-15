@@ -15,10 +15,15 @@ import main.ui.theme.aero.AeroTheme;
 public class BreathingWidget extends JComponent implements Widget {
     private static final long serialVersionUID = 1L;
 
-    /** ~60 FPS update timer */
+    /** ~60 FPS repaint timer */
     private final Timer timer;
-    /** Phase from 0..1 used to drive the easing curve */
+    /** Phase from 0..1 used to drive the easing curve (computed from wall clock) */
     private float phase;
+
+    // Timing (wall-clock based)
+    private long startNanos = 0L;
+    private long pausedAtNanos = 0L;
+    private long pausedAccumNanos = 0L;
     
     // Breathing configuration
     private int inhaleTime = 4;
@@ -29,6 +34,15 @@ public class BreathingWidget extends JComponent implements Widget {
     private int sizePercent = 40;
     private Color circleColor = Color.WHITE;
 
+    // Breathing phases
+    private enum Phase { INHALE, HOLD_FULL, EXHALE, HOLD_EMPTY }
+
+    private static class PhaseInfo {
+        final Phase phase;           // current phase
+        final double progress01;     // 0..1 progress within current phase
+        PhaseInfo(Phase p, double prog){ this.phase=p; this.progress01=prog; }
+    }
+
     public BreathingWidget() {
         setOpaque(false);
         // Allow clicks to fall through to components underneath
@@ -38,10 +52,7 @@ public class BreathingWidget extends JComponent implements Widget {
         setAlignmentX(0.5f);
         setAlignmentY(0.5f);
 
-        timer = new Timer(AppPerf.getAnimationDelay(), e -> {
-            updatePhase();
-            repaint();
-        });
+        timer = new Timer(AppPerf.getAnimationDelay(), e -> repaint());
         setVisible(false);
     }
 
@@ -54,6 +65,15 @@ public class BreathingWidget extends JComponent implements Widget {
     // Widget API
     // ------------------------------------------------------------------------
     @Override public void start() {
+        long now = System.nanoTime();
+        if (startNanos == 0L) {
+            startNanos = now;
+        }
+        // If resuming from pause, accumulate paused duration
+        if (pausedAtNanos != 0L) {
+            pausedAccumNanos += (now - pausedAtNanos);
+            pausedAtNanos = 0L;
+        }
         if (!timer.isRunning()) {
             timer.start();
         }
@@ -63,6 +83,10 @@ public class BreathingWidget extends JComponent implements Widget {
     @Override public void stop() {
         if (timer.isRunning()) {
             timer.stop();
+        }
+        // Record pause moment (do not reset start to keep continuity)
+        if (startNanos != 0L && pausedAtNanos == 0L) {
+            pausedAtNanos = System.nanoTime();
         }
         setVisible(false);
     }
@@ -104,18 +128,20 @@ public class BreathingWidget extends JComponent implements Widget {
             default: circleColor = Color.WHITE;
         }
         
-        phase = 0f; // Reset animation
+        // Reset animation timing baseline
+        phase = 0f;
+        startNanos = 0L;
+        pausedAtNanos = 0L;
+        pausedAccumNanos = 0L;
     }
     
-    private void updatePhase() {
+    private void updatePhaseFromClock() {
         // Calculate total cycle time in seconds
         int totalCycle = inhaleTime + hold1Time + exhaleTime + hold2Time;
-        if (totalCycle == 0) totalCycle = 1;
-        
-        // Increment phase based on cycle time and current target FPS
-        float fps = Math.max(1, AppPerf.getTargetFps());
-        float increment = 1f / (totalCycle * fps);
-        phase = (phase + increment) % 1f;
+        if (totalCycle <= 0) totalCycle = 1;
+        double elapsed = getElapsedSeconds();
+        double phase01 = (elapsed % totalCycle) / (double) totalCycle;
+        this.phase = (float) phase01;
     }
 
     // ------------------------------------------------------------------------
@@ -129,8 +155,10 @@ public class BreathingWidget extends JComponent implements Widget {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Calculate which phase of breathing we're in
+        // Update phase from wall-clock and calculate current scale
+        updatePhaseFromClock();
         float breathingScale = calculateBreathingScale();
+        PhaseInfo phaseInfo = computePhaseInfo();
         
         int base = Math.min(getWidth(), getHeight());
         int radius = (int) (breathingScale * base * (sizePercent / 100f));
@@ -192,6 +220,38 @@ public class BreathingWidget extends JComponent implements Widget {
         g2.setColor(new Color(255,255,255, rimAlpha));
         g2.drawOval(x+1, y+1, radius-2, radius-2);
 
+        // ---- Phase progress ring (around the main circle) ----
+        int ringPadding = Math.max(6, radius/18);
+        int ringSize = radius + ringPadding*2;
+        int ringX = x - ringPadding;
+        int ringY = y - ringPadding;
+        float ringStroke = Math.max(3f, radius/24f);
+        g2.setStroke(new BasicStroke(ringStroke, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        // Background of ring (subtle)
+        g2.setColor(new Color(255,255,255,60));
+        g2.drawOval(ringX, ringY, ringSize, ringSize);
+        // Foreground arc colored by phase
+        g2.setColor(colorForPhase(phaseInfo.phase));
+        double extent = 360.0 * Math.max(0.0, Math.min(1.0, phaseInfo.progress01));
+        // Start at 12 o'clock (-90 degrees), sweep clockwise (negative for Java2D is clockwise?)
+        // In Java2D, positive extent is counter-clockwise; we want clockwise so use negative extent.
+        g2.drawArc(ringX, ringY, ringSize, ringSize, -90, (int) -Math.round(extent));
+
+        // ---- Phase text ----
+        String phaseText = phaseLabelFor(phaseInfo.phase);
+        Font oldFont = g2.getFont();
+        Font textFont = oldFont.deriveFont(Font.BOLD, Math.max(16f, radius/10f));
+        g2.setFont(textFont);
+        FontMetrics fm = g2.getFontMetrics();
+        int tx = getWidth()/2 - fm.stringWidth(phaseText)/2;
+        int ty = getHeight()/2 + fm.getAscent()/2 - fm.getDescent();
+        // Shadow for readability
+        g2.setColor(new Color(0,0,0,60));
+        g2.drawString(phaseText, tx+1, ty+1);
+        g2.setColor(new Color(245,245,245,220));
+        g2.drawString(phaseText, tx, ty);
+        g2.setFont(oldFont);
+
         // Outer aura glow
         for(int i=1;i<=4;i++){
             int grow = i*3;
@@ -203,6 +263,18 @@ public class BreathingWidget extends JComponent implements Widget {
         g2.dispose();
     }
     
+    /**
+     * Returns the elapsed seconds since the breathing cycle started, excluding time spent paused.
+     * If not started yet, returns 0.
+     */
+    public double getElapsedSeconds() {
+        if (startNanos == 0L) return 0.0;
+        long ref = (pausedAtNanos != 0L) ? pausedAtNanos : System.nanoTime();
+        long effective = ref - startNanos - pausedAccumNanos;
+        if (effective < 0L) effective = 0L;
+        return effective / 1_000_000_000.0;
+    }
+
     private float calculateBreathingScale() {
         int totalCycle = inhaleTime + hold1Time + exhaleTime + hold2Time;
         if (totalCycle == 0) return 0.5f;
@@ -229,6 +301,52 @@ public class BreathingWidget extends JComponent implements Widget {
     
     private float easeInOut(float t) {
         return (float) (0.5 - 0.5 * Math.cos(t * Math.PI));
+    }
+
+    private PhaseInfo computePhaseInfo() {
+        int totalCycle = inhaleTime + hold1Time + exhaleTime + hold2Time;
+        if (totalCycle <= 0) return new PhaseInfo(Phase.HOLD_EMPTY, 0.0);
+        double currentTime = phase * totalCycle;
+        if (currentTime < inhaleTime) {
+            double prog = inhaleTime <= 0 ? 1.0 : currentTime / inhaleTime;
+            return new PhaseInfo(Phase.INHALE, clamp01(prog));
+        } else if (currentTime < inhaleTime + hold1Time) {
+            double t = currentTime - inhaleTime;
+            double prog = hold1Time <= 0 ? 1.0 : t / hold1Time;
+            return new PhaseInfo(Phase.HOLD_FULL, clamp01(prog));
+        } else if (currentTime < inhaleTime + hold1Time + exhaleTime) {
+            double t = currentTime - inhaleTime - hold1Time;
+            double prog = exhaleTime <= 0 ? 1.0 : t / exhaleTime;
+            return new PhaseInfo(Phase.EXHALE, clamp01(prog));
+        } else {
+            double t = currentTime - inhaleTime - hold1Time - exhaleTime;
+            double prog = hold2Time <= 0 ? 1.0 : t / hold2Time;
+            return new PhaseInfo(Phase.HOLD_EMPTY, clamp01(prog));
+        }
+    }
+
+    private static double clamp01(double v){
+        if (v < 0.0) return 0.0; if (v > 1.0) return 1.0; return v;
+    }
+
+    private Color colorForPhase(Phase p) {
+        switch (p) {
+            case INHALE: return new Color(100, 200, 255);      // blue
+            case HOLD_FULL: return new Color(255, 200, 100);   // amber
+            case EXHALE: return new Color(100, 255, 200);      // teal
+            case HOLD_EMPTY: return new Color(200, 150, 255);  // violet
+            default: return new Color(220,220,220);
+        }
+    }
+
+    private String phaseLabelFor(Phase p) {
+        switch (p) {
+            case INHALE: return "Inhale";
+            case HOLD_FULL: return "Hold";
+            case EXHALE: return "Exhale";
+            case HOLD_EMPTY: return "Hold";
+            default: return "";
+        }
     }
 
     @Override public Dimension getPreferredSize() {
