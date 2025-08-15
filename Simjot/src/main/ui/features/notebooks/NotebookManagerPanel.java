@@ -33,7 +33,8 @@ public class NotebookManagerPanel extends JPanel {
         // --- Top toolbar matching other panels ---
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topBar.setBackground(new Color(230,230,230));
-        RoundedButton backBtn = new RoundedButton("Back");
+        ToolbarIconButton backBtn = new ToolbarIconButton("back");
+        backBtn.setToolTipText("Back to Main Menu");
         backBtn.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
         topBar.add(backBtn);
 
