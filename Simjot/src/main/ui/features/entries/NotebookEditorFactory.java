@@ -89,13 +89,20 @@ public class NotebookEditorFactory {
      */
     public NotebookEditor createForFile(File file) {
         Objects.requireNonNull(file, "file");
-        String ext = extractExtension(file.getName());
-        Supplier<NotebookEditor> supplier = byExtension.get(normalizeExt(ext));
-        if (supplier == null) {
-            throw new IllegalArgumentException("No editor registered for extension: " + ext);
+        String ext = extractExtension(file.getName()).toLowerCase(Locale.ROOT);
+        // IMPORTANT: Use the actual parent folder of the file as the target notebook folder
+        // so that the editor's back button returns to the correct entries manager.
+        File parentFolder = file.getParentFile();
+        if (parentFolder == null) parentFolder = AppDirectories.folder(AppDirectories.Type.ENTRIES);
+
+        NotebookEditor editor;
+        if (".poem".equals(ext)) {
+            editor = createInFolder(NotebookEditorType.POEM, parentFolder);
+        } else {
+            // Treat all non-.poem text-like extensions as journal entries
+            editor = createInFolder(NotebookEditorType.ENTRY, parentFolder);
         }
-        NotebookEditor editor = supplier.get();
-        // Delegate loading via common interface (AbstractEditorPanel already handles safety)
+        // Load the file contents after constructing the editor in the proper notebook context
         editor.loadFile(file);
         return editor;
     }
