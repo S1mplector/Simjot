@@ -1,6 +1,7 @@
 package main.core.sim.engine;
 
 import java.time.LocalTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.concurrent.Executors;
@@ -336,6 +337,44 @@ public final class SimBrain implements SimEventBus.Listener {
         try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
         // No other state needed now; cooldown prevents immediate nudges
         lastSpeakMs = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onGuidanceRequested(String text) {
+        if (!settings.isEnabled()) return;
+        String txt = (text == null) ? "" : text.strip();
+        if (txt.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        lastSpeakMs = now;
+
+        if (settings.isLlmEnabled()) ensureLlm();
+        if (llm != null) {
+            try {
+                String sys = CriticPromptDecorator.decorateSystem(
+                        PromptBuilder.systemPrompt(personality.getType())
+                );
+                // Keep prompt lean; include retrieval context
+                String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 3, 3);
+                String journal = txt.length() > 2000 ? txt.substring(txt.length() - 2000) : txt;
+                String usr = String.join("\n\n",
+                        (ctx != null && !ctx.isBlank()) ? ("Context: " + ctx) : "",
+                        moodContextForPrompt() + " " + emotionsContextForPrompt() + " " + factsContextForPrompt(),
+                        "You are a supportive journaling companion. Read the user's journal text and provide 2–4 concise, compassionate guidance suggestions to deepen reflection. Prefer short bullet points. Avoid platitudes. No preface, no meta; plain text only.",
+                        "Journal text:\n\"\"\"\n" + journal + "\n\"\"\""
+                );
+                // Synchronous generation; deliver into editor, not overlay
+                main.core.sim.llm.api.SimLLMResponse resp = llm.generate(
+                        new main.core.sim.llm.api.SimLLMRequest(sys, usr, 220, 0.7),
+                        Duration.ofSeconds(20)
+                );
+                String out = resp == null ? "" : resp.text;
+                try { SimEventBus.get().emitGuidanceProduced(out); } catch (Throwable ignored) {}
+                return;
+            } catch (Throwable ignored) {
+                // fall through
+            }
+        }
+        // If LLM unavailable, do not emit a generic fallback to avoid noise
     }
 
     // --- Helpers ---

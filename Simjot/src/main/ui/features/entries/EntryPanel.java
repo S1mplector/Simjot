@@ -10,9 +10,12 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.StyledEditorKit;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.Style;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.rtf.RTFEditorKit;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
-import main.core.sim.api.SimEventBus;
 import main.infrastructure.io.AppDirectories;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -29,6 +32,7 @@ import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.infrastructure.backup.NotebookInfo;
+import main.core.sim.api.SimEventBus;
 
 public class EntryPanel extends AbstractEditorPanel {
 
@@ -45,6 +49,10 @@ public class EntryPanel extends AbstractEditorPanel {
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private AutosaveManager autosaveManager;
     private volatile boolean isAutosaving = false;
+    // Track temporary placeholder range for Sim guidance
+    private int pendingGuidanceStart = -1;
+    private int pendingGuidanceLen = 0;
+    // Spinner removed — relying on inline "Thinking…" text only
     // Formatting toggle buttons (to reflect current caret/selection state)
     private JToggleButton boldBtn;
     private JToggleButton italicBtn;
@@ -57,6 +65,15 @@ public class EntryPanel extends AbstractEditorPanel {
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
+        // Subscribe to guidance produced to insert into editor
+        try {
+            SimEventBus.get().addListener(new SimEventBus.Listener(){
+                @Override public void onGuidanceProduced(String text){
+                    if (text == null || text.isBlank()) return;
+                    SwingUtilities.invokeLater(() -> insertGuidanceStyled(text));
+                }
+            });
+        } catch (Throwable ignored) {}
     }
 
     // Load an existing entry file into the editor fields
@@ -65,15 +82,28 @@ public class EntryPanel extends AbstractEditorPanel {
             String title = reader.readLine();
             if (title == null) title = "";
             titleField.setText(title);
-            reader.readLine(); // skip blank line
-
-            StringBuilder content = new StringBuilder();
+            // Expect a blank separator line
+            reader.readLine();
+            // Read the remainder into a string
+            StringBuilder rest = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
+                rest.append(line).append("\n");
             }
-            contentArea.setText(content.toString());
-        } catch (IOException ex) {
+            String remainder = rest.toString();
+            if (remainder.stripLeading().startsWith("{\\rtf")) {
+                RTFEditorKit kit = new RTFEditorKit();
+                StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
+                try (ByteArrayInputStream bin = new ByteArrayInputStream(remainder.getBytes())) {
+                    kit.read(bin, doc, 0);
+                }
+                contentArea.setDocument(doc);
+                contentArea.setEditorKit(new StyledEditorKit());
+                ensureSimStyles();
+            } else {
+                contentArea.setText(remainder);
+            }
+        } catch (Exception ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
         }
@@ -142,6 +172,27 @@ public class EntryPanel extends AbstractEditorPanel {
             repaint();
         });
         rightToolbar.add(settingsBtn);
+
+        // Spinner removed per request; keep toolbar compact
+
+        // Sim guidance button (uses simguidance.png)
+        ToolbarIconButton guidanceBtn = new ToolbarIconButton("simguidance");
+        guidanceBtn.setToolTipText("Ask Sim for guidance on this entry");
+        guidanceBtn.addActionListener(e -> {
+            try {
+                Document doc = contentArea.getDocument();
+                String all = doc.getText(0, doc.getLength());
+                // Trim excessive length to keep prompt lean
+                int cap = 4000;
+                String text = all.length() > cap ? all.substring(all.length() - cap) : all;
+                showGuidanceThinkingPlaceholder();
+                SimEventBus.get().emitGuidanceRequested(text);
+            } catch (BadLocationException ex) {
+                // no-op
+            }
+        });
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(guidanceBtn);
 
         // Title label & field
         JLabel titleLabel = new JLabel("Title:");
@@ -240,6 +291,7 @@ public class EntryPanel extends AbstractEditorPanel {
         contentArea.setEditorKit(new StyledEditorKit());
         contentArea.setOpaque(false);
         contentArea.setForeground(AeroTheme.TEXT_PRIMARY);
+        ensureSimStyles();
 
         // Keep formatting toggles in sync with caret/selection changes
         contentArea.addCaretListener(e -> updateFormattingToggleState());
@@ -363,6 +415,67 @@ public class EntryPanel extends AbstractEditorPanel {
         } catch (BadLocationException | RuntimeException ignored) {
             // ignore
         }
+    }
+
+    private void ensureSimStyles(){
+        StyledDocument sd = (StyledDocument) contentArea.getDocument();
+        // Silvery sky blue color
+        Color simBlue = new Color(176, 196, 222); // LightSteelBlue
+        Style body = sd.getStyle("simGuidanceBody");
+        if (body == null) {
+            body = sd.addStyle("simGuidanceBody", null);
+            StyleConstants.setForeground(body, simBlue);
+        }
+        Style header = sd.getStyle("simGuidanceHeader");
+        if (header == null) {
+            header = sd.addStyle("simGuidanceHeader", body);
+            StyleConstants.setBold(header, true);
+        }
+        Style thinking = sd.getStyle("simThinking");
+        if (thinking == null) {
+            thinking = sd.addStyle("simThinking", null);
+            StyleConstants.setItalic(thinking, true);
+            StyleConstants.setForeground(thinking, Color.GRAY);
+        }
+    }
+
+    private void showGuidanceThinkingPlaceholder(){
+        try {
+            ensureSimStyles();
+            StyledDocument sd = (StyledDocument) contentArea.getDocument();
+            Style thinking = sd.getStyle("simThinking");
+            int end = sd.getLength();
+            String prefix = (end > 0) ? "\n\n" : "";
+            String th = "Thinking…\n";
+            // Insert and remember range
+            sd.insertString(end, prefix, null);
+            int start = sd.getLength();
+            sd.insertString(sd.getLength(), th, thinking);
+            pendingGuidanceStart = start;
+            pendingGuidanceLen = sd.getLength() - start;
+            contentArea.setCaretPosition(sd.getLength());
+        } catch (BadLocationException ignored) {}
+    }
+
+    private void insertGuidanceStyled(String guidance){
+        try {
+            ensureSimStyles();
+            StyledDocument sd = (StyledDocument) contentArea.getDocument();
+            Style body = sd.getStyle("simGuidanceBody");
+            // Remove placeholder if present
+            if (pendingGuidanceStart >= 0 && pendingGuidanceLen > 0 &&
+                pendingGuidanceStart + pendingGuidanceLen <= sd.getLength()){
+                sd.remove(pendingGuidanceStart, pendingGuidanceLen);
+            }
+            int end = sd.getLength();
+            String prefix = (end > 0) ? "\n\n" : "";
+            String bodyText = (guidance == null ? "" : guidance.strip()) + "\n";
+            sd.insertString(end, prefix, null);
+            sd.insertString(sd.getLength(), bodyText, body);
+            contentArea.setCaretPosition(sd.getLength());
+            pendingGuidanceStart = -1;
+            pendingGuidanceLen = 0;
+        } catch (BadLocationException ignored) {}
     }
 
     private JPanel createFormattingToolbar() {
@@ -601,10 +714,20 @@ public class EntryPanel extends AbstractEditorPanel {
                 file = currentFile;
             }
 
+            // Save title + a blank line + RTF body with styles
             try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
                 writer.println(title);
-                writer.println(); // Blank line for separation
-                writer.print(content); // Use print to avoid extra newline
+                writer.println(); // separator
+            }
+            try (FileOutputStream fos = new FileOutputStream(file, true)) {
+                RTFEditorKit kit = new RTFEditorKit();
+                StyledDocument sd = (StyledDocument) contentArea.getDocument();
+                try {
+                    kit.write(fos, sd, 0, sd.getLength());
+                } catch (BadLocationException ble) {
+                    // fallback to plain text if unexpected
+                    fos.write(content.getBytes());
+                }
             }
 
             // Mark last successful save for status bar

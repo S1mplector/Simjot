@@ -14,6 +14,10 @@ public final class SimEventBus {
         default void onSpeak(String message) {}
         default void onSpeakStart() {}
         default void onSpeakEnd() {}
+        // User requested reflective guidance on current editor content
+        default void onGuidanceRequested(String text) {}
+        // Sim produced guidance text to be inserted into editor
+        default void onGuidanceProduced(String text) {}
         // User clicked a CTA to chat more; Phase 1: request a single follow-up turn
         default void onChatFollowupRequested() {}
         // Phase 2 chat events
@@ -81,6 +85,17 @@ public final class SimEventBus {
     public void emitChatEnded(){
         System.out.println("[SimBus] chatEnded");
         for (var l: listeners) l.onChatEnded();
+    }
+
+    // Reflective guidance on editor content
+    public void emitGuidanceRequested(String text){
+        System.out.println("[SimBus] guidanceRequested len=" + (text==null?0:text.length()));
+        for (var l: listeners) l.onGuidanceRequested(text);
+    }
+
+    public void emitGuidanceProduced(String text){
+        System.out.println("[SimBus] guidanceProduced len=" + (text==null?0:text.length()));
+        for (var l: listeners) l.onGuidanceProduced(text);
     }
 
     // App-level: request all listeners to quit/close gracefully
