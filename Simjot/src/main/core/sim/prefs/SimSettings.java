@@ -6,6 +6,7 @@ import main.core.service.SettingsStore;
  * Central settings for Sim. Backed by SettingsStore key-values to persist.
  */
 public final class SimSettings {
+    public enum EngagementMode { PROACTIVE, ON_CALL, HYBRID }
     private static final String KEY_ENABLED = "sim.enabled";
     private static final String KEY_PERSONALITY = "sim.personality"; // gentle|neutral|proactive
     private static final String KEY_USE_LLM = "sim.use_llm";
@@ -18,6 +19,8 @@ public final class SimSettings {
     private static final String KEY_OPENAI_API_KEY = "sim.openai.api_key"; // stored locally
     private static final String KEY_OPENAI_MODEL = "sim.openai.model"; // e.g., gpt-4o-mini
     private static final String KEY_OPENAI_BASE_URL = "sim.openai.base_url"; // default https://api.openai.com
+    // Engagement mode
+    private static final String KEY_ENGAGEMENT_MODE = "sim.engagement.mode"; // PROACTIVE|ON_CALL|HYBRID
 
     private static SimSettings INSTANCE;
 
@@ -132,5 +135,21 @@ public final class SimSettings {
 
     public void setOpenAIBaseUrl(String baseUrl) {
         store.setValue(KEY_OPENAI_BASE_URL, baseUrl == null ? "https://api.openai.com" : baseUrl);
+    }
+
+    // --- Engagement mode ---
+    public EngagementMode getEngagementMode() {
+        String v = store.getValue(KEY_ENGAGEMENT_MODE, "ON_CALL");
+        if (v == null || v.isBlank()) return EngagementMode.ON_CALL;
+        try {
+            return EngagementMode.valueOf(v.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return EngagementMode.ON_CALL;
+        }
+    }
+
+    public void setEngagementMode(EngagementMode mode) {
+        EngagementMode m = (mode == null) ? EngagementMode.ON_CALL : mode;
+        store.setValue(KEY_ENGAGEMENT_MODE, m.name());
     }
 }

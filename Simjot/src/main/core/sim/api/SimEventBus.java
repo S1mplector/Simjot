@@ -7,6 +7,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Minimal event bus for Sim signals.
  */
 public final class SimEventBus {
+    public enum InvocationSource { CALL_HEART, HOTKEY, TRAY, MENU, OTHER }
     public interface Listener {
         default void onTyping(String latestText) {}
         default void onCardSwitched(String cardId) {}
@@ -27,6 +28,8 @@ public final class SimEventBus {
         default void onQuitRequested() {}
         // Real-time per-entry emotion tag (e.g., "sad", 0..100). entryId can be null if not applicable
         default void onEmotionTagged(String entryId, String emotion, double intensity) {}
+        // User explicitly invoked Sim (e.g., heart, hotkey). Useful for tagging prompt context
+        default void onUserInvoked(InvocationSource source) {}
     }
 
     private static SimEventBus INSTANCE;
@@ -109,6 +112,12 @@ public final class SimEventBus {
         System.out.println("[SimBus] emotionTagged entry=" + String.valueOf(entryId) +
                 " emotion=" + String.valueOf(emotion) + " intensity=" + intensity);
         for (var l: listeners) l.onEmotionTagged(entryId, emotion, intensity);
+    }
+
+    // User explicit invocation emitter
+    public void emitUserInvoked(InvocationSource source){
+        System.out.println("[SimBus] userInvoked source=" + String.valueOf(source));
+        for (var l: listeners) l.onUserInvoked(source);
     }
 
     private static String preview(String s){

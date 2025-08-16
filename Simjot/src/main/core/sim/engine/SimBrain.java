@@ -80,6 +80,9 @@ public final class SimBrain implements SimEventBus.Listener {
     });
     private ScheduledFuture<?> tickFuture;
 
+    // Track last explicit invocation source (e.g., heart, hotkey)
+    private volatile main.core.sim.api.SimEventBus.InvocationSource lastInvocationSource = main.core.sim.api.SimEventBus.InvocationSource.OTHER;
+
     public SimBrain(SimSettings settings, SimPersonality personality, SimDataGateway data) {
         this.settings = settings;
         this.personality = personality;
@@ -111,6 +114,13 @@ public final class SimBrain implements SimEventBus.Listener {
         try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
         try { if (tickFuture != null) tickFuture.cancel(true); } catch (Throwable ignored) {}
         try { scheduler.shutdownNow(); } catch (Throwable ignored) {}
+    }
+
+    @Override
+    public void onUserInvoked(main.core.sim.api.SimEventBus.InvocationSource source) {
+        if (source == null) source = main.core.sim.api.SimEventBus.InvocationSource.OTHER;
+        lastInvocationSource = source;
+        System.out.println("[SimBrain] onUserInvoked source=" + source);
     }
 
     @Override
@@ -178,7 +188,17 @@ public final class SimBrain implements SimEventBus.Listener {
                 lastTriggerMs = now;
                 try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
                 try {
-                    turns.maybeSpeakProactively(llm, out.systemPrompt, out.userPrompt, out.preface);
+                    String sysWithSource = main.core.sim.critic.CriticPromptDecorator.decorateSystem(
+                            main.core.sim.llm.prompt.PromptBuilder.systemPromptWithContext(
+                                    personality.getType(),
+                                    null, null,
+                                    in.preview,
+                                    in.conversationSummary,
+                                    out.triggerKey,
+                                    lastInvocationSource == null ? "OTHER" : lastInvocationSource.name()
+                            )
+                    );
+                    turns.maybeSpeakProactively(llm, sysWithSource, out.userPrompt, out.preface);
                 } catch (Throwable ignored) {}
             } else {
                 try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
@@ -240,7 +260,17 @@ public final class SimBrain implements SimEventBus.Listener {
                 lastTriggerMs = now;
                 try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
                 try {
-                    turns.maybeSpeakProactively(llm, out.systemPrompt, out.userPrompt, out.preface);
+                    String sysWithSource = main.core.sim.critic.CriticPromptDecorator.decorateSystem(
+                            main.core.sim.llm.prompt.PromptBuilder.systemPromptWithContext(
+                                    personality.getType(),
+                                    null, null,
+                                    in.preview,
+                                    in.conversationSummary,
+                                    out.triggerKey,
+                                    lastInvocationSource == null ? "OTHER" : lastInvocationSource.name()
+                            )
+                    );
+                    turns.maybeSpeakProactively(llm, sysWithSource, out.userPrompt, out.preface);
                 } catch (Throwable ignored) {}
             } else {
                 try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
@@ -393,6 +423,12 @@ public final class SimBrain implements SimEventBus.Listener {
         // Global cooldown across proactive messages
         if (now - lastSpeakMs < 15000L) return;
         if (isQuietHoursNow()) return;
+        // Engagement mode gating: suppress proactive tick entirely in ON_CALL mode
+        try {
+            if (settings.getEngagementMode() == SimSettings.EngagementMode.ON_CALL) {
+                return;
+            }
+        } catch (Throwable ignored) {}
 
         String last = userState.getLastText();
         if (last == null) last = "";
@@ -432,7 +468,18 @@ public final class SimBrain implements SimEventBus.Listener {
             try { triggerStats.record(out.triggerKey); } catch (Throwable ignored) {}
             try {
                 System.out.println("[SimBrain] proactive tick -> streaming LLM (" + out.triggerKey + ")");
-                turns.maybeSpeakProactively(llm, out.systemPrompt, out.userPrompt, out.preface);
+                // Enrich system prompt with invocation source for context-awareness
+                String sysWithSource = main.core.sim.critic.CriticPromptDecorator.decorateSystem(
+                        main.core.sim.llm.prompt.PromptBuilder.systemPromptWithContext(
+                                personality.getType(),
+                                null, null,
+                                in.preview,
+                                in.conversationSummary,
+                                out.triggerKey,
+                                lastInvocationSource == null ? "OTHER" : lastInvocationSource.name()
+                        )
+                );
+                turns.maybeSpeakProactively(llm, sysWithSource, out.userPrompt, out.preface);
             } catch (Throwable ignored) {
                 System.out.println("[SimBrain] proactive turn start failed");
             }
@@ -606,13 +653,11 @@ public final class SimBrain implements SimEventBus.Listener {
         try {
             String facts = persistent.getFactsSummary(2);
             if (facts == null || facts.isBlank()) facts = memory.getFactsSummary(2);
-            String msg;
+            // Only emit a check-in if we have meaningful facts; otherwise, do not speak.
             if (facts != null && !facts.isBlank()) {
-                msg = "Hi — just checking in. How’s your day starting? I remember " + facts + ". Anything you’d like to talk about today?";
-            } else {
-                msg = "Hi — how’s your day going? I’m here if you want to jot or chat for a minute.";
+                String msg = "Hi — just checking in. How’s your day starting? I remember " + facts + ". Anything you’d like to talk about today?";
+                speakOncePer(10000L, msg);
             }
-            speakOncePer(10000L, msg);
         } catch (Throwable ignored) {}
     }
 

@@ -51,6 +51,11 @@ public final class SimScheduler {
         if (settings == null || personality == null || data == null) return;
         if (!settings.isEnabled()) return;
         if (isQuietHoursNow(settings.getQuietHours())) return;
+        // Engagement gating: in ON_CALL, do not emit autonomous nudges
+        try {
+            main.core.sim.prefs.SimSettings.EngagementMode mode = settings.getEngagementMode();
+            if (mode == main.core.sim.prefs.SimSettings.EngagementMode.ON_CALL) return;
+        } catch (Throwable ignored) {}
 
         // Look at the last few mood samples
         double avg = data.computeRecentMoodAverage(5);
@@ -72,13 +77,19 @@ public final class SimScheduler {
             };
             speakOncePer(30 * 60_000L, msg); // 30 minutes
         } else {
-            // Neutral trend: occasionally offer a light prompt
-            msg = switch (personality.getType()) {
-                case GENTLE -> "How are you feeling right now—one sentence check‑in?";
-                case NEUTRAL -> "Quick check‑in: jot one thought to clear your mind.";
-                case PROACTIVE -> "Pulse check: list 1 task and 1 feeling, then proceed.";
-            };
-            speakOncePer(45 * 60_000L, msg); // 45 minutes
+            // Neutral trend: only allow in fully PROACTIVE mode; suppress in HYBRID
+            boolean allowNeutral = true;
+            try {
+                allowNeutral = settings.getEngagementMode() == main.core.sim.prefs.SimSettings.EngagementMode.PROACTIVE;
+            } catch (Throwable ignored) {}
+            if (allowNeutral) {
+                msg = switch (personality.getType()) {
+                    case GENTLE -> "How are you feeling right now—one sentence check‑in?";
+                    case NEUTRAL -> "Quick check‑in: jot one thought to clear your mind.";
+                    case PROACTIVE -> "Pulse check: list 1 task and 1 feeling, then proceed.";
+                };
+                speakOncePer(45 * 60_000L, msg); // 45 minutes
+            }
         }
     }
 

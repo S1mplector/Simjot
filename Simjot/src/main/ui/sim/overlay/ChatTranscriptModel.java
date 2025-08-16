@@ -33,6 +33,8 @@ public final class ChatTranscriptModel {
 
     // For streaming assistant turns
     private int streamingAssistantIndex = -1;
+    // If true, an assistant turn has started but no content yet; avoid blank bubble
+    private boolean assistantPending = false;
 
     public void addListener(Listener l) { if (l != null) listeners.add(l); }
     public void removeListener(Listener l) { if (l != null) listeners.remove(l); }
@@ -42,20 +44,26 @@ public final class ChatTranscriptModel {
     public void clear() {
         entries.clear();
         streamingAssistantIndex = -1;
+        assistantPending = false;
         notifyChanged();
     }
 
     public void beginAssistantTurn() {
-        entries.add(new Entry(Role.ASSISTANT, ""));
-        streamingAssistantIndex = entries.size() - 1;
-        notifyChanged();
+        // Defer creating an entry until we receive first non-blank tokens
+        assistantPending = true;
+        streamingAssistantIndex = -1;
+        // do not notify; nothing visible yet
     }
 
     public void appendAssistantTokens(String tokens) {
         if (tokens == null || tokens.isBlank()) return;
-        if (streamingAssistantIndex < 0 || streamingAssistantIndex >= entries.size()) {
-            // If a begin was missed, start implicitly
-            beginAssistantTurn();
+        if (assistantPending || streamingAssistantIndex < 0 || streamingAssistantIndex >= entries.size()) {
+            // First content for this assistant turn: create entry now
+            entries.add(new Entry(Role.ASSISTANT, tokens));
+            streamingAssistantIndex = entries.size() - 1;
+            assistantPending = false;
+            notifyChanged();
+            return;
         }
         Entry prev = entries.get(streamingAssistantIndex);
         Entry updated = new Entry(prev.role, prev.text + tokens);
@@ -65,6 +73,8 @@ public final class ChatTranscriptModel {
     }
 
     public void endAssistantTurn() {
+        // If turn ended without any tokens, just clear pending state
+        assistantPending = false;
         streamingAssistantIndex = -1;
         notifyChanged();
     }

@@ -82,6 +82,33 @@ public final class PromptBuilder {
         return ctx.toString();
     }
 
+    /**
+     * Overload that additionally tags the invocation source (e.g., CALL_HEART, HOTKEY).
+     * This preserves backward compatibility with existing call sites.
+     */
+    public static String systemPromptWithContext(
+            SimPersonality.Type type,
+            String moodLabel,
+            Double moodValence,
+            String recentInputPreview,
+            String conversationSummary,
+            String triggerReason,
+            String invocationSource
+    ) {
+        String base = systemPromptWithContext(type, moodLabel, moodValence, recentInputPreview, conversationSummary, triggerReason);
+        if (invocationSource == null || invocationSource.isBlank()) return base;
+        // If base already equals the plain systemPrompt (no context), add header to ensure structure
+        boolean hadContext = !base.equals(systemPrompt(type));
+        StringBuilder sb = new StringBuilder(base.length() + 64);
+        if (!hadContext) {
+            sb.append(base).append("\n\nContext (for Sim only; do NOT reflect this meta to the user):");
+        } else {
+            sb.append(base);
+        }
+        sb.append("\n- InvocationSource: ").append(sanitizeInline(invocationSource.trim()));
+        return sb.toString();
+    }
+
     private static String sanitizeInline(String s) {
         if (s == null) return "";
         String out = s.replace('\n', ' ').replace('\r', ' ');

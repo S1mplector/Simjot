@@ -113,6 +113,10 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             List<ChatTranscriptModel.Entry> items = model.snapshot();
             for (ChatTranscriptModel.Entry e : items) {
                 java.util.List<String> rows = wrapText(e.text, maxBubbleW - 16, fm);
+                if (rows.isEmpty()) {
+                    // Skip blank entries entirely (no bubble, no timestamp)
+                    continue;
+                }
                 int textH = rows.size() * lineH;
                 totalH += textH + 16; // vertical padding inside bubble
                 totalH += 14; // timestamp line area
@@ -138,12 +142,16 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
 
             List<ChatTranscriptModel.Entry> items = model.snapshot();
             for (ChatTranscriptModel.Entry e : items) {
+                java.util.List<String> rows = wrapText(e.text, maxBubbleW - 16, fm);
+                if (rows.isEmpty()) {
+                    // Do not render empty/blank bubbles
+                    continue;
+                }
                 boolean isUser = (e.role == ChatTranscriptModel.Role.USER);
                 Color bubble = isUser ? new Color(230,243,255) : new Color(245,245,245);
                 Color textCol = isUser ? new Color(25,25,25) : new Color(20,60,140);
                 int bx; // bubble x
 
-                java.util.List<String> rows = wrapText(e.text, maxBubbleW - 16, fm);
                 int textW = rows.stream().mapToInt(fm::stringWidth).max().orElse(0);
                 int bubbleW = Math.min(maxBubbleW, Math.max(80, textW + 16));
                 int textX = isUser ? (xPad + contentWidth - bubbleW + 8) : (xPad + 8);
@@ -184,10 +192,9 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
 
         private java.util.List<String> wrapText(String text, int maxWidth, FontMetrics fm) {
             java.util.List<String> lines = new java.util.ArrayList<>();
-            if (text == null || text.isEmpty()) {
-                lines.add("");
-                return lines;
-            }
+            if (text == null) return lines;
+            String trimmed = text.trim();
+            if (trimmed.isEmpty()) return lines; // treat blank as no content
             String[] words = text.split("\\s+");
             StringBuilder cur = new StringBuilder();
             for (String w : words) {

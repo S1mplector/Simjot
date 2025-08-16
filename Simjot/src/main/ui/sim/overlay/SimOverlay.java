@@ -37,6 +37,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private double heartPhase = 0;       // continuous phase
     private double lastBeatValue = 0;    // for peak detection
     private float heartSpring = 0f;      // overshoot after peak
+    // Heart beacon: always-visible dimmed heart and hit area for calls
+    private boolean alwaysVisibleBeacon = true; // keep overlay visible to show the dimmed heart
+    private Shape lastHeartHitShape = null;     // transformed heart shape for hit-testing
 
     // Orb/emotion configuration
     private static final int ORB_COUNT = 5;
@@ -44,17 +47,12 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final int ORB_RING_RADIUS = 42; // distance from center
     private static final int HEART_CLEARANCE = 8; // extra spacing between heart and orbs
 
-    // Phase 1 CTA state (buttons under the message panel)
-    private boolean ctaVisible = false;
-    private Rectangle chatBtnRect = null;    // component coordinate space
-    private Rectangle notNowBtnRect = null;  // component coordinate space
-    private boolean chatHover = false;
-    private boolean notHover = false;
 
     // Phase 2: inline chat mode
     private boolean chatMode = false;
     private java.util.List<ChatLine> chatHistory = new java.util.ArrayList<>();
-    private JTextField chatInput;
+    private JTextArea chatInput;
+    private JLabel inputHint;
     // Close buttons removed; dismiss via typing 'bye'
     private int streamingAssistantIndex = -1; // index of assistant line being streamed
     private Rectangle lastPanelRect = null; // updated during paint for layout
@@ -65,6 +63,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     // New: scrollable chat components
     private final ChatTranscriptModel transcript = new ChatTranscriptModel();
     private final ChatViewPanel chatView = new ChatViewPanel(transcript);
+    // Only show message/panel when user has explicitly invoked or we're in chat
+    private boolean userInvokedActive = false;
 
     public SimOverlay() {
         setOpaque(false);
@@ -81,27 +81,25 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         // Drag to move
         MouseAdapter ma = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                // Close buttons removed; dismiss via typing 'bye'
-                // CTA button clicks (when visible)
-                if (ctaVisible) {
-                    if (chatBtnRect != null && chatBtnRect.contains(e.getPoint())) {
-                        // Phase 2: enter chat mode and seed with current message
-                        startChatMode();
-                        return;
-                    }
-                    if (notNowBtnRect != null && notNowBtnRect.contains(e.getPoint())) {
-                        ctaVisible = false;
-                        // Phase 1: dismiss overlay on Not now
-                        startDisposeSequence();
-                        return;
-                    }
-                }
+                // Close buttons removed; dismiss via heart toggle or typing 'bye'
                 dragAnchor = e.getPoint();
                 setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
             }
             @Override public void mouseReleased(MouseEvent e) {
                 dragAnchor = null;
                 setCursor(Cursor.getDefaultCursor());
+            }
+            @Override public void mouseClicked(MouseEvent e) {
+                // Double-click on the heart to toggle: invoke when idle; deactivate when active
+                if (e.getClickCount() == 2) {
+                    if (lastHeartHitShape != null && lastHeartHitShape.contains(e.getPoint())) {
+                        if (isBeaconIdle()) {
+                            invokeFromHeart();
+                        } else {
+                            deactivateFromHeart();
+                        }
+                    }
+                }
             }
             @Override public void mouseDragged(MouseEvent e) {
                 if (dragAnchor == null) return;
@@ -113,13 +111,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             }
             @Override public void mouseMoved(MouseEvent e) {
                 boolean hand = false;
-                chatHover = false; notHover = false;
-                if (ctaVisible && !chatMode) {
-                    if (chatBtnRect != null && chatBtnRect.contains(e.getPoint())) { chatHover = true; hand = true; }
-                    if (notNowBtnRect != null && notNowBtnRect.contains(e.getPoint())) { notHover = true; hand = true; }
+                // CTA removed
+                // Heart beacon hover
+                if (!hand && isBeaconIdle()) {
+                    if (lastHeartHitShape != null && lastHeartHitShape.contains(e.getPoint())) {
+                        hand = true;
+                    }
                 }
                 setCursor(hand ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
-                if (ctaVisible || chatMode) repaint();
+                if (chatMode) repaint();
             }
         };
         addMouseListener(ma);
@@ -169,7 +169,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                     needsRepaint = true;
                 } else {
                     disposeInProgress = false;
-                    setVisible(false);
+                    // Keep overlay visible if beacon is enabled; otherwise hide
+                    if (!alwaysVisibleBeacon) setVisible(false);
                 }
             }
             // continuous spin for orbs
@@ -213,17 +214,12 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         entranceOffsetY = 12;
         startEntrySequence();
         if (!isVisible()) setVisible(true);
-        if (!chatMode) {
-            // Show CTA when not in chat
-            ctaVisible = true;
-            chatBtnRect = null; notNowBtnRect = null;
-        }
         repaint();
     }
 
     @Override
     public void onSpeak(String message) {
-        if (chatMode) {
+        if (chatMode || userInvokedActive) {
             final String t = message == null ? "" : message;
             SwingUtilities.invokeLater(() -> {
                 try { System.out.println("[SimOverlay] chat onSpeak append len=" + t.length()); } catch (Throwable ignored) {}
@@ -232,14 +228,13 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 // rely on anim timer for repaint to reduce per-token repaints
             });
         } else {
-            // Ensure UI updates occur on the EDT
-            SwingUtilities.invokeLater(() -> showMessage(message));
+            // Ignore passive speaks until user explicitly invokes
         }
     }
 
     @Override
     public void onSpeakStart() {
-        if (chatMode) {
+        if (chatMode || userInvokedActive) {
             SwingUtilities.invokeLater(() -> {
                 // Start a streaming assistant turn in the transcript
                 transcript.beginAssistantTurn();
@@ -249,8 +244,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 repaint();
             });
         } else {
-            // Show a placeholder immediately so the overlay appears even if no tokens are emitted
-            SwingUtilities.invokeLater(() -> showMessage("…"));
+            // Ignore passive start until user explicitly invokes
         }
     }
 
@@ -311,6 +305,55 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         int centerX = padding + leftW / 2;
         int centerY = h / 2 + 6; // slightly lower to balance header
 
+        // Idle beacon mode: draw only a dimmed heart and return
+        if (isBeaconIdle()) {
+            // Build transformed heart path for hit-testing (account entrance offset)
+            Shape heartBase = createHeartShape();
+            java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
+            at.translate(centerX, centerY + entranceOffsetY);
+            at.scale(Math.max(0.9, heartScale * 0.98), Math.max(0.9, heartScale * 0.98)); // very subtle pulse
+            lastHeartHitShape = at.createTransformedShape(heartBase);
+
+            // Dim heart appearance
+            Graphics2D gh = (Graphics2D) g2.create();
+            Composite oldC = gh.getComposite();
+            gh.setComposite(AlphaComposite.SrcOver.derive(0.35f));
+            gh.translate(centerX, centerY);
+            gh.scale(heartScale * 0.98, heartScale * 0.98);
+            Shape heart = heartBase;
+            Rectangle hb = heart.getBounds();
+            // Shadow
+            Graphics2D gShadow = (Graphics2D) gh.create();
+            gShadow.translate(0, 3 + entranceOffsetY);
+            gShadow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.2f));
+            gShadow.setColor(new Color(0,0,0,50));
+            gShadow.fill(heart);
+            gShadow.dispose();
+            // Fill
+            float cxh = hb.x + hb.width * 0.45f;
+            float cyh = hb.y + hb.height * 0.35f;
+            float rh = Math.max(hb.width, hb.height) * 0.75f;
+            RadialGradientPaint heartPaint = new RadialGradientPaint(
+                    new Point2D.Float(cxh, cyh), rh,
+                    new float[]{0f, 1f},
+                    new Color[]{new Color(153,209,255,150), new Color(0,84,153,130)}
+            );
+            gh.setPaint(heartPaint);
+            gh.translate(0, entranceOffsetY);
+            gh.fill(heart);
+            // Outline (very subtle)
+            gh.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            gh.setColor(new Color(255,255,255,20));
+            gh.draw(heart);
+            gh.setComposite(oldC);
+            gh.dispose();
+
+            // Restore and return (skip orbs/panel)
+            g2.setComposite(oldComp);
+            g2.dispose();
+            return;
+        }
+
         // Beating heart at center of spinning orbs (reused style, simplified)
         {
             Graphics2D gh = (Graphics2D) g2.create();
@@ -318,6 +361,13 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             gh.scale(heartScale, heartScale);
             Shape heart = createHeartShape();
             Rectangle hb = heart.getBounds();
+            // Update heart hit shape for active state (account for entrance offset applied to g2 earlier)
+            {
+                java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
+                at.translate(centerX, centerY + 0); // entrance offset already applied to g2
+                at.scale(heartScale, heartScale);
+                lastHeartHitShape = at.createTransformedShape(heart);
+            }
             // Soft shadow
             Graphics2D gShadow = (Graphics2D) gh.create();
             gShadow.translate(0, 3);
@@ -428,13 +478,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         if (lastPanelRect != null) {
             int pad = 10;
             int headerH = 20; // space for inline title/close row
-            int inputH = 34;  // reserved height for input at bottom
+            // Reserve space at bottom for input area + hint when in chat mode
+            int inputAreaH = chatMode ? (48 /*input*/ + 16 /*hint/margin*/) : 0;
             int x = lastPanelRect.x + pad + 2;
             int y = lastPanelRect.y + headerH + 8 + entranceOffsetY;
             int wv = lastPanelRect.width - pad*2 - 4;
-            int hv = Math.max(40, lastPanelRect.height - headerH - inputH - 16);
+            int hv = Math.max(40, lastPanelRect.height - headerH - inputAreaH - 16);
             chatView.getScrollPane().setBounds(x, y, wv, hv);
-            chatView.getScrollPane().setVisible(chatMode);
+            // Show scroll view only when panel expansion is complete to avoid clipped artifacts
+            chatView.getScrollPane().setVisible(chatMode && isPanelOpen());
         }
 
         // Message or Chat content (reveals with panel)
@@ -447,52 +499,6 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             for (String line : wrapText(message, tw, g2)) {
                 g2.drawString(line, tx, ty);
                 ty += 18;
-            }
-            // CTA row (Phase 1): appears below the message once panel is mostly expanded
-            if (ctaVisible && tw > 60) {
-                int spacing = 10;
-                ty += spacing;
-                // Primary button: Chat more
-                String chatLabel = "Chat more";
-                Font btnFont = g2.getFont().deriveFont(Font.BOLD, 12f);
-                FontMetrics fm = g2.getFontMetrics(btnFont);
-                int chatTextW = fm.stringWidth(chatLabel);
-                int chatPadX = 12, chatPadY = 6;
-                int chatH = fm.getAscent() + fm.getDescent() + chatPadY * 2;
-                int chatW = chatTextW + chatPadX * 2;
-                int chatX = tx;
-                int chatY = ty;
-                // Secondary button: Not now
-                String notLabel = "Not now";
-                int notTextW = fm.stringWidth(notLabel);
-                int notPadX = 10, notPadY = 6;
-                int notH = chatH;
-                int notW = notTextW + notPadX * 2;
-                int notX = chatX + chatW + 10;
-                int notY = ty;
-
-                // Draw primary button
-                g2.setFont(btnFont);
-                Shape r1 = new RoundRectangle2D.Float(chatX, chatY, chatW, chatH, 10, 10);
-                Color c1 = chatHover ? new Color(0, 122, 204) : new Color(0, 102, 180);
-                g2.setColor(c1);
-                g2.fill(r1);
-                g2.setColor(new Color(255,255,255));
-                g2.drawString(chatLabel, chatX + chatPadX, chatY + chatPadY + fm.getAscent() - 2);
-
-                // Draw secondary ghost button
-                Shape r2 = new RoundRectangle2D.Float(notX, notY, notW, notH, 10, 10);
-                g2.setColor(new Color(0,0,0, chatHover || notHover ? 140 : 120));
-                g2.draw(r2);
-                g2.setColor(new Color(30,30,30));
-                g2.drawString(notLabel, notX + notPadX, notY + notPadY + fm.getAscent() - 2);
-
-                // Store hit rects in component coordinates (accounting for entrance offset)
-                int offsetY = entranceOffsetY;
-                chatBtnRect = new Rectangle(chatX, chatY + offsetY, chatW, chatH);
-                notNowBtnRect = new Rectangle(notX, notY + offsetY, notW, notH);
-            } else {
-                chatBtnRect = null; notNowBtnRect = null;
             }
         }
 
@@ -572,6 +578,43 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         g2.dispose();
     }
 
+    // Beacon is shown when overlay is meant to be idle (no panel/orbs) but visible
+    private boolean isBeaconIdle() {
+        if (!alwaysVisibleBeacon) return false;
+        // Idle if no entry/exit animations, no panel expansion, and not in chat
+        boolean activeAnimations = animatingIn || entryInProgress || disposeInProgress;
+        return !activeAnimations && panelT <= 0f && !chatMode;
+    }
+
+    // Start Sim entry sequence from a user double-click on the heart
+    private void invokeFromHeart() {
+        // Reset entrance animation and stage the full overlay sequence
+        animatingIn = true;
+        entranceAlpha = 0f;
+        entranceT = 0f;
+        entranceOffsetY = 12;
+        startEntrySequence();
+        if (!isVisible()) setVisible(true);
+        // Enter chat mode BEFORE first repaint to avoid flashing old panel
+        try { startChatMode(); } catch (Throwable ignored) {}
+        userInvokedActive = true;
+        repaint();
+        // Emit an event to upstream controller to tag invocation source.
+        try {
+            System.out.println("[SimOverlay] Heart invoked by user (double-click)");
+            SimEventBus.get().emitUserInvoked(SimEventBus.InvocationSource.CALL_HEART);
+        } catch (Throwable ignored) {}
+    }
+
+    // Deactivate Sim from a user double-click on the heart while active
+    private void deactivateFromHeart() {
+        // If in chat, end it first; then dispose sequence to collapse panel/orbs back to idle beacon
+        try { endChatModeInternal(true); } catch (Throwable ignored) {}
+        userInvokedActive = false;
+        startDisposeSequence();
+        repaint();
+    }
+
     private static float easeOutCubic(float t) {
         // clamp and ease
         if (t <= 0f) return 0f;
@@ -592,6 +635,11 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         double s = 1.70158;
         double u = t - 1;
         return (float)(1 + u*u*((s + 1)*u + s));
+    }
+
+    // Consider panel "open" when expansion animation is effectively done
+    private boolean isPanelOpen() {
+        return panelT >= 0.98f;
     }
 
     // Heart vector path (same proportions as HeaderPanel)
@@ -733,7 +781,6 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     private void startChatMode() {
         chatMode = true;
-        ctaVisible = false;
         streamingAssistantIndex = -1;
         // Seed with current assistant message if any
         if (message != null && !message.isBlank()) {
@@ -756,46 +803,79 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private void endChatModeInternal(boolean removeInput) {
         chatMode = false;
         streamingAssistantIndex = -1;
-        if (removeInput && chatInput != null) {
-            try { remove(chatInput); } catch (Throwable ignored) {}
-            chatInput = null;
+        if (removeInput) {
+            if (chatInput != null) { try { remove(chatInput); } catch (Throwable ignored) {} chatInput = null; }
+            if (inputHint != null) { try { remove(inputHint); } catch (Throwable ignored) {} inputHint = null; }
         }
     }
 
     private void ensureInputField() {
-        if (chatInput != null) {
-            layoutInputField();
-            return;
-        }
-        chatInput = new JTextField();
+        if (chatInput != null) { layoutInputField(); return; }
+        // Multiline input with placeholder and key bindings
+        chatInput = new JTextArea() {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (getText().isEmpty()) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setColor(new Color(120,120,120));
+                    g2.setFont(getFont().deriveFont(Font.ITALIC));
+                    FontMetrics fm = g2.getFontMetrics();
+                    g2.drawString("Ask me anything…", 8, fm.getAscent() + 2);
+                    g2.dispose();
+                }
+            }
+        };
+        chatInput.setLineWrap(true);
+        chatInput.setWrapStyleWord(true);
         chatInput.setOpaque(false);
-        chatInput.setBorder(javax.swing.BorderFactory.createEmptyBorder(2,8,2,8));
+        chatInput.setBorder(javax.swing.BorderFactory.createEmptyBorder(4,8,4,8));
         chatInput.setForeground(new Color(20,20,20));
         chatInput.setCaretColor(new Color(20,20,20));
-        chatInput.setFont(getFont().deriveFont(Font.PLAIN, 13f));
-        chatInput.addActionListener(e -> submitChat());
+        chatInput.setFont(getFont().deriveFont(Font.PLAIN, 14f));
+        // Key bindings: Enter=send, Shift+Enter=newline, Esc=hide, Cmd/Ctrl+Enter=send
+        javax.swing.InputMap im = chatInput.getInputMap(JComponent.WHEN_FOCUSED);
+        javax.swing.ActionMap am = chatInput.getActionMap();
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "send");
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, java.awt.event.KeyEvent.SHIFT_DOWN_MASK), "newline");
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, java.awt.event.KeyEvent.META_DOWN_MASK), "send");
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, java.awt.event.KeyEvent.CTRL_DOWN_MASK), "send");
+        im.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "hide");
+        am.put("send", new javax.swing.AbstractAction(){ public void actionPerformed(java.awt.event.ActionEvent e){ submitChat(); }});
+        am.put("newline", new javax.swing.AbstractAction(){ public void actionPerformed(java.awt.event.ActionEvent e){ chatInput.append("\n"); }});
+        am.put("hide", new javax.swing.AbstractAction(){ public void actionPerformed(java.awt.event.ActionEvent e){ deactivateFromHeart(); }});
         add(chatInput);
+        // Hint label beneath input
+        inputHint = new JLabel("Enter to send • Shift+Enter for newline • Esc to hide");
+        inputHint.setForeground(new Color(90,90,90));
+        inputHint.setFont(getFont().deriveFont(Font.PLAIN, 10f));
+        add(inputHint);
         layoutInputField();
         SwingUtilities.invokeLater(() -> chatInput.requestFocusInWindow());
     }
 
     private void layoutInputField() {
         // During graceful quit, input may already be removed; avoid NPEs during layout ticks
-        if (chatInput == null) return;
-        if (lastPanelRect == null) return;
+        if (chatInput == null || lastPanelRect == null) return;
         int pad = 10;
         int x = lastPanelRect.x + pad + 4;
-        int y = lastPanelRect.y + lastPanelRect.height - 34 + entranceOffsetY;
+        int h = 48; // taller for 2-line comfort
+        int y = lastPanelRect.y + lastPanelRect.height - h - 8 + entranceOffsetY;
         int w = lastPanelRect.width - pad*2 - 8;
-        int h = 24;
         chatInput.setBounds(x, y, w, h);
+        // Only reveal input once panel is fully expanded to avoid early clipped paint
+        chatInput.setVisible(chatMode && isPanelOpen());
+        if (inputHint != null) {
+            inputHint.setBounds(x + 4, y + h - 2 + 14, Math.max(80, w - 8), 12);
+            inputHint.setVisible(chatMode && isPanelOpen());
+        }
     }
 
     private void submitChat() {
         if (chatInput == null) return;
         String txt = chatInput.getText();
         if (txt == null) txt = "";
-        txt = txt.trim();
+        // Trim edges but preserve internal newlines
+        txt = txt.strip();
         if (txt.isEmpty()) return;
         chatHistory.add(new ChatLine(Role.USER, txt));
         try { transcript.appendUser(txt); } catch (Throwable ignored) {}
