@@ -49,7 +49,13 @@ public class RoundedButton extends JButton {
         int iconW = 0;
         int iconH = 0;
         java.awt.image.BufferedImage iconImg = null;
-        if (iconId != null && !iconId.isBlank()) {
+        Icon swingIcon = getIcon();
+
+        // Prefer a standard Swing icon if one is set via setIcon(...)
+        if (swingIcon != null) {
+            iconW = swingIcon.getIconWidth();
+            iconH = swingIcon.getIconHeight();
+        } else if (iconId != null && !iconId.isBlank()) {
             int target = Math.max(14, getHeight() - 12);
             String path = ImageIconRenderer.mapIdToResource(iconId);
             if (path != null) {
@@ -57,7 +63,7 @@ public class RoundedButton extends JButton {
                 if (iconImg != null) { iconW = iconImg.getWidth(); iconH = iconImg.getHeight(); }
             }
         }
-        if (iconImg != null) {
+        if (iconW > 0 && iconH > 0) {
             contentW += (gap + iconW);
         }
         int xStart = (getWidth() - contentW) / 2;
@@ -66,9 +72,13 @@ public class RoundedButton extends JButton {
 
         int centerY = (getHeight() - fm.getHeight())/2 + fm.getAscent();
         int drawX = xStart;
-        if (iconImg != null) {
+        if (iconW > 0 && iconH > 0) {
             int iy = (getHeight() - iconH) / 2;
-            g2.drawImage(iconImg, drawX, iy, null);
+            if (swingIcon != null) {
+                swingIcon.paintIcon(this, g2, drawX, iy);
+            } else if (iconImg != null) {
+                g2.drawImage(iconImg, drawX, iy, null);
+            }
             drawX += iconW + gap;
         }
         g2.drawString(text, drawX, centerY);

@@ -36,13 +36,11 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.dialog.message.CustomMessageDialog;
 import javax.swing.Timer;
 import main.infrastructure.monitoring.AppPerf;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
-    private final RoundedButton clearThumbsBtn;
     private JTree dirTree;
     private DefaultTreeModel treeModel;
     private final Timer spinnerTimer;
@@ -131,6 +129,8 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
 
         RoundedButton openBtn = new RoundedButton("Open in Explorer");
+        // Use RoundedButton's iconId mechanism so custom painter draws the icon
+        openBtn.putClientProperty("iconId", "explorer");
         openBtn.addActionListener(e -> {
             try {
                 Desktop.getDesktop().open(AppDirectories.getRoot());
@@ -139,16 +139,13 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         actions.add(openBtn);
         actions.add(Box.createHorizontalStrut(8));
 
-        clearThumbsBtn = new RoundedButton("Clear thumbnails cache");
-        clearThumbsBtn.addActionListener(e -> clearThumbs());
-        actions.add(clearThumbsBtn);
-        actions.add(Box.createHorizontalStrut(8));
-
         RoundedButton refreshBtn = new RoundedButton("Refresh sizes");
+        refreshBtn.putClientProperty("iconId", "refreshsizes");
         refreshBtn.addActionListener(e -> computeSizesAsync());
         actions.add(refreshBtn);
 
         RoundedButton revealBtn = new RoundedButton("Reveal selected");
+        revealBtn.putClientProperty("iconId", "revealselected");
         revealBtn.addActionListener(e -> revealSelected());
         actions.add(Box.createHorizontalStrut(8));
         actions.add(revealBtn);
@@ -178,17 +175,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
     @Override public JComponent getComponent() { return this; }
     @Override public void apply() {}
 
-    private void clearThumbs() {
-        java.io.File dir = AppDirectories.folder(AppDirectories.Type.DRAWINGS);
-        int deleted = 0;
-        java.io.File[] files = dir.listFiles((d, n) -> n.toLowerCase().endsWith(".png"));
-        if (files != null) {
-            for (java.io.File f : files) {
-                if (f.delete()) deleted++;
-            }
-        }
-        CustomMessageDialog.display(this, "Cleanup", deleted + " thumbnails deleted.", false);
-    }
+    // clearThumbs action removed: thumbnails cache button no longer used
 
     // ---- Tree helpers ----
     private DefaultTreeModel buildTreeModel() {

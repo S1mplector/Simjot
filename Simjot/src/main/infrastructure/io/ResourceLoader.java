@@ -38,7 +38,21 @@ public class ResourceLoader {
         if (path.startsWith("Simjot/")) {
             path = path.substring("Simjot/".length());
         }
-        return ResourceLoader.class.getResourceAsStream("/" + path);
+        // 1) Try classpath first
+        InputStream in = ResourceLoader.class.getResourceAsStream("/" + path);
+        if (in != null) return in;
+
+        // 2) Fallbacks for development environment where resources aren't copied to output
+        //    Try common filesystem locations mirroring getResource()
+        java.io.File file = new java.io.File(path);
+        if (!file.exists()) file = new java.io.File("Simjot/" + path);
+        if (!file.exists()) file = new java.io.File("src/main/resources/" + path);
+        if (!file.exists()) file = new java.io.File("Simjot/src/main/resources/" + path);
+        try {
+            return file.exists() ? new java.io.FileInputStream(file) : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     public static ImageIcon createImageIcon(String path) {

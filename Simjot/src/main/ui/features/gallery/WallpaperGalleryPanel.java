@@ -8,6 +8,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.message.CustomMessageDialog;
 
 /**
@@ -48,6 +49,13 @@ public class WallpaperGalleryPanel extends JDialog {
         add(bottomPanel, BorderLayout.SOUTH);
         
         loadWallpapers();
+    }
+
+    private static ImageIcon iconById(String id) {
+        String path = ImageIconRenderer.mapIdToResource(id);
+        if (path == null) return null;
+        java.awt.image.BufferedImage img = ImageIconRenderer.get(path, 18, false);
+        return img != null ? new ImageIcon(img) : null;
     }
     
     private void setupImageGrid() {
@@ -117,8 +125,22 @@ private JPanel buttonPanel;
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         RoundedButton selectBtn = new RoundedButton("Select");
         RoundedButton refreshBtn = new RoundedButton("Refresh");
-        RoundedButton openFolderBtn = new RoundedButton("Open Wallpaper Folder");
+        RoundedButton openFolderBtn = new RoundedButton("Open Folder");
         RoundedButton cancelBtn = new RoundedButton("Cancel");
+
+        // Set icons to the left of text
+        selectBtn.setIcon(iconById("save"));
+        refreshBtn.setIcon(iconById("refreshsizes")); // closest existing refresh icon
+        openFolderBtn.setIcon(iconById("explorer"));
+        cancelBtn.setIcon(iconById("close"));
+        selectBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        refreshBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        openFolderBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        cancelBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        selectBtn.setIconTextGap(6);
+        refreshBtn.setIconTextGap(6);
+        openFolderBtn.setIconTextGap(6);
+        cancelBtn.setIconTextGap(6);
         
         selectBtn.addActionListener(e -> {
             selectedItem = list.getSelectedValue();

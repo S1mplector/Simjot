@@ -118,6 +118,10 @@ public final class ImageIconRenderer {
             case "close" -> "img/icons/close.png";
             case "save" -> "img/icons/save.png";
             case "load" -> "img/icons/load.png";
+            // Storage actions
+            case "explorer", "open_in_explorer" -> "img/icons/explorer.png";
+            case "refreshsizes", "refresh_sizes" -> "img/icons/refreshsizes.png";
+            case "revealselected", "reveal_selected" -> "img/icons/revealselected.png";
             // Sim guidance
             case "sim_guidance", "simguidance", "guidance" -> "img/icons/simguidance.png";
             // Settings sidebar categories
