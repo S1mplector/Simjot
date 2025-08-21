@@ -8,6 +8,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import javax.swing.*;
+import main.core.service.NotebookStore;
+import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -62,6 +64,10 @@ public class MoodChartPanel extends JPanel {
     
     private void loadMoodData() {
         dayList.clear(); avgMoodList.clear();
+        // If there are no notebooks or no journal entries anywhere, suppress old mood data
+        if (!hasAnyJournalEntries()) {
+            return; // keeps lists empty so UI shows "No mood data yet."
+        }
         int daysLimit = switch(rangeBox.getSelectedIndex()){
             case 0 -> 7; case 1 -> 30; default -> Integer.MAX_VALUE; };
         LocalDate today = LocalDate.now();
@@ -108,6 +114,26 @@ public class MoodChartPanel extends JPanel {
             java.util.List<Double> l = map.get(d);
             double avg = l.stream().mapToDouble(x->x).average().orElse(0);
             dayList.add(d); avgMoodList.add(avg);
+        }
+    }
+    
+    private boolean hasAnyJournalEntries() {
+        try {
+            NotebookStore store = new NotebookStore();
+            java.util.List<NotebookInfo> list = store.list();
+            if (list == null || list.isEmpty()) return false;
+            for (NotebookInfo nb : list) {
+                if (nb != null && nb.getType() == NotebookInfo.Type.JOURNAL) {
+                    File folder = nb.getFolder();
+                    if (folder != null && folder.isDirectory()) {
+                        File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
+                        if (files != null && files.length > 0) return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
         }
     }
     

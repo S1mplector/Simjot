@@ -5,6 +5,7 @@ import java.awt.event.*;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.VectorIconPainter;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -55,11 +56,12 @@ public class PomodoroWidget implements Widget {
             @Override public void paintIcon(Component c, Graphics g, int x, int y) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                java.awt.image.BufferedImage img = VectorIconPainter.getImage(id, s);
+                String res = ImageIconRenderer.mapIdToResource(id);
+                java.awt.image.BufferedImage img = ImageIconRenderer.get(res, s, true);
                 if (img != null) {
                     g2.drawImage(img, x, y, null);
                 } else {
-                    // Fallback to vector draw if unknown id
+                    // Fallback to vector draw if image not found
                     VectorIconPainter.paint(g2, id, x, y, s);
                 }
                 g2.dispose();
@@ -149,8 +151,8 @@ public class PomodoroWidget implements Widget {
         phaseLabel = new JLabel("Focus", SwingConstants.CENTER);
         phaseLabel.setForeground(AeroTheme.TEXT_PRIMARY);
         phaseLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-        // Exact same icons as Sticky: delete (close) and settings
-        JButton closeBtn = makeHeaderIconButton("delete", "Close Pomodoro");
+        // Use app icon assets for close and settings
+        JButton closeBtn = makeHeaderIconButton("close", "Close Pomodoro");
         closeBtn.addActionListener(e -> stop());
         JButton settingsBtn = makeHeaderIconButton("settings", "Pomodoro Settings");
         settingsBtn.addActionListener(e -> showSettingsDialog());
