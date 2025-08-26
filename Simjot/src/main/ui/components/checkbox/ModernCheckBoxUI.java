@@ -63,11 +63,8 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // Clear background to avoid artifacts when component/background is translucent
-        Color bg = (c.getParent() != null ? c.getParent().getBackground() : c.getBackground());
-        g2.setComposite(AlphaComposite.SrcOver);
-        g2.setColor(bg);
-        g2.fillRect(0, 0, c.getWidth(), c.getHeight());
+        // Do not paint a solid background; keep transparent so parent can show through
+        // This avoids a lighter rectangle on white-themed panels with gradients
 
         int boxSize = 16;
         int x = iconRect.x + (iconRect.width - boxSize) / 2;

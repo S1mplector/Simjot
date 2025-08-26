@@ -1,6 +1,7 @@
 package main.ui.features.poetry;
 
 import main.core.poetry.PoetryUtils;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 
 import javax.swing.*;
 import java.awt.*;
@@ -117,6 +118,19 @@ public class StatsSidebarPanel extends JPanel {
 
         JScrollPane sp = new JScrollPane(list){
             { setBorder(BorderFactory.createEmptyBorder()); setOpaque(false); getViewport().setOpaque(false);} };
+        // Apply modern scrollbar UI
+        JScrollBar vbar = sp.getVerticalScrollBar();
+        if (vbar != null) {
+            vbar.setUI(new ModernScrollBarUI());
+            vbar.setUnitIncrement(16);
+            vbar.setPreferredSize(new Dimension(12, Integer.MAX_VALUE));
+        }
+        JScrollBar hbar = sp.getHorizontalScrollBar();
+        if (hbar != null) {
+            hbar.setUI(new ModernScrollBarUI());
+            hbar.setUnitIncrement(16);
+            hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 12));
+        }
 
         // Footer summary
         JPanel footer = new JPanel(new BorderLayout());

@@ -15,11 +15,11 @@ public class QuickSettingsPresets {
     public static List<QuickSettingsCategory> defaultCategories(QuickSettingsController.HostApi host) {
         List<QuickSettingsCategory> list = new ArrayList<>();
 
-        // Four categories per user request
-        list.add(new QuickSettingsCategory("Appearance", new GlyphIcon("🎨", 18, Color.WHITE), () -> buildAppearancePanel()));
-        list.add(new QuickSettingsCategory("Writing & Editor", new GlyphIcon("✍", 18, Color.WHITE), () -> buildEditorPanel()));
-        list.add(new QuickSettingsCategory("Widgets", new GlyphIcon("🧩", 18, Color.WHITE), () -> buildWidgetsPanel(host)));
-        list.add(new QuickSettingsCategory("Backup & Data", new GlyphIcon("💾", 18, Color.WHITE), () -> buildBackupPanel()));
+        // Four categories per user request (use app-specific vector icons)
+        list.add(new QuickSettingsCategory("Appearance", QuickSettingsIcons.appearance(18), () -> buildAppearancePanel()));
+        list.add(new QuickSettingsCategory("Writing & Editor", QuickSettingsIcons.editor(18), () -> buildEditorPanel()));
+        list.add(new QuickSettingsCategory("Widgets", QuickSettingsIcons.widgets(18), () -> buildWidgetsPanel(host)));
+        list.add(new QuickSettingsCategory("Backup & Data", QuickSettingsIcons.backup(18), () -> buildBackupPanel()));
 
         return list;
     }

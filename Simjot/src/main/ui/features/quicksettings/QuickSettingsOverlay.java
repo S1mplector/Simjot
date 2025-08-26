@@ -31,7 +31,7 @@ public class QuickSettingsOverlay extends JComponent {
 
     // Visual layout
     private final int radius = 84; // increased orbit radius for more spacing
-    private final int spawnIntervalMs = 220; // ms between orb spawns
+    private final int spawnIntervalMs = 180; // ms between orb spawns (slightly faster)
     private final int orbDiameter = 34; // larger orbs
 
     // Menu panel for the currently selected category
@@ -51,7 +51,10 @@ public class QuickSettingsOverlay extends JComponent {
 
     // Backdrop animation (rounded translucent background behind orbs+menu)
     private float backdropAlpha = 0f;         // 0..1
-    private final float backdropFadeSpeed = 8f; // per second
+    private final float backdropFadeSpeed = 6f; // per second, smoother
+
+    // Hover state
+    private int hoverIndex = -1;
 
     public QuickSettingsOverlay(List<QuickSettingsCategory> categories, Point spawnPoint, Runnable onClose) {
         this.categories = categories;
@@ -82,9 +85,28 @@ public class QuickSettingsOverlay extends JComponent {
             }
         });
 
+        addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int idx = orbAt(e.getPoint());
+                if (idx != hoverIndex) {
+                    hoverIndex = idx;
+                    repaint();
+                }
+            }
+        });
+
         // ESC closes
         registerKeyboardAction(e -> close(),
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+        // Left/Right to switch category
+        registerKeyboardAction(e -> switchCategory(-1),
+                KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW);
+        registerKeyboardAction(e -> switchCategory(1),
+                KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
 
         timer = new Timer(16, e -> onTick());
@@ -165,10 +187,10 @@ public class QuickSettingsOverlay extends JComponent {
         repaint();
         // Drive a quick fade-in using the main timer
         new Thread(() -> {
-            // simple fade-in over ~180ms
+            // simple fade-in over ~225ms
             try {
-                for (int i = 0; i <= 12; i++) {
-                    final float a = Math.min(1f, i / 12f);
+                for (int i = 0; i <= 15; i++) {
+                    final float a = Math.min(1f, i / 15f);
                     SwingUtilities.invokeLater(() -> { if (menuPanel != null) menuPanel.setAlpha(a); });
                     Thread.sleep(15);
                 }
@@ -184,6 +206,10 @@ public class QuickSettingsOverlay extends JComponent {
         Dimension pref = menuPanel.getPreferredSize();
         int x = orbitRightX + 28; // slightly more spacing from the rightmost orb
         int y = Math.max(8, spawnPoint.y - pref.height / 2);
+        // Flip to left side if not enough room on the right
+        if (x + pref.width + 8 > getWidth()) {
+            x = center.x - radius - 28 - pref.width;
+        }
         // Clamp to keep on-screen
         int maxX = getWidth() - pref.width - 8;
         int maxY = getHeight() - pref.height - 8;
@@ -205,6 +231,14 @@ public class QuickSettingsOverlay extends JComponent {
     private void selectCategory(int idx) {
         if (idx == selectedIndex && menuShown) return;
         showMenuFor(idx);
+    }
+
+    private void switchCategory(int delta) {
+        if (categories == null || categories.isEmpty()) return;
+        int n = categories.size();
+        int next = (selectedIndex + delta) % n;
+        if (next < 0) next += n;
+        selectCategory(next);
     }
 
     private void close() {
@@ -234,9 +268,14 @@ public class QuickSettingsOverlay extends JComponent {
         // Translucent rounded background behind orbs + menu
         Rectangle clusterBounds = computeClusterBounds();
         if (clusterBounds != null && backdropAlpha > 0f) {
-            int arc = 18;
-            g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(0.85f, 0.35f * backdropAlpha)));
-            g2.setColor(new Color(30, 30, 30, 200));
+            int arc = 20;
+            // Soft outer shadow
+            g2.setComposite(AlphaComposite.SrcOver.derive(0.20f * backdropAlpha));
+            g2.setColor(new Color(0, 0, 0, 180));
+            g2.fillRoundRect(clusterBounds.x - 3, clusterBounds.y - 3, clusterBounds.width + 6, clusterBounds.height + 6, arc + 6, arc + 6);
+            // Main glass background
+            g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(0.85f, 0.32f * backdropAlpha)));
+            g2.setColor(new Color(22, 22, 26, 220));
             g2.fillRoundRect(clusterBounds.x, clusterBounds.y, clusterBounds.width, clusterBounds.height, arc, arc);
             g2.setComposite(AlphaComposite.SrcOver);
         }
@@ -343,59 +382,65 @@ public class QuickSettingsOverlay extends JComponent {
         void paint(Graphics2D g2, boolean selected) {
             Point p = useExternal && externalPos != null ? externalPos : position();
             int d = orbDiameter;
-            int x = p.x - d / 2;
-            int y = p.y - d / 2;
+            boolean hovered = (hoverIndex == categoryIndex);
+            float scale = hovered ? 1.08f : (selected ? 1.04f : 1.0f);
+            int sd = Math.round(d * scale);
+            int sx = p.x - sd / 2;
+            int sy = p.y - sd / 2;
 
             Composite old = g2.getComposite();
             g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
 
-            // Soft glow
-            g2.setPaint(new RadialGradientPaint(new Point(p.x, p.y), d,
-                    new float[]{0f, 1f}, new Color[]{new Color(60, 150, 255, 200), new Color(60, 150, 255, 0)}));
-            g2.fillOval(x - d / 2, y - d / 2, d * 2, d * 2);
+            // Soft glow (reduced)
+            int glowR = Math.round(sd * 1.3f);
+            g2.setPaint(new RadialGradientPaint(new Point(p.x, p.y), glowR,
+                    new float[]{0f, 1f}, new Color[]{
+                            new Color(80, 170, 255, selected ? 200 : (hovered ? 170 : 140)),
+                            new Color(60, 150, 255, 0)}));
+            g2.fillOval(p.x - glowR, p.y - glowR, glowR * 2, glowR * 2);
 
             // Orb body (Aero blue)
             Color c1 = selected ? new Color(20, 140, 255) : new Color(80, 160, 255);
             Color c2 = selected ? new Color(10, 110, 220) : new Color(50, 120, 220);
-            Paint body = new GradientPaint(x, y, c1, x, y + d, c2);
+            Paint body = new GradientPaint(sx, sy, c1, sx, sy + sd, c2);
             g2.setPaint(body);
-            g2.fillOval(x, y, d, d);
+            g2.fillOval(sx, sy, sd, sd);
 
             // Gloss and border
-            g2.setPaint(new GradientPaint(x, y, new Color(255,255,255,180), x, y + d/2f, new Color(255,255,255,0)));
-            g2.fillOval(x + 3, y + 3, d - 6, d - 10);
+            g2.setPaint(new GradientPaint(sx, sy, new Color(255,255,255,180), sx, sy + sd/2f, new Color(255,255,255,0)));
+            g2.fillOval(sx + 3, sy + 3, sd - 6, sd - Math.max(10, Math.round(sd * 0.28f)));
             g2.setColor(new Color(0, 70, 160, 200));
-            g2.setStroke(new BasicStroke(selected ? 2f : 1f));
-            g2.drawOval(x, y, d, d);
+            g2.setStroke(new BasicStroke(selected ? 3f : (hovered ? 2f : 1f)));
+            g2.drawOval(sx, sy, sd, sd);
 
             // Icon or letter
             javax.swing.Icon icon = categories.get(categoryIndex).getIcon();
             if (icon != null) {
                 // Try to scale ImageIcon, otherwise center as-is
                 int pad = 8;
-                int avail = d - pad * 2;
+                int avail = sd - pad * 2;
                 if (icon instanceof ImageIcon) {
                     Image img = ((ImageIcon) icon).getImage().getScaledInstance(avail, avail, Image.SCALE_SMOOTH);
                     ImageIcon scaled = new ImageIcon(img);
-                    int ix = x + (d - scaled.getIconWidth()) / 2;
-                    int iy = y + (d - scaled.getIconHeight()) / 2;
+                    int ix = sx + (sd - scaled.getIconWidth()) / 2;
+                    int iy = sy + (sd - scaled.getIconHeight()) / 2;
                     scaled.paintIcon(null, g2, ix, iy);
                 } else {
-                    int ix = x + (d - icon.getIconWidth()) / 2;
-                    int iy = y + (d - icon.getIconHeight()) / 2;
+                    int ix = sx + (sd - icon.getIconWidth()) / 2;
+                    int iy = sy + (sd - icon.getIconHeight()) / 2;
                     icon.paintIcon(null, g2, ix, iy);
                 }
             } else {
                 // Fallback: first letter
                 String letter = categories.get(categoryIndex).getName().substring(0, 1).toUpperCase();
                 Font oldF = g2.getFont();
-                Font f = oldF.deriveFont(Font.BOLD, d * 0.5f);
+                Font f = oldF.deriveFont(Font.BOLD, sd * 0.5f);
                 g2.setFont(f);
                 FontMetrics fm = g2.getFontMetrics();
                 int tw = fm.stringWidth(letter);
                 int th = fm.getAscent();
                 g2.setColor(new Color(255,255,255,230));
-                g2.drawString(letter, x + (d - tw) / 2, y + (d + th) / 2 - 4);
+                g2.drawString(letter, sx + (sd - tw) / 2, sy + (sd + th) / 2 - 4);
                 g2.setFont(oldF);
             }
 
@@ -406,7 +451,7 @@ public class QuickSettingsOverlay extends JComponent {
     private static FadePanel wrapPanel(JComponent inner) {
         FadePanel p = new FadePanel(new BorderLayout());
         p.setOpaque(false);
-        p.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+        p.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
         p.add(inner, BorderLayout.CENTER);
         return p;
     }
@@ -458,6 +503,7 @@ public class QuickSettingsOverlay extends JComponent {
 
             int w = getWidth();
             int h = getHeight();
+            // White-themed card (restored)
             Paint bg = new LinearGradientPaint(0, 0, 0, h,
                     new float[]{0f, 0.6f, 1f},
                     new Color[]{new Color(252,252,252,235), new Color(236,236,236,235), new Color(222,222,222,235)});

@@ -143,19 +143,78 @@ public class NotebookManagerPanel extends JPanel {
         }
         private boolean hover=false;
         private boolean selected=false;
-        void setSelected(boolean s){ this.selected=s; repaint(); }
+        private float selProgress = 0f; // 0..1 animation for selection
+        private javax.swing.Timer selTimer;
+        void setSelected(boolean s){
+            if(this.selected == s) return;
+            this.selected = s;
+            // animate towards target (1 for selected, 0 for not)
+            if(selTimer!=null && selTimer.isRunning()) selTimer.stop();
+            final float target = s ? 1f : 0f;
+            selTimer = new javax.swing.Timer(16, null);
+            selTimer.addActionListener(e->{
+                // simple easing towards target
+                selProgress += (target - selProgress) * 0.25f;
+                if(Math.abs(target - selProgress) < 0.02f){ selProgress = target; selTimer.stop(); }
+                repaint();
+            });
+            selTimer.start();
+            repaint();
+        }
         @Override protected void paintComponent(Graphics g){
             super.paintComponent(g);
-            if(hover || selected){
-                Graphics2D g2=(Graphics2D)g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(255,255,255,80));
-                g2.fillRoundRect(0,0,getWidth()-1,getHeight()-1,16,16);
-                g2.setColor(new Color(0,0,0,60));
-                g2.setStroke(new BasicStroke(2f));
-                g2.drawRoundRect(1,1,getWidth()-3,getHeight()-3,16,16);
-                g2.dispose();
+            Graphics2D g2=(Graphics2D)g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+            int arc = 16;
+
+            // Subtle hover background
+            if(hover && selProgress < 0.5f){
+                g2.setColor(new Color(255,255,255,90));
+                g2.fillRoundRect(0,0,w-1,h-1,arc,arc);
+                g2.setColor(new Color(0,0,0,40));
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawRoundRect(1,1,w-3,h-3,arc,arc);
             }
+
+            // Selection glow and ring
+            if(selProgress > 0f){
+                // Outer glow
+                int glowAlpha = Math.min(140, (int)(160 * selProgress));
+                Color glow = new Color(52,120,246, glowAlpha); // bluish glow
+                g2.setColor(glow);
+                g2.setStroke(new BasicStroke(6f));
+                g2.drawRoundRect(3,3,w-7,h-7,arc+6,arc+6);
+
+                // Main accent ring
+                g2.setColor(new Color(52,120,246, 180));
+                g2.setStroke(new BasicStroke(2.5f));
+                g2.drawRoundRect(2,2,w-5,h-5,arc,arc);
+
+                // Soft inner highlight
+                g2.setColor(new Color(255,255,255,70));
+                g2.drawRoundRect(1,1,w-3,h-3,arc,arc);
+
+                // Checkmark badge at top-right
+                int badgeR = 18;
+                int bx = w - badgeR - 6;
+                int by = 6;
+                int badgeAlpha = Math.min(200, (int)(255 * selProgress));
+                g2.setColor(new Color(52,120,246, badgeAlpha));
+                g2.fillOval(bx, by, badgeR, badgeR);
+                g2.setColor(new Color(255,255,255, 230));
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                // simple tick
+                int tx1 = bx + 5, ty1 = by + 10;
+                int tx2 = bx + 8, ty2 = by + 13;
+                int tx3 = bx + 13, ty3 = by + 6;
+                g2.drawLine(tx1, ty1, tx2, ty2);
+                g2.drawLine(tx2, ty2, tx3, ty3);
+            }
+
+            g2.dispose();
         }
         @Override public void mouseEntered(MouseEvent e){ hover=true; repaint(); }
         @Override public void mouseExited(MouseEvent e){ hover=false; repaint(); }
