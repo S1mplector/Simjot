@@ -23,6 +23,8 @@ import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.infrastructure.backup.NotebookInfo;
+import main.ui.features.poetry.StatsSidebarPanel;
+import main.ui.features.poetry.RhymesDockPanel;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -51,12 +53,31 @@ public class PoemPanel extends AbstractEditorPanel {
     private JLabel statusLabel;
     // Minimal header shown in distraction-free mode (contains only a back button)
     private JPanel dfHeader;
+    // Optional poetry helpers
+    private StatsSidebarPanel statsPanel;
+    private RhymesDockPanel rhymesDock;
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
+    }
+
+    // Helper: determine word at current caret position
+    private String getWordAtCaret() {
+        try {
+            int pos = poemEditor.getCaretPosition();
+            String text = poemEditor.getText();
+            if (text == null || text.isEmpty()) return null;
+            if (pos < 0) pos = 0; if (pos > text.length()) pos = text.length();
+            int start = pos;
+            while (start > 0 && Character.isLetter(text.charAt(start-1))) start--;
+            int end = pos;
+            while (end < text.length() && Character.isLetter(text.charAt(end))) end++;
+            if (end > start) return text.substring(start, end);
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     // Unified constructor: if poemFileToEdit is non-null, load it and save updates to same file
@@ -103,6 +124,31 @@ public class PoemPanel extends AbstractEditorPanel {
         // Right-side controls
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
+        // Toggles for poetry helpers
+        ToolbarIconButton statsToggle = new ToolbarIconButton("list");
+        statsToggle.setToolTipText("Toggle Stats Sidebar");
+        statsToggle.addActionListener(e -> {
+            if (statsPanel != null) {
+                boolean vis = !statsPanel.isVisible();
+                statsPanel.setVisible(vis);
+                statsToggle.setSelected(vis);
+                revalidate(); repaint();
+            }
+        });
+        ToolbarIconButton rhymesToggle = new ToolbarIconButton("rhyme");
+        rhymesToggle.setToolTipText("Toggle Rhymes & Thesaurus Dock");
+        rhymesToggle.addActionListener(e -> {
+            if (rhymesDock != null) {
+                boolean vis = !rhymesDock.isVisible();
+                rhymesDock.setVisible(vis);
+                rhymesToggle.setSelected(vis);
+                if (vis) {
+                    String w = getWordAtCaret();
+                    rhymesDock.update(w, poemEditor.getText());
+                }
+                revalidate(); repaint();
+            }
+        });
         ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
@@ -118,6 +164,8 @@ public class PoemPanel extends AbstractEditorPanel {
         ToolbarIconButton exportBtn = new ToolbarIconButton("export");
         exportBtn.setToolTipText("Export to Markdown");
         exportBtn.addActionListener(e -> exportAsMarkdown());
+        rightToolbar.add(statsToggle);
+        rightToolbar.add(rhymesToggle);
         rightToolbar.add(exportBtn);
         rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
@@ -256,7 +304,15 @@ public class PoemPanel extends AbstractEditorPanel {
         centerContainer.setOpaque(false);
         centerContainer.add(Box.createRigidArea(new Dimension(0, 15)), BorderLayout.NORTH);
         centerContainer.add(textWrapper, BorderLayout.CENTER);
+        // Initialize optional side panels (hidden by default)
+        statsPanel = new StatsSidebarPanel();
+        statsPanel.setVisible(false);
+        rhymesDock = new RhymesDockPanel();
+        rhymesDock.setVisible(false);
+
+        add(statsPanel, BorderLayout.WEST);
         add(centerContainer, BorderLayout.CENTER);
+        add(rhymesDock, BorderLayout.EAST);
 
         // --- Bottom Panel: "Save Poem" button and Stanza Counter ---
         bottomPanel = new JPanel(new BorderLayout());
@@ -270,9 +326,34 @@ public class PoemPanel extends AbstractEditorPanel {
         
         // Listener to update the stanza count
         poemEditor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                updateStanzaCount(stanzaLabel);
+                if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
+                if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
+                if (autosaveManager != null) autosaveManager.markDirty();
+            }
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                updateStanzaCount(stanzaLabel);
+                if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
+                if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
+                if (autosaveManager != null) autosaveManager.markDirty();
+            }
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                updateStanzaCount(stanzaLabel);
+                if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
+                if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
+                if (autosaveManager != null) autosaveManager.markDirty();
+            }
+        });
+        // Caret listener to update rhyme/synonyms for current word
+        poemEditor.addCaretListener(e -> {
+            if (rhymesDock != null && rhymesDock.isVisible()) {
+                String w = getWordAtCaret();
+                rhymesDock.update(w, poemEditor.getText());
+            }
         });
         // Autosave on title change as well
         poemTitleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -351,6 +432,7 @@ public class PoemPanel extends AbstractEditorPanel {
         if (statusLabel != null) {
             statusLabel.setText(String.format("Words: %d • Chars: %d • Stanzas: %d • ~%d min read", words, chars, stanzas, minutes));
         }
+        if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(text);
     }
 
     private void showInspirationalWord() {

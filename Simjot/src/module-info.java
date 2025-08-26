@@ -17,11 +17,16 @@ module Simjot {
 	exports main.core.sim.data;
 	exports main.core.sim.persona;
 	exports main.core.sim.llm.api;
+	exports main.core.sim.llm.openai;
+	exports main.core.sim.llm.ollama;
+	exports main.core.sim.llm.prompt;
 
 	// Infrastructure
 	exports main.infrastructure.monitoring;
 	exports main.infrastructure.backup;
 	exports main.infrastructure.io;
+	// Core poetry utilities
+	exports main.core.poetry;
 
 	// Dialog
 	exports main.ui.dialog.config;
@@ -47,4 +52,6 @@ module Simjot {
 	exports main.ui.features.gallery;
 	exports main.ui.features.quicksettings;
 	exports main.ui.features.home;
+	// Poetry workspace UI components
+	exports main.ui.features.poetry;
 }
