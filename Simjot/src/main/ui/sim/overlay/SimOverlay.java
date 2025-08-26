@@ -12,7 +12,9 @@ import main.ui.theme.aero.AeroPainters;
  * Minimal overlay for Sim. Added to the JFrame layered pane.
  */
 public class SimOverlay extends JComponent implements SimEventBus.Listener {
-    private String message = "Hi, I’m Sim.";
+    private static final String DEFAULT_GREETING = "Hi, I’m Sim.";
+    private String message = DEFAULT_GREETING;
+    private boolean greetedOnce = false; // suppress repeating default greeting
     private Point dragAnchor = null;
 
     // Animation state
@@ -205,8 +207,24 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         try { animTimer.start(); } catch (Throwable ignored) {}
     }
 
+    // One-shot suppression for Sim's default greeting after heart-invocation
+    private boolean suppressDefaultGreetingOnce = false;
+    private long lastHeartInvokeMs = 0L;
+
     public void showMessage(String msg) {
-        this.message = msg == null ? "" : msg;
+        String m = msg == null ? "" : msg;
+        // Normalize apostrophes for comparison (straight/curly)
+        String norm = m.replace('\'', '’');
+        // If default greeting already shown once, suppress repeats
+        if (DEFAULT_GREETING.equals(norm)) {
+            if (greetedOnce) {
+                return; // no-op to avoid repetitive greeting on toggles
+            } else {
+                greetedOnce = true;
+            }
+        }
+
+        this.message = m;
         // Start entrance animation each time Sim speaks
         animatingIn = true;
         entranceAlpha = 0f;
@@ -221,6 +239,17 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     public void onSpeak(String message) {
         if (chatMode || userInvokedActive) {
             final String t = message == null ? "" : message;
+            // If we're suppressing the first assistant turn after invocation, or the content
+            // matches the default greeting shortly after invoke, drop tokens.
+            long now = System.currentTimeMillis();
+            String norm = t.replace('\'', '’').trim();
+            boolean isDefaultGreeting = !norm.isEmpty() && (norm.equals(DEFAULT_GREETING) || norm.startsWith(DEFAULT_GREETING));
+            boolean recentInvoke = (now - lastHeartInvokeMs) < 5000L; // 5s window
+            if (suppressDefaultGreetingOnce || (isDefaultGreeting && recentInvoke)) {
+                greetedOnce = true;
+                suppressDefaultGreetingOnce = false; // ensure subsequent assistant turns are not suppressed
+                return;
+            }
             SwingUtilities.invokeLater(() -> {
                 try { System.out.println("[SimOverlay] chat onSpeak append len=" + t.length()); } catch (Throwable ignored) {}
                 // Route to transcript model (scrollable chat)
@@ -235,6 +264,11 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     @Override
     public void onSpeakStart() {
         if (chatMode || userInvokedActive) {
+            if (suppressDefaultGreetingOnce) {
+                // Do not create a streaming turn for the greeting we will suppress
+                typingInProgress = false;
+                return;
+            }
             SwingUtilities.invokeLater(() -> {
                 // Start a streaming assistant turn in the transcript
                 transcript.beginAssistantTurn();
@@ -250,6 +284,12 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     @Override
     public void onSpeakEnd() {
+        if (suppressDefaultGreetingOnce) {
+            // Consume and clear suppression without emitting a turn
+            suppressDefaultGreetingOnce = false;
+            typingInProgress = false;
+            return;
+        }
         typingInProgress = false;
         // Close current assistant turn in transcript if any
         try { transcript.endAssistantTurn(); } catch (Throwable ignored) {}
@@ -426,6 +466,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             // Thin dark edge for definition
             g2.setColor(new Color(60, 60, 65, 160));
             g2.drawOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
+            // Subtle inner ring tinted by emotion color
+            Color ec = getEmotionColor(i);
+            if (ec != null) {
+                Color ring = new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int)(120 * p));
+                g2.setColor(ring);
+                int inset = 3;
+                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawOval(ox - ORB_RADIUS + inset, oy - ORB_RADIUS + inset, d - inset*2, d - inset*2);
+            }
             // Vector symbol centered with alpha
             Composite old = g2.getComposite();
             g2.setComposite(AlphaComposite.SrcOver.derive((float)p));
@@ -597,6 +646,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         if (!isVisible()) setVisible(true);
         // Enter chat mode BEFORE first repaint to avoid flashing old panel
         try { startChatMode(); } catch (Throwable ignored) {}
+        // Suppress the default greeting this invocation to avoid repetition
+        suppressDefaultGreetingOnce = true;
+        lastHeartInvokeMs = System.currentTimeMillis();
         userInvokedActive = true;
         repaint();
         // Emit an event to upstream controller to tag invocation source.
@@ -652,82 +704,124 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         return path;
     }
 
-    // Draw abstract vector symbols for emotions (index-based)
-    // 0: joy (sunburst), 1: neutral (square), 2: low mood (droplet),
-    // 3: anger (bolt), 4: calm (wave)
+    // Emotion palette mapping for orb accents and symbol tints
+    private Color getEmotionColor(int idx) {
+        switch (idx % ORB_COUNT) {
+            case 0: return new Color(255, 191, 0);      // joy – amber
+            case 1: return new Color(128, 128, 128);    // neutral – gray
+            case 2: return new Color(64, 146, 235);     // low – blue
+            case 3: return new Color(235, 87, 87);      // anger – red
+            default: return new Color(42, 201, 164);    // calm – teal
+        }
+    }
+
+    // Draw symbolic vector for each emotion, with improved shapes/fills
+    // 0: joy (sunburst), 1: neutral (bar), 2: low (droplet), 3: anger (flame), 4: calm (wave)
     private void drawEmotionSymbol(Graphics2D g2, int cx, int cy, int r, int idx) {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         Stroke oldStroke = g2.getStroke();
-        g2.setColor(new Color(0, 0, 0, 180));
-        g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        Color base = getEmotionColor(idx);
         switch (idx % ORB_COUNT) {
-            case 0: { // joy: sunburst
-                int inner = Math.max(2, r/4);
-                // center dot
-                g2.fill(new Ellipse2D.Double(cx - inner/2.0, cy - inner/2.0, inner, inner));
-                // rays
-                int rays = 8;
+            case 0: { // joy – sunburst with gradient core and crisp rays
+                int core = Math.max(3, (int)Math.round(r * 0.55));
+                Paint old = g2.getPaint();
+                RadialGradientPaint gp = new RadialGradientPaint(
+                        new Point2D.Float(cx, cy), core,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(255, 230, 120, 240), new Color(255, 190, 0, 220)}
+                );
+                g2.setPaint(gp);
+                g2.fill(new Ellipse2D.Double(cx - core/2.0, cy - core/2.0, core, core));
+                g2.setPaint(old);
+                g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 220));
+                g2.setStroke(new BasicStroke(Math.max(1.6f, r/6f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int rays = 10;
                 for (int i = 0; i < rays; i++) {
                     double a = (Math.PI * 2 * i) / rays;
-                    int x1 = (int)Math.round(cx + (r*0.3) * Math.cos(a));
-                    int y1 = (int)Math.round(cy + (r*0.3) * Math.sin(a));
-                    int x2 = (int)Math.round(cx + (r*0.9) * Math.cos(a));
-                    int y2 = (int)Math.round(cy + (r*0.9) * Math.sin(a));
+                    int x1 = (int)Math.round(cx + (r*0.35) * Math.cos(a));
+                    int y1 = (int)Math.round(cy + (r*0.35) * Math.sin(a));
+                    int x2 = (int)Math.round(cx + (r*0.95) * Math.cos(a));
+                    int y2 = (int)Math.round(cy + (r*0.95) * Math.sin(a));
                     g2.drawLine(x1, y1, x2, y2);
                 }
                 break;
             }
-            case 1: { // neutral: square
-                int s = Math.max(3, r/2);
-                g2.drawRect(cx - s/2, cy - s/2, s, s);
+            case 1: { // neutral – balanced bar with soft ends
+                g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 200));
+                g2.setStroke(new BasicStroke(Math.max(2.0f, r/3.5f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int w = Math.max(6, (int)Math.round(r * 1.1));
+                g2.drawLine(cx - w/2, cy, cx + w/2, cy);
                 break;
             }
-            case 2: { // low mood: droplet
+            case 2: { // low – filled droplet with highlight
                 Path2D drop = new Path2D.Double();
-                drop.moveTo(cx, cy - r/2.0);
-                drop.curveTo(cx + r/3.0, cy - r/6.0, cx + r/3.0, cy + r/3.0, cx, cy + r/2.0);
-                drop.curveTo(cx - r/3.0, cy + r/3.0, cx - r/3.0, cy - r/6.0, cx, cy - r/2.0);
+                double top = cy - r*0.7;
+                double bot = cy + r*0.7;
+                drop.moveTo(cx, top);
+                drop.curveTo(cx + r*0.45, cy - r*0.2, cx + r*0.45, cy + r*0.3, cx, bot);
+                drop.curveTo(cx - r*0.45, cy + r*0.3, cx - r*0.45, cy - r*0.2, cx, top);
+                Paint old = g2.getPaint();
+                RadialGradientPaint water = new RadialGradientPaint(
+                        new Point2D.Float(cx - r*0.15f, cy - r*0.1f), (float)(r*0.9),
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(170, 210, 255, 220), new Color(base.getRed(), base.getGreen(), base.getBlue(), 220)}
+                );
+                g2.setPaint(water);
+                g2.fill(drop);
+                g2.setPaint(old);
+                g2.setColor(new Color(0, 0, 0, 120));
+                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.draw(drop);
+                // small specular highlight
+                g2.setColor(new Color(255,255,255,160));
+                g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.draw(new Arc2D.Double(cx - r*0.35, cy - r*0.15, r*0.5, r*0.4, 200, 60, Arc2D.OPEN));
                 break;
             }
-            case 3: { // anger: fire (flame)
-                // Outer flame silhouette
+            case 3: { // anger – flame with inner glow
                 Path2D flame = new Path2D.Double();
-                double topY = cy - r * 0.55;
-                double bottomY = cy + r * 0.5;
-                double leftX = cx - r * 0.35;
-                double rightX = cx + r * 0.35;
+                double topY = cy - r * 0.65;
+                double bottomY = cy + r * 0.55;
+                double leftX = cx - r * 0.40;
+                double rightX = cx + r * 0.40;
                 flame.moveTo(cx, topY);
-                flame.curveTo(cx + r * 0.25, cy - r * 0.45,
-                               rightX, cy - r * 0.05,
-                               cx + r * 0.15, cy + r * 0.15);
-                flame.curveTo(cx + r * 0.05, cy + r * 0.35,
-                               cx + r * 0.05, bottomY,
-                               cx, bottomY);
-                flame.curveTo(cx - r * 0.05, bottomY,
-                               cx - r * 0.05, cy + r * 0.35,
-                               cx - r * 0.15, cy + r * 0.15);
-                flame.curveTo(leftX,  cy - r * 0.05,
-                               cx - r * 0.25, cy - r * 0.45,
-                               cx, topY);
-                // Fill then outline for clarity at small sizes
-                Paint oldPaint = g2.getPaint();
-                g2.setPaint(new Color(0, 0, 0, 160));
+                flame.curveTo(cx + r * 0.28, cy - r * 0.5, rightX, cy - r * 0.05, cx + r * 0.18, cy + r * 0.18);
+                flame.curveTo(cx + r * 0.06, cy + r * 0.38, cx + r * 0.06, bottomY, cx, bottomY);
+                flame.curveTo(cx - r * 0.06, bottomY, cx - r * 0.06, cy + r * 0.38, cx - r * 0.18, cy + r * 0.18);
+                flame.curveTo(leftX,  cy - r * 0.05, cx - r * 0.28, cy - r * 0.5, cx, topY);
+                Paint old = g2.getPaint();
+                RadialGradientPaint hot = new RadialGradientPaint(
+                        new Point2D.Float(cx, (float)(cy - r*0.1)), (float)(r*0.9),
+                        new float[]{0f, 0.6f, 1f},
+                        new Color[]{new Color(255, 200, 160, 230), new Color(245, 120, 90, 230), new Color(base.getRed(), base.getGreen(), base.getBlue(), 230)}
+                );
+                g2.setPaint(hot);
                 g2.fill(flame);
-                g2.setPaint(oldPaint);
+                g2.setPaint(old);
+                g2.setColor(new Color(120, 20, 20, 140));
+                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.draw(flame);
                 break;
             }
-            default: { // calm: wave
-                Path2D wave = new Path2D.Double();
-                double amplitude = r * 0.3;
-                double length = r * 1.4;
-                double startX = cx - length/2.0;
-                double step = length / 4.0;
-                wave.moveTo(startX, cy);
-                wave.curveTo(startX + step*0.5, cy - amplitude, startX + step*1.5, cy + amplitude, startX + step*2.0, cy);
-                wave.curveTo(startX + step*2.5, cy - amplitude, startX + step*3.5, cy + amplitude, startX + step*4.0, cy);
-                g2.draw(wave);
+            default: { // calm – double wave
+                g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 210));
+                g2.setStroke(new BasicStroke(Math.max(1.6f, r/6f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                Path2D wave1 = new Path2D.Double();
+                double amp = r * 0.28;
+                double len = r * 1.5;
+                double startX = cx - len/2.0;
+                double step = len / 4.0;
+                wave1.moveTo(startX, cy);
+                wave1.curveTo(startX + step*0.5, cy - amp, startX + step*1.5, cy + amp, startX + step*2.0, cy);
+                wave1.curveTo(startX + step*2.5, cy - amp, startX + step*3.5, cy + amp, startX + step*4.0, cy);
+                g2.draw(wave1);
+                g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 140));
+                Path2D wave2 = new Path2D.Double();
+                double offY = Math.max(1.0, r * 0.18);
+                wave2.moveTo(startX, cy + offY);
+                wave2.curveTo(startX + step*0.5, cy + offY - amp, startX + step*1.5, cy + offY + amp, startX + step*2.0, cy + offY);
+                wave2.curveTo(startX + step*2.5, cy + offY - amp, startX + step*3.5, cy + offY + amp, startX + step*4.0, cy + offY);
+                g2.draw(wave2);
                 break;
             }
         }
@@ -779,14 +873,23 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         ChatLine(Role r, String t){ this.role = r; this.text = t == null ? "" : t; }
     }
 
+    private boolean initialChatSeedDone = false;
     private void startChatMode() {
         chatMode = true;
         streamingAssistantIndex = -1;
-        // Seed with current assistant message if any
-        if (message != null && !message.isBlank()) {
-            chatHistory.add(new ChatLine(Role.ASSISTANT, message));
-            try { transcript.appendSystem(" "); } catch (Throwable ignored) {} // spacer to ensure repaint
-            try { transcript.beginAssistantTurn(); transcript.appendAssistantTokens(message); transcript.endAssistantTurn(); } catch (Throwable ignored) {}
+        // Seed with current assistant message only once per session, and do not
+        // re-seed the default greeting after it has already been shown once.
+        if (!initialChatSeedDone && message != null && !message.isBlank()) {
+            String norm = message.replace('\'', '’').trim();
+            boolean isDefault = norm.equals(DEFAULT_GREETING) || norm.startsWith(DEFAULT_GREETING);
+            if (!(isDefault && greetedOnce)) {
+                try {
+                    transcript.beginAssistantTurn();
+                    transcript.appendAssistantTokens(message);
+                } catch (Throwable ignored) {}
+                try { transcript.endAssistantTurn(); } catch (Throwable ignored) {}
+                initialChatSeedDone = true;
+            }
         }
         ensureInputField();
         revalidate(); repaint();

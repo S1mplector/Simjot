@@ -236,20 +236,26 @@ public class MainMenuPanel extends JPanel {
         content.add(Box.createRigidArea(new Dimension(0, 6)));
         content.add(timePanelTop);
 
-        // ---- Clock and Widgets side-by-side ----
+        // ---- Clock and Today Calendar side-by-side ----
         AnalogClockPanel clockPanel = new AnalogClockPanel();
         clockPanel.setPreferredSize(new Dimension(200, 200));
-        clockPanel.setMaximumSize(new Dimension(200, 200));
+        clockPanel.setMaximumSize(new Dimension(220, 220));
+
+        TodayCalendarPanel calendarPanel = new TodayCalendarPanel();
+        calendarPanel.setPreferredSize(new Dimension(150, 150));
+        calendarPanel.setMaximumSize(new Dimension(170, 170));
 
         JPanel clockRow = new JPanel();
         clockRow.setOpaque(false);
         clockRow.setLayout(new BoxLayout(clockRow, BoxLayout.X_AXIS));
         clockRow.add(Box.createHorizontalGlue());
         clockRow.add(clockPanel);
+        clockRow.add(Box.createRigidArea(new Dimension(18, 0))); // spacing between clock and calendar
+        clockRow.add(calendarPanel);
         clockRow.add(Box.createHorizontalGlue());
 
         clockRow.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(Box.createRigidArea(new Dimension(0, 5)));
+        content.add(Box.createRigidArea(new Dimension(0, 8)));
         content.add(clockRow);
 
         // Create the button panel with animated fade-in
