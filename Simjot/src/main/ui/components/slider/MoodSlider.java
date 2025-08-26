@@ -6,8 +6,8 @@ import javax.swing.plaf.basic.BasicSliderUI;
 
 /**
  * A horizontal slider that lets the user pick their mood on a 0-100 scale.
- * The track shows a cool→neutral→warm gradient and the thumb displays a
- * simple emoticon that changes expression according to the value.
+ * The track shows a cool→neutral→warm gradient and the thumb is a plain
+ * circular knob (no emoji rendering).
  */
 public class MoodSlider extends JSlider {
     public MoodSlider() {
@@ -96,26 +96,6 @@ public class MoodSlider extends JSlider {
             g2.fillOval(thumbRect.x, thumbRect.y, THUMB_SIZE, THUMB_SIZE);
             g2.setColor(new Color(130, 130, 130, 140));
             g2.drawOval(thumbRect.x, thumbRect.y, THUMB_SIZE - 1, THUMB_SIZE - 1);
-
-            // Draw simplistic face
-            int val = slider.getValue();
-            int cx = thumbRect.x + THUMB_SIZE / 2;
-            int cy = thumbRect.y + THUMB_SIZE / 2;
-            g2.setStroke(new BasicStroke(2f));
-            g2.setColor(Color.DARK_GRAY);
-
-            // Eyes
-            g2.fillOval(cx - 6, cy - 3, 3, 3);
-            g2.fillOval(cx + 3, cy - 3, 3, 3);
-
-            // Mouth expression based on value
-            if (val < 33) { // Sad
-                g2.drawArc(cx - 6, cy - 1, 12, 8, 20, 140);
-            } else if (val < 66) { // Neutral
-                g2.drawLine(cx - 6, cy + 3, cx + 6, cy + 3);
-            } else { // Happy
-                g2.drawArc(cx - 6, cy - 5, 12, 10, 200, 140);
-            }
             g2.dispose();
         }
 

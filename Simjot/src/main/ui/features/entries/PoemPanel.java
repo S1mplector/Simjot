@@ -6,15 +6,18 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Random;
 import javax.swing.*;
-import javax.swing.plaf.basic.BasicComboBoxUI;
-import javax.swing.plaf.basic.BasicComboPopup;
-import javax.swing.plaf.basic.ComboPopup;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.fields.ModernTextField;
+import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
@@ -26,7 +29,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Components for poem writing
     protected JTextField poemTitleField;
-    protected JTextArea poemTextArea;
+    protected JTextPane poemEditor;
 
     private final String[] INSPIRATIONAL_WORDS = {
         "Ethereal", "Ephemeral", "Sonder", "Solitude", "Cascade", "Labyrinthine",
@@ -40,6 +43,14 @@ public class PoemPanel extends AbstractEditorPanel {
     private volatile boolean isAutosaving = false;
     private AutosaveManager autosaveManager;
     // 'currentFile' is inherited from AbstractEditorPanel
+
+    // UI refs for toggling
+    private JPanel toolbarContainer;
+    private JPanel bottomPanel;
+    private boolean distractionFree = false;
+    private JLabel statusLabel;
+    // Minimal header shown in distraction-free mode (contains only a back button)
+    private JPanel dfHeader;
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -68,7 +79,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     private void initUI() {
         // --- Modern Toolbar Container ---
-        JPanel toolbarContainer = new JPanel(new BorderLayout(0, 5));
+        toolbarContainer = new JPanel(new BorderLayout(0, 5));
         // Solid background so the page wallpaper does not seep through the toolbar
         toolbarContainer.setOpaque(true);
         toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
@@ -89,7 +100,7 @@ public class PoemPanel extends AbstractEditorPanel {
         ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
         topToolbar.add(backButton);
         
-        // Right-side settings (cork icon) button
+        // Right-side controls
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
         ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
@@ -99,6 +110,16 @@ public class PoemPanel extends AbstractEditorPanel {
             dialog.setVisible(true);
             repaint();
         });
+        // Distraction-free toggle
+        ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
+        dfBtn.setToolTipText("Distraction-Free Mode");
+        dfBtn.addActionListener(e -> toggleDistractionFree());
+        // Export button (Markdown)
+        ToolbarIconButton exportBtn = new ToolbarIconButton("export");
+        exportBtn.setToolTipText("Export to Markdown");
+        exportBtn.addActionListener(e -> exportAsMarkdown());
+        rightToolbar.add(exportBtn);
+        rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
 
         // Title label & field
@@ -116,14 +137,17 @@ public class PoemPanel extends AbstractEditorPanel {
         }
         topToolbar.add(poemTitleField);
 
-        // Font buttons (A- / A+)
-        RoundedButton decFont = new RoundedButton("A-");
-        RoundedButton incFont = new RoundedButton("A+");
-        decFont.addActionListener(e -> changeFontSize(-1));
-        incFont.addActionListener(e -> changeFontSize(1));
+        // Formatting toolbar (Bold/Italic/Underline)
+        RoundedButton boldBtn = new RoundedButton("B");
+        boldBtn.addActionListener(e -> toggleStyle(StyleConstants.CharacterConstants.Bold));
+        RoundedButton italicBtn = new RoundedButton("I");
+        italicBtn.addActionListener(e -> toggleStyle(StyleConstants.CharacterConstants.Italic));
+        RoundedButton underlineBtn = new RoundedButton("U");
+        underlineBtn.addActionListener(e -> toggleStyle(StyleConstants.CharacterConstants.Underline));
         topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(decFont);
-        topToolbar.add(incFont);
+        topToolbar.add(boldBtn);
+        topToolbar.add(italicBtn);
+        topToolbar.add(underlineBtn);
 
         // Bottom toolbar row with font selector
         JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -134,17 +158,46 @@ public class PoemPanel extends AbstractEditorPanel {
         fontLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
         bottomToolbar.add(fontLabel);
 
-        String[] fonts = {"Serif", "Georgia", "Verdana", "Cursive"};
+        String[] fonts = {"Serif", "Georgia", "Verdana", "Garamond", "Baskerville", "Cursive"};
         JComboBox<String> fontSelector = new JComboBox<>(fonts);
-        fontSelector.setUI(new StyledComboBoxUI());
-        fontSelector.setBackground(new Color(230, 220, 250, 200));
+        fontSelector.setUI(new ModernComboBoxUI());
+        fontSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
         fontSelector.setSelectedItem("Serif"); // Default font
         fontSelector.addActionListener(e -> {
             String selectedFont = (String) fontSelector.getSelectedItem();
-            Font currentFont = poemTextArea.getFont();
-            poemTextArea.setFont(new Font(selectedFont, currentFont.getStyle(), currentFont.getSize()));
+            Font currentFont = poemEditor.getFont();
+            poemEditor.setFont(new Font(selectedFont, currentFont.getStyle(), currentFont.getSize()));
+            applyParagraphFontToAll();
         });
         bottomToolbar.add(fontSelector);
+
+        // Font size selector
+        bottomToolbar.add(new JLabel(" Size:"));
+        Integer[] sizes = {12, 14, 16, 18, 20, 22, 24, 28};
+        JComboBox<Integer> sizeSelector = new JComboBox<>(sizes);
+        sizeSelector.setUI(new ModernComboBoxUI());
+        sizeSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        sizeSelector.setSelectedItem(SettingsStore.get().getPoemFontSize());
+        sizeSelector.addActionListener(e -> {
+            Integer sz = (Integer) sizeSelector.getSelectedItem();
+            if (sz != null) {
+                poemEditor.setFont(poemEditor.getFont().deriveFont(sz.floatValue()));
+                applyParagraphFontToAll();
+                // persist preferred size
+                SettingsStore.get().setPoemFontSize(sz);
+                SettingsStore.get().save();
+            }
+        });
+        bottomToolbar.add(sizeSelector);
+
+        // Line spacing
+        bottomToolbar.add(new JLabel(" Spacing:"));
+        JComboBox<String> spacing = new JComboBox<>(new String[]{"1.0", "1.2", "1.5"});
+        spacing.setUI(new ModernComboBoxUI());
+        spacing.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        spacing.setSelectedIndex(0);
+        spacing.addActionListener(e -> applyLineSpacing((String) spacing.getSelectedItem()));
+        bottomToolbar.add(spacing);
 
         // Add both toolbar rows to the container
         toolbarContainer.add(topToolbar, BorderLayout.NORTH);
@@ -153,25 +206,45 @@ public class PoemPanel extends AbstractEditorPanel {
 
         add(toolbarContainer, BorderLayout.NORTH);
 
+        // Distraction-free header: only Back button, no other controls
+        dfHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        dfHeader.setOpaque(false);
+        dfHeader.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        // Use the same back icon, but only exit fullscreen (do not navigate away)
+        ToolbarIconButton dfBack = new ToolbarIconButton("back");
+        dfBack.setToolTipText("Exit Fullscreen");
+        dfBack.addActionListener(e -> toggleDistractionFree());
+        dfHeader.add(dfBack);
+
         // --- Center Panel: Poem Text Area with a cursive feel ---
-        JPanel textWrapper = new TranslucentPanel(); // Use the new panel
+        JPanel textWrapper = new TranslucentPanel() { // Paper-like card
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight();
+                g2.setPaint(new Color(255,255,250,230));
+                g2.fillRoundRect(6, 6, w-12, h-12, 16, 16);
+                g2.setColor(new Color(0,0,0,25));
+                g2.drawRoundRect(6, 6, w-12, h-12, 16, 16);
+                g2.dispose();
+            }
+        }; // Use the new panel
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        poemTextArea = new JTextArea();
-        poemTextArea.setLineWrap(true);
-        poemTextArea.setWrapStyleWord(true);
-        poemTextArea.setOpaque(false); // Make the text area fully transparent
-        poemTextArea.setForeground(new Color(40, 40, 40));
-        
+        poemEditor = new JTextPane();
+        poemEditor.setOpaque(false);
+        poemEditor.setForeground(new Color(40, 40, 40));
+
         // Load font size directly from settings to ensure persistence
         int savedFontSize = SettingsStore.get().getPoemFontSize();
-        poemTextArea.setFont(new Font("Serif", Font.ITALIC, savedFontSize));
+        poemEditor.setFont(new Font("Serif", Font.ITALIC, savedFontSize));
         /*
           NOTE: If you want a truly cursive font, pick one installed on your system, 
           e.g. new Font("Gabriola", Font.PLAIN, 18) or "Lucida Handwriting", etc.
         */
 
-        JScrollPane scrollPane = new JScrollPane(poemTextArea);
+        JScrollPane scrollPane = new JScrollPane(poemEditor);
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
@@ -186,7 +259,7 @@ public class PoemPanel extends AbstractEditorPanel {
         add(centerContainer, BorderLayout.CENTER);
 
         // --- Bottom Panel: "Save Poem" button and Stanza Counter ---
-        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.setOpaque(false);
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
 
@@ -196,7 +269,7 @@ public class PoemPanel extends AbstractEditorPanel {
         bottomPanel.add(stanzaLabel, BorderLayout.WEST);
         
         // Listener to update the stanza count
-        poemTextArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+        poemEditor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
             public void removeUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
             public void changedUpdate(javax.swing.event.DocumentEvent e) { updateStanzaCount(stanzaLabel); if (autosaveManager != null) autosaveManager.markDirty(); }
@@ -208,11 +281,14 @@ public class PoemPanel extends AbstractEditorPanel {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
         });
 
-        // Add the "Inspire Me" button to the center
+        // Status + Inspire
+        JPanel centerFlow = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        centerFlow.setOpaque(false);
+        statusLabel = new JLabel("Words: 0 • Chars: 0 • Stanzas: 0 • ~0 min read");
+        statusLabel.setForeground(Color.DARK_GRAY);
         RoundedButton inspireButton = new RoundedButton("✨ Inspire Me");
         inspireButton.addActionListener(e -> showInspirationalWord());
-        JPanel centerFlow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        centerFlow.setOpaque(false);
+        centerFlow.add(statusLabel);
         centerFlow.add(inspireButton);
         bottomPanel.add(centerFlow, BorderLayout.CENTER);
 
@@ -243,17 +319,38 @@ public class PoemPanel extends AbstractEditorPanel {
         } else {
             autosaveManager = null; // autosave disabled
         }
+
+        // Initial metrics
+        updateMetrics(stanzaLabel);
     }
 
     private void updateStanzaCount(JLabel label) {
-        String text = poemTextArea.getText();
+        String text = poemEditor.getText();
         if (text.trim().isEmpty()) {
             label.setText("Stanzas: 0");
+            updateStatus(text, 0);
             return;
         }
         // A stanza is a block of text separated by one or more newlines
         int stanzas = text.split("\\n\\s*\\n").length;
         label.setText("Stanzas: " + stanzas);
+        updateStatus(text, stanzas);
+    }
+
+    private void updateMetrics(JLabel stanzaLabel) {
+        String text = poemEditor.getText();
+        int stanzas = text.trim().isEmpty() ? 0 : text.split("\\n\\s*\\n").length;
+        stanzaLabel.setText("Stanzas: " + stanzas);
+        updateStatus(text, stanzas);
+    }
+
+    private void updateStatus(String text, int stanzas) {
+        int words = text.trim().isEmpty() ? 0 : text.trim().split("\\s+").length;
+        int chars = text.length();
+        int minutes = Math.max(0, (int)Math.ceil(words / 200.0));
+        if (statusLabel != null) {
+            statusLabel.setText(String.format("Words: %d • Chars: %d • Stanzas: %d • ~%d min read", words, chars, stanzas, minutes));
+        }
     }
 
     private void showInspirationalWord() {
@@ -268,7 +365,7 @@ public class PoemPanel extends AbstractEditorPanel {
     // "Save Poem" logic for a new poem
     protected void savePoem() {
         String title = poemTitleField.getText().trim();
-        String content = poemTextArea.getText();
+        String content = poemEditor.getText();
         if (title.isEmpty() && content.trim().isEmpty()) {
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or some content for your poem.", true).showDialog();
             return;
@@ -317,10 +414,90 @@ public class PoemPanel extends AbstractEditorPanel {
         }
     }
 
-    private void changeFontSize(int delta){
-        Font f = poemTextArea.getFont();
-        int newSize = Math.max(8, Math.min(72, f.getSize()+delta));
-        poemTextArea.setFont(f.deriveFont((float)newSize));
+    private void toggleStyle(Object styleAttr) {
+        StyledDocument doc = poemEditor.getStyledDocument();
+        int start = poemEditor.getSelectionStart();
+        int end = poemEditor.getSelectionEnd();
+        if (start == end) return; // nothing selected
+        MutableAttributeSet attrs = new SimpleAttributeSet();
+        boolean enable;
+        AttributeSet selectionAttrs = doc.getCharacterElement(start).getAttributes();
+        if (styleAttr == StyleConstants.CharacterConstants.Bold) {
+            enable = !StyleConstants.isBold(selectionAttrs);
+            StyleConstants.setBold(attrs, enable);
+        } else if (styleAttr == StyleConstants.CharacterConstants.Italic) {
+            enable = !StyleConstants.isItalic(selectionAttrs);
+            StyleConstants.setItalic(attrs, enable);
+        } else if (styleAttr == StyleConstants.CharacterConstants.Underline) {
+            enable = !StyleConstants.isUnderline(selectionAttrs);
+            StyleConstants.setUnderline(attrs, enable);
+        } else {
+            return;
+        }
+        doc.setCharacterAttributes(start, end - start, attrs, false);
+    }
+
+    private void applyParagraphFontToAll() {
+        StyledDocument doc = poemEditor.getStyledDocument();
+        MutableAttributeSet attrs = new SimpleAttributeSet();
+        StyleConstants.setFontFamily(attrs, poemEditor.getFont().getFamily());
+        StyleConstants.setFontSize(attrs, poemEditor.getFont().getSize());
+        doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+    }
+
+    private void applyLineSpacing(String val) {
+        float spacing = switch (val) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        StyledDocument doc = poemEditor.getStyledDocument();
+        MutableAttributeSet attrs = new SimpleAttributeSet();
+        StyleConstants.setLineSpacing(attrs, spacing);
+        doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+    }
+
+    private void toggleDistractionFree() {
+        distractionFree = !distractionFree;
+        // Swap toolbar with minimal df header in NORTH
+        if (distractionFree) {
+            // Entering distraction-free: remove main toolbar, add dfHeader
+            try { remove(toolbarContainer); } catch (Throwable ignored) {}
+            add(dfHeader, BorderLayout.NORTH);
+            if (bottomPanel != null) bottomPanel.setVisible(false);
+        } else {
+            // Exiting distraction-free: remove dfHeader, restore toolbar
+            try { remove(dfHeader); } catch (Throwable ignored) {}
+            add(toolbarContainer, BorderLayout.NORTH);
+            if (bottomPanel != null) bottomPanel.setVisible(true);
+        }
+        revalidate();
+        repaint();
+    }
+
+    private void exportAsMarkdown() {
+        String title = poemTitleField.getText().trim();
+        String content = poemEditor.getText();
+        if (title.isEmpty() && content.trim().isEmpty()) {
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Export", "Nothing to export.", true).showDialog();
+            return;
+        }
+        try {
+            File mdFile;
+            if (currentFile != null) {
+                String base = currentFile.getName().replaceFirst("\\.poem$", "");
+                mdFile = new File(journalFolder, base + ".md");
+            } else {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                String ts = sdf.format(new Date());
+                mdFile = new File(journalFolder, ts + ".md");
+            }
+            try (PrintWriter writer = new PrintWriter(new FileWriter(mdFile))) {
+                if (!title.isEmpty()) writer.println("# " + title);
+                writer.println();
+                writer.print(content);
+            }
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Export", "Exported to: " + mdFile.getName(), false).showDialog();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error exporting Markdown.", true).showDialog();
+        }
     }
 
     // Load an existing poem file into the editor fields
@@ -336,7 +513,7 @@ public class PoemPanel extends AbstractEditorPanel {
             while ((line = reader.readLine()) != null) {
                 content.append(line).append("\n");
             }
-            poemTextArea.setText(content.toString());
+            poemEditor.setText(content.toString());
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading poem.", true).showDialog();
@@ -355,7 +532,7 @@ public class PoemPanel extends AbstractEditorPanel {
     @Override
     protected void clearEditor() {
         poemTitleField.setText("");
-        poemTextArea.setText("");
+        poemEditor.setText("");
         if (saveIndicator != null) saveIndicator.clear();
     }
 
@@ -374,7 +551,7 @@ public class PoemPanel extends AbstractEditorPanel {
         if (poemTitleField.getText() == null || poemTitleField.getText().isEmpty()) {
             poemTitleField.requestFocusInWindow();
         } else {
-            poemTextArea.requestFocusInWindow();
+            poemEditor.requestFocusInWindow();
         }
     }
 }
@@ -430,32 +607,5 @@ class CustomInspirationDialog extends JDialog {
         });
         fadeOutTimer.setInitialDelay(1500); // Wait 1.5s before starting to fade
         fadeOutTimer.start();
-    }
-}
-
-// ModernTextField is now shared: main.ui.components.fields.ModernTextField
-
-class StyledComboBoxUI extends BasicComboBoxUI {
-    @Override
-    protected JButton createArrowButton() {
-        JButton button = new JButton("▼");
-        button.setBorder(BorderFactory.createEmptyBorder());
-        button.setOpaque(false);
-        button.setContentAreaFilled(false);
-        button.setForeground(new Color(80, 70, 100));
-        return button;
-    }
-
-    @Override
-    public void paintCurrentValueBackground(Graphics g, Rectangle bounds, boolean hasFocus) {
-        g.setColor(new Color(230, 220, 250, 150));
-        g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    }
-
-    @Override
-    protected ComboPopup createPopup() {
-        BasicComboPopup popup = (BasicComboPopup) super.createPopup();
-        popup.setBorder(BorderFactory.createLineBorder(new Color(200, 190, 220), 1));
-        return popup;
     }
 }

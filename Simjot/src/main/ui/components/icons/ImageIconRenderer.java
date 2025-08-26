@@ -118,6 +118,10 @@ public final class ImageIconRenderer {
             case "close" -> "img/icons/close.png";
             case "save" -> "img/icons/save.png";
             case "load" -> "img/icons/load.png";
+            // View / window controls
+            case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "img/icons/fullscreen.png";
+            // Export / share actions
+            case "export", "share", "download" -> "img/icons/export.png";
             // Storage actions
             case "explorer", "open_in_explorer" -> "img/icons/explorer.png";
             case "refreshsizes", "refresh_sizes" -> "img/icons/refreshsizes.png";

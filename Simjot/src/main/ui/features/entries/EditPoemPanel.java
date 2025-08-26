@@ -7,7 +7,7 @@ import main.ui.app.JournalApp;
 import main.ui.dialog.message.CustomMessageDialog;
 
 public class EditPoemPanel extends PoemPanel {
-    private File poemFile;
+    private final File poemFile;
 
     public EditPoemPanel(JournalApp app, File poemFile, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -27,16 +27,17 @@ public class EditPoemPanel extends PoemPanel {
             while ((line = reader.readLine()) != null) {
                 content.append(line).append("\n");
             }
-            poemTextArea.setText(content.toString());
+            poemEditor.setText(content.toString());
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading poem.", true).showDialog();
         }
     }
 
+    @Override
     protected void savePoem() {
         String title = poemTitleField.getText().trim();
-        String content = poemTextArea.getText().trim();
+        String content = poemEditor.getText().trim();
         if (title.isEmpty() && content.isEmpty()) {
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or some content for your poem.", true).showDialog();
             return;

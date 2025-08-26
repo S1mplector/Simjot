@@ -362,12 +362,15 @@ public class NotebookManagerPanel extends JPanel {
                 // Soft border
                 g2.setColor(new Color(180,180,180));
                 g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,12,12);
-                // Center plus icon
-                int cx=getWidth()/2, cy=getHeight()/2, s=14;
-                g2.setColor(new Color(90,90,90));
-                g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(cx-s/2,cy, cx+s/2,cy);
-                g2.drawLine(cx,cy-s/2, cx,cy+s/2);
+                // Center PNG icon for creating a new notebook
+                // Use centralized renderer with caching; resource lives under Simjot/src/main/resources/img/icons/newnotebook.png
+                int iconSize = 42; // visually balanced within 70x70 tile
+                java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/newnotebook.png", iconSize, true);
+                if (img != null) {
+                    int x = (getWidth() - iconSize) / 2;
+                    int y = (getHeight() - iconSize) / 2;
+                    g2.drawImage(img, x, y, null);
+                }
                 g2.dispose();
             }
             @Override protected void processMouseEvent(MouseEvent e){
