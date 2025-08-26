@@ -26,6 +26,8 @@ import main.ui.components.indicators.SaveIndicatorPanel;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.features.poetry.StatsSidebarPanel;
 import main.ui.features.poetry.RhymesDockPanel;
+import main.core.export.PoemExporter;
+import main.ui.dialog.export.PoemExportDialog;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -174,10 +176,10 @@ public class PoemPanel extends AbstractEditorPanel {
         ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
-        // Export button (Markdown)
+        // Export button (advanced)
         ToolbarIconButton exportBtn = new ToolbarIconButton("export");
-        exportBtn.setToolTipText("Export to Markdown");
-        exportBtn.addActionListener(e -> exportAsMarkdown());
+        exportBtn.setToolTipText("Export poem (Markdown/HTML/TXT/PNG)");
+        exportBtn.addActionListener(e -> exportPoem());
         rightToolbar.add(statsToggle);
         rightToolbar.add(rhymesToggle);
         rightToolbar.add(exportBtn);
@@ -581,32 +583,74 @@ public class PoemPanel extends AbstractEditorPanel {
         repaint();
     }
 
-    private void exportAsMarkdown() {
+    private void exportPoem() {
         String title = poemTitleField.getText().trim();
         String content = poemEditor.getText();
         if (title.isEmpty() && content.trim().isEmpty()) {
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Export", "Nothing to export.", true).showDialog();
             return;
         }
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        String suggestedBase;
+        if (currentFile != null) {
+            String name = currentFile.getName();
+            int dot = name.lastIndexOf('.') >= 0 ? name.lastIndexOf('.') : name.length();
+            suggestedBase = name.substring(0, dot);
+        } else if (!title.isEmpty()) {
+            suggestedBase = title.replaceAll("[^A-Za-z0-9-_]+", "_").replaceAll("_+", "_").replaceAll("^_+|_+$", "");
+            if (suggestedBase.isBlank()) suggestedBase = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date());
+        } else {
+            suggestedBase = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date());
+        }
+        PoemExportDialog dialog = new PoemExportDialog(owner, journalFolder, suggestedBase);
+        dialog.setVisible(true);
+        if (!dialog.isConfirmed()) return;
+
+        PoemExporter.Format fmt = dialog.getSelectedFormat();
+        PoemExporter.Options opts = dialog.getOptions();
+        // Build basic stats for optional inclusion
+        java.util.Map<String, String> stats = new java.util.LinkedHashMap<>();
+        int words = content.trim().isEmpty() ? 0 : content.trim().split("\\s+").length;
+        int chars = content.length();
+        int stanzas = content.trim().isEmpty() ? 0 : content.split("\\n\\s*\\n").length;
+        stats.put("Words", String.valueOf(words));
+        stats.put("Chars", String.valueOf(chars));
+        stats.put("Stanzas", String.valueOf(stanzas));
+
+        // Mirror current editor styling into export options (applies to HTML)
         try {
-            File mdFile;
-            if (currentFile != null) {
-                String base = currentFile.getName().replaceFirst("\\.poem$", "");
-                mdFile = new File(journalFolder, base + ".md");
-            } else {
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                String ts = sdf.format(new Date());
-                mdFile = new File(journalFolder, ts + ".md");
+            Font f = poemEditor.getFont();
+            if (f != null) {
+                opts.fontFamily = f.getFamily();
+                opts.fontSizePx = f.getSize();
             }
-            try (PrintWriter writer = new PrintWriter(new FileWriter(mdFile))) {
-                if (!title.isEmpty()) writer.println("# " + title);
-                writer.println();
-                writer.print(content);
+            // Read paragraph line spacing from the first paragraph's attributes
+            StyledDocument doc = poemEditor.getStyledDocument();
+            javax.swing.text.Element para = doc.getParagraphElement(0);
+            if (para != null) {
+                float ls = StyleConstants.getLineSpacing(para.getAttributes()); // additive: 0.0, 0.2, 0.5, ...
+                opts.lineHeight = 1.0f + Math.max(0f, ls);
             }
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Export", "Exported to: " + mdFile.getName(), false).showDialog();
+        } catch (Throwable ignored) {}
+
+        try {
+            File out = PoemExporter.buildTargetFile(journalFolder, currentFile, fmt);
+            out = dialog.getOutputFile(out, fmt);
+            switch (fmt) {
+                case MARKDOWN, HTML, TXT -> {
+                    PoemExporter.exportTextual(out, fmt, title, content, opts, stats);
+                }
+                case PNG -> {
+                    // Render the main text area card if possible (centerContainer's textWrapper)
+                    // We can render the parent of poemEditor to capture styling
+                    JComponent toRender = (JComponent) poemEditor.getParent().getParent();
+                    PoemExporter.exportPng(out, title, content, opts, toRender);
+                }
+            }
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Export", "Exported to: " + out.getName(), false).showDialog();
         } catch (IOException ex) {
             ex.printStackTrace();
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error exporting Markdown.", true).showDialog();
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error exporting.", true).showDialog();
         }
     }
 

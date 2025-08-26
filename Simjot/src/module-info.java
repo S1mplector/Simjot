@@ -21,6 +21,9 @@ module Simjot {
 	exports main.core.sim.llm.ollama;
 	exports main.core.sim.llm.prompt;
 
+    // Core exporting utilities
+    exports main.core.export;
+
 	// Infrastructure
 	exports main.infrastructure.monitoring;
 	exports main.infrastructure.backup;
@@ -35,6 +38,7 @@ module Simjot {
 	exports main.ui.dialog.setup;
 	exports main.ui.dialog.message;
 	exports main.ui.dialog.utils;
+    exports main.ui.dialog.export;
 
 	// App and UI modules
 	exports main.ui.app;

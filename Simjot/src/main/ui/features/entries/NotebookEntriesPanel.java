@@ -14,12 +14,17 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.text.SimpleDateFormat;
 import java.nio.file.*;
+import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.ConvolveOp;
+import java.awt.image.Kernel;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.infrastructure.io.ResourceLoader;
 
 public class NotebookEntriesPanel extends JPanel {
     private final JournalApp app;
@@ -64,6 +69,57 @@ public class NotebookEntriesPanel extends JPanel {
         private final Color selectedBg = new Color(235, 240, 255);
         private final Color selectedBorder = new Color(88, 133, 255);
         private boolean selected;
+
+        // Background image cache (scaled+blurred per size)
+        private static BufferedImage ENTRY_BG_BASE;
+        private static final Map<String, BufferedImage> BG_CACHE = new HashMap<>();
+        private static BufferedImage loadBase(){
+            if (ENTRY_BG_BASE != null) return ENTRY_BG_BASE;
+            Image img = ResourceLoader.createImage("img/background/entrybg.png");
+            if (img == null) return null;
+            int w = Math.max(1, new ImageIcon(img).getIconWidth());
+            int h = Math.max(1, new ImageIcon(img).getIconHeight());
+            BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = bi.createGraphics();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g2.drawImage(img, 0, 0, null);
+            g2.dispose();
+            ENTRY_BG_BASE = bi;
+            return ENTRY_BG_BASE;
+        }
+        private static BufferedImage getBg(int w, int h){
+            String key = w+"x"+h;
+            BufferedImage cached = BG_CACHE.get(key);
+            if (cached != null) return cached;
+            BufferedImage base = loadBase();
+            if (base == null || w <= 0 || h <= 0) return null;
+            // Scale to cover (center-crop)
+            double sx = w / (double) base.getWidth();
+            double sy = h / (double) base.getHeight();
+            double scale = Math.max(sx, sy);
+            int sw = (int) Math.ceil(base.getWidth() * scale);
+            int sh = (int) Math.ceil(base.getHeight() * scale);
+            BufferedImage scaled = new BufferedImage(sw, sh, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D gs = scaled.createGraphics();
+            gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            gs.drawImage(base, 0, 0, sw, sh, null);
+            gs.dispose();
+            // Crop center to requested size
+            int x = (sw - w) / 2; if (x < 0) x = 0;
+            int y = (sh - h) / 2; if (y < 0) y = 0;
+            BufferedImage cropped = scaled.getSubimage(x, y, Math.min(w, sw), Math.min(h, sh));
+            // Apply a small blur kernel for softness
+            float[] kernel = {
+                    1f/16, 2f/16, 1f/16,
+                    2f/16, 4f/16, 2f/16,
+                    1f/16, 2f/16, 1f/16
+            };
+            ConvolveOp op = new ConvolveOp(new Kernel(3,3,kernel), ConvolveOp.EDGE_NO_OP, null);
+            BufferedImage blurred = new BufferedImage(cropped.getWidth(), cropped.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            op.filter(cropped, blurred);
+            BG_CACHE.put(key, blurred);
+            return blurred;
+        }
 
         EntryCardRenderer() {
             setOpaque(false);
@@ -113,8 +169,27 @@ public class NotebookEntriesPanel extends JPanel {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int arc = 14;
             int w = getWidth(), h = getHeight();
-            g2.setColor(selected ? selectedBg : cardBg);
-            g2.fillRoundRect(3, 2, w - 6, h - 4, arc, arc);
+            // Clip to card shape and draw background image with reduced opacity
+            RoundRectangle2D.Float shape = new RoundRectangle2D.Float(3, 2, w - 6, h - 4, arc, arc);
+            java.awt.Shape oldClip = g2.getClip();
+            g2.setClip(shape);
+            BufferedImage bg = getBg(Math.max(1, w - 6), Math.max(1, h - 4));
+            if (bg != null) {
+                Composite old = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.28f));
+                g2.drawImage(bg, 3, 2, null);
+                g2.setComposite(old);
+            } else {
+                // Fallback solid fill if image missing
+                g2.setColor(selected ? selectedBg : cardBg);
+                g2.fill(shape);
+            }
+            // Overlay a soft veil to keep text readable and selected state visible
+            g2.setComposite(AlphaComposite.SrcOver.derive(selected ? 0.30f : 0.20f));
+            g2.setColor(selected ? selectedBg : Color.WHITE);
+            g2.fill(shape);
+            g2.setComposite(AlphaComposite.SrcOver);
+            g2.setClip(oldClip);
             g2.setColor(accent);
             g2.fillRoundRect(6, 8, 6, h - 16, 6, 6);
             g2.setColor(selected ? selectedBorder : cardBorder);
