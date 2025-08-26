@@ -334,6 +334,29 @@ public class PoemPanel extends AbstractEditorPanel {
         // Initialize optional side panels (hidden by default)
         statsPanel = new StatsSidebarPanel();
         statsPanel.setVisible(false);
+        // Wire: clicking a row in stats sidebar moves caret to that text line and highlights it
+        statsPanel.setRowClickListener(lineIndex -> {
+            if (lineIndex < 0) return;
+            try {
+                String text = poemEditor.getText();
+                if (text == null) return;
+                int idx = 0;
+                int line = 0;
+                int len = text.length();
+                // Find start offset of the requested line
+                for (int i = 0; i < len && line < lineIndex; i++) {
+                    if (text.charAt(i) == '\n') {
+                        idx = i + 1;
+                        line++;
+                    }
+                }
+                final int pos = Math.min(Math.max(0, idx), len);
+                poemEditor.requestFocusInWindow();
+                poemEditor.setCaretPosition(pos);
+                // Update sidebar highlight immediately
+                statsPanel.setHighlightedLine(lineIndex);
+            } catch (Throwable ignored) { }
+        });
         rhymesDock = new RhymesDockPanel();
         rhymesDock.setVisible(false);
 
@@ -668,6 +691,17 @@ public class PoemPanel extends AbstractEditorPanel {
                 content.append(line).append("\n");
             }
             poemEditor.setText(content.toString());
+            // Ensure the editor starts at the top (caret and viewport)
+            try {
+                poemEditor.setCaretPosition(0);
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    try {
+                        poemEditor.setCaretPosition(0);
+                        // Nudge viewport to top-left
+                        poemEditor.scrollRectToVisible(new java.awt.Rectangle(0, 0, 1, 1));
+                    } catch (Throwable ignored) {}
+                });
+            } catch (Throwable ignored) {}
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading poem.", true).showDialog();

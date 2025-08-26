@@ -8,6 +8,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.*;
 import java.awt.event.MouseEvent;
+import java.util.function.IntConsumer;
 
 /**
  * Non-intrusive sidebar showing per-line syllable counts and end-rhyme labels.
@@ -20,6 +21,7 @@ public class StatsSidebarPanel extends JPanel {
     private final java.util.List<Boolean> stanzaBreakByIndex = new ArrayList<>();
     private final java.util.List<String> tooltipsByIndex = new ArrayList<>();
     private final java.util.List<Integer> modelIndexByTextLine = new ArrayList<>(); // maps text line -> model index
+    private final java.util.List<Integer> textLineByModelIndex = new ArrayList<>(); // reverse: model index -> text line
     private final MeterScanner meterScanner = new MeterScanner();
 
     // Async/debounce state
@@ -27,6 +29,9 @@ public class StatsSidebarPanel extends JPanel {
     private volatile SwingWorker<MeterAnalysis, Void> analysisWorker;
     private String pendingText = "";
     private String lastText = ""; // cache last non-null text for recomputation
+
+    // Optional callback to notify editor to move caret to a given text line index
+    private IntConsumer onRowClick;
 
     private final JList<String> list = new JList<>(model) {
         @Override
@@ -55,6 +60,21 @@ public class StatsSidebarPanel extends JPanel {
         list.setFont(new Font("SansSerif", Font.PLAIN, 12));
         // Enable tooltips for list items
         ToolTipManager.sharedInstance().registerComponent(list);
+        // Click to sync caret back to editor (single-click)
+        list.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (onRowClick == null) return;
+                int i = list.locationToIndex(e.getPoint());
+                if (i < 0 || i >= model.getSize()) return;
+                // Ignore stanza separator rows
+                if (i < stanzaBreakByIndex.size() && Boolean.TRUE.equals(stanzaBreakByIndex.get(i))) return;
+                int textLine = (i < textLineByModelIndex.size() ? textLineByModelIndex.get(i) : -1);
+                if (textLine >= 0) {
+                    onRowClick.accept(textLine);
+                }
+            }
+        });
 
         // Debounce timer for background analysis
         debounceTimer = new javax.swing.Timer(160, e -> {
@@ -247,6 +267,7 @@ public class StatsSidebarPanel extends JPanel {
         stanzaBreakByIndex.clear();
         tooltipsByIndex.clear();
         modelIndexByTextLine.clear();
+        textLineByModelIndex.clear();
 
         // Fill model and side arrays from analysis
         for (int i = 0; i < a.displayRows.size(); i++) {
@@ -256,6 +277,14 @@ public class StatsSidebarPanel extends JPanel {
         stanzaBreakByIndex.addAll(a.stanzaBreakByRow);
         tooltipsByIndex.addAll(a.tooltipsByRow);
         modelIndexByTextLine.addAll(a.modelIndexByTextLine);
+        // Build reverse mapping: model index -> text line index
+        for (int i = 0; i < model.size(); i++) textLineByModelIndex.add(-1);
+        for (int textLine = 0; textLine < modelIndexByTextLine.size(); textLine++) {
+            int modelIdx = modelIndexByTextLine.get(textLine);
+            if (modelIdx >= 0 && modelIdx < textLineByModelIndex.size()) {
+                textLineByModelIndex.set(modelIdx, textLine);
+            }
+        }
 
         // Enhance tooltips with Δtarget info if target set
         if (targetSyllables > 0) {
@@ -330,6 +359,15 @@ public class StatsSidebarPanel extends JPanel {
             list.setSelectedIndex(highlightedModelIndex);
             list.ensureIndexIsVisible(highlightedModelIndex);
         }
+    }
+
+    // --- Editor sync: notify on row click ---
+    /**
+     * Register a callback to be notified when the user clicks a sidebar row.
+     * The callback receives the corresponding text line index in the editor (0-based).
+     */
+    public void setRowClickListener(IntConsumer onLineClicked) {
+        this.onRowClick = onLineClicked;
     }
 
     // --- Export: copy metrics to clipboard ---
