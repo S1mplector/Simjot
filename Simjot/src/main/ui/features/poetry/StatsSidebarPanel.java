@@ -1,6 +1,7 @@
 package main.ui.features.poetry;
 
-import main.core.poetry.PoetryUtils;
+import main.core.poetry.MeterScanner;
+import main.core.poetry.MeterAnalysis;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 
 import javax.swing.*;
@@ -19,6 +20,13 @@ public class StatsSidebarPanel extends JPanel {
     private final java.util.List<Boolean> stanzaBreakByIndex = new ArrayList<>();
     private final java.util.List<String> tooltipsByIndex = new ArrayList<>();
     private final java.util.List<Integer> modelIndexByTextLine = new ArrayList<>(); // maps text line -> model index
+    private final MeterScanner meterScanner = new MeterScanner();
+
+    // Async/debounce state
+    private javax.swing.Timer debounceTimer;
+    private volatile SwingWorker<MeterAnalysis, Void> analysisWorker;
+    private String pendingText = "";
+    private String lastText = ""; // cache last non-null text for recomputation
 
     private final JList<String> list = new JList<>(model) {
         @Override
@@ -48,7 +56,14 @@ public class StatsSidebarPanel extends JPanel {
         // Enable tooltips for list items
         ToolTipManager.sharedInstance().registerComponent(list);
 
-        // Compact header with minimal controls
+        // Debounce timer for background analysis
+        debounceTimer = new javax.swing.Timer(160, e -> {
+            String text = pendingText; // snapshot
+            runAnalysisAsync(text);
+        });
+        debounceTimer.setRepeats(false);
+
+        // Compact header with richer controls
         JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         header.setOpaque(false);
         JLabel meterLbl = new JLabel("Meter:");
@@ -59,30 +74,65 @@ public class StatsSidebarPanel extends JPanel {
             Object v = targetSpinner.getValue();
             targetSyllables = (v instanceof Integer) ? (Integer) v : 0;
             list.repaint();
+            if (lastText != null) runAnalysisAsync(lastText);
         });
         perStanzaToggle.setOpaque(false);
         perStanzaToggle.setForeground(new Color(70,70,70));
         perStanzaToggle.addActionListener(e -> {
             perStanza = perStanzaToggle.isSelected();
-            // Recompute labels with same last text if caller refreshes soon; safe to no-op otherwise
+            // Recompute immediately using last known text
+            if (lastText != null) runAnalysisAsync(lastText);
         });
         header.add(meterLbl);
         header.add(targetSpinner);
-        // Preset buttons 8/10/12 for quick meter selection
-        JButton p8 = new JButton("8");
-        JButton p10 = new JButton("10");
-        JButton p12 = new JButton("12");
-        for (JButton b : new JButton[]{p8, p10, p12}) {
+
+        // Preset buttons: 0(off), 6,7,8,9,10,11,12,14
+        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        presetsPanel.setOpaque(false);
+        int[] presets = new int[]{0,6,7,8,9,10,11,12,14};
+        for (int p : presets) {
+            JButton b = new JButton(String.valueOf(p));
             b.setFocusable(false);
             b.setMargin(new Insets(2,6,2,6));
-            b.setFont(new Font("SansSerif", Font.PLAIN, 11));
-            header.add(b);
+            b.setToolTipText(p == 0 ? "Turn off target meter" : ("Set target to " + p));
+            b.addActionListener(ev -> {
+                targetSpinner.setValue(p);
+                if (lastText != null) runAnalysisAsync(lastText);
+            });
+            presetsPanel.add(b);
         }
-        p8.addActionListener(e -> targetSpinner.setValue(8));
-        p10.addActionListener(e -> targetSpinner.setValue(10));
-        p12.addActionListener(e -> targetSpinner.setValue(12));
-        header.add(Box.createHorizontalStrut(6));
-        header.add(perStanzaToggle);
+        header.add(new JLabel("  "));
+        header.add(presetsPanel);
+
+        // Meter preset combo (single-target conveniences)
+        header.add(new JLabel("  Preset:"));
+        JComboBox<String> presetCombo = new JComboBox<>(new String[]{
+                "Off (0)",
+                "Light (6)",
+                "Heptasyllabic (7)",
+                "Octosyllabic (8)",
+                "Nona (9)",
+                "Pentameter (10)",
+                "Hendecasyllabic (11)",
+                "Alexandrine (12)",
+                "Fourteen (14)"
+        });
+        presetCombo.setFocusable(false);
+        presetCombo.addActionListener(ev -> {
+            String sel = Objects.toString(presetCombo.getSelectedItem(), "");
+            int val = 0;
+            if (sel.contains("(6)")) val = 6;
+            else if (sel.contains("(7)")) val = 7;
+            else if (sel.contains("(8)")) val = 8;
+            else if (sel.contains("(9)")) val = 9;
+            else if (sel.contains("(10)")) val = 10;
+            else if (sel.contains("(11)")) val = 11;
+            else if (sel.contains("(12)")) val = 12;
+            else if (sel.contains("(14)")) val = 14;
+            targetSpinner.setValue(val);
+            if (lastText != null) runAnalysisAsync(lastText);
+        });
+        header.add(presetCombo);
         header.add(Box.createHorizontalStrut(6));
         copyBtn.setFocusable(false);
         copyBtn.setMargin(new Insets(2,6,2,6));
@@ -146,73 +196,106 @@ public class StatsSidebarPanel extends JPanel {
 
         setPreferredSize(new Dimension(200, 0));
         setBorder(BorderFactory.createEmptyBorder(6,6,6,6));
+
+        // Trigger initial analysis when the panel becomes visible, if we have text cached
+        addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0) {
+                if (isShowing() && model.isEmpty() && lastText != null && !lastText.isEmpty()) {
+                    runAnalysisAsync(lastText);
+                }
+            }
+        });
     }
 
     public void updateFromText(String text){
-        java.util.List<String> lines = PoetryUtils.splitLines(text);
+        // Debounced, non-blocking update
+        lastText = (text == null ? "" : text);
+        pendingText = lastText;
+        if (debounceTimer.isRunning()) debounceTimer.stop();
+        debounceTimer.start();
+    }
+
+    private void runAnalysisAsync(String text) {
+        // Cancel previous worker if running
+        SwingWorker<MeterAnalysis, Void> prev = analysisWorker;
+        if (prev != null && !prev.isDone()) prev.cancel(true);
+
+        analysisWorker = new SwingWorker<>() {
+            @Override
+            protected MeterAnalysis doInBackground() {
+                try {
+                    return meterScanner.analyze(text, perStanza);
+                } catch (Throwable t) {
+                    return new MeterAnalysis(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0,0,0,0.0);
+                }
+            }
+            @Override
+            protected void done() {
+                if (isCancelled()) return;
+                MeterAnalysis a = null;
+                try { a = get(); } catch (Throwable ignored) {}
+                if (a == null) return;
+                applyAnalysis(a);
+            }
+        };
+        analysisWorker.execute();
+    }
+
+    private void applyAnalysis(MeterAnalysis a) {
         model.clear();
         syllablesByIndex.clear();
         stanzaBreakByIndex.clear();
         tooltipsByIndex.clear();
         modelIndexByTextLine.clear();
 
-        // Build rhyme groups (global or per stanza)
-        Map<String, Character> keyToLabel = new LinkedHashMap<>();
-        int stanzaNo = 1;
-        int totalSyl = 0, minSyl = Integer.MAX_VALUE, maxSyl = 0, countedLines = 0;
+        // Fill model and side arrays from analysis
+        for (int i = 0; i < a.displayRows.size(); i++) {
+            model.addElement(a.displayRows.get(i));
+        }
+        syllablesByIndex.addAll(a.syllablesByRow);
+        stanzaBreakByIndex.addAll(a.stanzaBreakByRow);
+        tooltipsByIndex.addAll(a.tooltipsByRow);
+        modelIndexByTextLine.addAll(a.modelIndexByTextLine);
 
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-            boolean isBlank = (line == null || line.trim().isEmpty());
-            if (isBlank) {
-                // Add a subtle stanza break marker
-                String sep = String.format(Locale.ROOT, "— stanza %d —", stanzaNo);
-                model.addElement(sep);
-                syllablesByIndex.add(0);
-                stanzaBreakByIndex.add(true);
-                tooltipsByIndex.add(" ");
-                // Map this blank text line to the separator model row for caret sync
-                modelIndexByTextLine.add(model.size()-1);
-                stanzaNo++;
-                if (perStanza) keyToLabel.clear();
-                continue;
+        // Enhance tooltips with Δtarget info if target set
+        if (targetSyllables > 0) {
+            for (int i = 0; i < tooltipsByIndex.size() && i < syllablesByIndex.size() && i < stanzaBreakByIndex.size(); i++) {
+                if (Boolean.TRUE.equals(stanzaBreakByIndex.get(i))) continue;
+                int syl = Math.max(0, syllablesByIndex.get(i));
+                int diff = syl - targetSyllables;
+                String extra = String.format(Locale.ROOT, "  |  Δtarget: %s%d", diff>=0?"+":"", diff);
+                String tip = tooltipsByIndex.get(i);
+                tooltipsByIndex.set(i, (tip == null || tip.isBlank() ? "" : tip) + extra);
             }
-
-            int syl = PoetryUtils.countSyllablesInLine(line);
-            String end = PoetryUtils.endWord(line);
-            String key = end != null ? PoetryUtils.rhymeKey(end) : null;
-            Character label = null;
-            if (key != null && !key.isBlank()){
-                label = keyToLabel.get(key);
-                if (label == null) {
-                    int idx = keyToLabel.size();
-                    label = (char) ('A' + Math.min(idx, 25));
-                    keyToLabel.put(key, label);
-                }
-            }
-            String lbl = String.format(Locale.ROOT, "%2d: %2d syl%s%s",
-                    (i+1), syl,
-                    label!=null?" • ":"",
-                    label!=null?label.toString():"");
-            model.addElement(lbl);
-            syllablesByIndex.add(syl);
-            stanzaBreakByIndex.add(false);
-            String tip;
-            if (end != null && key != null) tip = String.format(Locale.ROOT, "End: %s  |  Rhyme key: %s", end, key);
-            else if (end != null) tip = String.format(Locale.ROOT, "End: %s", end);
-            else tip = " ";
-            tooltipsByIndex.add(tip);
-            modelIndexByTextLine.add(model.size()-1);
-
-            totalSyl += syl; countedLines++;
-            minSyl = Math.min(minSyl, syl);
-            maxSyl = Math.max(maxSyl, syl);
         }
 
-        // Summary footer
-        if (countedLines > 0) {
-            double avg = totalSyl / (double) countedLines;
-            summaryLabel.setText(String.format(Locale.ROOT, "Avg: %.1f  •  Min: %d  •  Max: %d", avg, minSyl, maxSyl));
+        // Summary footer: lines, stanzas, avg/min/max, stddev, target hit rate
+        int stanzaCount = 0;
+        java.util.List<Integer> lineSyls = new ArrayList<>();
+        for (int i = 0; i < stanzaBreakByIndex.size(); i++) {
+            if (Boolean.TRUE.equals(stanzaBreakByIndex.get(i))) stanzaCount++;
+            else if (i < syllablesByIndex.size()) lineSyls.add(Math.max(0, syllablesByIndex.get(i)));
+        }
+        if (a.countedLines > 0) {
+            double mean = a.avgSyllables;
+            double var = 0.0;
+            for (int s : lineSyls) { double d = s - mean; var += d*d; }
+            double std = lineSyls.isEmpty() ? 0.0 : Math.sqrt(var / lineSyls.size());
+            String base = String.format(Locale.ROOT, "Lines: %d  •  Stanzas: %d  •  Avg: %.1f (σ=%.1f)  •  Min: %d  •  Max: %d",
+                    a.countedLines, stanzaCount, mean, std, a.minSyllables, a.maxSyllables);
+            if (targetSyllables > 0) {
+                int hits = 0, near = 0;
+                for (int s : lineSyls) {
+                    int d = Math.abs(s - targetSyllables);
+                    if (d == 0) hits++; else if (d == 1) near++;
+                }
+                int n = Math.max(1, lineSyls.size());
+                String tgt = String.format(Locale.ROOT, "  •  Target %d: %d%% exact, %d%% within ±1",
+                        targetSyllables, Math.round(hits*100.0/n), Math.round((hits+near)*100.0/n));
+                summaryLabel.setText(base + tgt);
+            } else {
+                summaryLabel.setText(base);
+            }
         } else {
             summaryLabel.setText(" ");
         }
