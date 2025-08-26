@@ -31,6 +31,7 @@ import main.ui.theme.aero.AeroTheme;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.components.indicators.SaveIndicatorPanel;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.infrastructure.backup.NotebookInfo;
 import main.core.sim.api.SimEventBus;
 
@@ -350,6 +351,17 @@ public class EntryPanel extends AbstractEditorPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        // Apply modern, slim scrollbars (match PoemPanel)
+        JScrollBar vbar = scrollPane.getVerticalScrollBar();
+        vbar.setUI(new ModernScrollBarUI());
+        vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
+        vbar.setOpaque(false);
+        vbar.setUnitIncrement(16);
+        JScrollBar hbar = scrollPane.getHorizontalScrollBar();
+        hbar.setUI(new ModernScrollBarUI());
+        hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
+        hbar.setOpaque(false);
+        hbar.setUnitIncrement(16);
 
         // Add scroll pane to the translucent wrapper (no inline formatting bar)
         textWrapper.setLayout(new BorderLayout());

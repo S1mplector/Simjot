@@ -19,6 +19,7 @@ import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
 import main.ui.components.indicators.SaveIndicatorPanel;
@@ -62,6 +63,19 @@ public class PoemPanel extends AbstractEditorPanel {
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
+    }
+
+    // Helper: determine 0-based line index at caret (by counting newlines before caret)
+    private int getCaretLineIndex() {
+        try {
+            int pos = poemEditor.getCaretPosition();
+            String text = poemEditor.getText();
+            if (text == null || text.isEmpty()) return -1;
+            if (pos < 0) pos = 0; if (pos > text.length()) pos = text.length();
+            int line = 0;
+            for (int i = 0; i < pos; i++) if (text.charAt(i) == '\n') line++;
+            return line;
+        } catch (Throwable ignored) { return -1; }
     }
 
     // Helper: determine word at current caret position
@@ -296,6 +310,17 @@ public class PoemPanel extends AbstractEditorPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        // Apply modern, slim scrollbars
+        JScrollBar vbar = scrollPane.getVerticalScrollBar();
+        vbar.setUI(new ModernScrollBarUI());
+        vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
+        vbar.setOpaque(false);
+        vbar.setUnitIncrement(16);
+        JScrollBar hbar = scrollPane.getHorizontalScrollBar();
+        hbar.setUI(new ModernScrollBarUI());
+        hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
+        hbar.setOpaque(false);
+        hbar.setUnitIncrement(16);
 
         textWrapper.add(scrollPane, BorderLayout.CENTER);
 
@@ -331,6 +356,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 updateStanzaCount(stanzaLabel);
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
+                if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null) autosaveManager.markDirty();
             }
             @Override
@@ -338,6 +364,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 updateStanzaCount(stanzaLabel);
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
+                if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null) autosaveManager.markDirty();
             }
             @Override
@@ -345,6 +372,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 updateStanzaCount(stanzaLabel);
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
+                if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null) autosaveManager.markDirty();
             }
         });
@@ -353,6 +381,9 @@ public class PoemPanel extends AbstractEditorPanel {
             if (rhymesDock != null && rhymesDock.isVisible()) {
                 String w = getWordAtCaret();
                 rhymesDock.update(w, poemEditor.getText());
+            }
+            if (statsPanel != null && statsPanel.isVisible()) {
+                statsPanel.setHighlightedLine(getCaretLineIndex());
             }
         });
         // Autosave on title change as well
@@ -367,10 +398,7 @@ public class PoemPanel extends AbstractEditorPanel {
         centerFlow.setOpaque(false);
         statusLabel = new JLabel("Words: 0 • Chars: 0 • Stanzas: 0 • ~0 min read");
         statusLabel.setForeground(Color.DARK_GRAY);
-        RoundedButton inspireButton = new RoundedButton("✨ Inspire Me");
-        inspireButton.addActionListener(e -> showInspirationalWord());
         centerFlow.add(statusLabel);
-        centerFlow.add(inspireButton);
         bottomPanel.add(centerFlow, BorderLayout.CENTER);
 
         // Save button (via EditorUIUtils)
