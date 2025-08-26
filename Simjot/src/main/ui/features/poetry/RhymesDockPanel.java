@@ -5,16 +5,10 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.time.Duration;
 
 import main.core.poetry.PoetryUtils;
-import main.core.sim.prefs.SimSettings;
-import main.core.sim.llm.api.SimLLMClient;
-import main.core.sim.llm.api.SimLLMRequest;
-import main.core.sim.llm.api.SimLLMResponse;
-import main.core.sim.llm.ollama.OllamaClient;
-import main.core.sim.llm.openai.OpenAIClient;
-import main.core.sim.persona.SimPersonality;
+import main.core.sim.llm.api.SimSuggestionService;
+import main.core.sim.llm.api.DefaultSimSuggestionService;
 
 /**
  * Simple dock showing rhyme key and lightweight rhyme/synonym suggestions
@@ -23,9 +17,15 @@ import main.core.sim.persona.SimPersonality;
 public class RhymesDockPanel extends JPanel {
     private final JLabel title = new JLabel("Rhymes & Synonyms");
     private final JTextArea body = new JTextArea();
+    private final SimSuggestionService simService;
 
     public RhymesDockPanel(){
+        this(new DefaultSimSuggestionService());
+    }
+
+    public RhymesDockPanel(SimSuggestionService simService){
         super(new BorderLayout());
+        this.simService = simService;
         setOpaque(false);
         title.setFont(title.getFont().deriveFont(Font.BOLD));
         title.setBorder(BorderFactory.createEmptyBorder(6,6,4,6));
@@ -99,7 +99,11 @@ public class RhymesDockPanel extends JPanel {
         body.setCaretPosition(0);
 
         // Hybrid: optionally augment with Sim in background (non-blocking)
-        maybeQuerySimAsync(word, key, sylls, fullText);
+        simService.queryAsync(word, key, sylls, fullText, simOut -> {
+            if (simOut != null && !simOut.isBlank()) {
+                appendSimSection(simOut);
+            }
+        });
     }
 
     // Extremely small heuristic sets to avoid dependencies. You can later plug in a service.
@@ -149,97 +153,7 @@ public class RhymesDockPanel extends JPanel {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    // --- Optional Sim augmentation (async, safe) ---
-    private volatile SwingWorker<String, Void> simWorker;
-
-    private void maybeQuerySimAsync(String word, String rhymeKey, int syllables, String fullText) {
-        try {
-            SimSettings ss = SimSettings.get();
-            if (!ss.isEnabled() || !ss.isLlmEnabled()) return;
-            // Cancel any in-flight worker
-            SwingWorker<String, Void> prev = simWorker;
-            if (prev != null && !prev.isDone()) {
-                prev.cancel(true);
-            }
-            final String provider = ss.getLlmProvider();
-            final SimLLMClient client = buildClient(provider, ss);
-            if (client == null) return;
-
-            final String poem = fullText == null ? "" : fullText;
-            final String system = buildSystemPrompt();
-            final String user = buildUserPrompt(word, rhymeKey, syllables, poem);
-            final SimLLMRequest req = new SimLLMRequest(system, user, 256, 0.7);
-
-            // No header status text while enhancing (keep UI minimal)
-
-            simWorker = new SwingWorker<>() {
-                @Override
-                protected String doInBackground() throws Exception {
-                    try {
-                        SimLLMResponse resp = client.generate(req, Duration.ofSeconds(10));
-                        return resp == null ? "" : resp.text;
-                    } catch (Throwable t) {
-                        return ""; // fail silent; keep local heuristics
-                    }
-                }
-                @Override
-                protected void done() {
-                    if (isCancelled()) return;
-                    String result = "";
-                    try { result = get(); } catch (Throwable ignored) {}
-                    final String simOut = (result == null || result.isBlank()) ? null : result.trim();
-                    if (simOut != null) {
-                        appendSimSection(simOut);
-                    }
-                }
-            };
-            simWorker.execute();
-        } catch (Throwable ignored) { /* keep UI resilient */ }
-    }
-
-    private SimLLMClient buildClient(String provider, SimSettings ss) {
-        try {
-            String p = (provider == null ? "ollama" : provider.trim().toLowerCase(Locale.ROOT));
-            switch (p) {
-                case "openai":
-                    String key = ss.getOpenAIApiKey();
-                    if (key == null || key.isBlank()) return null;
-                    return new OpenAIClient(key, ss.getOpenAIModel(), ss.getOpenAIBaseUrl());
-                case "ollama":
-                default:
-                    return new OllamaClient(ss.getOllamaEndpoint(), ss.getOllamaModel());
-            }
-        } catch (Throwable e) {
-            return null;
-        }
-    }
-
-    private String buildSystemPrompt() {
-        // Reuse persona tone but steer towards concise, structured poetry guidance
-        String base = main.core.sim.llm.prompt.PromptBuilder.systemPrompt(SimPersonality.Type.GENTLE);
-        return base + "\n\nYou are also a succinct poetry craft assistant. When asked for rhyme guidance:"
-                + "\n- Consider the poem context."
-                + "\n- Prefer concise lists."
-                + "\n- Avoid any meta, XML/HTML, code fences, or chain-of-thought."
-                + "\n- Output plain text only under 120 words.";
-    }
-
-    private String buildUserPrompt(String word, String rhymeKey, int syllables, String poem) {
-        String head = "CaretWord: '" + word + "' (syllables=" + syllables + ", rhymeKey=" + (rhymeKey==null?"-":rhymeKey) + ")";
-        String ctx = poem == null ? "" : poem.trim();
-        if (ctx.length() > 2000) ctx = ctx.substring(Math.max(0, ctx.length()-2000)); // last ~2K chars for locality
-        return String.join("\n",
-                head,
-                "Poem (tail excerpt):",
-                ctx,
-                "\nTask: Suggest compact, high-quality options for these sections:",
-                "- Rhymes (best 6):",
-                "- Near rhymes (best 6):",
-                "- Slant rhymes (if useful, <=4):",
-                "- Poetic synonyms (<=8), avoid clichés:",
-                "- Imagery/metaphor cues (<=3, short):"
-        );
-    }
+    // --- Sim augmentation is delegated to SimSuggestionService ---
 
     private void appendSimSection(String text){
         SwingUtilities.invokeLater(() -> {
