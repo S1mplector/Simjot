@@ -6,7 +6,7 @@ A lightweight, feature-rich personal journaling application built with Java Swin
 
 ### **Multi-Format Content Creation**
 - **Journal Entries**: Traditional diary-style entries with mood tracking and rich formatting
-- **Poetry Writing**: Dedicated poetry editor with inspirational prompts and beautiful backgrounds
+- **Poetry Writing**: Dedicated poetry editor with metering and rhyme tips. 
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
@@ -66,10 +66,9 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 
 ### Prerequisites
 - **Java 17 or higher** installed on your system
-- **Windows 10/11** (optimized packaging), macOS and Linux supported via JAR
+- **JDK 17 or higher** for building the project
 
 ### Installation & Build
-
 1. **Clone or download** the project to your local machine
 2. **Open PowerShell or Command Prompt** in the project directory
 3. **Run the build script**:
@@ -80,7 +79,6 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 The build process will:
 - Compile all Java sources
 - Create a modular JAR file
-- Package as a native Windows executable
 - Generate a standalone application in the `dist/` folder
 
 ### Running the Application
@@ -120,18 +118,11 @@ On first startup, Simjot will prompt you to:
 3. Use the "Inspire Me" button for creative prompts
 4. Track stanza count in real-time
 
-#### **Digital Drawing**
-1. Open the drawing panel for full creative control
-2. Choose from 7 brush types: Pencil, Lineart, Calligraphy, Highlighter, Watercolor, Rainbow, Eraser
-3. Use layers for complex compositions
-4. Set background images for reference or texture
-5. Save in custom .mydraw format with auto-generated thumbnails
-
 ### Organization
 
 #### **Notebooks**
 - Create separate notebooks for different topics or time periods
-- Choose notebook types: Journal, Regular Notes, or Poetry
+- Choose notebook types: Journal, or Poetry
 - Each notebook maintains its own file structure
 
 #### **Viewing Content**
@@ -146,21 +137,15 @@ On first startup, Simjot will prompt you to:
 Simjot/
 ├── src/
 │   ├── main/
-│   │   ├── animation/          # UI animations and transitions
-│   │   ├── dialog/             # Custom dialog boxes
-│   │   ├── drawing/            # Drawing tools and canvas
-│   │   ├── model/              # Data models (TodoData, SectionData)
-│   │   ├── ui/                 # User interface components
-│   │   │   ├── buttons/        # Custom button components
-│   │   │   ├── components/     # Reusable UI elements
-│   │   │   ├── panel/          # Main application panels
-│   │   │   └── ...
-│   │   └── util/               # Utilities and helpers
-│   ├── mindmap/                # Mind mapping functionality
+│   │   ├── core/               # Domain models, services, poetry, sim, exports
+│   │   ├── infrastructure/     # Persistence/adapters/utilities
+│   │   ├── resources/          # App resources (if any)
+│   │   └── ui/                 # Swing UI (features, panels, widgets, etc.)
 │   └── module-info.java        # Java module definition
-├── img/                        # Application icons and images
+├── tests/                      # Unit tests (mirrors main packages)
+├── docs/                       # Project documentation & screenshots
 ├── build/                      # Compiled classes and build artifacts
-└── dist/                       # Final packaged application
+└── sources.txt                 # Source file listing (build helper)
 ```
 
 ## Technical Details
@@ -173,18 +158,15 @@ Simjot/
 - **File-based persistence** with custom serialization
 
 ### Technologies Used
-- **Java 17+** with modern language features
+- **Java 17+** with Project Jigsaw (modular system)
 - **Java Swing** for cross-platform GUI
 - **Java 2D Graphics** for drawing and image processing
 - **Custom file formats** for data persistence
 - **Built-in audio support** for sound effects
 
 ### File Formats
-- **Journal entries**: `.txt` files with metadata
+- **Journal entries**: `.note` files with metadata
 - **Poems**: `.poem` files with title and content
-- **Notes**: `.note` files for quick thoughts
-- **Drawings**: `.mydraw` custom format with layer support
-- **Mind maps**: `.mmap` serialized objects
 - **Settings**: Configuration files in user directory
 
 ## Customization
@@ -204,7 +186,7 @@ Simjot/
 
 ## Contributing
 
-This is a personal journaling application, but if you'd like to contribute:
+This application wasn't meant to be commercially available, it's a personal journaling application, but if you'd like to contribute:
 
 1. **Fork the repository**
 2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
@@ -218,9 +200,8 @@ This is a personal journaling application, but if you'd like to contribute:
 3. **Run the main class**: `main.ui.JournalApp`
 4. **Make changes** and test thoroughly
 
-## License
 
-This project is available for personal use. Please respect the educational and personal nature of this journaling application.
+
 
 ### Common Issues
 - **Application won't start**: Ensure Java 17+ is installed and in your PATH
