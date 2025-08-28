@@ -34,33 +34,33 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 
 - **Main Interface**
 
-  ![Main Interface](Simjot/Simjot/docs/main_interface.png)
+  ![Main Interface](Simjot/docs/main_interface.png)
 
 - **Journaling Interface**
 
-  ![Journaling Interface](Simjot/Simjot/docs/journaling%20interface.png)
+  ![Journaling Interface](Simjot/docs/journaling%20interface.png)
 
 - **Poetry Workspace**
 
-  ![Poetry Workspace](Simjot/Simjot/docs/poem_interface.png)
+  ![Poetry Workspace](Simjot/docs/poem_interface.png)
 
 - **Notebook Manager**
 
-  ![Notebook Manager](Simjot/Simjot/docs/notebook_manager.png)
+  ![Notebook Manager](Simjot/docs/notebook_manager.png)
 
 - **Entry Manager**
 
-  ![Entry Manager](Simjot/Simjot/docs/entry_manager.png)
+  ![Entry Manager](Simjot/docs/entry_manager.png)
 
 - **Settings**
 
-  ![Settings](Simjot/Simjot/docs/settings_interface.png)
+  ![Settings](Simjot/docs/settings_interface.png)
 
 - **Breathing Exercise**
 
-  ![Breathing Circle](Simjot/Simjot/docs/breathing_circle.png)
+  ![Breathing Circle](Simjot/docs/breathing_circle.png)
   
-  ![Breathing Configuration](Simjot/Simjot/docs/breathing_config.png)
+  ![Breathing Configuration](Simjot/docs/breathing_config.png)
 
 ## Quick Start
 
