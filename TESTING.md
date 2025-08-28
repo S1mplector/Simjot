@@ -31,4 +31,4 @@ Example: `Simjot/tests/main/core/sim/llm/prompt/PromptBuilderTest.java` tests `P
 
 ## Notes
 - This path uses the classpath only (not the Java module system) for simplicity. This is fine for unit tests.
-- If you later want IDE/test coverage reports or mocking libs, we can add them easily or migrate to Gradle.
+- The script assumes a Unix-like environment. Adjust paths and commands for Windows if needed.

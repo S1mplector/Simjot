@@ -28,11 +28,45 @@ A lightweight, feature-rich personal journaling application built with Java Swin
 - **Settings panel** for personalization
 - **Sound effects** and visual feedback
 
+## Screenshots
+
+Below are a few highlights from the current UI. More images live in `Simjot/Simjot/docs/`.
+
+- **Main Interface**
+
+  ![Main Interface](Simjot/Simjot/docs/main_interface.png)
+
+- **Journaling Interface**
+
+  ![Journaling Interface](Simjot/Simjot/docs/journaling%20interface.png)
+
+- **Poetry Workspace**
+
+  ![Poetry Workspace](Simjot/Simjot/docs/poem_interface.png)
+
+- **Notebook Manager**
+
+  ![Notebook Manager](Simjot/Simjot/docs/notebook_manager.png)
+
+- **Entry Manager**
+
+  ![Entry Manager](Simjot/Simjot/docs/entry_manager.png)
+
+- **Settings**
+
+  ![Settings](Simjot/Simjot/docs/settings_interface.png)
+
+- **Breathing Exercise**
+
+  ![Breathing Circle](Simjot/Simjot/docs/breathing_circle.png)
+  
+  ![Breathing Configuration](Simjot/Simjot/docs/breathing_config.png)
+
 ## Quick Start
 
 ### Prerequisites
 - **Java 17 or higher** installed on your system
-- **Windows 10/11** (optimized for Windows, but can run on other platforms)
+- **Windows 10/11** (optimized packaging), macOS and Linux supported via JAR
 
 ### Installation & Build
 
@@ -62,6 +96,7 @@ dist/Simjot/Simjot.exe
 ```cmd
 java -jar Simjot.jar
 ```
+This option runs on Windows/macOS/Linux as long as Java 17+ is installed.
 
 ## Usage Guide
 
