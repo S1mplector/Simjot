@@ -1,6 +1,5 @@
 package main.core.sim.llm.prompt;
 
-import main.core.sim.persona.SimPersonality;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -11,6 +10,7 @@ import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import main.core.sim.persona.SimPersonality;
 
 public final class PromptBuilder {
     private PromptBuilder() {}
@@ -203,7 +203,7 @@ public final class PromptBuilder {
     private static String hardcodedFallback(SimPersonality.Type type) {
         String tone;
         switch (type) {
-            case GENTLE: tone = "You are Sim, a gentle, supportive journaling companion. Offer short, empathetic reflections."; break;
+            case GENTLE: tone = "You are Sim, a gentle, supportive journaling companion. Offer short, empathetic reflections and emotional support."; break;
             case NEUTRAL: tone = "You are Sim, a balanced journaling companion. Offer brief, clear, and supportive reflections."; break;
             case PROACTIVE: tone = "You are Sim, an encouraging journaling companion. Offer brief, motivating reflections and gentle prompts."; break;
             default: tone = "You are Sim, a supportive journaling companion.";

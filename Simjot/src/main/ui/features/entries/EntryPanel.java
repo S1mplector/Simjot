@@ -433,6 +433,16 @@ public class EntryPanel extends AbstractEditorPanel {
         StyledDocument sd = (StyledDocument) contentArea.getDocument();
         // Silvery sky blue color
         Color simBlue = new Color(176, 196, 222); // LightSteelBlue
+        // Ensure a normal/user text style exists (used to reset typing attributes)
+        Style normal = sd.getStyle("normalText");
+        if (normal == null) {
+            normal = sd.addStyle("normalText", null);
+            StyleConstants.setForeground(normal, AeroTheme.TEXT_PRIMARY);
+            // Default character attributes (not bold/italic/underline)
+            StyleConstants.setBold(normal, false);
+            StyleConstants.setItalic(normal, false);
+            StyleConstants.setUnderline(normal, false);
+        }
         Style body = sd.getStyle("simGuidanceBody");
         if (body == null) {
             body = sd.addStyle("simGuidanceBody", null);
@@ -474,6 +484,7 @@ public class EntryPanel extends AbstractEditorPanel {
             ensureSimStyles();
             StyledDocument sd = (StyledDocument) contentArea.getDocument();
             Style body = sd.getStyle("simGuidanceBody");
+            Style normal = sd.getStyle("normalText");
             // Remove placeholder if present
             if (pendingGuidanceStart >= 0 && pendingGuidanceLen > 0 &&
                 pendingGuidanceStart + pendingGuidanceLen <= sd.getLength()){
@@ -484,7 +495,16 @@ public class EntryPanel extends AbstractEditorPanel {
             String bodyText = (guidance == null ? "" : guidance.strip()) + "\n";
             sd.insertString(end, prefix, null);
             sd.insertString(sd.getLength(), bodyText, body);
-            contentArea.setCaretPosition(sd.getLength());
+            // Append an invisible zero-width space with normal style so caret sits on a normal run
+            int afterGuidance = sd.getLength();
+            if (normal != null) {
+                sd.insertString(afterGuidance, "\u200B", normal);
+                contentArea.setCaretPosition(sd.getLength());
+                // Also reset input attributes defensively
+                contentArea.setCharacterAttributes(normal, true);
+            } else {
+                contentArea.setCaretPosition(sd.getLength());
+            }
             pendingGuidanceStart = -1;
             pendingGuidanceLen = 0;
         } catch (BadLocationException ignored) {}
