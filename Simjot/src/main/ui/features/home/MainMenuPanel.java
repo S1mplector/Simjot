@@ -585,12 +585,12 @@ public class MainMenuPanel extends JPanel {
         public DraggableWidgetPanel() {
             setOpaque(false);
             setLayout(new BorderLayout());
-            initializeComponents();
-            // Reusable drag controller bound to this panel
+            // Initialize drag controller BEFORE building components so initial updateLayout() can attach handles
             drag = new DragController(this)
                     .setConstrainToParentBounds(true)
                     .setCursorOnDrag(true)
                     .setDragThreshold(3);
+            initializeComponents();
         }
 
         private void setupTitleBarDrag(Component component) {

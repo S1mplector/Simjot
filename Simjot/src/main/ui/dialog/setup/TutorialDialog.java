@@ -4,6 +4,7 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.RoundedPanel;
 
@@ -32,15 +33,15 @@ public class TutorialDialog extends JDialog {
         container.setLayout(new BorderLayout(10,10));
         container.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
 
-        // build pages – refreshed for the latest main-menu layout
-        addPage("Welcome", "Welcome to Simjot!\nLet's walk through the essentials.");
-        addPage("Notebooks", "Organise life with multiple notebooks.\nCreate, rename or delete notebooks and watch them pop into the shelf.");
-        addPage("Journal", "Your daily journal is here.\nWrite entries, add photos, and track your moods with the mood slider.");
-        addPage("Poetry", "Express yourself with poetry.\nCreate, edit and delete poems, and re-visit them whenever you like");
-        addPage("Canvas", "Tap <b>Canvas</b> to sketch ideas on an infinite sheet.\nPens, eraser and colour picker give you creative freedom.");
-        addPage("Mood Chart", "All those slider moods converge here.\nSee how your feelings trend over the last 7/30 days or overall.");
-        addPage("Settings & Themes", "Personalise Simjot: change wallpapers, tweak UI sizes and more in <b>Settings</b>.");
-        addPage("That's it!", "Enjoy Simjot and happy writing.");
+        // build pages – refreshed for the latest main-menu layout with visuals
+        addPage("Welcome", "Welcome to Simjot!\nLet's walk through the essentials.", null);
+        addPage("Notebooks", "Organise life with multiple notebooks.\nCreate, rename or delete notebooks and watch them pop into the shelf.", "docs/notebook_manager.png");
+        addPage("Journal", "Your daily journal is here.\nWrite entries, add photos, and track your moods with the mood slider.", "docs/journaling interface.png");
+        addPage("Poetry", "Express yourself with poetry.\nCreate, edit and delete poems, and re-visit them whenever you like", "docs/poem_interface.png");
+        addPage("Canvas", "Tap <b>Canvas</b> to sketch ideas on an infinite sheet.\nPens, eraser and colour picker give you creative freedom.", "docs/main_interface.png");
+        addPage("Mood Chart", "All those slider moods converge here.\nSee how your feelings trend over the last 7/30 days or overall.", "docs/breathing_circle.png");
+        addPage("Settings & Themes", "Personalise Simjot: change wallpapers, tweak UI sizes and more in <b>Settings</b>.", "docs/settings_interface.png");
+        addPage("That's it!", "Enjoy Simjot and happy writing.", null);
 
         container.add(cardPanel, BorderLayout.CENTER);
 
@@ -67,12 +68,12 @@ public class TutorialDialog extends JDialog {
 
         getContentPane().add(container);
         pack();
-        setSize(380, 260);
+        setSize(460, 340);
         setAlwaysOnTop(true);
         setLocationRelativeTo(getOwner());
     }
 
-    private void addPage(String title, String body) {
+    private void addPage(String title, String body, String imagePath) {
         JPanel page = new JPanel();
         page.setOpaque(false);
         page.setLayout(new BoxLayout(page, BoxLayout.Y_AXIS));
@@ -90,6 +91,28 @@ public class TutorialDialog extends JDialog {
         page.add(t);
         page.add(Box.createVerticalStrut(10));
         page.add(txt);
+        
+        if (imagePath != null) {
+            Image img = ResourceLoader.createImage("Simjot/" + imagePath);
+            if (img != null) {
+                // scale to fit width with max height constraint
+                int maxW = 400;
+                int maxH = 180;
+                int iw = img.getWidth(null);
+                int ih = img.getHeight(null);
+                if (iw > 0 && ih > 0) {
+                    double scale = Math.min((double)maxW/iw, (double)maxH/ih);
+                    int w = (int)Math.round(iw * scale);
+                    int h = (int)Math.round(ih * scale);
+                    Image scaled = img.getScaledInstance(w, h, Image.SCALE_SMOOTH);
+                    JLabel pic = new JLabel(new ImageIcon(scaled));
+                    pic.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    pic.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+                    page.add(pic);
+                }
+            }
+        }
+
         page.add(Box.createVerticalGlue());
 
         String name = "page" + cardNames.size();

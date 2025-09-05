@@ -38,17 +38,23 @@ public class SetupWizardDialog extends JDialog {
         title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel desc = new JLabel("Choose where you would like to store your Simjot files.");
+        JLabel desc = new JLabel("Choose where you would like Simjot to create its root folder.");
         desc.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Brief feature overview (HTML bullet list for nice formatting)
-        String overview = "<html><div style='width:300px'>" +
+        // Explain what the chosen root folder is used for and how to back it up
+        String overview = "<html><div style='width:420px'>" +
+                "<div style='margin-top:4px;margin-bottom:6px'>" +
+                "Simjot will create a <b>Simjot</b> folder at the location you pick. " +
+                "Everything you create is stored inside this folder, so it's easy to move or back up." +
+                "</div>" +
                 "<ul style='margin-top:0'>" +
-                "<li>Rich journal & note editor (bold, images, colours)</li>" +
-                "<li>Poetry mode with custom backgrounds</li>" +
-                "<li>Drawing studio with layers & calligraphy brush</li>" +
-                "<li>Mood tracking charts</li>" +
-                "<li>Gallery for your saved artwork</li>" +
+                "<li>Inside it we'll create sub‑folders for your data: <i>entries</i>, <i>poems</i>, <i>mood data</i>, <i>settings</i>, and <i>images</i>.</li>" +
+                "<li>You can keep it safe like any normal folder:</li>" +
+                "<ul>" +
+                "<li>Place it inside a cloud‑sync location (e.g. iCloud Drive, Dropbox, OneDrive) to sync across devices.</li>" +
+                "<li>Or include it in system backups (e.g. Time Machine) or copy it to an external drive.</li>" +
+                "</ul>" +
+                "<li>If a <b>Simjot</b> folder already exists there, we'll reuse it.</li>" +
                 "</ul>" +
                 "</div></html>";
         JLabel featuresLabel = new JLabel(overview);
