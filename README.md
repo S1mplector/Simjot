@@ -1,6 +1,6 @@
 #  Simjot
 
-<p align="center">
+<p align="left">
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
