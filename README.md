@@ -1,6 +1,6 @@
 #  Simjot
 
-A lightweight, feature-rich personal journaling application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
+A lightweight, feature-rich and highly personalizable journaling and poetry workspace application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
 
 ## Features
 
