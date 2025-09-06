@@ -13,6 +13,7 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/HeaderPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/DayPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/MainMenuPanel.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/TodayCalendarPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/BackgroundPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/drawing/DrawingChooserDialog.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/drawing/InkOverlay.java
@@ -42,6 +43,10 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsCategory.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/GlyphIcon.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsController.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsIcons.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/poetry/SimSuggestionFormatter.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/poetry/StatsSidebarPanel.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/poetry/RhymesDockPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/editing/UndoRedoManager.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/notebooks/NotebookManagerPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/widgets/BreathingWidget.java
@@ -59,6 +64,7 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/dialog/utils/PoemBackgroundDialog.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/dialog/utils/BreathingExerciseWindow.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/dialog/confirmation/CustomConfirmDialog.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/dialog/export/PoemExportDialog.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/popup/AnimatedGlassPopup.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/buttons/RoundedToggleButton.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/buttons/MainMenuButton.java
@@ -94,7 +100,11 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/sim/overlay/ChatViewPanel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/animations/transitions/FadingButton.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/animations/transitions/FadeTransitionPanel.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/poetry/PoetryUtils.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/poetry/MeterAnalysis.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/poetry/MeterScanner.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/model/SectionData.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/export/PoemExporter.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/service/LastSaveTracker.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/service/NotebookStore.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/service/SettingsStore.java
@@ -102,7 +112,9 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/prompt/PromptBuilder.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimLLMClient.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimLLMRequest.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/DefaultSimSuggestionService.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimLLMResponse.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimSuggestionService.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/ollama/OllamaClient.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/openai/OpenAIClient.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/memory/MemoryStore.java
