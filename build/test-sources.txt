@@ -1,3 +1,4 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/tests/main/core/service/SettingsStoreTest.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/tests/main/core/service/NotebookStoreTest.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/tests/main/infrastructure/backup/BackupManagerTest.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/tests/main/infrastructure/backup/BackupServiceTest.java
