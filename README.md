@@ -1,10 +1,10 @@
 #  Simjot
 
-[![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://www.oracle.com/java/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<p align="center">
+  <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
+</p>
 
-
-A lightweight, feature-rich and highly personalizable journaling and poetry workspace application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
+A lightweight, feature-rich and personalizable journaling application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
 
 ## Features
 
