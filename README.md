@@ -30,37 +30,37 @@ A lightweight, feature-rich and highly personalizable journaling and poetry work
 
 ## Screenshots
 
-Below are a few highlights from the current UI. More images live in `Simjot/Simjot/docs/`.
+Below are a few highlights from the current UI. More images live in `Simjot/Simjot/docs/images`.
 
 - **Main Interface**
 
-  ![Main Interface](Simjot/docs/main_interface.png)
+  ![Main Interface](Simjot/docs/images/main_interface.png)
 
 - **Journaling Interface**
 
-  ![Journaling Interface](Simjot/docs/journaling%20interface.png)
+  ![Journaling Interface](Simjot/docs/images/journaling%20interface.png)
 
 - **Poetry Workspace**
 
-  ![Poetry Workspace](Simjot/docs/poem_interface.png)
+  ![Poetry Workspace](Simjot/docs/images/poem_interface.png)
 
 - **Notebook Manager**
 
-  ![Notebook Manager](Simjot/docs/notebook_manager.png)
+  ![Notebook Manager](Simjot/docs/images/notebook_manager.png)
 
 - **Entry Manager**
 
-  ![Entry Manager](Simjot/docs/entry_manager.png)
+  ![Entry Manager](Simjot/docs/images/entry_manager.png)
 
 - **Settings**
 
-  ![Settings](Simjot/docs/settings_interface.png)
+  ![Settings](Simjot/docs/images/settings_interface.png)
 
 - **Breathing Exercise**
 
-  ![Breathing Circle](Simjot/docs/breathing_circle.png)
+  ![Breathing Circle](Simjot/docs/images/breathing_circle.png)
   
-  ![Breathing Configuration](Simjot/docs/breathing_config.png)
+  ![Breathing Configuration](Simjot/docs/images/breathing_config.png)
 
 ## Quick Start
 
