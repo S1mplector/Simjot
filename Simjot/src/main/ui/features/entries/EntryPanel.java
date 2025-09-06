@@ -60,6 +60,11 @@ public class EntryPanel extends AbstractEditorPanel {
     private JToggleButton underlineBtn;
     private JToggleButton bulletsBtn;
     // 'currentFile' is inherited from AbstractEditorPanel
+    // UI refs for toggling (distraction-free / zen mode)
+    private JPanel toolbarContainer;
+    private JPanel bottomPanel;
+    private boolean distractionFree = false;
+    private JPanel dfHeader;
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -110,6 +115,22 @@ public class EntryPanel extends AbstractEditorPanel {
         }
     }
 
+    private void toggleDistractionFree() {
+        distractionFree = !distractionFree;
+        // Swap toolbar with minimal df header in NORTH and hide bottom panel
+        if (distractionFree) {
+            try { remove(toolbarContainer); } catch (Throwable ignored) {}
+            add(dfHeader, BorderLayout.NORTH);
+            if (bottomPanel != null) bottomPanel.setVisible(false);
+        } else {
+            try { remove(dfHeader); } catch (Throwable ignored) {}
+            add(toolbarContainer, BorderLayout.NORTH);
+            if (bottomPanel != null) bottomPanel.setVisible(true);
+        }
+        revalidate();
+        repaint();
+    }
+
     // Unified constructor: if fileToEdit is non-null, load it and switch to edit mode (saving updates same file)
     public EntryPanel(JournalApp app, File fileToEdit, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         this(app, journalFolder, cardLayout, cardPanel);
@@ -141,7 +162,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void initUI() {
         // --- Extended Toolbar with Mood Slider ---
-        JPanel toolbarContainer = new JPanel(new BorderLayout(0, 5));
+        toolbarContainer = new JPanel(new BorderLayout(0, 5));
         // Solid background so the page wallpaper does not seep through the toolbar
         toolbarContainer.setOpaque(true);
         toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
@@ -162,9 +183,14 @@ public class EntryPanel extends AbstractEditorPanel {
         ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
         topToolbar.add(backButton);
 
-        // Right-side settings (cork icon) button
+        // Right-side controls
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
+        // Distraction-free toggle (place to the left of settings)
+        ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
+        dfBtn.setToolTipText("Distraction-Free Mode");
+        dfBtn.addActionListener(e -> toggleDistractionFree());
+        // Right-side settings (cork icon) button
         ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
@@ -172,7 +198,6 @@ public class EntryPanel extends AbstractEditorPanel {
             dialog.setVisible(true);
             repaint();
         });
-        rightToolbar.add(settingsBtn);
 
         // Spinner removed per request; keep toolbar compact
 
@@ -192,8 +217,12 @@ public class EntryPanel extends AbstractEditorPanel {
                 // no-op
             }
         });
-        rightToolbar.add(Box.createHorizontalStrut(6));
+        // Order: guidance (left), fullscreen, settings (rightmost)
         rightToolbar.add(guidanceBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(dfBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(settingsBtn);
 
         // Title label & field
         JLabel titleLabel = new JLabel("Title:");
@@ -276,6 +305,16 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarContainer.add(rightToolbar, BorderLayout.EAST);
 
         add(toolbarContainer, BorderLayout.NORTH);
+
+        // Distraction-free header: only Back button, no other controls
+        dfHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        dfHeader.setOpaque(false);
+        dfHeader.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        // Use the standard back icon, but here it exits fullscreen
+        ToolbarIconButton dfBack = new ToolbarIconButton("back");
+        dfBack.setToolTipText("Exit Fullscreen");
+        dfBack.addActionListener(e -> toggleDistractionFree());
+        dfHeader.add(dfBack);
 
         // --- Content Area (match PoemPanel style) ---
         // Use the same translucent rounded rectangle container used in PoemPanel
@@ -377,7 +416,7 @@ public class EntryPanel extends AbstractEditorPanel {
         add(centerContainer, BorderLayout.CENTER);
 
         // --- Bottom Panel: Save Button ---
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setOpaque(false);
 
         // Save button (via EditorUIUtils)
