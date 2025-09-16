@@ -14,6 +14,8 @@ import javax.swing.text.StyledDocument;
 import javax.swing.text.Style;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.rtf.RTFEditorKit;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.SimpleAttributeSet;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
@@ -28,7 +30,6 @@ import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
@@ -115,6 +116,69 @@ public class EntryPanel extends AbstractEditorPanel {
         }
     }
 
+    // --- Formatting helpers used by shared toolbar ---
+    private void applyInlineStyleBold() {
+        try {
+            StyledDocument doc = (StyledDocument) contentArea.getDocument();
+            int start = contentArea.getSelectionStart();
+            int end = contentArea.getSelectionEnd();
+            if (start == end) return;
+            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
+            boolean enable = !StyleConstants.isBold(selectionAttrs);
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setBold(attrs, enable);
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Exception ignored) {}
+    }
+
+    private void applyInlineStyleItalic() {
+        try {
+            StyledDocument doc = (StyledDocument) contentArea.getDocument();
+            int start = contentArea.getSelectionStart();
+            int end = contentArea.getSelectionEnd();
+            if (start == end) return;
+            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
+            boolean enable = !StyleConstants.isItalic(selectionAttrs);
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setItalic(attrs, enable);
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Exception ignored) {}
+    }
+
+    private void applyInlineStyleUnderline() {
+        try {
+            StyledDocument doc = (StyledDocument) contentArea.getDocument();
+            int start = contentArea.getSelectionStart();
+            int end = contentArea.getSelectionEnd();
+            if (start == end) return;
+            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
+            boolean enable = !StyleConstants.isUnderline(selectionAttrs);
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setUnderline(attrs, enable);
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Exception ignored) {}
+    }
+
+    private void applyParagraphFontToAll() {
+        try {
+            StyledDocument doc = (StyledDocument) contentArea.getStyledDocument();
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setFontFamily(attrs, contentArea.getFont().getFamily());
+            StyleConstants.setFontSize(attrs, contentArea.getFont().getSize());
+            doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+        } catch (Exception ignored) {}
+    }
+
+    private void applyLineSpacing(String val) {
+        float spacing = switch (val) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        try {
+            StyledDocument doc = (StyledDocument) contentArea.getStyledDocument();
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setLineSpacing(attrs, spacing);
+            doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+        } catch (Exception ignored) {}
+    }
+
     private void toggleDistractionFree() {
         distractionFree = !distractionFree;
         // Swap toolbar with minimal df header in NORTH and hide bottom panel
@@ -168,29 +232,12 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
         toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Top toolbar row (left)
-        JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topToolbar.setOpaque(false);
-
-        // Back button -> return to this notebook's entries manager
-        NotebookInfo nbInfo = new NotebookInfo(
-                journalFolder.getName(),
-                NotebookInfo.Type.JOURNAL,
-                journalFolder,
-                journalFolder.lastModified(),
-                null
-        );
-        ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
-        topToolbar.add(backButton);
-
-        // Right-side controls
+        // Build right-side controls (journal-specific)
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
-        // Distraction-free toggle (place to the left of settings)
         ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
-        // Right-side settings (cork icon) button
         ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
@@ -198,97 +245,75 @@ public class EntryPanel extends AbstractEditorPanel {
             dialog.setVisible(true);
             repaint();
         });
-
-        // Spinner removed per request; keep toolbar compact
-
-        // Sim guidance button (uses simguidance.png)
         ToolbarIconButton guidanceBtn = new ToolbarIconButton("simguidance");
         guidanceBtn.setToolTipText("Ask Sim for guidance on this entry");
         guidanceBtn.addActionListener(e -> {
             try {
                 Document doc = contentArea.getDocument();
                 String all = doc.getText(0, doc.getLength());
-                // Trim excessive length to keep prompt lean
                 int cap = 4000;
                 String text = all.length() > cap ? all.substring(all.length() - cap) : all;
                 showGuidanceThinkingPlaceholder();
                 SimEventBus.get().emitGuidanceRequested(text);
-            } catch (BadLocationException ex) {
-                // no-op
-            }
+            } catch (BadLocationException ex) { /* no-op */ }
         });
-        // Order: guidance (left), fullscreen, settings (rightmost)
         rightToolbar.add(guidanceBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(dfBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(settingsBtn);
 
-        // Title label & field
-        JLabel titleLabel = new JLabel("Title:");
-        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
-        titleLabel.setFont(AeroTheme.defaultBoldFont(16f));
-        topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(titleLabel);
+        // Create shared poetry-style toolbar
+        NotebookInfo nbInfo = new NotebookInfo(
+                journalFolder.getName(),
+                NotebookInfo.Type.JOURNAL,
+                journalFolder,
+                journalFolder.lastModified(),
+                null
+        );
+        main.ui.components.toolbars.PoetryStyleToolbar sharedToolbar = new main.ui.components.toolbars.PoetryStyleToolbar(
+                app,
+                nbInfo,
+                "Title:",
+                "Untitled entry",
+                () -> applyInlineStyleBold(),
+                () -> applyInlineStyleItalic(),
+                () -> applyInlineStyleUnderline(),
+                (fontName) -> {
+                    Font current = contentArea.getFont();
+                    contentArea.setFont(new Font(fontName, current.getStyle(), current.getSize()));
+                    applyParagraphFontToAll();
+                },
+                (size) -> {
+                    contentArea.setFont(contentArea.getFont().deriveFont(size.floatValue()));
+                    applyParagraphFontToAll();
+                    SettingsStore.get().setJournalFontSize(size);
+                    SettingsStore.get().save();
+                },
+                this::applyLineSpacing,
+                rightToolbar
+        );
+        // Bind the shared title field to our reference used elsewhere
+        titleField = sharedToolbar.getTitleField();
 
-        titleField = new ModernTextField(24);
-        ((ModernTextField) titleField).setPlaceholder("Untitled entry");
-        titleField.setFont(AeroTheme.defaultFont().deriveFont(16f));
-        titleField.setForeground(AeroTheme.TEXT_PRIMARY);
-        // Auto-select on first focus
-        titleField.addFocusListener(new java.awt.event.FocusAdapter(){
-            @Override
-            public void focusGained(java.awt.event.FocusEvent e){
-                if(!titleFocusedOnce){
-                    titleField.selectAll();
-                    titleFocusedOnce = true;
-                }
-            }
-        });
-        topToolbar.add(titleField);
-
-        // Font buttons (A- / A+)
-        RoundedButton decFont = new RoundedButton("A-");
-        RoundedButton incFont = new RoundedButton("A+");
-        decFont.addActionListener(e -> changeFontSize(-1));
-        incFont.addActionListener(e -> changeFontSize(1));
-        topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(decFont);
-        topToolbar.add(incFont);
-
-        // Bottom toolbar row with mood slider
-        JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        bottomToolbar.setOpaque(false);
-
+        // Build mood slider stack to show under the shared toolbar
+        JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        moodRow.setOpaque(false);
         moodSlider = new MoodSlider();
-        bottomToolbar.add(moodSlider);
-        // Emit Sim mood changes (Phase 2 hook)
+        moodRow.add(moodSlider);
         moodSlider.addChangeListener(e -> {
             try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
         });
-
-        // Add both toolbar rows to the container
-        // Detailed mood logging expand button
-        RoundedButton expandMoodBtn = new RoundedButton("\u203A"); // single-glyph arrow ›
+        RoundedButton expandMoodBtn = new RoundedButton("\u203A");
         expandMoodBtn.setToolTipText("Open detailed mood logging");
         expandMoodBtn.setForeground(AeroTheme.TEXT_PRIMARY);
-        // Make the button compact
         expandMoodBtn.setPreferredSize(new Dimension(28, 28));
         expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
-        expandMoodBtn.addActionListener(e -> {
-            boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
-            if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
-            // flip arrow
-            expandMoodBtn.setText(next ? "\u2039" : "\u203A"); // ‹ when open, › when closed
-        });
-        bottomToolbar.add(expandMoodBtn);
-
-        // Stack bottom toolbar and the collapsible detailed panel vertically
+        moodRow.add(expandMoodBtn);
         JPanel bottomStack = new JPanel();
         bottomStack.setOpaque(false);
         bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
-        bottomStack.add(bottomToolbar);
-        // create detailed panel with save handler -> update mood slider and persist
+        bottomStack.add(moodRow);
         detailedMoodPanel = new DetailedMoodPanel(composite -> {
             moodSlider.setValue(composite);
             recordMood(composite);
@@ -298,10 +323,19 @@ public class EntryPanel extends AbstractEditorPanel {
                     false).showDialog();
         });
         bottomStack.add(detailedMoodPanel);
+        expandMoodBtn.addActionListener(e -> {
+            boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
+            if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
+            expandMoodBtn.setText(next ? "\u2039" : "\u203A");
+        });
 
-        // Add toolbars to container
-        toolbarContainer.add(topToolbar, BorderLayout.NORTH);
-        toolbarContainer.add(bottomStack, BorderLayout.CENTER);
+        // Wrap shared toolbar + mood stack into a single NORTH container
+        JPanel northWrapper = new JPanel(new BorderLayout());
+        northWrapper.setOpaque(false);
+        northWrapper.add(sharedToolbar, BorderLayout.NORTH);
+        northWrapper.add(bottomStack, BorderLayout.CENTER);
+
+        toolbarContainer.add(northWrapper, BorderLayout.CENTER);
         toolbarContainer.add(rightToolbar, BorderLayout.EAST);
 
         add(toolbarContainer, BorderLayout.NORTH);
@@ -317,8 +351,20 @@ public class EntryPanel extends AbstractEditorPanel {
         dfHeader.add(dfBack);
 
         // --- Content Area (match PoemPanel style) ---
-        // Use the same translucent rounded rectangle container used in PoemPanel
-        JPanel textWrapper = new TranslucentPanel();
+        // Use the same paper-like rounded rectangle container as in PoemPanel
+        JPanel textWrapper = new TranslucentPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight();
+                g2.setPaint(new Color(255,255,250,230));
+                g2.fillRoundRect(6, 6, w-12, h-12, 16, 16);
+                g2.setColor(new Color(0,0,0,25));
+                g2.drawRoundRect(6, 6, w-12, h-12, 16, 16);
+                g2.dispose();
+            }
+        };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Content Area: Rich text editor (StyledDocument)
@@ -326,11 +372,12 @@ public class EntryPanel extends AbstractEditorPanel {
 
         // Load font size directly from settings to ensure persistence
         int savedFontSize = SettingsStore.get().getJournalFontSize();
-        contentArea.setFont(new Font("Serif", Font.PLAIN, savedFontSize));
+        contentArea.setFont(new Font("Serif", Font.ITALIC, savedFontSize));
         // JTextPane handles wrapping automatically via view; ensure editor kit is styled
         contentArea.setEditorKit(new StyledEditorKit());
         contentArea.setOpaque(false);
-        contentArea.setForeground(AeroTheme.TEXT_PRIMARY);
+        // Match poem editor text color
+        contentArea.setForeground(new Color(40, 40, 40));
         ensureSimStyles();
 
         // Keep formatting toggles in sync with caret/selection changes

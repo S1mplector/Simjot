@@ -13,7 +13,7 @@ public class EntryBackgroundDialog extends JDialog {
     private final JSlider opacitySlider;
     private String selectedImagePath = "";
     private BufferedImage selectedImage;
-    private float currentOpacity = 0.7f;
+    private float currentOpacity = 0.3f;
     
     public EntryBackgroundDialog(Frame owner) {
         super(owner, "Entry Background Settings", true);
@@ -53,7 +53,7 @@ public class EntryBackgroundDialog extends JDialog {
         opacitySlider.setPreferredSize(new Dimension(250, 30));
         
         // Add a label to show the current opacity percentage
-        JLabel opacityValueLabel = new JLabel("70%");
+        JLabel opacityValueLabel = new JLabel(String.format("%d%%", (int)(currentOpacity * 100)));
         opacityValueLabel.setPreferredSize(new Dimension(40, 20));
         
         // Update the preview in real-time when slider changes
@@ -188,17 +188,9 @@ public class EntryBackgroundDialog extends JDialog {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             
-            // Draw checkered background (transparency pattern)
-            int size = 10;
-            boolean white = true;
-            for (int y = 0; y < h; y += size) {
-                for (int x = 0; x < w; x += size) {
-                    g2d.setColor(white ? new Color(245, 245, 245) : new Color(220, 220, 220));
-                    g2d.fillRect(x, y, size, size);
-                    white = !white;
-                }
-                if ((w / size) % 2 == 0) white = !white;
-            }
+            // Draw white background (default for poems and now journal)
+            g2d.setColor(Color.WHITE);
+            g2d.fillRect(0, 0, w, h);
             
             // Calculate image dimensions to maintain aspect ratio
             int imgW = w;
@@ -229,7 +221,7 @@ public class EntryBackgroundDialog extends JDialog {
             previewLabel.setText("");
         } else {
             previewLabel.setIcon(null);
-            previewLabel.setText("No background selected");
+            previewLabel.setText("White background (default)");
             previewLabel.setForeground(Color.GRAY);
         }
     }

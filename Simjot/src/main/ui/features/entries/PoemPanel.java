@@ -115,29 +115,7 @@ public class PoemPanel extends AbstractEditorPanel {
     }
 
     private void initUI() {
-        // --- Modern Toolbar Container ---
-        toolbarContainer = new JPanel(new BorderLayout(0, 5));
-        // Solid background so the page wallpaper does not seep through the toolbar
-        toolbarContainer.setOpaque(true);
-        toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
-        toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        // Top toolbar row
-        JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topToolbar.setOpaque(false);
-
-        // Back button -> return to this notebook's entries manager
-        NotebookInfo nbInfo = new NotebookInfo(
-                journalFolder.getName(),
-                NotebookInfo.Type.POETRY,
-                journalFolder,
-                journalFolder.lastModified(),
-                null
-        );
-        ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
-        topToolbar.add(backButton);
-        
-        // Right-side controls
+        // Build right-side controls to pass into the shared toolbar
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
         // Toggles for poetry helpers
@@ -185,89 +163,38 @@ public class PoemPanel extends AbstractEditorPanel {
         rightToolbar.add(exportBtn);
         rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
-
-        // Title label & field
-        JLabel titleLabel = new JLabel("Poem Title:");
-        titleLabel.setForeground(Color.DARK_GRAY);
-        titleLabel.setFont(new Font("Serif", Font.BOLD, 16));
-        topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(titleLabel);
-
-        poemTitleField = new ModernTextField(24);
-        poemTitleField.setFont(new Font("Serif", Font.BOLD, 16));
-        // Placeholder for consistency with EntryPanel
-        if (poemTitleField instanceof ModernTextField mtf) {
-            mtf.setPlaceholder("Untitled poem");
-        }
-        topToolbar.add(poemTitleField);
-
-        // Formatting toolbar (Bold/Italic/Underline)
-        RoundedButton boldBtn = new RoundedButton("B");
-        boldBtn.addActionListener(e -> toggleStyle(StyleConstants.CharacterConstants.Bold));
-        RoundedButton italicBtn = new RoundedButton("I");
-        italicBtn.addActionListener(e -> toggleStyle(StyleConstants.CharacterConstants.Italic));
-        RoundedButton underlineBtn = new RoundedButton("U");
-        underlineBtn.addActionListener(e -> toggleStyle(StyleConstants.CharacterConstants.Underline));
-        topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(boldBtn);
-        topToolbar.add(italicBtn);
-        topToolbar.add(underlineBtn);
-
-        // Bottom toolbar row with font selector
-        JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        bottomToolbar.setOpaque(false);
-        
-        JLabel fontLabel = new JLabel("Font:");
-        fontLabel.setForeground(Color.DARK_GRAY);
-        fontLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
-        bottomToolbar.add(fontLabel);
-
-        String[] fonts = {"Serif", "Georgia", "Verdana", "Garamond", "Baskerville", "Cursive"};
-        JComboBox<String> fontSelector = new JComboBox<>(fonts);
-        fontSelector.setUI(new ModernComboBoxUI());
-        fontSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        fontSelector.setSelectedItem("Serif"); // Default font
-        fontSelector.addActionListener(e -> {
-            String selectedFont = (String) fontSelector.getSelectedItem();
-            Font currentFont = poemEditor.getFont();
-            poemEditor.setFont(new Font(selectedFont, currentFont.getStyle(), currentFont.getSize()));
-            applyParagraphFontToAll();
-        });
-        bottomToolbar.add(fontSelector);
-
-        // Font size selector
-        bottomToolbar.add(new JLabel(" Size:"));
-        Integer[] sizes = {12, 14, 16, 18, 20, 22, 24, 28};
-        JComboBox<Integer> sizeSelector = new JComboBox<>(sizes);
-        sizeSelector.setUI(new ModernComboBoxUI());
-        sizeSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        sizeSelector.setSelectedItem(SettingsStore.get().getPoemFontSize());
-        sizeSelector.addActionListener(e -> {
-            Integer sz = (Integer) sizeSelector.getSelectedItem();
-            if (sz != null) {
-                poemEditor.setFont(poemEditor.getFont().deriveFont(sz.floatValue()));
-                applyParagraphFontToAll();
-                // persist preferred size
-                SettingsStore.get().setPoemFontSize(sz);
-                SettingsStore.get().save();
-            }
-        });
-        bottomToolbar.add(sizeSelector);
-
-        // Line spacing
-        bottomToolbar.add(new JLabel(" Spacing:"));
-        JComboBox<String> spacing = new JComboBox<>(new String[]{"1.0", "1.2", "1.5"});
-        spacing.setUI(new ModernComboBoxUI());
-        spacing.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        spacing.setSelectedIndex(0);
-        spacing.addActionListener(e -> applyLineSpacing((String) spacing.getSelectedItem()));
-        bottomToolbar.add(spacing);
-
-        // Add both toolbar rows to the container
-        toolbarContainer.add(topToolbar, BorderLayout.NORTH);
-        toolbarContainer.add(bottomToolbar, BorderLayout.CENTER);
-        toolbarContainer.add(rightToolbar, BorderLayout.EAST);
-
+        // Create shared toolbar and wire callbacks
+        NotebookInfo nbInfo = new NotebookInfo(
+                journalFolder.getName(),
+                NotebookInfo.Type.POETRY,
+                journalFolder,
+                journalFolder.lastModified(),
+                null
+        );
+        main.ui.components.toolbars.PoetryStyleToolbar sharedToolbar = new main.ui.components.toolbars.PoetryStyleToolbar(
+                app,
+                nbInfo,
+                "Poem Title:",
+                "Untitled poem",
+                () -> toggleStyle(StyleConstants.CharacterConstants.Bold),
+                () -> toggleStyle(StyleConstants.CharacterConstants.Italic),
+                () -> toggleStyle(StyleConstants.CharacterConstants.Underline),
+                (fontName) -> {
+                    Font currentFont = poemEditor.getFont();
+                    poemEditor.setFont(new Font(fontName, currentFont.getStyle(), currentFont.getSize()));
+                    applyParagraphFontToAll();
+                },
+                (size) -> {
+                    poemEditor.setFont(poemEditor.getFont().deriveFont(size.floatValue()));
+                    applyParagraphFontToAll();
+                    SettingsStore.get().setPoemFontSize(size);
+                    SettingsStore.get().save();
+                },
+                this::applyLineSpacing,
+                rightToolbar
+        );
+        toolbarContainer = sharedToolbar.getContainer();
+        poemTitleField = sharedToolbar.getTitleField();
         add(toolbarContainer, BorderLayout.NORTH);
 
         // Distraction-free header: only Back button, no other controls
