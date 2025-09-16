@@ -351,12 +351,6 @@ public class EntryPanel extends AbstractEditorPanel {
             expandMoodBtn.setText(next ? "\u2039" : "\u203A");
         });
 
-        // Sync toolbar toggle states from caret typing attributes
-        contentArea.addCaretListener(e -> {
-            RichTextStyler.StyleState st = RichTextStyler.getTypingState(contentArea);
-            sharedToolbar.setToggleStates(st.bold(), st.italic(), st.underline(), st.strike());
-        });
-
         // Wrap shared toolbar + mood stack into a single NORTH container
         JPanel northWrapper = new JPanel(new BorderLayout());
         northWrapper.setOpaque(false);
@@ -410,6 +404,12 @@ public class EntryPanel extends AbstractEditorPanel {
 
         // Keep formatting toggles in sync with caret/selection changes
         contentArea.addCaretListener(e -> updateFormattingToggleState());
+
+        // Sync toolbar toggle states from caret typing attributes (after contentArea exists)
+        contentArea.addCaretListener(e -> {
+            RichTextStyler.StyleState st = RichTextStyler.getTypingState(contentArea);
+            sharedToolbar.setToggleStates(st.bold(), st.italic(), st.underline(), st.strike());
+        });
 
         // Add undo/redo support
         @SuppressWarnings("unused")
