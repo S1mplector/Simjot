@@ -22,6 +22,9 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JComboBox;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTree;
@@ -38,6 +41,9 @@ import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
 import javax.swing.Timer;
 import main.infrastructure.monitoring.AppPerf;
+import main.core.service.SettingsStore;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.spinner.ModernSpinnerUI;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
@@ -45,6 +51,11 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
     private DefaultTreeModel treeModel;
     private final Timer spinnerTimer;
     private float spinnerAngle = 0f;
+
+    // Backup controls
+    private final JComboBox<String> backupFreqBox;
+    private final JSpinner backupKeepSpin;
+    private final javax.swing.JButton backupNowBtn;
 
     StorageSettingsPage() {
         setLayout(new BorderLayout());
@@ -121,12 +132,14 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         // Ensure the tree is tall enough to show all rows without scrolling
         adjustTreeHeight(treeScroll);
 
-        content.add(Box.createVerticalStrut(12));
+        // Push subsequent controls to the bottom area
+        content.add(Box.createVerticalGlue());
 
         // Actions
         JPanel actions = new JPanel();
         actions.setOpaque(false);
         actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
+        actions.setAlignmentX(0.5f);
 
         RoundedButton openBtn = new RoundedButton("Open in Explorer");
         // Use RoundedButton's iconId mechanism so custom painter draws the icon
@@ -153,6 +166,67 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         content.add(Box.createVerticalStrut(8));
         content.add(actions);
 
+        // Backup settings (moved from General) — placed at bottom
+        content.add(Box.createVerticalStrut(12));
+
+        JPanel backupsCard = new GlassCardPanel();
+        backupsCard.setLayout(new BorderLayout());
+        backupsCard.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        backupsCard.setAlignmentX(0.5f);
+        JLabel backupsTitle = new JLabel("Backups");
+        backupsTitle.setFont(backupsTitle.getFont().deriveFont(Font.BOLD));
+        JLabel backupsSub = new JLabel("Automatic backups and manual trigger");
+        backupsSub.setFont(backupsSub.getFont().deriveFont(Font.PLAIN, 11f));
+        backupsSub.setForeground(new Color(0,0,0,120));
+
+        JPanel backupsHeader = new JPanel();
+        backupsHeader.setOpaque(false);
+        backupsHeader.setLayout(new BoxLayout(backupsHeader, BoxLayout.Y_AXIS));
+        backupsHeader.add(backupsTitle);
+        backupsHeader.add(backupsSub);
+        backupsCard.add(backupsHeader, BorderLayout.NORTH);
+
+        JPanel backups = new JPanel(new GridBagLayout());
+        backups.setOpaque(false);
+        GridBagConstraints bgc = new GridBagConstraints();
+        bgc.insets = new Insets(5, 5, 5, 5);
+        bgc.fill = GridBagConstraints.HORIZONTAL;
+
+        SettingsStore store = SettingsStore.get();
+
+        String[] freqs = new String[] { "Off", "Daily", "Weekly", "Monthly" };
+        backupFreqBox = new JComboBox<>(freqs);
+        backupFreqBox.setUI(new ModernComboBoxUI());
+        backupFreqBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        backupFreqBox.setSelectedItem(store.getBackupFrequency());
+        bgc.gridx = 0; bgc.gridy = 0; backups.add(SettingsUi.label("Auto-backup:"), bgc);
+        bgc.gridx = 1; backups.add(backupFreqBox, bgc);
+
+        backupKeepSpin = new JSpinner(new SpinnerNumberModel(store.getBackupKeepCount(), 1, 100, 1));
+        backupKeepSpin.setUI(new ModernSpinnerUI());
+        ((JSpinner.DefaultEditor) backupKeepSpin.getEditor()).getTextField().setColumns(3);
+        bgc.gridx = 0; bgc.gridy = 1; backups.add(SettingsUi.label("Keep last N backups:"), bgc);
+        bgc.gridx = 1; backups.add(backupKeepSpin, bgc);
+
+        backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
+        backupNowBtn.addActionListener(e -> {
+            backupNowBtn.setEnabled(false);
+            new SwingWorker<Void, Void>() {
+                @Override protected Void doInBackground() {
+                    try { main.infrastructure.backup.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
+                    return null;
+                }
+                @Override protected void done() {
+                    backupNowBtn.setEnabled(true);
+                    try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
+                }
+            }.execute();
+        });
+        bgc.gridx = 0; bgc.gridy = 2; bgc.gridwidth = 2; backups.add(backupNowBtn, bgc);
+
+        backupsCard.add(backups, BorderLayout.CENTER);
+        content.add(backupsCard);
+
         // Interactions: double-click open, context menu
         installTreeInteractions();
 
@@ -173,7 +247,14 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
     }
 
     @Override public JComponent getComponent() { return this; }
-    @Override public void apply() {}
+    @Override public void apply() {
+        // Persist backup settings here
+        try {
+            SettingsStore store = SettingsStore.get();
+            store.setBackupFrequency((String) backupFreqBox.getSelectedItem());
+            store.setBackupKeepCount((Integer) backupKeepSpin.getValue());
+        } catch (Throwable ignored) {}
+    }
 
     // clearThumbs action removed: thumbnails cache button no longer used
 

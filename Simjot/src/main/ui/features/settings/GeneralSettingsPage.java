@@ -27,9 +27,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox openLastChk;
     private final JCheckBox spellChk;
     private final JCheckBox autosaveOnBlurChk;
-    private final JComboBox<String> backupFreqBox;
-    private final JSpinner backupKeepSpin;
-    private final javax.swing.JButton backupNowBtn;
+    
 
     GeneralSettingsPage() {
         setLayout(new GridBagLayout());
@@ -106,36 +104,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         autosaveOnBlurChk.setBackground(new Color(0, 0, 0, 0));
         gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(autosaveOnBlurChk, gc);
 
-        String[] freqs = new String[] { "Off", "Daily", "Weekly", "Monthly" };
-        backupFreqBox = new JComboBox<>(freqs);
-        backupFreqBox.setUI(new ModernComboBoxUI());
-        backupFreqBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        backupFreqBox.setSelectedItem(store.getBackupFrequency());
-        gc.gridwidth = 1;
-        gc.gridx = 0; gc.gridy = 9; add(SettingsUi.label("Auto-backup:"), gc);
-        gc.gridx = 1; add(backupFreqBox, gc);
-
-        backupKeepSpin = new JSpinner(new SpinnerNumberModel(store.getBackupKeepCount(), 1, 100, 1));
-        backupKeepSpin.setUI(new ModernSpinnerUI());
-        ((JSpinner.DefaultEditor) backupKeepSpin.getEditor()).getTextField().setColumns(3);
-        gc.gridx = 0; gc.gridy = 10; add(SettingsUi.label("Keep last N backups:"), gc);
-        gc.gridx = 1; add(backupKeepSpin, gc);
-
-        backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
-        backupNowBtn.addActionListener(e -> {
-            backupNowBtn.setEnabled(false);
-            new javax.swing.SwingWorker<Void, Void>() {
-                @Override protected Void doInBackground() {
-                    try { main.infrastructure.backup.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
-                    return null;
-                }
-                @Override protected void done() {
-                    backupNowBtn.setEnabled(true);
-                    try { main.ui.dialog.message.CustomMessageDialog.display(GeneralSettingsPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
-                }
-            }.execute();
-        });
-        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2; add(backupNowBtn, gc);
+        // Backup settings moved to Storage section
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -159,7 +128,5 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setOpenLastOnStartup(openLastChk.isSelected());
         store.setSpellCheckEnabled(spellChk.isSelected());
         store.setAutosaveOnFocusLoss(autosaveOnBlurChk.isSelected());
-        store.setBackupFrequency((String) backupFreqBox.getSelectedItem());
-        store.setBackupKeepCount((Integer) backupKeepSpin.getValue());
     }
 }
