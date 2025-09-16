@@ -6,7 +6,7 @@ import javax.swing.*;
 import main.ui.app.JournalApp;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.fields.ModernTextField;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.util.EditorUIUtils;
 import main.infrastructure.backup.NotebookInfo;
@@ -23,15 +23,20 @@ import main.infrastructure.backup.NotebookInfo;
 public class PoetryStyleToolbar extends JPanel {
     private final JPanel container;
     private final ModernTextField titleField;
+    private RoundedToggleButton boldBtn;
+    private RoundedToggleButton italicBtn;
+    private RoundedToggleButton underlineBtn;
+    private RoundedToggleButton strikeBtn;
 
     public PoetryStyleToolbar(
             JournalApp app,
             NotebookInfo nbInfo,
             String titleLabelText,
             String titlePlaceholder,
-            Runnable onBold,
-            Runnable onItalic,
-            Runnable onUnderline,
+            java.util.function.Consumer<Boolean> onBold,
+            java.util.function.Consumer<Boolean> onItalic,
+            java.util.function.Consumer<Boolean> onUnderline,
+            java.util.function.Consumer<Boolean> onStrike,
             Consumer<String> onFontFamily,
             Consumer<Integer> onFontSize,
             Consumer<String> onLineSpacing,
@@ -65,24 +70,30 @@ public class PoetryStyleToolbar extends JPanel {
         }
         topToolbar.add(titleField);
 
-        // Formatting buttons (RoundedButton styling)
+        // Formatting buttons (RoundedToggleButton styling with selected highlight)
         Dimension btnSize = new Dimension(48, 28);
-        RoundedButton boldBtn = new RoundedButton("B");
+        boldBtn = new RoundedToggleButton("B");
         boldBtn.setPreferredSize(btnSize);
         boldBtn.setFocusPainted(false);
-        boldBtn.addActionListener(e -> { if (onBold != null) onBold.run(); });
-        RoundedButton italicBtn = new RoundedButton("I");
+        boldBtn.addActionListener(e -> { if (onBold != null) onBold.accept(boldBtn.isSelected()); });
+        italicBtn = new RoundedToggleButton("I");
         italicBtn.setPreferredSize(btnSize);
         italicBtn.setFocusPainted(false);
-        italicBtn.addActionListener(e -> { if (onItalic != null) onItalic.run(); });
-        RoundedButton underlineBtn = new RoundedButton("U");
+        italicBtn.addActionListener(e -> { if (onItalic != null) onItalic.accept(italicBtn.isSelected()); });
+        underlineBtn = new RoundedToggleButton("U");
         underlineBtn.setPreferredSize(btnSize);
         underlineBtn.setFocusPainted(false);
-        underlineBtn.addActionListener(e -> { if (onUnderline != null) onUnderline.run(); });
+        underlineBtn.addActionListener(e -> { if (onUnderline != null) onUnderline.accept(underlineBtn.isSelected()); });
+        strikeBtn = new RoundedToggleButton("S");
+        strikeBtn.setPreferredSize(btnSize);
+        strikeBtn.setFocusPainted(false);
+        strikeBtn.setToolTipText("Strikethrough");
+        strikeBtn.addActionListener(e -> { if (onStrike != null) onStrike.accept(strikeBtn.isSelected()); });
         topToolbar.add(Box.createHorizontalStrut(6));
         topToolbar.add(boldBtn);
         topToolbar.add(italicBtn);
         topToolbar.add(underlineBtn);
+        topToolbar.add(strikeBtn);
 
         // Bottom row (font/size/spacing)
         JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -140,4 +151,11 @@ public class PoetryStyleToolbar extends JPanel {
 
     public JPanel getContainer() { return container; }
     public ModernTextField getTitleField() { return titleField; }
+
+    public void setToggleStates(boolean bold, boolean italic, boolean underline, boolean strike) {
+        if (boldBtn != null) boldBtn.setSelected(bold);
+        if (italicBtn != null) italicBtn.setSelected(italic);
+        if (underlineBtn != null) underlineBtn.setSelected(underline);
+        if (strikeBtn != null) strikeBtn.setSelected(strike);
+    }
 }

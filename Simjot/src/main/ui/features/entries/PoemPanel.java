@@ -6,6 +6,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Random;
 import javax.swing.*;
+import javax.swing.text.*;
+import javax.swing.text.StyledEditorKit;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
@@ -176,9 +178,10 @@ public class PoemPanel extends AbstractEditorPanel {
                 nbInfo,
                 "Poem Title:",
                 "Untitled poem",
-                () -> toggleStyle(StyleConstants.CharacterConstants.Bold),
-                () -> toggleStyle(StyleConstants.CharacterConstants.Italic),
-                () -> toggleStyle(StyleConstants.CharacterConstants.Underline),
+                (selected) -> setTypingStyleBold(selected),
+                (selected) -> setTypingStyleItalic(selected),
+                (selected) -> setTypingStyleUnderline(selected),
+                (selected) -> setTypingStyleStrike(selected),
                 (fontName) -> {
                     Font currentFont = poemEditor.getFont();
                     poemEditor.setFont(new Font(fontName, currentFont.getStyle(), currentFont.getSize()));
@@ -505,6 +508,53 @@ public class PoemPanel extends AbstractEditorPanel {
         StyleConstants.setFontFamily(attrs, poemEditor.getFont().getFamily());
         StyleConstants.setFontSize(attrs, poemEditor.getFont().getSize());
         doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+    }
+
+    private void toggleStrike() {
+        try {
+            StyledDocument doc = poemEditor.getStyledDocument();
+            int start = poemEditor.getSelectionStart();
+            int end = poemEditor.getSelectionEnd();
+            if (start == end) return;
+            AttributeSet selectionAttrs = doc.getCharacterElement(start).getAttributes();
+            boolean enable = !StyleConstants.isStrikeThrough(selectionAttrs);
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setStrikeThrough(attrs, enable);
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Throwable ignored) {}
+    }
+
+    // --- Typing style (affects new text via input attributes) ---
+    private void setTypingStyleBold(boolean on) {
+        try {
+            MutableAttributeSet attrs = new SimpleAttributeSet(((StyledEditorKit) poemEditor.getEditorKit()).getInputAttributes());
+            StyleConstants.setBold(attrs, on);
+            poemEditor.setCharacterAttributes(attrs, true);
+        } catch (Throwable ignored) {}
+    }
+
+    private void setTypingStyleItalic(boolean on) {
+        try {
+            MutableAttributeSet attrs = new SimpleAttributeSet(((StyledEditorKit) poemEditor.getEditorKit()).getInputAttributes());
+            StyleConstants.setItalic(attrs, on);
+            poemEditor.setCharacterAttributes(attrs, true);
+        } catch (Throwable ignored) {}
+    }
+
+    private void setTypingStyleUnderline(boolean on) {
+        try {
+            MutableAttributeSet attrs = new SimpleAttributeSet(((StyledEditorKit) poemEditor.getEditorKit()).getInputAttributes());
+            StyleConstants.setUnderline(attrs, on);
+            poemEditor.setCharacterAttributes(attrs, true);
+        } catch (Throwable ignored) {}
+    }
+
+    private void setTypingStyleStrike(boolean on) {
+        try {
+            MutableAttributeSet attrs = new SimpleAttributeSet(((StyledEditorKit) poemEditor.getEditorKit()).getInputAttributes());
+            StyleConstants.setStrikeThrough(attrs, on);
+            poemEditor.setCharacterAttributes(attrs, true);
+        } catch (Throwable ignored) {}
     }
 
     private void applyLineSpacing(String val) {

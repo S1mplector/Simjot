@@ -16,6 +16,7 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.rtf.RTFEditorKit;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
+import main.ui.components.editor.RichTextStyler;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
@@ -159,6 +160,20 @@ public class EntryPanel extends AbstractEditorPanel {
         } catch (Exception ignored) {}
     }
 
+    private void applyInlineStyleStrike() {
+        try {
+            StyledDocument doc = (StyledDocument) contentArea.getDocument();
+            int start = contentArea.getSelectionStart();
+            int end = contentArea.getSelectionEnd();
+            if (start == end) return;
+            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
+            boolean enable = !StyleConstants.isStrikeThrough(selectionAttrs);
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setStrikeThrough(attrs, enable);
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Exception ignored) {}
+    }
+
     private void applyParagraphFontToAll() {
         try {
             StyledDocument doc = (StyledDocument) contentArea.getStyledDocument();
@@ -178,6 +193,12 @@ public class EntryPanel extends AbstractEditorPanel {
             doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
         } catch (Exception ignored) {}
     }
+
+    // --- Typing style (affects new text via input attributes) ---
+    private void setTypingStyleBold(boolean on) { RichTextStyler.setTypingBold(contentArea, on); }
+    private void setTypingStyleItalic(boolean on) { RichTextStyler.setTypingItalic(contentArea, on); }
+    private void setTypingStyleUnderline(boolean on) { RichTextStyler.setTypingUnderline(contentArea, on); }
+    private void setTypingStyleStrike(boolean on) { RichTextStyler.setTypingStrike(contentArea, on); }
 
     private void toggleDistractionFree() {
         distractionFree = !distractionFree;
@@ -276,9 +297,10 @@ public class EntryPanel extends AbstractEditorPanel {
                 nbInfo,
                 "Title:",
                 "Untitled entry",
-                () -> applyInlineStyleBold(),
-                () -> applyInlineStyleItalic(),
-                () -> applyInlineStyleUnderline(),
+                (selected) -> setTypingStyleBold(selected),
+                (selected) -> setTypingStyleItalic(selected),
+                (selected) -> setTypingStyleUnderline(selected),
+                (selected) -> setTypingStyleStrike(selected),
                 (fontName) -> {
                     Font current = contentArea.getFont();
                     contentArea.setFont(new Font(fontName, current.getStyle(), current.getSize()));
@@ -327,6 +349,12 @@ public class EntryPanel extends AbstractEditorPanel {
             boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
             if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
             expandMoodBtn.setText(next ? "\u2039" : "\u203A");
+        });
+
+        // Sync toolbar toggle states from caret typing attributes
+        contentArea.addCaretListener(e -> {
+            RichTextStyler.StyleState st = RichTextStyler.getTypingState(contentArea);
+            sharedToolbar.setToggleStates(st.bold(), st.italic(), st.underline(), st.strike());
         });
 
         // Wrap shared toolbar + mood stack into a single NORTH container
