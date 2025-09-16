@@ -21,6 +21,7 @@ import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
@@ -237,6 +238,13 @@ public class PoemPanel extends AbstractEditorPanel {
           NOTE: If you want a truly cursive font, pick one installed on your system, 
           e.g. new Font("Gabriola", Font.PLAIN, 18) or "Lucida Handwriting", etc.
         */
+
+        // Enable rich image paste & drag-and-drop into the poem editor
+        ImagePasteManager.install(
+                poemEditor,
+                () -> new File(journalFolder, "attachments"),
+                800 // max width in pixels for inserted images
+        );
 
         JScrollPane scrollPane = new JScrollPane(poemEditor);
         scrollPane.setOpaque(false);

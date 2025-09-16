@@ -32,6 +32,7 @@ import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.infrastructure.backup.NotebookInfo;
@@ -401,6 +402,13 @@ public class EntryPanel extends AbstractEditorPanel {
         // Match poem editor text color
         contentArea.setForeground(new Color(40, 40, 40));
         ensureSimStyles();
+
+        // Enable rich image paste & drag-and-drop into the editor
+        ImagePasteManager.install(
+                contentArea,
+                () -> new File(journalFolder, "attachments"),
+                800 // max width in pixels for inserted images
+        );
 
         // Keep formatting toggles in sync with caret/selection changes
         contentArea.addCaretListener(e -> updateFormattingToggleState());
