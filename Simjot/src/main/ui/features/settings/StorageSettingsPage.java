@@ -263,11 +263,28 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         File root = AppDirectories.getRoot();
         StorageNode rootInfo = StorageNode.root(root);
         DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(rootInfo);
+        // Show a consolidated 'notebooks' folder instead of entries/poems,
+        // and omit drawings and tasks (since there is no save/load for them).
+        File notebooks = new File(root, "notebooks"); // do not create; just show
+        StorageNode nbInfo = new StorageNode(null, notebooks, "notebooks",
+                "Notebooks (entries and poems)", null, true);
+        rootNode.add(new DefaultMutableTreeNode(nbInfo));
+
+        // Include only the relevant remaining app folders
         for (AppDirectories.Type t : AppDirectories.Type.values()) {
-            File f = AppDirectories.folder(t);
-            StorageNode info = StorageNode.leaf(t, f, t.folderName(), describe(t));
-            DefaultMutableTreeNode child = new DefaultMutableTreeNode(info);
-            rootNode.add(child);
+            switch (t) {
+                case MOOD_DATA:
+                case SETTINGS:
+                case WALLPAPERS: {
+                    File f = AppDirectories.folder(t);
+                    StorageNode info = StorageNode.leaf(t, f, t.folderName(), describe(t));
+                    DefaultMutableTreeNode child = new DefaultMutableTreeNode(info);
+                    rootNode.add(child);
+                    break;
+                }
+                // Skip ENTRIES, POEMS, DRAWINGS, TASKS intentionally
+                default: break;
+            }
         }
         return new DefaultTreeModel(rootNode);
     }
@@ -279,6 +296,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             case DRAWINGS: return "Drawings & thumbnails";
             case MOOD_DATA: return "Mood tracking data";
             case SETTINGS: return "App settings";
+            case NOTEBOOKS: return "Notebooks (entries and poems)";
             case TASKS: return "Tasks";
             case WALLPAPERS: return "Wallpapers";
             default: return t.name();

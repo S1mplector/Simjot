@@ -153,10 +153,11 @@ public class JournalApp extends JFrame {
                     if (folder.exists() && folder.isDirectory()) {
                         rootFolder = folder;
                         AppDirectories.setRoot(rootFolder);
-                        // Guarantee all standard sub-directories exist when loading existing root
-                        for (AppDirectories.Type t : AppDirectories.Type.values()) {
-                            AppDirectories.folder(t);
-                        }
+                        // Guarantee only active sub-directories exist when loading existing root
+                        AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
+                        AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
+                        AppDirectories.folder(AppDirectories.Type.SETTINGS);
+                        AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
                         return;
                     }
                 }
@@ -507,9 +508,11 @@ public class JournalApp extends JFrame {
                                     java.io.File folder = new java.io.File(path);
                                     if (folder.exists() && folder.isDirectory()) {
                                         main.infrastructure.io.AppDirectories.setRoot(folder);
-                                        for (main.infrastructure.io.AppDirectories.Type t : main.infrastructure.io.AppDirectories.Type.values()) {
-                                            main.infrastructure.io.AppDirectories.folder(t);
-                                        }
+                                        // Create only active sub-directories
+                                        main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.NOTEBOOKS);
+                                        main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.MOOD_DATA);
+                                        main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.SETTINGS);
+                                        main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.WALLPAPERS);
                                     }
                                 }
                             }

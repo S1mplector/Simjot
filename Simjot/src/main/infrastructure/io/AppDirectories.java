@@ -13,12 +13,16 @@ import java.io.File;
 public final class AppDirectories {
 
     public enum Type {
+        // Legacy content buckets (no longer auto-created)
         ENTRIES("entries"),
         POEMS("poems"),
         DRAWINGS("drawings"),
+        TASKS("tasks"),
+
+        // Active content buckets
+        NOTEBOOKS("notebooks"),
         MOOD_DATA("mood"),
         SETTINGS("settings"),
-        TASKS("tasks"),
         WALLPAPERS("wallpapers");
 
         private final String folderName;
@@ -42,7 +46,17 @@ public final class AppDirectories {
     public static File folder(Type t) {
         if(root == null) throw new IllegalStateException("Root folder not initialised yet");
         File f = new File(root, t.folderName());
-        if(!f.exists()) f.mkdirs();
-        return f;
+        // Do not auto-create legacy folders we no longer use.
+        switch (t) {
+            case ENTRIES:
+            case POEMS:
+            case DRAWINGS:
+            case TASKS:
+                // return as-is; caller can choose to create if absolutely needed
+                return f;
+            default:
+                if(!f.exists()) f.mkdirs();
+                return f;
+        }
     }
 } 
