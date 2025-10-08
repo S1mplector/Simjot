@@ -3,71 +3,26 @@ package main.ui.features.entries;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.List;
 import javax.swing.*;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.ToolbarIconButton;
 
 /**
  * Dialog that presents different journal entry types/templates to choose from
  * before creating a new entry. Includes options like gratitude, anxiety, daily log, etc.
  */
 public class EntryTypeSelectionDialog extends JDialog {
-    private EntryTemplate selectedTemplate;
+    private JournalTemplateManager.JournalTemplate selectedTemplate;
     private boolean accepted = false;
+    private final JPanel grid;
+    private final Frame parentFrame;
 
-    public enum EntryTemplate {
-        BLANK("Blank Entry", "Start with a fresh page", new String[0]),
-        GRATITUDE("Gratitude Journal", "What are you grateful for today?", new String[]{
-            "What are you grateful for today? (Item 1)",
-            "What else are you grateful for? (Item 2)",
-            "One more thing you're grateful for (Item 3)"
-        }),
-        ANXIETY("Anxiety Processing", "Work through anxious thoughts", new String[]{
-            "What's making you anxious?",
-            "What's within your control?",
-            "What can you let go of?"
-        }),
-        DAILY_LOG("Daily Log", "Recap your day", new String[]{
-            "How was your morning?",
-            "How was your afternoon?",
-            "How was your evening?",
-            "What were the highlights of today?"
-        }),
-        MOOD_TRACKER("Mood & Energy", "Track how you're feeling", new String[]{
-            "What's your current mood and energy level?",
-            "What influenced your mood today?",
-            "What helped you feel better?"
-        }),
-        GOAL_PLANNING("Goal Planning", "Set intentions and plan", new String[]{
-            "What are your top 3 priorities for today?",
-            "What are your goals for this week?",
-            "What are your goals for this month?"
-        }),
-        REFLECTION("Evening Reflection", "Reflect on your day", new String[]{
-            "What went well today?",
-            "What could have gone better?",
-            "What did you learn today?",
-            "What will you do tomorrow?"
-        });
-
-        private final String title;
-        private final String description;
-        private final String[] questions;
-
-        EntryTemplate(String title, String description, String[] questions) {
-            this.title = title;
-            this.description = description;
-            this.questions = questions;
-        }
-
-        public String getTitle() { return title; }
-        public String getDescription() { return description; }
-        public String[] getQuestions() { return questions; }
-        public boolean hasGuidedMode() { return questions.length > 0; }
-    }
 
     public EntryTypeSelectionDialog(Frame parent) {
         super(parent, "Choose Entry Type", true);
+        this.parentFrame = parent;
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
@@ -88,17 +43,21 @@ public class EntryTypeSelectionDialog extends JDialog {
         titleLabel.setForeground(new Color(40, 40, 40));
         topBar.add(titleLabel, BorderLayout.WEST);
         
+        // Manage templates button
+        ToolbarIconButton manageBtn = new ToolbarIconButton("options");
+        manageBtn.setToolTipText("Manage Templates");
+        manageBtn.addActionListener(e -> openTemplateManager());
+        topBar.add(manageBtn, BorderLayout.EAST);
+        
         mainPanel.add(topBar, BorderLayout.NORTH);
 
         // Grid of template cards
-        JPanel grid = new JPanel(new GridLayout(0, 2, 16, 16));
+        grid = new JPanel(new GridLayout(0, 2, 16, 16));
         grid.setOpaque(true);
         grid.setBackground(Color.WHITE);
         grid.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        for (EntryTemplate template : EntryTemplate.values()) {
-            grid.add(createTemplateCard(template));
-        }
+        refreshTemplates();
 
         JScrollPane scroll = new JScrollPane(grid);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -142,7 +101,17 @@ public class EntryTypeSelectionDialog extends JDialog {
         setLocationRelativeTo(parent);
     }
 
-    private JPanel createTemplateCard(EntryTemplate template) {
+    private void refreshTemplates() {
+        grid.removeAll();
+        List<JournalTemplateManager.JournalTemplate> templates = JournalTemplateManager.getInstance().getTemplates();
+        for (JournalTemplateManager.JournalTemplate template : templates) {
+            grid.add(createTemplateCard(template));
+        }
+        grid.revalidate();
+        grid.repaint();
+    }
+
+    private JPanel createTemplateCard(JournalTemplateManager.JournalTemplate template) {
         JPanel card = new JPanel() {
             private boolean hover = false;
             private boolean pressed = false;
@@ -204,7 +173,7 @@ public class EntryTypeSelectionDialog extends JDialog {
         textPanel.setOpaque(false);
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 
-        JLabel titleLbl = new JLabel(template.getTitle());
+        JLabel titleLbl = new JLabel(template.getName());
         titleLbl.setFont(titleLbl.getFont().deriveFont(Font.BOLD, 14f));
         titleLbl.setForeground(new Color(40, 40, 40));
         titleLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -237,7 +206,7 @@ public class EntryTypeSelectionDialog extends JDialog {
         return accepted;
     }
 
-    public EntryTemplate getSelectedTemplate() {
+    public JournalTemplateManager.JournalTemplate getSelectedTemplate() {
         return selectedTemplate;
     }
 
@@ -246,6 +215,12 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
 
     public boolean isGuidedMode() {
-        return selectedTemplate != null && selectedTemplate.hasGuidedMode();
+        return selectedTemplate != null && selectedTemplate.getQuestions().length > 0;
+    }
+    
+    private void openTemplateManager() {
+        TemplateManagerDialog dialog = new TemplateManagerDialog(parentFrame);
+        dialog.setVisible(true);
+        refreshTemplates(); // Refresh after closing
     }
 }

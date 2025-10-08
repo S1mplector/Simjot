@@ -1151,11 +1151,9 @@ public class EntryPanel extends AbstractEditorPanel {
     }
     
     private void restoreGuidedMode(String templateName, BufferedReader reader) throws Exception {
-        // Map template name back to questions
-        main.ui.features.entries.EntryTypeSelectionDialog.EntryTemplate template = null;
-        try {
-            template = main.ui.features.entries.EntryTypeSelectionDialog.EntryTemplate.valueOf(templateName);
-        } catch (IllegalArgumentException e) {
+        // Map template name back to questions using manager
+        JournalTemplateManager.JournalTemplate template = JournalTemplateManager.getInstance().getTemplateById(templateName);
+        if (template == null) {
             // Template not found, load as regular
             return;
         }
