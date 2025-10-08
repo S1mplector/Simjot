@@ -16,7 +16,6 @@ import java.awt.BasicStroke;
 import java.awt.FontMetrics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.RoundRectangle2D;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -604,21 +603,9 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
     private static class GlassCardPanel extends JPanel {
         GlassCardPanel() { setOpaque(false); }
         @Override protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int arc = 18;
-            int shadow = 8;
-            // shadow
-            g2.setColor(new Color(0,0,0,25));
-            g2.fill(new RoundRectangle2D.Float(shadow/2f, shadow/2f, getWidth()-shadow, getHeight()-shadow, arc+6, arc+6));
-            // glass body
-            g2.setColor(new Color(255,255,255,190));
-            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth()-shadow, getHeight()-shadow, arc, arc));
-            // border
-            g2.setColor(new Color(255,255,255,220));
-            g2.setStroke(new BasicStroke(1f));
-            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth()-shadow-1f, getHeight()-shadow-1f, arc, arc));
-            g2.dispose();
+            // Intentionally draw nothing to remove outer frames around sections.
+            // Keep transparency so the panel acts as a simple layout container
+            // while preserving any inner padding set via borders.
             super.paintComponent(g);
         }
     }
