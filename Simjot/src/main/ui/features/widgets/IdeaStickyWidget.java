@@ -193,8 +193,8 @@ public class IdeaStickyWidget implements Widget {
                 // Try PNG first
                 String pngName = switch (name) {
                     case "close" -> "close";
-                    case "settings", "gear" -> "settings";
-                    case "+", "plus", "new" -> "write";
+                    case "settings", "gear" -> "general_settings"; // reuse existing PNG
+                    case "+", "plus", "new" -> "newnotebook";     // reuse existing PNG
                     case "save" -> "save";
                     case "list" -> "list";
                     case "delete" -> "delete_entry"; // keep compatibility
@@ -211,14 +211,27 @@ public class IdeaStickyWidget implements Widget {
 
                 // Fallback to shared vector painter for known ids
                 if ("settings".equals(name) || "delete".equals(name) || "+".equals(name) || "plus".equals(name) || "save".equals(name) || "list".equals(name)) {
-                    java.awt.image.BufferedImage buf = main.ui.components.icons.VectorIconPainter.getImage(name, s);
-                    if (buf != null) {
-                        g2.drawImage(buf, x, y, null);
-                    } else {
-                        main.ui.components.icons.VectorIconPainter.paint(g2, name, x, y, s);
+                    boolean vectorAvailable = false;
+                    try {
+                        Class.forName("main.ui.components.icons.VectorIconPainter");
+                        vectorAvailable = true;
+                    } catch (Throwable ignore) {
+                        // Class not found – fall through to primitive glyphs below
                     }
-                    g2.dispose();
-                    return;
+                    if (vectorAvailable) {
+                        try {
+                            java.awt.image.BufferedImage buf = main.ui.components.icons.VectorIconPainter.getImage(name, s);
+                            if (buf != null) {
+                                g2.drawImage(buf, x, y, null);
+                            } else {
+                                main.ui.components.icons.VectorIconPainter.paint(g2, name, x, y, s);
+                            }
+                            g2.dispose();
+                            return;
+                        } catch (Throwable t) {
+                            // Any runtime error should fall back to primitive drawing
+                        }
+                    }
                 }
 
                 // Primitive glyph fallback
