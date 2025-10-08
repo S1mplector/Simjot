@@ -24,6 +24,12 @@ public interface NotebookEditor {
     // Focus a sensible control (e.g., title field or text area)
     void requestInitialFocus();
 
+    // Set initial content for a new entry (e.g., from templates)
+    void setInitialContent(String content);
+
+    // Set up guided question mode with a series of prompts
+    void setGuidedQuestions(String[] questions);
+
     // Typically returns the panel itself; provided for future flexibility
     JComponent getMainComponent();
 }

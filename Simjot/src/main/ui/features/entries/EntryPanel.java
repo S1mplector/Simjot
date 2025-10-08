@@ -68,6 +68,16 @@ public class EntryPanel extends AbstractEditorPanel {
     private JPanel bottomPanel;
     private boolean distractionFree = false;
     private JPanel dfHeader;
+    // Guided question mode
+    private String[] guidedQuestions;
+    private int currentQuestionIndex = 0;
+    private JPanel questionBubble;
+    private JLabel questionLabel;
+    private RoundedButton prevQuestionBtn;
+    private RoundedButton nextQuestionBtn;
+    private JLabel questionCountLabel;
+    // Store text content per question
+    private java.util.Map<Integer, String> questionResponses = new java.util.HashMap<>();
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -93,8 +103,25 @@ public class EntryPanel extends AbstractEditorPanel {
             titleField.setText(title);
             // Expect a blank separator line
             reader.readLine();
-            // Read the remainder into a string
+            
+            // Check for guided mode metadata
+            String firstContentLine = reader.readLine();
+            if (firstContentLine != null && firstContentLine.startsWith("[GUIDED_MODE:")) {
+                // Parse guided mode metadata: [GUIDED_MODE:template_name]
+                int endIdx = firstContentLine.indexOf(']');
+                if (endIdx > 0) {
+                    String templateName = firstContentLine.substring(13, endIdx).trim();
+                    // Find matching template and restore guided mode
+                    restoreGuidedMode(templateName, reader);
+                    return;
+                }
+            }
+            
+            // Regular mode: Read the remainder into a string
             StringBuilder rest = new StringBuilder();
+            if (firstContentLine != null) {
+                rest.append(firstContentLine).append("\n");
+            }
             String line;
             while ((line = reader.readLine()) != null) {
                 rest.append(line).append("\n");
@@ -492,7 +519,14 @@ public class EntryPanel extends AbstractEditorPanel {
         // Add some vertical space between toolbar and content (like PoemPanel)
         JPanel centerContainer = new JPanel(new BorderLayout());
         centerContainer.setOpaque(false);
-        centerContainer.add(Box.createRigidArea(new Dimension(0, 15)), BorderLayout.NORTH);
+        
+        // Create guided question bubble (hidden by default)
+        createQuestionBubble();
+        JPanel topArea = new JPanel(new BorderLayout());
+        topArea.setOpaque(false);
+        topArea.add(Box.createRigidArea(new Dimension(0, 15)), BorderLayout.NORTH);
+        topArea.add(questionBubble, BorderLayout.CENTER);
+        centerContainer.add(topArea, BorderLayout.NORTH);
         centerContainer.add(textWrapper, BorderLayout.CENTER);
 
         // Add to main panel
@@ -868,19 +902,46 @@ public class EntryPanel extends AbstractEditorPanel {
                 file = currentFile;
             }
 
-            // Save title + a blank line + RTF body with styles
+            // Save title + a blank line + content (with guided mode metadata if applicable)
             try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
                 writer.println(title);
                 writer.println(); // separator
+                
+                // Save guided mode if active
+                if (guidedQuestions != null && guidedQuestions.length > 0) {
+                    // Save current question's response first
+                    questionResponses.put(currentQuestionIndex, contentArea.getText());
+                    
+                    // Write guided mode metadata
+                    writer.println("[GUIDED_MODE:" + getGuidedModeTemplateName() + "]");
+                    writer.println();
+                    
+                    // Write all question-response pairs
+                    for (int i = 0; i < guidedQuestions.length; i++) {
+                        writer.println("[Q" + (i+1) + ": " + guidedQuestions[i] + "]");
+                        String response = questionResponses.getOrDefault(i, "");
+                        if (!response.trim().isEmpty()) {
+                            writer.println(response);
+                        }
+                        writer.println();
+                    }
+                } else {
+                    // Regular mode: save RTF content
+                    writer.flush();
+                }
             }
-            try (FileOutputStream fos = new FileOutputStream(file, true)) {
-                RTFEditorKit kit = new RTFEditorKit();
-                StyledDocument sd = (StyledDocument) contentArea.getDocument();
-                try {
-                    kit.write(fos, sd, 0, sd.getLength());
-                } catch (BadLocationException ble) {
-                    // fallback to plain text if unexpected
-                    fos.write(content.getBytes());
+            
+            // For non-guided mode, append RTF styling
+            if (guidedQuestions == null || guidedQuestions.length == 0) {
+                try (FileOutputStream fos = new FileOutputStream(file, true)) {
+                    RTFEditorKit kit = new RTFEditorKit();
+                    StyledDocument sd = (StyledDocument) contentArea.getDocument();
+                    try {
+                        kit.write(fos, sd, 0, sd.getLength());
+                    } catch (BadLocationException ble) {
+                        // fallback to plain text if unexpected
+                        fos.write(content.getBytes());
+                    }
                 }
             }
 
@@ -951,6 +1012,189 @@ public class EntryPanel extends AbstractEditorPanel {
         } else {
             contentArea.requestFocusInWindow();
         }
+    }
+
+    @Override
+    public void setInitialContent(String content) {
+        if (content != null && !content.isEmpty()) {
+            contentArea.setText(content);
+            // Position cursor at the end so user can start typing immediately
+            contentArea.setCaretPosition(content.length());
+        }
+    }
+
+    @Override
+    public void setGuidedQuestions(String[] questions) {
+        this.guidedQuestions = questions;
+        this.currentQuestionIndex = 0;
+        this.questionResponses.clear();
+        if (questions != null && questions.length > 0) {
+            showQuestion(0);
+        }
+    }
+
+    private void createQuestionBubble() {
+        questionBubble = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int arc = 16;
+                // Semi-opaque gradient background
+                GradientPaint gradient = new GradientPaint(
+                    0, 0, new Color(88, 133, 255, 95),
+                    0, getHeight(), new Color(88, 133, 255, 80)
+                );
+                g2.setPaint(gradient);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+                // Border
+                g2.setColor(new Color(88, 133, 255, 140));
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, arc, arc);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        questionBubble.setOpaque(false);
+        questionBubble.setLayout(new BorderLayout(12, 0));
+        questionBubble.setBorder(BorderFactory.createEmptyBorder(16, 20, 16, 20));
+        questionBubble.setVisible(false);
+        
+        questionLabel = new JLabel();
+        questionLabel.setFont(questionLabel.getFont().deriveFont(Font.PLAIN, 15f));
+        questionLabel.setForeground(new Color(40, 40, 40));
+        questionBubble.add(questionLabel, BorderLayout.CENTER);
+        
+        // Navigation buttons panel
+        JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        navPanel.setOpaque(false);
+        
+        // Question counter (e.g., "2 / 4")
+        questionCountLabel = new JLabel();
+        questionCountLabel.setFont(questionCountLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        questionCountLabel.setForeground(new Color(100, 100, 100));
+        navPanel.add(questionCountLabel);
+        
+        prevQuestionBtn = new RoundedButton("← Previous");
+        prevQuestionBtn.setPreferredSize(new Dimension(110, 32));
+        prevQuestionBtn.addActionListener(e -> previousQuestion());
+        navPanel.add(prevQuestionBtn);
+        
+        nextQuestionBtn = new RoundedButton("Next →");
+        nextQuestionBtn.setPreferredSize(new Dimension(110, 32));
+        nextQuestionBtn.addActionListener(e -> nextQuestion());
+        navPanel.add(nextQuestionBtn);
+        
+        questionBubble.add(navPanel, BorderLayout.EAST);
+    }
+
+    private void showQuestion(int index) {
+        if (guidedQuestions == null || guidedQuestions.length == 0) {
+            questionBubble.setVisible(false);
+            return;
+        }
+        
+        // Save current question's response before switching
+        if (currentQuestionIndex >= 0 && currentQuestionIndex < guidedQuestions.length) {
+            questionResponses.put(currentQuestionIndex, contentArea.getText());
+        }
+        
+        // Clamp index to valid range
+        if (index < 0) index = 0;
+        if (index >= guidedQuestions.length) index = guidedQuestions.length - 1;
+        
+        currentQuestionIndex = index;
+        questionLabel.setText(guidedQuestions[index]);
+        
+        // Update question counter (e.g., "2 / 4")
+        questionCountLabel.setText((index + 1) + " / " + guidedQuestions.length);
+        
+        // Restore this question's response
+        String savedResponse = questionResponses.getOrDefault(index, "");
+        contentArea.setText(savedResponse);
+        contentArea.setCaretPosition(savedResponse.length());
+        
+        // Enable/disable buttons based on position
+        prevQuestionBtn.setEnabled(index > 0);
+        nextQuestionBtn.setEnabled(index < guidedQuestions.length - 1);
+        
+        questionBubble.setVisible(true);
+        questionBubble.revalidate();
+        questionBubble.repaint();
+    }
+
+    private void nextQuestion() {
+        if (guidedQuestions == null || currentQuestionIndex >= guidedQuestions.length - 1) {
+            return; // Already at last question
+        }
+        showQuestion(currentQuestionIndex + 1);
+    }
+    
+    private void previousQuestion() {
+        if (guidedQuestions == null || currentQuestionIndex <= 0) {
+            return; // Already at first question
+        }
+        showQuestion(currentQuestionIndex - 1);
+    }
+    
+    private String getGuidedModeTemplateName() {
+        // Infer template name from first question (simplified mapping)
+        if (guidedQuestions == null || guidedQuestions.length == 0) return "BLANK";
+        String firstQ = guidedQuestions[0].toLowerCase();
+        if (firstQ.contains("grateful")) return "GRATITUDE";
+        if (firstQ.contains("anxious")) return "ANXIETY";
+        if (firstQ.contains("morning")) return "DAILY_LOG";
+        if (firstQ.contains("mood")) return "MOOD_TRACKER";
+        if (firstQ.contains("priorities")) return "GOAL_PLANNING";
+        if (firstQ.contains("went well")) return "REFLECTION";
+        return "UNKNOWN";
+    }
+    
+    private void restoreGuidedMode(String templateName, BufferedReader reader) throws Exception {
+        // Map template name back to questions
+        main.ui.features.entries.EntryTypeSelectionDialog.EntryTemplate template = null;
+        try {
+            template = main.ui.features.entries.EntryTypeSelectionDialog.EntryTemplate.valueOf(templateName);
+        } catch (IllegalArgumentException e) {
+            // Template not found, load as regular
+            return;
+        }
+        
+        this.guidedQuestions = template.getQuestions();
+        this.questionResponses.clear();
+        
+        // Parse saved question-response pairs
+        String line;
+        int currentQ = -1;
+        StringBuilder currentResponse = new StringBuilder();
+        
+        while ((line = reader.readLine()) != null) {
+            if (line.startsWith("[Q")) {
+                // Save previous response
+                if (currentQ >= 0) {
+                    questionResponses.put(currentQ, currentResponse.toString().trim());
+                    currentResponse = new StringBuilder();
+                }
+                // Extract question number
+                int colonIdx = line.indexOf(':');
+                if (colonIdx > 0) {
+                    String qNum = line.substring(2, colonIdx).trim();
+                    try {
+                        currentQ = Integer.parseInt(qNum) - 1;
+                    } catch (NumberFormatException ignored) {}
+                }
+            } else if (currentQ >= 0 && !line.trim().isEmpty()) {
+                currentResponse.append(line).append("\n");
+            }
+        }
+        
+        // Save last response
+        if (currentQ >= 0) {
+            questionResponses.put(currentQ, currentResponse.toString().trim());
+        }
+        
+        // Show first question
+        showQuestion(0);
     }
 }
 

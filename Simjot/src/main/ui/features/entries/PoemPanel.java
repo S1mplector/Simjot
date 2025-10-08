@@ -727,6 +727,19 @@ public class PoemPanel extends AbstractEditorPanel {
             poemEditor.requestFocusInWindow();
         }
     }
+
+    @Override
+    public void setInitialContent(String content) {
+        if (content != null && !content.isEmpty()) {
+            poemEditor.setText(content);
+            poemEditor.setCaretPosition(content.length());
+        }
+    }
+
+    @Override
+    public void setGuidedQuestions(String[] questions) {
+        // Poems don't use guided questions - no-op
+    }
 }
 
 class CustomInspirationDialog extends JDialog {

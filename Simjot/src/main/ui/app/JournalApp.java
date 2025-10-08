@@ -417,16 +417,41 @@ public class JournalApp extends JFrame {
      * for creating a new entry inside the given notebook. A unique card ID
      * is generated each time so the user can open multiple editors in the
      * same session.
+     * 
+     * For journal entries, shows a template selection dialog first.
      */
     public void openNewEntryEditor(NotebookInfo nb) {
         String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
         java.io.File targetFolder = nb.getFolder();
-        NotebookEditor editor = switch (nb.getType()) {
-            case JOURNAL -> editorFactory.createInFolder(NotebookEditorType.ENTRY, targetFolder);
-            case POETRY -> editorFactory.createInFolder(NotebookEditorType.POEM, targetFolder);
-        };
-        cardPanel.add(editor.getMainComponent(), cardId);
-        switchCard(cardId);
+        
+        // For journal entries, show template selection dialog
+        if (nb.getType() == NotebookInfo.Type.JOURNAL) {
+            main.ui.features.entries.EntryTypeSelectionDialog dialog = 
+                new main.ui.features.entries.EntryTypeSelectionDialog((Frame) SwingUtilities.getWindowAncestor(this));
+            dialog.setVisible(true);
+            
+            if (!dialog.isAccepted()) {
+                return; // User cancelled
+            }
+            
+            NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.ENTRY, targetFolder);
+            
+            // If guided mode, set up question flow
+            if (dialog.isGuidedMode()) {
+                String[] questions = dialog.getGuidedQuestions();
+                if (questions != null && questions.length > 0) {
+                    editor.setGuidedQuestions(questions);
+                }
+            }
+            
+            cardPanel.add(editor.getMainComponent(), cardId);
+            switchCard(cardId);
+        } else {
+            // Poetry or other types: use existing flow
+            NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.POEM, targetFolder);
+            cardPanel.add(editor.getMainComponent(), cardId);
+            switchCard(cardId);
+        }
     }
 
     /** Opens an existing file in proper editor based on notebook type */
