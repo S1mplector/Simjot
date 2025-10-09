@@ -32,7 +32,7 @@ The `UIScalingManager` uses multiple detection methods to determine the correct 
 
 1. Open **Settings** → **General**
 2. Adjust **UI Scale** slider (0.5x to 3.0x)
-3. Restart Simjot
+3. Changes apply **immediately** - no restart needed!
 
 ### Troubleshooting on Linux/Mabox
 

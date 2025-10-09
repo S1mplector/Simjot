@@ -122,15 +122,15 @@ public final class UIScalingManager {
         float prev = (lastAppliedScale <= 0f ? 1.0f : lastAppliedScale);
         applyToSwing(scale);
 
-        // Refresh all open windows
+        // Refresh all open windows WITHOUT updateComponentTreeUI to preserve custom UIs
         try {
             for (Window w : Window.getWindows()) {
                 if (w == null) continue;
                 // Rescale explicitly set fonts and preferred sizes by relative factor
                 float factor = (prev == 0f) ? scale : (scale / prev);
                 try { rescaleComponentTree(w, factor); } catch (Throwable ignored) {}
-                SwingUtilities.updateComponentTreeUI(w);
-                // Re-layout to accommodate new font metrics and sizes
+                // DON'T call updateComponentTreeUI - it breaks custom UIs with module reflection errors
+                // Instead just invalidate and repaint to apply the new UIManager defaults
                 try { w.invalidate(); } catch (Throwable ignored) {}
                 try { w.validate(); } catch (Throwable ignored) {}
                 try { w.repaint(); } catch (Throwable ignored) {}
@@ -141,29 +141,58 @@ public final class UIScalingManager {
         System.out.println("[UIScaling] Scale update complete");
     }
 
-    // Walks the component tree and rescales non-UIResource fonts and explicit preferred sizes
+    /**
+     * Walks the component tree and rescales fonts to match new scale.
+     * Uses absolute scaling rather than relative to avoid compound scaling errors.
+     */
     private static void rescaleComponentTree(Component c, float factor) {
-        if (c == null || factor == 1.0f) return;
+        if (c == null) return;
         try {
+            // Update font - use UIManager default if available, otherwise scale existing
             Font f = c.getFont();
-            if (f != null && !(f instanceof FontUIResource)) {
-                float newSize = Math.max(1f, f.getSize2D() * factor);
-                c.setFont(f.deriveFont(newSize));
-            }
-            if (c instanceof JComponent jc) {
-                Dimension pref = jc.getPreferredSize();
-                if (pref != null) {
-                    int nw = Math.max(1, Math.round(pref.width * factor));
-                    int nh = Math.max(1, Math.round(pref.height * factor));
-                    jc.setPreferredSize(new Dimension(nw, nh));
+            if (f != null) {
+                // For components with explicitly set fonts, scale them
+                if (!(f instanceof FontUIResource)) {
+                    float newSize = Math.max(1f, f.getSize2D() * factor);
+                    c.setFont(f.deriveFont(newSize));
+                } else {
+                    // For UIResource fonts, force update from UIManager to get scaled version
+                    try {
+                        String uiKey = getUIFontKey(c);
+                        if (uiKey != null) {
+                            Font uiFont = UIManager.getFont(uiKey);
+                            if (uiFont != null) c.setFont(uiFont);
+                        }
+                    } catch (Throwable ignored) {}
                 }
             }
+            
+            // Recurse into children
             if (c instanceof Container cont) {
                 for (Component child : cont.getComponents()) {
                     rescaleComponentTree(child, factor);
                 }
             }
         } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Get the UIManager font key for a component type.
+     */
+    private static String getUIFontKey(Component c) {
+        if (c instanceof JButton) return "Button.font";
+        if (c instanceof JLabel) return "Label.font";
+        if (c instanceof JTextField) return "TextField.font";
+        if (c instanceof JTextArea) return "TextArea.font";
+        if (c instanceof JList) return "List.font";
+        if (c instanceof JTable) return "Table.font";
+        if (c instanceof JTree) return "Tree.font";
+        if (c instanceof JComboBox) return "ComboBox.font";
+        if (c instanceof JCheckBox) return "CheckBox.font";
+        if (c instanceof JRadioButton) return "RadioButton.font";
+        if (c instanceof JSpinner) return "Spinner.font";
+        if (c instanceof JPanel) return "Panel.font";
+        return null;
     }
     
     /**
