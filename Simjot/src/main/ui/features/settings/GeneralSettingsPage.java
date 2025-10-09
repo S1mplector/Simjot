@@ -17,12 +17,14 @@ import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.scaling.UIScalingManager;
 
 class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JSpinner journalFont;
     private final JSpinner poemFont;
     private final JSpinner autosaveSpin;
     private final JSpinner uiScaleSpinner;
+    private javax.swing.Timer liveScaleDebounce;
     private final JComboBox<String> dateFormatBox;
     private final JCheckBox openLastChk;
     private final JCheckBox spellChk;
@@ -75,7 +77,20 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("UI Scale:"), gc);
         gc.gridx = 1; add(uiScaleSpinner, gc);
 
-        JLabel noteLabel = new JLabel("<html><i>UI scale changes will take effect after closing and reopening Simjot.<br>This setting helps with high-DPI displays (e.g., use 2.0 for 200% scaling).</i></html>");
+        // Live preview of scaling (debounced) without persisting until Save
+        liveScaleDebounce = new javax.swing.Timer(150, e -> {
+            float liveScale = ((Number) uiScaleSpinner.getValue()).floatValue();
+            try {
+                UIScalingManager.updateScale(liveScale);
+                JournalApp.globalJournalFontSize = Math.round(14 * liveScale);
+            } catch (Throwable ignored) {}
+        });
+        liveScaleDebounce.setRepeats(false);
+        uiScaleSpinner.addChangeListener(ev -> {
+            liveScaleDebounce.restart();
+        });
+
+        JLabel noteLabel = new JLabel("<html><i>UI scale changes apply immediately. Some screens may briefly reflow.<br>This setting helps with high-DPI displays (e.g., use 2.0 for 200% scaling).</i></html>");
         noteLabel.setForeground(Color.GRAY);
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2;
         add(noteLabel, gc);
@@ -123,6 +138,15 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
 
         float uiScale = ((Number) uiScaleSpinner.getValue()).floatValue();
         store.setUIScale(uiScale);
+        try {
+            // Apply live scaling without restart
+            UIScalingManager.updateScale(uiScale);
+            // Keep app-wide journal font in sync with the effective scale
+            JournalApp.globalJournalFontSize = Math.round(14 * uiScale);
+        } catch (Throwable t) {
+            // Non-fatal; user scale will still be used on next launch
+            System.err.println("[Settings] Live UI scale update failed: " + t.getMessage());
+        }
 
         store.setDateFormat((String) dateFormatBox.getSelectedItem());
         store.setOpenLastOnStartup(openLastChk.isSelected());

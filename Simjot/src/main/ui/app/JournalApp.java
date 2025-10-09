@@ -34,6 +34,7 @@ import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
+import main.ui.scaling.UIScalingManager;
 
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -75,7 +76,7 @@ public class JournalApp extends JFrame {
     // Factory/DI for editors
     private NotebookEditorFactory editorFactory;
 
-    // --- Sim components ---
+    // Sim components
     private SimOverlay simOverlay;
     private SimBrain simBrain;
     private SimScheduler simScheduler;
@@ -94,7 +95,7 @@ public class JournalApp extends JFrame {
 
     }
 
-    // --- Sim runtime control ---
+    // Sim runtime control
     public void enableSimFeatures() {
         try {
             if (simOverlay == null) {
@@ -185,6 +186,17 @@ public class JournalApp extends JFrame {
     private void initUI() {
         // Apply Windows 7 Aero-inspired look & feel and defaults before building UI
         AeroLookAndFeel.apply();
+        // Re-apply UI scaling AFTER L&F so that any defaults it sets are scaled appropriately
+        try {
+            float userScale = SettingsStore.get().getUIScale();
+            UIScalingManager.applyToSwing(userScale);
+            // Update global font size based on effective scale
+            float effectiveScale = (userScale > 0 && userScale != 1.0f) ? userScale : UIScalingManager.getDetectedScale();
+            globalJournalFontSize = Math.round(14 * effectiveScale);
+        } catch (Throwable e) {
+            System.err.println("[UIScaling] Error in initUI: " + e.getMessage());
+            UIScalingManager.applyToSwing(1.0f);
+        }
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
 
@@ -485,10 +497,14 @@ public class JournalApp extends JFrame {
     }
 
     public static void main(String[] args) {
+        // Initialize scaling BEFORE Swing EDT to set JVM properties early
+        UIScalingManager.initializeEarly();
+        
         SwingUtilities.invokeLater(() -> {
             // Apply LAF and UI scaling before creating the splash to prevent flicker
             try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
-            applyUIScaling();
+            // Apply scaling to Swing components (uses the scale detected in initializeEarly)
+            UIScalingManager.applyToSwing(UIScalingManager.getDetectedScale());
             // Show Aero-themed splashscreen while bootstrapping
             AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Starting…");
@@ -633,50 +649,6 @@ public class JournalApp extends JFrame {
         });
     }
 
-    private static void applyUIScaling() {
-        try {
-            // Get the UI scale from settings
-            float uiScale = SettingsStore.get().getUIScale();
-
-            if (uiScale != 1.0f) {
-                // Scale all UI fonts
-                javax.swing.UIDefaults defaults = UIManager.getDefaults();
-                java.util.Enumeration<Object> keys = defaults.keys();
-
-                while (keys.hasMoreElements()) {
-                    Object key = keys.nextElement();
-                    Object value = defaults.get(key);
-
-                    if (value instanceof javax.swing.plaf.FontUIResource) {
-                        javax.swing.plaf.FontUIResource font = (javax.swing.plaf.FontUIResource) value;
-                        int newSize = Math.round(font.getSize() * uiScale);
-                        javax.swing.plaf.FontUIResource scaledFont = new javax.swing.plaf.FontUIResource(
-                                font.getName(), font.getStyle(), newSize);
-                        UIManager.put(key, scaledFont);
-                    }
-                }
-
-                // Scale component sizes
-                UIManager.put("Button.margin", new java.awt.Insets(
-                        Math.round(2 * uiScale), Math.round(14 * uiScale),
-                        Math.round(2 * uiScale), Math.round(14 * uiScale)));
-                UIManager.put("TextField.margin", new java.awt.Insets(
-                        Math.round(2 * uiScale), Math.round(6 * uiScale),
-                        Math.round(2 * uiScale), Math.round(6 * uiScale)));
-                UIManager.put("ComboBox.padding", new java.awt.Insets(
-                        Math.round(3 * uiScale), Math.round(3 * uiScale),
-                        Math.round(3 * uiScale), Math.round(3 * uiScale)));
-
-                // Scale scroll bar width
-                UIManager.put("ScrollBar.width", Math.round(16 * uiScale));
-
-                // Update the global font size used by the application
-                globalJournalFontSize = Math.round(globalJournalFontSize * uiScale);
-            }
-        } catch (Exception e) {
-            System.err.println("Warning: Could not apply UI scaling: " + e.getMessage());
-        }
-    }
 
     // ---------- Cork Icon ---------
     private static class CorkIcon implements javax.swing.Icon {
