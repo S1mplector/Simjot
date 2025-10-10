@@ -28,6 +28,7 @@ import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.popup.AnimatedGlassPopup;
 import main.ui.components.slider.MoodSlider;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.dialog.message.UIMessage;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
@@ -872,7 +873,10 @@ public class EntryPanel extends AbstractEditorPanel {
         String title = titleHolder[0];
         String content = contentHolder[0];
         if (title.isEmpty() && content.trim().isEmpty()) {
-            SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or content.", true).showDialog());
+            SwingUtilities.invokeLater(() -> UIMessage.error(this,
+                    "Error",
+                    "<b>Error:</b> cannot save entry without a content.\n\n\"Your entry is empty.\"",
+                    "- Add a title or a few lines\n- Press Save again"));
             return;
         }
         int moodValue = moodHolder[0]; // 0 - 100

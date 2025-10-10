@@ -6,6 +6,7 @@ import java.util.List;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.RoundedPanel;
+import main.ui.dialog.message.UIMessage;
 
 /**
  * Dialog for managing journal entry templates: add, edit, remove.
@@ -95,11 +96,17 @@ public class TemplateManagerDialog extends JDialog {
     private void editTemplate() {
         JournalTemplateManager.JournalTemplate selected = templateList.getSelectedValue();
         if (selected == null) {
-            JOptionPane.showMessageDialog(this, "Please select a template to edit.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            UIMessage.warn(this,
+                    "No Template Selected",
+                    "You haven't selected a template to edit.",
+                    "Click a template in the list, then press Edit.");
             return;
         }
         if (!selected.isCustom()) {
-            JOptionPane.showMessageDialog(this, "Built-in templates cannot be edited.", "Cannot Edit", JOptionPane.WARNING_MESSAGE);
+            UIMessage.warn(this,
+                    "Editing Not Allowed",
+                    "Built-in templates are read-only.",
+                    "Choose a custom template or create a new one with Add New.");
             return;
         }
 
@@ -114,11 +121,17 @@ public class TemplateManagerDialog extends JDialog {
     private void deleteTemplate() {
         JournalTemplateManager.JournalTemplate selected = templateList.getSelectedValue();
         if (selected == null) {
-            JOptionPane.showMessageDialog(this, "Please select a template to delete.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            UIMessage.warn(this,
+                    "No Template Selected",
+                    "You haven't selected a template to delete.",
+                    "Click a template in the list, then press Delete.");
             return;
         }
         if (!selected.isCustom()) {
-            JOptionPane.showMessageDialog(this, "Built-in templates cannot be deleted.", "Cannot Delete", JOptionPane.WARNING_MESSAGE);
+            UIMessage.warn(this,
+                    "Deletion Not Allowed",
+                    "Built-in templates can't be deleted.",
+                    "Select a custom template you created to delete it.");
             return;
         }
 
@@ -291,7 +304,10 @@ public class TemplateManagerDialog extends JDialog {
             String desc = descField.getText().trim();
             
             if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter a name.", "Validation", JOptionPane.WARNING_MESSAGE);
+                UIMessage.warn(this,
+                        "Template Name Required",
+                        "The template needs a name.",
+                        "Type a descriptive name (e.g., 'Daily Reflection'), then click Save.");
                 return;
             }
 

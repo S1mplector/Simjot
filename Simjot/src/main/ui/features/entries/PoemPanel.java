@@ -18,7 +18,6 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.TranslucentPanel;
-import main.ui.components.fields.ModernTextField;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.util.EditorUIUtils;
 import main.ui.components.editor.ImagePasteManager;
@@ -31,6 +30,7 @@ import main.ui.features.poetry.StatsSidebarPanel;
 import main.ui.features.poetry.RhymesDockPanel;
 import main.core.export.PoemExporter;
 import main.ui.dialog.export.PoemExportDialog;
+import main.ui.dialog.message.UIMessage;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -440,7 +440,10 @@ public class PoemPanel extends AbstractEditorPanel {
         String title = poemTitleField.getText().trim();
         String content = poemEditor.getText();
         if (title.isEmpty() && content.trim().isEmpty()) {
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or some content for your poem.", true).showDialog();
+            UIMessage.error(this,
+                    "Error",
+                    "<b>Error:</b> cannot save poem without content.\n\n\"Your poem is empty.\"",
+                    "- Add a title or a few lines\n- Press Save again");
             return;
         }
         if (saveIndicator != null) saveIndicator.setSaving();

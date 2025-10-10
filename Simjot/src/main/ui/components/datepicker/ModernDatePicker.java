@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import main.ui.dialog.message.UIMessage;
 
 /**
  * Modern Date Picker component following Simjot's design patterns.
@@ -145,9 +146,10 @@ public class ModernDatePicker extends JPanel {
             } catch (DateTimeParseException e2) {
                 // Invalid format - revert to previous value
                 updateDisplay();
-                JOptionPane.showMessageDialog(this, 
-                    "Invalid date format. Please use 'MMM dd, yyyy' or 'yyyy-MM-dd' format.",
-                    "Invalid Date", JOptionPane.WARNING_MESSAGE);
+                UIMessage.warn(this,
+                        "Invalid Date",
+                        "The date you entered isn't recognized.",
+                        "Use formats like 'Jan 31, 2025' or '2025-01-31', then press Enter.");
             }
         }
     }

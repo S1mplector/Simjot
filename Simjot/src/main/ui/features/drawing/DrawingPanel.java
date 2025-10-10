@@ -18,6 +18,7 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.dialog.message.UIMessage;
 
 /**
  * A modern infinite drawing panel with layers, panning, zooming, and more.
@@ -263,7 +264,11 @@ public class DrawingPanel extends JPanel {
                 backgroundMap = ImageIO.read(selected);
                 repaint();
             } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Error loading image.", "Error", JOptionPane.ERROR_MESSAGE);
+                UIMessage.error(this,
+                        "Error Loading Image",
+                        "We couldn't open that image.",
+                        "Pick a different image file (PNG/JPG) and try again.",
+                        ex);
             }
         }
     }
@@ -311,7 +316,11 @@ public class DrawingPanel extends JPanel {
             if (!layers.isEmpty()) layerList.setSelectedIndex(layers.size() - 1);
             repaint();
         } catch (Exception ex) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Error loading file.", "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+            UIMessage.error(this,
+                    "Load Failed",
+                    "Couldn't load the drawing file.",
+                    "Choose a valid .mydraw file from the Drawings folder and try again.",
+                    ex);
         }
     }
 

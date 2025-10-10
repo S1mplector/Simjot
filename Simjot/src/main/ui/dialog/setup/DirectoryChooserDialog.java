@@ -5,6 +5,7 @@ import java.io.File;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.RoundedPanel;
+import main.ui.dialog.message.UIMessage;
 
 /**
  * A more visually integrated folder picker that embeds a {@link JFileChooser}
@@ -56,7 +57,11 @@ public class DirectoryChooserDialog extends JDialog {
                 selectedDirectory = sel;
                 dispose();
             } else {
-                JOptionPane.showMessageDialog(this, "Please select a folder.", "No folder selected", JOptionPane.INFORMATION_MESSAGE);
+                UIMessage.info(this,
+                        "No Folder Selected",
+                        "You haven't chosen where to store Simjot data.",
+                        "Click a folder in the file chooser, then press Select."
+                );
             }
         });
 
