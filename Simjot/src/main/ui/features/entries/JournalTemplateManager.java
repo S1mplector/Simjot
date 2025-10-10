@@ -180,10 +180,25 @@ public class JournalTemplateManager {
     }
 
     private File notebookTemplatesFile(NotebookInfo nb) {
-        return new File(nb.getFolder(), ".journal_templates.txt");
+        // Store notebook-specific templates under a hidden meta directory to keep them out of the entry list
+        File metaDir = new File(nb.getFolder(), ".simjot");
+        if (!metaDir.exists()) metaDir.mkdirs();
+        return new File(metaDir, "templates.txt");
     }
 
     private File notebookHiddenFile(NotebookInfo nb) {
+        // Store per-notebook hidden built-ins alongside templates in the hidden meta directory
+        File metaDir = new File(nb.getFolder(), ".simjot");
+        if (!metaDir.exists()) metaDir.mkdirs();
+        return new File(metaDir, "hidden_builtins.txt");
+    }
+
+    // Legacy locations (pre-migration)
+    private File legacyNotebookTemplatesFile(NotebookInfo nb) {
+        return new File(nb.getFolder(), ".journal_templates.txt");
+    }
+
+    private File legacyNotebookHiddenFile(NotebookInfo nb) {
         return new File(nb.getFolder(), ".hidden_builtins.txt");
     }
 
@@ -199,6 +214,17 @@ public class JournalTemplateManager {
     private Set<String> loadHiddenBuiltinsForNotebook(NotebookInfo nb) {
         Set<String> set = new HashSet<>();
         File f = notebookHiddenFile(nb);
+        File legacy = legacyNotebookHiddenFile(nb);
+        if (!f.exists() && legacy.exists()) {
+            // migrate
+            try (BufferedReader br = new BufferedReader(new FileReader(legacy))) {
+                String line; while ((line = br.readLine()) != null) { String id = line.trim(); if (!id.isEmpty()) set.add(id); }
+            } catch (IOException ignored) {}
+            // persist to new location and cleanup legacy
+            saveHiddenBuiltinsForNotebook(nb, set);
+            try { legacy.delete(); } catch (Throwable ignored) {}
+            return set;
+        }
         if (!f.exists()) return set;
         try (BufferedReader br = new BufferedReader(new FileReader(f))) {
             String line; while ((line = br.readLine()) != null) { String id = line.trim(); if (!id.isEmpty()) set.add(id); }
@@ -248,6 +274,27 @@ public class JournalTemplateManager {
     private List<JournalTemplate> loadNotebookCustoms(NotebookInfo nb) {
         List<JournalTemplate> res = new ArrayList<>();
         File f = notebookTemplatesFile(nb);
+        File legacy = legacyNotebookTemplatesFile(nb);
+        // If legacy exists but new doesn't, migrate
+        if (!f.exists() && legacy.exists()) {
+            try {
+                // Read from legacy
+                try (BufferedReader reader = new BufferedReader(new FileReader(legacy))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.startsWith("[TEMPLATE:")) {
+                            JournalTemplate template = parseTemplate(line, reader, Scope.NOTEBOOK_CUSTOM, nb.getName());
+                            if (template != null) res.add(template);
+                        }
+                    }
+                }
+                // Write into new location and delete legacy
+                writeTemplates(f, res);
+                // best-effort cleanup
+                try { legacy.delete(); } catch (Throwable ignored) {}
+            } catch (IOException e) { e.printStackTrace(); }
+            return res;
+        }
         if (!f.exists()) return res;
         try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
             String line;

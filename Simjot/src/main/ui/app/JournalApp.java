@@ -73,6 +73,9 @@ public class JournalApp extends JFrame {
     // Added for openExistingEntryEditor method
     private final java.util.Map<String, JPanel> cardMap = new java.util.HashMap<>();
 
+    // Track open editors so we can save on exit
+    private final java.util.List<main.ui.features.entries.NotebookEditor> openEditors = new java.util.ArrayList<>();
+
     // Factory/DI for editors
     private NotebookEditorFactory editorFactory;
 
@@ -289,9 +292,28 @@ public class JournalApp extends JFrame {
         try {
             this.addWindowListener(new WindowAdapter(){
                 @Override public void windowClosing(WindowEvent e) {
+                    // Best-effort: trigger save on all open editors first (persist guided responses)
+                    try {
+                        for (main.ui.features.entries.NotebookEditor ed : new java.util.ArrayList<>(openEditors)) {
+                            try { ed.triggerSave(); } catch (Throwable ignored) {}
+                        }
+                    } catch (Throwable ignored) {}
+                    // Then run due backup
                     try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
                 }
             });
+        } catch (Throwable ignored) {}
+
+        // JVM shutdown hook: covers cases where windowClosing isn't delivered (e.g., OS-level quit)
+        try {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    for (main.ui.features.entries.NotebookEditor ed : new java.util.ArrayList<>(openEditors)) {
+                        try { ed.triggerSave(); } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ignored) {}
+                try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+            }, "SimjotShutdownSave"));
         } catch (Throwable ignored) {}
     }
 
@@ -464,6 +486,7 @@ public class JournalApp extends JFrame {
             }
             
             NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.ENTRY, targetFolder);
+            openEditors.add(editor);
             
             // If guided mode, set up question flow
             if (dialog.isGuidedMode()) {
@@ -478,6 +501,7 @@ public class JournalApp extends JFrame {
         } else {
             // Poetry or other types: use existing flow
             NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.POEM, targetFolder);
+            openEditors.add(editor);
             cardPanel.add(editor.getMainComponent(), cardId);
             switchCard(cardId);
         }
@@ -495,6 +519,7 @@ public class JournalApp extends JFrame {
         cardPanel.add(editor.getMainComponent(), cardId);
         showCardImmediate(cardId);
         cardMap.put(cardId, (JPanel) editor.getMainComponent());
+        openEditors.add(editor);
     }
 
     public JPanel getCardPanel() {

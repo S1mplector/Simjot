@@ -1162,47 +1162,56 @@ public class EntryPanel extends AbstractEditorPanel {
     }
     
     private void restoreGuidedMode(String templateName, BufferedReader reader) throws Exception {
-        // Map template name back to questions using manager
-        JournalTemplateManager.JournalTemplate template = JournalTemplateManager.getInstance().getTemplateById(templateName);
-        if (template == null) {
-            // Template not found, load as regular
-            return;
-        }
-        
-        this.guidedQuestions = template.getQuestions();
+        // Robust restore: reconstruct questions and responses from the file content itself,
+        // ignoring external template lookup. This keeps old entries stable even if templates change.
+
+        java.util.List<String> questions = new java.util.ArrayList<>();
         this.questionResponses.clear();
-        
-        // Parse saved question-response pairs
+
         String line;
         int currentQ = -1;
         StringBuilder currentResponse = new StringBuilder();
-        
+
         while ((line = reader.readLine()) != null) {
             if (line.startsWith("[Q")) {
-                // Save previous response
+                // Save previous response block
                 if (currentQ >= 0) {
                     questionResponses.put(currentQ, currentResponse.toString().trim());
                     currentResponse = new StringBuilder();
                 }
-                // Extract question number
+                // Parse header: [Qn: question text]
                 int colonIdx = line.indexOf(':');
-                if (colonIdx > 0) {
-                    String qNum = line.substring(2, colonIdx).trim();
-                    try {
-                        currentQ = Integer.parseInt(qNum) - 1;
-                    } catch (NumberFormatException ignored) {}
+                int endBracket = line.lastIndexOf(']');
+                String qText = "";
+                if (colonIdx > 0 && endBracket > colonIdx) {
+                    qText = line.substring(colonIdx + 1, endBracket).trim();
                 }
-            } else if (currentQ >= 0 && !line.trim().isEmpty()) {
+                questions.add(qText);
+                currentQ = questions.size() - 1;
+            } else if (currentQ >= 0) {
+                // Accumulate response (preserve blank lines between paragraphs)
                 currentResponse.append(line).append("\n");
             }
         }
-        
-        // Save last response
+
+        // Save final response
         if (currentQ >= 0) {
             questionResponses.put(currentQ, currentResponse.toString().trim());
         }
-        
-        // Show first question
+
+        // Apply reconstructed questions; if none parsed, fall back to template lookup
+        if (!questions.isEmpty()) {
+            this.guidedQuestions = questions.toArray(new String[0]);
+        } else {
+            JournalTemplateManager.JournalTemplate template = JournalTemplateManager.getInstance().getTemplateById(templateName);
+            this.guidedQuestions = (template != null) ? template.getQuestions() : new String[0];
+        }
+
+        // Important: prevent showQuestion() from saving the (empty) editor content over Q0
+        // by marking that there is no current question yet.
+        this.currentQuestionIndex = -1;
+
+        // Show first question (if any)
         showQuestion(0);
     }
 }

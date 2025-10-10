@@ -264,6 +264,8 @@ public class NotebookEntriesPanel extends JPanel {
         File folder = nb.getFolder();
         java.util.Set<String> exts = app.getEditorFactory().getRegisteredExtensions();
         File[] arr = folder.listFiles((d,name)->{
+            // Exclude hidden dotfiles (e.g., legacy metadata like .journal_templates.txt)
+            if (name.startsWith(".")) return false;
             String s = name.toLowerCase();
             int dot = s.lastIndexOf('.');
             String ext = dot>=0 ? s.substring(dot) : "";
