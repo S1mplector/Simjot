@@ -43,6 +43,7 @@ public final class SettingsStore {
     // General extensions
     private static final String KEY_DATE_FORMAT = "dateFormat";
     private static final String KEY_OPEN_LAST = "openLastOnStartup";
+    private static final String KEY_LAST_OPENED_FILE = "lastOpenedFile";
     private static final String KEY_SPELLCHECK = "spellCheckEnabled";
     private static final String KEY_AUTOSAVE_ON_BLUR = "autosaveOnFocusLoss";
     public static final String KEY_BACKUP_FREQ = "backup.frequency";
@@ -252,6 +253,16 @@ public final class SettingsStore {
 
     public boolean isOpenLastOnStartup(){ return Boolean.parseBoolean(props.getProperty(KEY_OPEN_LAST, String.valueOf(DEF_OPEN_LAST))); }
     public void setOpenLastOnStartup(boolean b){ props.setProperty(KEY_OPEN_LAST, String.valueOf(b)); }
+
+    // Last opened file path (absolute). Empty if none.
+    public String getLastOpenedFilePath(){ return props.getProperty(KEY_LAST_OPENED_FILE, ""); }
+    public void setLastOpenedFilePath(String path){
+        if (path == null || path.isBlank()) {
+            props.remove(KEY_LAST_OPENED_FILE);
+        } else {
+            props.setProperty(KEY_LAST_OPENED_FILE, path);
+        }
+    }
 
     public boolean isSpellCheckEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_SPELLCHECK, String.valueOf(DEF_SPELLCHECK))); }
     public void setSpellCheckEnabled(boolean b){ props.setProperty(KEY_SPELLCHECK, String.valueOf(b)); }

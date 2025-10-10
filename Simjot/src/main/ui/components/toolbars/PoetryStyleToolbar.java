@@ -65,9 +65,8 @@ public class PoetryStyleToolbar extends JPanel {
 
         titleField = new ModernTextField(24);
         titleField.setFont(new Font("Serif", Font.BOLD, 16));
-        if (titleField instanceof ModernTextField mtf) {
-            mtf.setPlaceholder(titlePlaceholder);
-        }
+        // Directly set placeholder (avoid pattern matching instanceof for broader compatibility)
+        titleField.setPlaceholder(titlePlaceholder);
         topToolbar.add(titleField);
 
         // Formatting buttons (RoundedToggleButton styling with selected highlight)

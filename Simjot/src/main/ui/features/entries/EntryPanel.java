@@ -133,8 +133,9 @@ public class EntryPanel extends AbstractEditorPanel {
                 try (ByteArrayInputStream bin = new ByteArrayInputStream(remainder.getBytes())) {
                     kit.read(bin, doc, 0);
                 }
+                // Important: set the loaded document and DO NOT replace the editor kit afterwards,
+                // or Swing will create a new default document and drop our loaded content.
                 contentArea.setDocument(doc);
-                contentArea.setEditorKit(new StyledEditorKit());
                 ensureSimStyles();
             } else {
                 contentArea.setText(remainder);
@@ -926,7 +927,7 @@ public class EntryPanel extends AbstractEditorPanel {
                         writer.println();
                     }
                 } else {
-                    // Regular mode: save RTF content
+                    // Regular mode: just header written here; RTF appended below
                     writer.flush();
                 }
             }
@@ -947,6 +948,12 @@ public class EntryPanel extends AbstractEditorPanel {
 
             // Mark last successful save for status bar
             LastSaveTracker.markSaved();
+
+            // Remember as last opened file for startup restore
+            try {
+                SettingsStore.get().setLastOpenedFilePath(file.getAbsolutePath());
+                SettingsStore.get().save();
+            } catch (Throwable ignored) {}
 
             String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
             if (!isAutosaving) {

@@ -266,6 +266,23 @@ public class JournalApp extends JFrame {
             } else {
                 updateWidgetPanelVisibility();
             }
+
+            // Optionally open last note on startup
+            try {
+                main.core.service.SettingsStore store = main.core.service.SettingsStore.get();
+                if (store.isOpenLastOnStartup()) {
+                    String path = store.getLastOpenedFilePath();
+                    if (path != null && !path.isBlank()) {
+                        java.io.File last = new java.io.File(path);
+                        if (last.exists() && last.isFile() && last.canRead()) {
+                            NotebookEditor editor = editorFactory.createForFile(last);
+                            String cardId = "StartupLast_" + last.getName() + "_" + System.currentTimeMillis();
+                            cardPanel.add(editor.getMainComponent(), cardId);
+                            showCardImmediate(cardId);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
         });
 
         // On close, attempt a due backup synchronously

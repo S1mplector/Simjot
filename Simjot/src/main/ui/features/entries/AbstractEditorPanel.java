@@ -45,6 +45,12 @@ public abstract class AbstractEditorPanel extends JPanel implements NotebookEdit
         this.currentFile = f;
         if (f != null) {
             safeLoadFile(f);
+            // Record last opened file for startup restoration
+            try {
+                main.core.service.SettingsStore store = main.core.service.SettingsStore.get();
+                store.setLastOpenedFilePath(f.getAbsolutePath());
+                store.save();
+            } catch (Throwable ignored) {}
         } else {
             clearEditor();
         }

@@ -472,6 +472,12 @@ public class PoemPanel extends AbstractEditorPanel {
                 writer.println(content);
             }
             
+            // Remember as last opened file for startup restore
+            try {
+                SettingsStore.get().setLastOpenedFilePath(poemFile.getAbsolutePath());
+                SettingsStore.get().save();
+            } catch (Throwable ignored) {}
+
             String message = isNewFile ? "Poem saved successfully!" : "Poem updated successfully!";
             if (!isAutosaving) {
                 new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
