@@ -5,6 +5,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
 import javax.swing.*;
+import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
@@ -18,11 +19,17 @@ public class EntryTypeSelectionDialog extends JDialog {
     private boolean accepted = false;
     private final JPanel grid;
     private final Frame parentFrame;
+    private final NotebookInfo notebook;
 
 
     public EntryTypeSelectionDialog(Frame parent) {
+        this(parent, null);
+    }
+
+    public EntryTypeSelectionDialog(Frame parent, NotebookInfo nb) {
         super(parent, "Choose Entry Type", true);
         this.parentFrame = parent;
+        this.notebook = nb;
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
@@ -103,7 +110,10 @@ public class EntryTypeSelectionDialog extends JDialog {
 
     private void refreshTemplates() {
         grid.removeAll();
-        List<JournalTemplateManager.JournalTemplate> templates = JournalTemplateManager.getInstance().getTemplates();
+        List<JournalTemplateManager.JournalTemplate> templates =
+                (notebook != null)
+                        ? JournalTemplateManager.getInstance().getTemplates(notebook)
+                        : JournalTemplateManager.getInstance().getTemplates();
         for (JournalTemplateManager.JournalTemplate template : templates) {
             grid.add(createTemplateCard(template));
         }
@@ -219,7 +229,7 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
     
     private void openTemplateManager() {
-        TemplateManagerDialog dialog = new TemplateManagerDialog(parentFrame);
+        TemplateManagerDialog dialog = new TemplateManagerDialog(parentFrame, notebook);
         dialog.setVisible(true);
         refreshTemplates(); // Refresh after closing
     }
