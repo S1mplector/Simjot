@@ -89,13 +89,9 @@ public class BackgroundPainter {
                 }
             }
         }
-        // Fallback: subtle paper-like gradient
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        Rectangle r = new Rectangle(0, 0, comp.getWidth(), comp.getHeight());
-        main.ui.theme.aero.AeroPainters.paintVerticalGradient(g2, r,
-                new Color(250, 250, 250), new Color(235, 235, 235), 0);
-        main.ui.theme.aero.AeroPainters.paintGlassOverlay(g2, r, 0);
-        g2.dispose();
+        // Fallback: solid background (no gradient)
+        g.setColor(Color.WHITE);
+        g.fillRect(0, 0, comp.getWidth(), comp.getHeight());
+        
     }
 }

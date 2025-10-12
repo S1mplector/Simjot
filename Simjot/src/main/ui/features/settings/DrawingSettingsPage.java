@@ -24,6 +24,10 @@ class DrawingSettingsPage extends JPanel implements SettingsPage {
         gc.insets = new Insets(5, 5, 5, 5);
         gc.fill = GridBagConstraints.HORIZONTAL;
 
+        // Header
+        gc.gridx = 0; gc.gridy = 0; gc.gridwidth = 2; add(SettingsUi.header("Drawing", "Canvas and rendering"), gc);
+        gc.gridwidth = 1;
+
         SettingsStore st = SettingsStore.get();
         brushSize = new JSpinner(new SpinnerNumberModel(st.getDefaultBrushSize(), 1, 50, 1));
         brushSize.setUI(new ModernSpinnerUI());
@@ -34,10 +38,10 @@ class DrawingSettingsPage extends JPanel implements SettingsPage {
         smoothing.setBackground(new Color(0, 0, 0, 0));
         thumbnails.setBackground(new Color(0, 0, 0, 0));
 
-        gc.gridx = 0; gc.gridy = 0; add(SettingsUi.label("Default brush size:"), gc);
+        gc.gridx = 0; gc.gridy = 1; add(SettingsUi.label("Default brush size:"), gc);
         gc.gridx = 1; add(brushSize, gc);
-        gc.gridx = 0; gc.gridy = 1; gc.gridwidth = 2; add(smoothing, gc);
-        gc.gridy = 2; add(thumbnails, gc);
+        gc.gridx = 0; gc.gridy = 2; gc.gridwidth = 2; add(smoothing, gc);
+        gc.gridy = 3; add(thumbnails, gc);
     }
 
     @Override public JComponent getComponent() { return this; }

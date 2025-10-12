@@ -16,21 +16,36 @@ import main.ui.dialog.input.CustomInputDialog;
  * Dialog for managing journal entry templates: add, edit, remove.
  */
 public class TemplateManagerDialog extends JDialog {
-    private final DefaultListModel<JournalTemplateManager.JournalTemplate> listModel;
-    private final JList<JournalTemplateManager.JournalTemplate> templateList;
+    private DefaultListModel<JournalTemplateManager.JournalTemplate> listModel;
+    private JList<JournalTemplateManager.JournalTemplate> templateList;
     private final NotebookInfo notebook; // null => global management
+    private CardLayout cardLayout;
+    private JPanel cards;
+    private JPanel listPanel;
+    private TemplateEditorPanel editorPanel;
 
     public TemplateManagerDialog(Frame parent) { this(parent, null); }
 
     public TemplateManagerDialog(Frame parent, NotebookInfo notebook) {
         super(parent, "Manage Templates", true);
         this.notebook = notebook;
+        initializeUI(parent);
+    }
+
+    public TemplateManagerDialog(Dialog parent, NotebookInfo notebook) {
+        super(parent, "Manage Templates", true);
+        this.notebook = notebook;
+        initializeUI(parent);
+    }
+
+    private void initializeUI(Component parent) {
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
 
         RoundedPanel mainPanel = new RoundedPanel();
         mainPanel.setArc(18);
+        mainPanel.setFlat(true); // remove gradient/glass overlay
         mainPanel.setLayout(new BorderLayout(12, 12));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         mainPanel.setBackground(Color.WHITE);
@@ -50,9 +65,8 @@ public class TemplateManagerDialog extends JDialog {
 
         JScrollPane scroll = new JScrollPane(templateList);
         scroll.setPreferredSize(new Dimension(500, 300));
-        mainPanel.add(scroll, BorderLayout.CENTER);
 
-        // Buttons
+        // Buttons for list view
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setOpaque(false);
 
@@ -76,7 +90,18 @@ public class TemplateManagerDialog extends JDialog {
         buttonPanel.add(editBtn);
         buttonPanel.add(deleteBtn);
         buttonPanel.add(closeBtn);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        listPanel = new JPanel(new BorderLayout());
+        listPanel.setOpaque(false);
+        listPanel.add(scroll, BorderLayout.CENTER);
+        listPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Cards container: list + editor
+        cards = new JPanel(cardLayout = new CardLayout());
+        editorPanel = new TemplateEditorPanel();
+        cards.add(listPanel, "list");
+        cards.add(editorPanel, "editor");
+        mainPanel.add(cards, BorderLayout.CENTER);
 
         add(mainPanel);
         pack();
@@ -95,20 +120,21 @@ public class TemplateManagerDialog extends JDialog {
     }
 
     private void addTemplate() {
-        TemplateEditorDialog dialog = new TemplateEditorDialog((Frame) SwingUtilities.getWindowAncestor(this), null);
-        dialog.setVisible(true);
-        if (dialog.isAccepted()) {
-            JournalTemplateManager.JournalTemplate template = dialog.getTemplate();
+        editorPanel.load(null);
+        editorPanel.setOnCancel(() -> cardLayout.show(cards, "list"));
+        editorPanel.setOnSave(tmpl -> {
             if (notebook != null) {
-                template.setScope(JournalTemplateManager.Scope.NOTEBOOK_CUSTOM);
-                template.setNotebookName(notebook.getName());
-                JournalTemplateManager.getInstance().addTemplateForNotebook(notebook, template);
+                tmpl.setScope(JournalTemplateManager.Scope.NOTEBOOK_CUSTOM);
+                tmpl.setNotebookName(notebook.getName());
+                JournalTemplateManager.getInstance().addTemplateForNotebook(notebook, tmpl);
             } else {
-                template.setScope(JournalTemplateManager.Scope.GLOBAL_CUSTOM);
-                JournalTemplateManager.getInstance().addTemplate(template);
+                tmpl.setScope(JournalTemplateManager.Scope.GLOBAL_CUSTOM);
+                JournalTemplateManager.getInstance().addTemplate(tmpl);
             }
             refreshList();
-        }
+            cardLayout.show(cards, "list");
+        });
+        cardLayout.show(cards, "editor");
     }
 
     private void editTemplate() {
@@ -128,12 +154,14 @@ public class TemplateManagerDialog extends JDialog {
             return;
         }
 
-        TemplateEditorDialog dialog = new TemplateEditorDialog((Frame) SwingUtilities.getWindowAncestor(this), selected);
-        dialog.setVisible(true);
-        if (dialog.isAccepted()) {
+        editorPanel.load(selected);
+        editorPanel.setOnCancel(() -> cardLayout.show(cards, "list"));
+        editorPanel.setOnSave(tmpl -> {
             JournalTemplateManager.getInstance().updateTemplate(selected);
             refreshList();
-        }
+            cardLayout.show(cards, "list");
+        });
+        cardLayout.show(cards, "editor");
     }
 
     private void deleteTemplate() {
@@ -191,7 +219,6 @@ public class TemplateManagerDialog extends JDialog {
                 int index,
                 boolean isSelected,
                 boolean cellHasFocus) {
-            
             String text = template.getName();
             if (!template.isCustom()) {
                 text += " (Built-in)";
@@ -215,38 +242,26 @@ public class TemplateManagerDialog extends JDialog {
     }
 
     /**
-     * Dialog for creating/editing a single template
+     * Embedded editor panel replacing the old modal editor dialog.
      */
-    private static class TemplateEditorDialog extends JDialog {
-        private boolean accepted = false;
+    private static class TemplateEditorPanel extends JPanel {
         private JournalTemplateManager.JournalTemplate template;
         private final JTextField nameField;
         private final JTextField descField;
         private final DefaultListModel<String> questionModel;
         private final JList<String> questionList;
+        private java.util.function.Consumer<JournalTemplateManager.JournalTemplate> onSave;
+        private Runnable onCancel;
 
-        TemplateEditorDialog(Frame parent, JournalTemplateManager.JournalTemplate existing) {
-            super(parent, existing == null ? "New Template" : "Edit Template", true);
-            this.template = existing;
-            
-            setUndecorated(true);
-            setBackground(new Color(0, 0, 0, 0));
-            setLayout(new BorderLayout());
+        TemplateEditorPanel() {
+            setLayout(new BorderLayout(16, 16));
+            setOpaque(false);
 
-            RoundedPanel mainPanel = new RoundedPanel();
-            mainPanel.setArc(24);
-            mainPanel.setFlat(true); // remove gradient/glass
-            mainPanel.setLayout(new BorderLayout(16, 16));
-            mainPanel.setBorder(BorderFactory.createEmptyBorder(22, 22, 22, 22));
-            mainPanel.setBackground(Color.WHITE);
-
-            // Header
-            JLabel hdr = new JLabel(existing == null ? "Create Template" : "Edit Template");
+            JLabel hdr = new JLabel("Template Editor");
             hdr.setFont(hdr.getFont().deriveFont(Font.BOLD, 18f));
             hdr.setForeground(new Color(40,40,40));
-            mainPanel.add(hdr, BorderLayout.NORTH);
+            add(hdr, BorderLayout.NORTH);
 
-            // Form
             JPanel formPanel = new JPanel(new GridBagLayout());
             formPanel.setOpaque(false);
             GridBagConstraints gc = new GridBagConstraints();
@@ -258,7 +273,7 @@ public class TemplateManagerDialog extends JDialog {
             nameLbl.setFont(nameLbl.getFont().deriveFont(Font.BOLD));
             formPanel.add(nameLbl, gc);
             gc.gridx = 1; gc.weightx = 1;
-            nameField = new JTextField(existing != null ? existing.getName() : "", 30);
+            nameField = new JTextField("", 30);
             nameField.setFont(nameField.getFont().deriveFont(14f));
             formPanel.add(nameField, gc);
 
@@ -267,7 +282,7 @@ public class TemplateManagerDialog extends JDialog {
             descLbl.setFont(descLbl.getFont().deriveFont(Font.BOLD));
             formPanel.add(descLbl, gc);
             gc.gridx = 1; gc.weightx = 1;
-            descField = new JTextField(existing != null ? existing.getDescription() : "", 30);
+            descField = new JTextField("", 30);
             descField.setFont(descField.getFont().deriveFont(14f));
             formPanel.add(descField, gc);
 
@@ -277,26 +292,16 @@ public class TemplateManagerDialog extends JDialog {
             formPanel.add(qLbl, gc);
 
             questionModel = new DefaultListModel<>();
-            if (existing != null) {
-                for (String q : existing.getQuestions()) {
-                    questionModel.addElement(q);
-                }
-            }
             questionList = new JList<>(questionModel);
             questionList.setFont(questionList.getFont().deriveFont(14f));
             JScrollPane qScroll = new JScrollPane(questionList);
             qScroll.setBorder(BorderFactory.createLineBorder(new Color(210,216,228)));
             qScroll.setPreferredSize(new Dimension(480, 200));
-            // modern slim scrollbars
             try {
                 JScrollBar vbar = qScroll.getVerticalScrollBar();
                 vbar.setUI(new main.ui.components.scrollbar.ModernScrollBarUI());
                 vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
                 vbar.setOpaque(false);
-                JScrollBar hbar = qScroll.getHorizontalScrollBar();
-                hbar.setUI(new main.ui.components.scrollbar.ModernScrollBarUI());
-                hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
-                hbar.setOpaque(false);
             } catch (Throwable ignored) {}
             gc.gridy = 3;
             formPanel.add(qScroll, gc);
@@ -329,61 +334,53 @@ public class TemplateManagerDialog extends JDialog {
             gc.gridy = 4;
             formPanel.add(qButtons, gc);
 
-            mainPanel.add(formPanel, BorderLayout.CENTER);
+            add(formPanel, BorderLayout.CENTER);
 
-            // Bottom buttons
             JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             bottomPanel.setOpaque(false);
-
             RoundedButton saveBtn = new RoundedButton("Save");
             saveBtn.putClientProperty("iconId", "save");
             saveBtn.setPreferredSize(new Dimension(120, 36));
             saveBtn.addActionListener(e -> save());
-
             RoundedButton cancelBtn = new RoundedButton("Cancel");
             cancelBtn.putClientProperty("iconId", "close");
             cancelBtn.setPreferredSize(new Dimension(120, 36));
-            cancelBtn.addActionListener(e -> dispose());
-
+            cancelBtn.addActionListener(e -> { if (onCancel != null) onCancel.run(); });
             bottomPanel.add(saveBtn);
             bottomPanel.add(cancelBtn);
-            mainPanel.add(bottomPanel, BorderLayout.SOUTH);
+            add(bottomPanel, BorderLayout.SOUTH);
+        }
 
-            add(mainPanel);
-            pack();
-            setLocationRelativeTo(parent);
+        void setOnSave(java.util.function.Consumer<JournalTemplateManager.JournalTemplate> cb) { this.onSave = cb; }
+        void setOnCancel(Runnable cb) { this.onCancel = cb; }
 
-            // default button + ESC to cancel
-            getRootPane().setDefaultButton(saveBtn);
-            getRootPane().registerKeyboardAction(e -> dispose(),
-                    KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0),
-                    JComponent.WHEN_IN_FOCUSED_WINDOW);
+        void load(JournalTemplateManager.JournalTemplate existing) {
+            this.template = existing;
+            String name = existing != null ? existing.getName() : "";
+            String desc = existing != null ? existing.getDescription() : "";
+            nameField.setText(name);
+            descField.setText(desc);
+            questionModel.clear();
+            if (existing != null && existing.getQuestions()!=null) {
+                for (String q : existing.getQuestions()) questionModel.addElement(q);
+            }
         }
 
         private void addQuestion() {
             String q = CustomInputDialog.prompt(this, "Add Question", "Enter question:", "");
-            if (q != null && !q.trim().isEmpty()) {
-                questionModel.addElement(q.trim());
-            }
+            if (q != null && !q.trim().isEmpty()) questionModel.addElement(q.trim());
         }
-
         private void editQuestion() {
             int index = questionList.getSelectedIndex();
             if (index < 0) return;
             String current = questionModel.get(index);
             String edited = CustomInputDialog.prompt(this, "Edit Question", "Edit question:", current);
-            if (edited != null && !edited.trim().isEmpty()) {
-                questionModel.set(index, edited.trim());
-            }
+            if (edited != null && !edited.trim().isEmpty()) questionModel.set(index, edited.trim());
         }
-
         private void deleteQuestion() {
             int index = questionList.getSelectedIndex();
-            if (index >= 0) {
-                questionModel.remove(index);
-            }
+            if (index >= 0) questionModel.remove(index);
         }
-
         private void moveQuestion(int delta) {
             int index = questionList.getSelectedIndex();
             if (index < 0) return;
@@ -399,7 +396,6 @@ public class TemplateManagerDialog extends JDialog {
         private void save() {
             String name = nameField.getText().trim();
             String desc = descField.getText().trim();
-            
             if (name.isEmpty()) {
                 UIMessage.warn(this,
                         "Template Name Required",
@@ -407,30 +403,19 @@ public class TemplateManagerDialog extends JDialog {
                         "Type a descriptive name (e.g., 'Daily Reflection'), then click Save.");
                 return;
             }
-
             List<String> questions = new ArrayList<>();
-            for (int i = 0; i < questionModel.size(); i++) {
-                questions.add(questionModel.get(i));
-            }
-
+            for (int i = 0; i < questionModel.size(); i++) questions.add(questionModel.get(i));
             if (template != null) {
-                // Edit existing
                 template.setName(name);
                 template.setDescription(desc);
                 template.setQuestions(questions.toArray(new String[0]));
+                if (onSave != null) onSave.accept(template);
             } else {
-                // Create new (will be added by caller)
                 String id = "CUSTOM_" + System.currentTimeMillis();
-                JournalTemplateManager.JournalTemplate newTemplate = 
-                    new JournalTemplateManager.JournalTemplate(id, name, desc, questions.toArray(new String[0]), true);
-                this.template = newTemplate;
+                JournalTemplateManager.JournalTemplate newTemplate =
+                        new JournalTemplateManager.JournalTemplate(id, name, desc, questions.toArray(new String[0]), true);
+                if (onSave != null) onSave.accept(newTemplate);
             }
-
-            accepted = true;
-            dispose();
         }
-
-        boolean isAccepted() { return accepted; }
-        JournalTemplateManager.JournalTemplate getTemplate() { return template; }
     }
 }

@@ -72,6 +72,10 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
+        // Page header
+        content.add(SettingsUi.header("Storage", "Folders, backups and paths"));
+        content.add(Box.createVerticalStrut(8));
+
         // Title and path (centered)
         JLabel title = new JLabel("Simjot root folder:");
         title.setAlignmentX(0.5f);

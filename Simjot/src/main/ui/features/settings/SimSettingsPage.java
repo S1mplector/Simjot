@@ -24,6 +24,9 @@ public class SimSettingsPage implements SettingsPage {
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(8,12,8,12);
         gc.anchor = GridBagConstraints.WEST;
+        // Header
+        gc.gridx = 0; gc.gridy = 0; gc.gridwidth = 2; panel.add(SettingsUi.header("Sim", "Assistant behavior and triggers"), gc);
+        gc.gridwidth = 1;
         // Match checkbox visuals used elsewhere in settings
         enableSim.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
         enableSim.setBackground(new Color(0,0,0,0));
@@ -40,7 +43,7 @@ public class SimSettingsPage implements SettingsPage {
         llmProvider.setUI(new ModernComboBoxUI());
         llmProvider.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
 
-        gc.gridx = 0; gc.gridy = 0;
+        gc.gridx = 0; gc.gridy = 1;
         panel.add(enableSim, gc);
         gc.gridy++;
         panel.add(new JLabel("Personality"), gc);

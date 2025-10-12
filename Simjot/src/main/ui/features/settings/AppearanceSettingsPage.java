@@ -31,6 +31,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.insets = new Insets(5, 5, 5, 5);
         gc.fill = GridBagConstraints.HORIZONTAL;
 
+        // Header
+        gc.gridx = 0; gc.gridy = 0; gc.gridwidth = 2; add(SettingsUi.header("Appearance", "Theme and visuals"), gc);
+        gc.gridwidth = 1;
+
         SettingsStore store = SettingsStore.get();
         String[] themes = {"Light", "Dark"};
         themeBox = new JComboBox<>(themes);
@@ -53,13 +57,13 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         backgroundOptionsBtn = new RoundedButton("Background Options");
         backgroundOptionsBtn.addActionListener(e -> openBackgroundOptions());
 
-        gc.gridx = 0; gc.gridy = 0; add(SettingsUi.label("Background:"), gc);
+        gc.gridx = 0; gc.gridy = 1; add(SettingsUi.label("Background:"), gc);
         gc.gridx = 1; add(backgroundOptionsBtn, gc);
-        gc.gridx = 0; gc.gridy = 1; add(SettingsUi.label("Theme:"), gc);
+        gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Theme:"), gc);
         gc.gridx = 1; add(themeBox, gc);
-        gc.gridx = 0; gc.gridy = 2; gc.gridwidth = 2; add(glowChk, gc);
-        gc.gridx = 0; gc.gridy = 3; gc.gridwidth = 2; add(disableAnimationsChk, gc);
-        gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(lowPowerChk, gc);
+        gc.gridx = 0; gc.gridy = 3; gc.gridwidth = 2; add(glowChk, gc);
+        gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
+        gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(lowPowerChk, gc);
     }
 
     @Override public JComponent getComponent() { return this; }

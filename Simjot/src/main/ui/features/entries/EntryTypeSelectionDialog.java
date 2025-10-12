@@ -18,7 +18,6 @@ public class EntryTypeSelectionDialog extends JDialog {
     private JournalTemplateManager.JournalTemplate selectedTemplate;
     private boolean accepted = false;
     private final JPanel grid;
-    private final Frame parentFrame;
     private final NotebookInfo notebook;
 
 
@@ -28,7 +27,6 @@ public class EntryTypeSelectionDialog extends JDialog {
 
     public EntryTypeSelectionDialog(Frame parent, NotebookInfo nb) {
         super(parent, "Choose Entry Type", true);
-        this.parentFrame = parent;
         this.notebook = nb;
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
@@ -122,61 +120,12 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
 
     private JPanel createTemplateCard(JournalTemplateManager.JournalTemplate template) {
-        JPanel card = new JPanel() {
-            private boolean hover = false;
-            private boolean pressed = false;
-
-            {
-                setOpaque(false);
-                setLayout(new BorderLayout(8, 8));
-                setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
-                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            }
-
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                int arc = 12;
-                int w = getWidth();
-                int h = getHeight();
-
-                // Background
-                if (pressed) {
-                    g2.setColor(new Color(220, 230, 255));
-                } else if (hover) {
-                    g2.setColor(new Color(240, 245, 255));
-                } else {
-                    g2.setColor(new Color(248, 249, 252));
-                }
-                g2.fillRoundRect(0, 0, w, h, arc, arc);
-
-                // Border
-                if (hover || pressed) {
-                    g2.setColor(new Color(88, 133, 255, pressed ? 200 : 120));
-                    g2.setStroke(new BasicStroke(2f));
-                } else {
-                    g2.setColor(new Color(210, 216, 228));
-                    g2.setStroke(new BasicStroke(1f));
-                }
-                g2.drawRoundRect(1, 1, w - 2, h - 2, arc, arc);
-
-                g2.dispose();
-                super.paintComponent(g);
-            }
-
-            @Override
-            protected void processMouseEvent(MouseEvent e) {
-                switch (e.getID()) {
-                    case MouseEvent.MOUSE_ENTERED -> { hover = true; repaint(); }
-                    case MouseEvent.MOUSE_EXITED -> { hover = false; pressed = false; repaint(); }
-                    case MouseEvent.MOUSE_PRESSED -> { pressed = true; repaint(); }
-                    case MouseEvent.MOUSE_RELEASED -> { pressed = false; repaint(); }
-                }
-                super.processMouseEvent(e);
-            }
-        };
+        RoundedPanel card = new RoundedPanel();
+        card.setArc(12);
+        card.setLayout(new BorderLayout(8, 8));
+        card.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.setBackground(new Color(248, 249, 252));
 
         // Text content
         JPanel textPanel = new JPanel();
@@ -199,6 +148,7 @@ public class EntryTypeSelectionDialog extends JDialog {
 
         card.add(textPanel, BorderLayout.CENTER);
 
+        // Hover and click effects
         card.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -206,6 +156,26 @@ public class EntryTypeSelectionDialog extends JDialog {
                 accepted = true;
                 setVisible(false);
                 dispose();
+            }
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                card.setBackground(new Color(240, 245, 255));
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                card.setBackground(new Color(248, 249, 252));
+            }
+            
+            @Override
+            public void mousePressed(MouseEvent e) {
+                card.setBackground(new Color(220, 230, 255));
+            }
+            
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                card.setBackground(new Color(240, 245, 255));
             }
         });
 
@@ -229,7 +199,7 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
     
     private void openTemplateManager() {
-        TemplateManagerDialog dialog = new TemplateManagerDialog(parentFrame, notebook);
+        TemplateManagerDialog dialog = new TemplateManagerDialog(this, notebook);
         dialog.setVisible(true);
         refreshTemplates(); // Refresh after closing
     }

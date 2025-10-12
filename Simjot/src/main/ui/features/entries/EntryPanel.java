@@ -1051,12 +1051,8 @@ public class EntryPanel extends AbstractEditorPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int arc = 16;
-                // Semi-opaque white gradient background
-                GradientPaint gradient = new GradientPaint(
-                    0, 0, new Color(255, 255, 255, 200),
-                    0, getHeight(), new Color(255, 255, 255, 180)
-                );
-                g2.setPaint(gradient);
+                // Solid semi-opaque background (no gradient)
+                g2.setColor(new Color(255, 255, 255, 200));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
                 // Border
                 g2.setColor(new Color(200, 200, 200, 180));

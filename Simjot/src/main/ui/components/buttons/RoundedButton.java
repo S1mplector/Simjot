@@ -7,15 +7,23 @@ import main.ui.theme.aero.AeroTheme;
 import main.ui.components.icons.ImageIconRenderer;
 
 public class RoundedButton extends JButton {
+    private boolean flat = false; // if true, paint solid fill without gradients
 
     public RoundedButton(String text){
         super(text);
         setFocusPainted(false);
         setBorderPainted(false);
         setContentAreaFilled(false);
+        setOpaque(false); // prevent background clears that cause flicker with custom painting
         setForeground(AeroTheme.TEXT_PRIMARY);
         setFont(AeroTheme.defaultBoldFont(12f));
         setPreferredSize(new Dimension(140,32));
+    }
+
+    /** Enable or disable flat painting (no gradients/glass overlay). */
+    public void setFlat(boolean flat) {
+        this.flat = flat;
+        repaint();
     }
 
     @Override
@@ -26,12 +34,20 @@ public class RoundedButton extends JButton {
         // Determine gradient by state
         boolean pressed = getModel().isPressed();
         boolean hover = getModel().isRollover();
-        Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
-        Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
-
-        Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
-        AeroPainters.paintGlassOverlay(g2, r, 10);
+        if (flat) {
+            // Solid fill based on state
+            Color fill = pressed
+                    ? new Color(220, 220, 220)
+                    : (hover ? new Color(235, 235, 235) : new Color(245, 245, 245));
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+        } else {
+            Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
+            Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
+            Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
+            AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
+            AeroPainters.paintGlassOverlay(g2, r, 10);
+        }
 
         // Soft border
         g2.setColor(new Color(180, 180, 180));
