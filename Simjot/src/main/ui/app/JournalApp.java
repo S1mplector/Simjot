@@ -1,5 +1,4 @@
 package main.ui.app;
-
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -36,6 +35,12 @@ import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.scaling.UIScalingManager;
 
+/**
+ * The main application window for Simjot.
+ * Manages the UI and handles the lifecycle of the application.
+ * 
+ * @author S1mplector
+ */
 public class JournalApp extends JFrame {
     private static final long serialVersionUID = 1L;
 

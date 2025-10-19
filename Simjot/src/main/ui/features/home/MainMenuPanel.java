@@ -215,12 +215,12 @@ public class MainMenuPanel extends JPanel {
 
         // -------- Widgets registration (centralized) ---------
         widgetManager.initializeDefault(app);
-        // Apply persisted per-widget enabled states
+        // Apply persisted per-widget enabled states (breathing widget works independently of main menu animations)
         try {
             java.util.Map<String, main.ui.features.widgets.Widget> all = widgetManager.getAll();
             for (java.util.Map.Entry<String, main.ui.features.widgets.Widget> e : all.entrySet()) {
-                boolean enabled = SettingsStore.get().isWidgetEnabled(e.getKey());
-                e.getValue().setEnabled(enabled);
+                boolean shouldBeEnabled = SettingsStore.get().isWidgetEnabled(e.getKey());
+                e.getValue().setEnabled(shouldBeEnabled);
             }
         } catch (Exception ignored) { }
 

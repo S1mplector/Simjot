@@ -8,6 +8,7 @@ import java.util.Random;
 import javax.swing.*;
 
 import main.infrastructure.monitoring.AppPerf;
+import main.core.service.SettingsStore;
 
 public class HeaderPanel extends JPanel {
     private float textAlpha = 0f;
@@ -50,49 +51,52 @@ public class HeaderPanel extends JPanel {
         });
         fadeTimer.start();
         
-        pulseTimer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() { // centralized FPS
-            public void actionPerformed(ActionEvent e) {
-                // Advance phase and compute eased beat between 0..1
-                phase += 0.05; // speed
-                double eased = (1 - Math.cos(phase)) * 0.5; // cosine ease-in-out
+        // Check if main menu animations are disabled before starting pulse animation
+        if (!SettingsStore.get().isMainMenuAnimationsDisabled()) {
+            pulseTimer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() { // centralized FPS
+                public void actionPerformed(ActionEvent e) {
+                    // Advance phase and compute eased beat between 0..1
+                    phase += 0.05; // speed
+                    double eased = (1 - Math.cos(phase)) * 0.5; // cosine ease-in-out
 
-                // Small overshoot spring right after peak
-                boolean justPeaked = (eased > 0.98 && lastBeatValue <= 0.98);
-                if (justPeaked) {
-                    beatPeak = true;
-                    spring = 0.08f;     // overshoot amount
-                    ecgDraw = 0f;       // restart ECG drawing
-                    ecgOpacity = 1f;    // full opacity at start
-                }
-                if (eased < 0.5) {
-                    beatPeak = false; // allow next peak
-                }
-                lastBeatValue = eased;
-
-                // Decay spring
-                if (spring > 0f) {
-                    spring *= 0.90f; // damping
-                    if (spring < 0.001f) spring = 0f;
-                }
-
-                // Base amplitude subtle for Aero
-                float baseAmp = 0.06f;
-                heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + spring; // around 1.0 with small overshoot
-
-                // ECG drawing
-                if(ecgOpacity > 0f){
-                    if(ecgDraw < 1f){
-                        ecgDraw += 0.06f; // speed of drawing left→right
-                        if(ecgDraw > 1f) ecgDraw = 1f;
-                    } else {
-                        ecgOpacity -= 0.02f; // fade out after fully drawn
-                        if(ecgOpacity < 0f) ecgOpacity = 0f;
+                    // Small overshoot spring right after peak
+                    boolean justPeaked = (eased > 0.98 && lastBeatValue <= 0.98);
+                    if (justPeaked) {
+                        beatPeak = true;
+                        spring = 0.08f;     // overshoot amount
+                        ecgDraw = 0f;       // restart ECG drawing
+                        ecgOpacity = 1f;    // full opacity at start
                     }
+                    if (eased < 0.5) {
+                        beatPeak = false; // allow next peak
+                    }
+                    lastBeatValue = eased;
+
+                    // Decay spring
+                    if (spring > 0f) {
+                        spring *= 0.90f; // damping
+                        if (spring < 0.001f) spring = 0f;
+                    }
+
+                    // Base amplitude subtle for Aero
+                    float baseAmp = 0.06f;
+                    heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + spring; // around 1.0 with small overshoot
+
+                    // ECG drawing
+                    if(ecgOpacity > 0f){
+                        if(ecgDraw < 1f){
+                            ecgDraw += 0.06f; // speed of drawing left→right
+                            if(ecgDraw > 1f) ecgDraw = 1f;
+                        } else {
+                            ecgOpacity -= 0.02f; // fade out after fully drawn
+                            if(ecgOpacity < 0f) ecgOpacity = 0f;
+                        }
+                    }
+                    repaint();
                 }
-                repaint();
-            }
-        });
-        pulseTimer.start();
+            });
+            pulseTimer.start();
+        }
     }
     
     @Override

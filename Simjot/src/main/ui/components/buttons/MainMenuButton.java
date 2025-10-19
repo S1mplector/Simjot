@@ -5,10 +5,11 @@ import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
+import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadingButton;
-import main.ui.components.icons.VectorIconPainter;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -26,7 +27,12 @@ public class MainMenuButton extends FadingButton {
         setHorizontalAlignment(SwingConstants.CENTER);
         // Animation timer using centralized FPS
         animTimer = new Timer(AppPerf.getAnimationDelay(), e->{
-            float target = hovering?1f:0f;
+            // Check if main menu animations are disabled - if so, skip animation logic entirely
+            if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
+                return; // Don't animate, just return
+            }
+
+            float target = hovering ? 1f : 0f;
             float speed = 0.08f; // approach rate
             if(Math.abs(progress-target)>0.01f){
                 progress += (target-progress)*speed;
@@ -38,8 +44,24 @@ public class MainMenuButton extends FadingButton {
         });
         // Hover listeners
         addMouseListener(new MouseAdapter(){
-            @Override public void mouseEntered(MouseEvent e){ hovering=true; animTimer.start(); }
-            @Override public void mouseExited(MouseEvent e){ hovering=false; animTimer.start(); }
+            @Override public void mouseEntered(MouseEvent e){ 
+                hovering=true; 
+                if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
+                    progress = 1f; // Show icon immediately
+                    repaint();
+                } else {
+                    animTimer.start(); 
+                }
+            }
+            @Override public void mouseExited(MouseEvent e){ 
+                hovering=false; 
+                if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
+                    progress = 0f; // Hide icon immediately
+                    repaint();
+                } else {
+                    animTimer.start(); 
+                }
+            }
         });
     }
 
