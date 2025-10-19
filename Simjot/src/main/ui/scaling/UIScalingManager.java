@@ -24,24 +24,34 @@ public final class UIScalingManager {
      */
     public static void initializeEarly() {
         if (initialized) return;
-        
+
+        // Check if UI scaling is enabled in settings by reading config file directly
+        // (SettingsStore can't be used yet as AppDirectories isn't initialized)
+        if (!isUIScalingEnabledFromConfig()) {
+            // UI scaling is disabled, use 1.0 scale (no scaling)
+            detectedScale = 1.0f;
+            initialized = true;
+            System.out.println("[UIScaling] UI scaling disabled by user setting, using 1.0x scale");
+            return;
+        }
+
         // Try to read user preference from config file BEFORE detecting system scale
         float userScale = readUserScaleFromConfig();
         float scale = (userScale > 0 && userScale != 1.0f) ? userScale : detectSystemScale();
-        
+
         // Set JVM properties that various subsystems might check
         System.setProperty("sun.java2d.uiScale.enabled", "true");
         System.setProperty("sun.java2d.uiScale", String.valueOf(scale));
         System.setProperty("sun.java2d.dpiaware", "true");
-        
+
         // For JavaFX if present
         System.setProperty("glass.gtk.uiScale", String.valueOf(scale));
         System.setProperty("glass.win.uiScale", String.valueOf(scale));
-        
+
         detectedScale = scale;
         initialized = true;
-        
-        System.out.println("[UIScaling] Initialized with scale: " + scale + "x" + 
+
+        System.out.println("[UIScaling] Initialized with scale: " + scale + "x" +
             (userScale > 0 && userScale != 1.0f ? " (from user config)" : " (auto-detected)"));
     }
     
@@ -195,6 +205,46 @@ public final class UIScalingManager {
         return null;
     }
     
+    /**
+     * Reads UI scaling enabled preference directly from the config file.
+     * This allows us to check the setting before SettingsStore is initialized.
+     */
+    private static boolean isUIScalingEnabledFromConfig() {
+        try {
+            String home = System.getProperty("user.home");
+            java.io.File configFile = new java.io.File(home, ".simjournal_config.txt");
+
+            if (!configFile.exists()) return true; // Default to enabled if no config
+
+            // Read the root folder path from config
+            String rootPath = null;
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(configFile))) {
+                rootPath = reader.readLine();
+            }
+
+            if (rootPath == null || rootPath.trim().isEmpty()) return true;
+
+            // Try to read preferences.properties from the settings folder
+            java.io.File settingsDir = new java.io.File(rootPath, "settings");
+            java.io.File prefsFile = new java.io.File(settingsDir, "preferences.properties");
+
+            if (!prefsFile.exists()) return true; // Default to enabled if no preferences file
+
+            java.util.Properties props = new java.util.Properties();
+            try (java.io.FileInputStream in = new java.io.FileInputStream(prefsFile)) {
+                props.load(in);
+            }
+
+            String enabledStr = props.getProperty("uiScalingEnabled", "true");
+            boolean enabled = Boolean.parseBoolean(enabledStr);
+            System.out.println("[UIScaling] Read UI scaling enabled from config: " + enabled);
+            return enabled;
+        } catch (Exception e) {
+            System.err.println("[UIScaling] Could not read UI scaling enabled from config: " + e.getMessage());
+        }
+        return true; // Default to enabled on error
+    }
+
     /**
      * Reads user scale preference directly from the config file.
      * This allows us to apply the correct scale before SettingsStore is initialized.

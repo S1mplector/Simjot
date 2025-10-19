@@ -37,6 +37,7 @@ public final class SettingsStore {
     private static final String KEY_BREATHING_OVERLAY = "breathingOverlayEnabled";
     private static final String KEY_SHOW_WIDGET_OPTIONS = "showWidgetOptions";
     private static final String KEY_UI_SCALE = "uiScale";
+    private static final String KEY_UI_SCALING_ENABLED = "uiScalingEnabled";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
     // Widgets
     private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
@@ -73,6 +74,7 @@ public final class SettingsStore {
     private static final boolean DEF_BREATHING_OVERLAY = true;
     private static final boolean DEF_SHOW_WIDGET_OPTIONS = true;
     private static final float DEF_UI_SCALE = 1.0f;
+    private static final boolean DEF_UI_SCALING_ENABLED = true;
     private static final boolean DEF_LOW_POWER_MODE = false;
     private static final boolean DEF_WIDGET_PANEL_VISIBLE = true;
     private static final String  DEF_DATE_FORMAT = "yyyy-MM-dd";
@@ -250,6 +252,13 @@ public final class SettingsStore {
     public void setUIScale(float scale) {
         float clamped = Math.max(0.5f, Math.min(3.0f, scale));
         props.setProperty(KEY_UI_SCALE, String.valueOf(clamped));
+    }
+
+    public boolean isUIScalingEnabled(){
+        return Boolean.parseBoolean(props.getProperty(KEY_UI_SCALING_ENABLED, String.valueOf(DEF_UI_SCALING_ENABLED)));
+    }
+    public void setUIScalingEnabled(boolean enabled){
+        props.setProperty(KEY_UI_SCALING_ENABLED, String.valueOf(enabled));
     }
 
     // --- New General settings ---

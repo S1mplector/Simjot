@@ -187,8 +187,43 @@ public class JournalApp extends JFrame {
             writer.println(rootFolder.getAbsolutePath());
         } catch (IOException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error saving config file.", "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private static float readUIScaleFromConfig() {
+        try {
+            String home = System.getProperty("user.home");
+            java.io.File configFile = new java.io.File(home, ".simjournal_config.txt");
+
+            if (!configFile.exists()) return 1.0f;
+
+            // Read the root folder path from config
+            String rootPath = null;
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(configFile))) {
+                rootPath = reader.readLine();
+            }
+
+            if (rootPath == null || rootPath.trim().isEmpty()) return 1.0f;
+
+            // Try to read preferences.properties from the settings folder
+            java.io.File settingsDir = new java.io.File(rootPath, "settings");
+            java.io.File prefsFile = new java.io.File(settingsDir, "preferences.properties");
+
+            if (!prefsFile.exists()) return 1.0f;
+
+            java.util.Properties props = new java.util.Properties();
+            try (java.io.FileInputStream in = new java.io.FileInputStream(prefsFile)) {
+                props.load(in);
+            }
+
+            String scaleStr = props.getProperty("uiScale", "1.0");
+            float scale = Float.parseFloat(scaleStr);
+            System.out.println("[UIScaling] Read user scale from config: " + scale);
+            return Math.max(0.5f, Math.min(3.0f, scale)); // Clamp to valid range
+        } catch (Exception e) {
+            System.err.println("[UIScaling] Could not read user scale from config: " + e.getMessage());
+        }
+        return 1.0f;
     }
 
     private void initUI() {
@@ -196,7 +231,8 @@ public class JournalApp extends JFrame {
         AeroLookAndFeel.apply();
         // Re-apply UI scaling AFTER L&F so that any defaults it sets are scaled appropriately
         try {
-            float userScale = SettingsStore.get().getUIScale();
+            // Read UI scale from config file directly since SettingsStore isn't available yet
+            float userScale = readUIScaleFromConfig();
             UIScalingManager.applyToSwing(userScale);
             // Update global font size based on effective scale
             float effectiveScale = (userScale > 0 && userScale != 1.0f) ? userScale : UIScalingManager.getDetectedScale();
