@@ -14,7 +14,6 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.RoundedPanel;
-import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
@@ -22,8 +21,6 @@ public class NotebookManagerPanel extends JPanel {
     private final NotebookStore store = new NotebookStore();
     private final JPanel gallery = new JPanel(new FlowLayout(FlowLayout.LEFT,20,20));
     private final JournalApp app;
-    private ToolbarIconButton deleteBtn;
-    private NotebookTile selectedTile;
 
     public NotebookManagerPanel(JournalApp app){
         this.app = app;
@@ -38,11 +35,6 @@ public class NotebookManagerPanel extends JPanel {
         backBtn.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
         topBar.add(backBtn);
 
-        deleteBtn = new ToolbarIconButton("trash");
-        deleteBtn.setEnabled(false);
-        deleteBtn.addActionListener(e-> deleteSelectedNotebook());
-        topBar.add(deleteBtn);
-
         add(topBar, BorderLayout.NORTH);
 
         gallery.setOpaque(false);
@@ -50,9 +42,6 @@ public class NotebookManagerPanel extends JPanel {
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         add(scroll,BorderLayout.CENTER);
-
-        selectedTile = null;
-        deleteBtn.setEnabled(false);
 
         refresh();
     }
@@ -72,7 +61,7 @@ public class NotebookManagerPanel extends JPanel {
         NotebookTile tile = new NotebookTile(nb);
         tile.setPreferredSize(new Dimension(120,120));
         tile.addMouseListener(new MouseAdapter(){
-            @Override public void mouseClicked(MouseEvent e){ if(e.getClickCount()==2) openNotebook(nb); }
+            @Override public void mouseClicked(MouseEvent e){ if(e.getClickCount()==1) openNotebook(nb); }
         });
         return tile;
     }
@@ -179,49 +168,13 @@ public class NotebookManagerPanel extends JPanel {
                 g2.drawRoundRect(1,1,w-3,h-3,arc,arc);
             }
 
-            // Selection glow and ring
-            if(selProgress > 0f){
-                // Outer glow
-                int glowAlpha = Math.min(140, (int)(160 * selProgress));
-                Color glow = new Color(52,120,246, glowAlpha); // bluish glow
-                g2.setColor(glow);
-                g2.setStroke(new BasicStroke(6f));
-                g2.drawRoundRect(3,3,w-7,h-7,arc+6,arc+6);
-
-                // Main accent ring
-                g2.setColor(new Color(52,120,246, 180));
-                g2.setStroke(new BasicStroke(2.5f));
-                g2.drawRoundRect(2,2,w-5,h-5,arc,arc);
-
-                // Soft inner highlight
-                g2.setColor(new Color(255,255,255,70));
-                g2.drawRoundRect(1,1,w-3,h-3,arc,arc);
-
-                // Checkmark badge at top-right
-                int badgeR = 18;
-                int bx = w - badgeR - 6;
-                int by = 6;
-                int badgeAlpha = Math.min(200, (int)(255 * selProgress));
-                g2.setColor(new Color(52,120,246, badgeAlpha));
-                g2.fillOval(bx, by, badgeR, badgeR);
-                g2.setColor(new Color(255,255,255, 230));
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                // simple tick
-                int tx1 = bx + 5, ty1 = by + 10;
-                int tx2 = bx + 8, ty2 = by + 13;
-                int tx3 = bx + 13, ty3 = by + 6;
-                g2.drawLine(tx1, ty1, tx2, ty2);
-                g2.drawLine(tx2, ty2, tx3, ty3);
-            }
-
             g2.dispose();
         }
         @Override public void mouseEntered(MouseEvent e){ hover=true; repaint(); }
         @Override public void mouseExited(MouseEvent e){ hover=false; repaint(); }
         @Override public void mouseClicked(MouseEvent e){
             if(SwingUtilities.isLeftMouseButton(e)){
-                selectTile(this);
-                if(e.getClickCount()==2){ openNotebook(nb); }
+                if(e.getClickCount()==1){ openNotebook(nb); }
             }
         }
         @Override public void mousePressed(MouseEvent e){}
@@ -236,25 +189,12 @@ public class NotebookManagerPanel extends JPanel {
             NotebookInfo.Type type = dlg.getNotebookType();
             if(name!=null && !name.isEmpty()){
                 NotebookInfo nb = store.create(name, type, "notebook");
-                animateNewNotebook(nb);
             }
         }
     }
 
     private void openNotebook(NotebookInfo nb){
         app.openNotebookEntries(nb);
-    }
-
-    private void openOptions(NotebookInfo nb){
-        NotebookOptionsDialog dlg = new NotebookOptionsDialog((Frame) SwingUtilities.getWindowAncestor(this), nb);
-        dlg.setVisible(true);
-        if(dlg.isDeleted()){
-            store.delete(nb);
-            refresh();
-        } else if(dlg.isRenamed()){
-            store.rename(nb, dlg.getNewName());
-            refresh();
-        }
     }
 
     /* Create dialog */
@@ -468,93 +408,5 @@ public class NotebookManagerPanel extends JPanel {
             g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
             g2.dispose();
         }
-    }
-
-    private void selectTile(NotebookTile tile){
-        if(selectedTile!=null){ selectedTile.setSelected(false); }
-        selectedTile = tile;
-        if(selectedTile!=null){ selectedTile.setSelected(true); }
-        deleteBtn.setEnabled(selectedTile!=null);
-    }
-
-    private void deleteSelectedNotebook(){
-        if(selectedTile==null) return;
-        NotebookInfo nb = selectedTile.nb;
-        boolean ok = CustomConfirmDialog.confirm(this, "Delete Notebook", "Delete notebook '"+nb.getName()+"'?" );
-        if(ok){
-            // Persist deletion first
-            store.delete(nb);
-            // Animate the tile sliding out/shrinking, then remove from gallery
-            NotebookTile toRemove = selectedTile;
-            selectedTile = null;
-            deleteBtn.setEnabled(false);
-            animateDeleteNotebook(toRemove);
-        }
-    }
-
-    /** Adds the given notebook tile with a simple grow animation */
-    private void animateNewNotebook(NotebookInfo nb){
-        // Remove the '+' add tile (assumed last component)
-        Component addTile = null;
-        if(gallery.getComponentCount()>0){
-            addTile = gallery.getComponent(gallery.getComponentCount()-1);
-            gallery.remove(addTile);
-        }
-
-        NotebookTile newTile = new NotebookTile(nb);
-        newTile.setPreferredSize(new Dimension(0,120));
-        gallery.add(newTile);
-        if(addTile!=null) gallery.add(addTile); // keep plus tile at end
-
-        gallery.revalidate(); gallery.repaint(newTile.getBounds());
-
-        Timer anim = new Timer(33,null);
-        anim.addActionListener(e->{
-            Dimension d = newTile.getPreferredSize();
-            int w = d.width + 26; // speed adjusted for 33ms tick (~same duration)
-            if(w >= 120){
-                w = 120; anim.stop();
-            }
-            newTile.setPreferredSize(new Dimension(w,120));
-            gallery.revalidate(); gallery.repaint(newTile.getBounds());
-        });
-        anim.start();
-    }
-
-    /** Animates removal of the selected notebook by shrinking its tile horizontally, then removes it. */
-    private void animateDeleteNotebook(NotebookTile tile){
-        if(tile==null) return;
-        // Ensure the add ('+') tile remains last; no need to move it for deletion
-        // Start from current preferred width (default tiles are 120 wide)
-        Dimension start = tile.getPreferredSize();
-        if(start == null || start.width <= 0){
-            start = new Dimension(120, 120);
-        }
-        final int targetH = start.height > 0 ? start.height : 120;
-
-        // Disable interactions during animation
-        for(MouseListener ml: tile.getMouseListeners()) tile.removeMouseListener(ml);
-        tile.setCursor(Cursor.getDefaultCursor());
-
-        final int[] w = new int[]{ start.width };
-        Timer anim = new Timer(33, null);
-        anim.addActionListener(e -> {
-            w[0] -= 26; // speed adjusted for 33ms tick (~same duration)
-            if(w[0] <= 0){
-                w[0] = 0;
-                anim.stop();
-                // Remove tile and refresh layout
-                Rectangle r = tile.getBounds();
-                gallery.remove(tile);
-                gallery.revalidate();
-                // Repaint old area to clear remnants
-                gallery.repaint(r);
-                return;
-            }
-            tile.setPreferredSize(new Dimension(w[0], targetH));
-            gallery.revalidate();
-            gallery.repaint(tile.getBounds());
-        });
-        anim.start();
     }
 }
