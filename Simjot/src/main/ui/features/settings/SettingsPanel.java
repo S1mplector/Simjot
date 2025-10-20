@@ -86,7 +86,9 @@ public class SettingsPanel extends JPanel {
         SimSettingsPage simPage = new SimSettingsPage();
         addPage("Sim", simPage);
 
-        addPage("About", new PlaceholderPage("Simjot v1.0\nCreated by Ilgaz with ❤️"));
+        // About (comprehensive information page)
+        AboutSettingsPage aboutPage = new AboutSettingsPage();
+        addPage("About", aboutPage);
 
         cardsPanel.setOpaque(true);
         cardsPanel.setBackground(Color.WHITE);

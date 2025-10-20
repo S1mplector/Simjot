@@ -14,7 +14,6 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.RoundedPanel;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
 public class NotebookManagerPanel extends JPanel {
@@ -344,40 +343,43 @@ public class NotebookManagerPanel extends JPanel {
         String getNewName(){ return newName; }
     }
 
-    // Create the permanent tile for adding a new notebook (Aero-styled)
+    // Create the permanent tile for adding a new notebook
     private JPanel createAddTile(){
         JPanel tile = new JPanel(){
-            private boolean hover=false, pressed=false;
+            private boolean hover=false;
             { setOpaque(false); }
             @Override protected void paintComponent(Graphics g){
                 Graphics2D g2=(Graphics2D)g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-                // Background gradient depending on state
-                Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
-                Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
-                Rectangle r = new Rectangle(0,0,getWidth(),getHeight());
-                AeroPainters.paintVerticalGradient(g2, r, top, bottom, 12);
-                AeroPainters.paintGlassOverlay(g2, r, 12);
-                // Soft border
-                g2.setColor(new Color(180,180,180));
-                g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,12,12);
+
+                int w = getWidth();
+                int h = getHeight();
+
+                // Simple background
+                if(hover){
+                    g2.setColor(new Color(245,245,245));
+                    g2.fillRoundRect(0,0,w,h,12,12);
+                }
+
+                // Simple border
+                g2.setColor(new Color(200,200,200));
+                g2.drawRoundRect(0,0,w-1,h-1,12,12);
+
                 // Center PNG icon for creating a new notebook
-                // Use centralized renderer with caching; resource lives under Simjot/src/main/resources/img/icons/newnotebook.png
-                int iconSize = 42; // visually balanced within 70x70 tile
+                int iconSize = 42;
                 java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/newnotebook.png", iconSize, true);
                 if (img != null) {
                     int x = (getWidth() - iconSize) / 2;
                     int y = (getHeight() - iconSize) / 2;
                     g2.drawImage(img, x, y, null);
                 }
+
                 g2.dispose();
             }
             @Override protected void processMouseEvent(MouseEvent e){
                 switch(e.getID()){
                     case MouseEvent.MOUSE_ENTERED -> { hover=true; repaint(); }
                     case MouseEvent.MOUSE_EXITED -> { hover=false; repaint(); }
-                    case MouseEvent.MOUSE_PRESSED -> { pressed=true; repaint(); }
-                    case MouseEvent.MOUSE_RELEASED -> { pressed=false; repaint(); }
                 }
                 super.processMouseEvent(e);
             }
