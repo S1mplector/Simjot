@@ -48,6 +48,7 @@ module Simjot {
 	exports main.ui.components.icons;
 	exports main.ui.features.widgets;
 	exports main.ui.theme.aero;
+    exports main.ui.theme;
 	exports main.ui.features.drawing;
 	exports main.ui.sim.overlay;
 

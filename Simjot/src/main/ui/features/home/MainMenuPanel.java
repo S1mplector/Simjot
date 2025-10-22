@@ -20,6 +20,7 @@ import main.ui.components.DragController;
 import main.ui.components.buttons.MainMenuButton;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.Theme;
 
 public class MainMenuPanel extends JPanel {
 
@@ -427,19 +428,23 @@ public class MainMenuPanel extends JPanel {
                 int h = getHeight();
                 Rectangle r = new Rectangle(0, 0, w, h);
 
-                // Subtle outer glow behind the bar
-                AeroPainters.paintOuterGlow(g2, new Rectangle(2, 0, w - 4, h), 12,
-                        new Color(0, 120, 215, 120), 6, 70);
+                if (Theme.isPlainWhite()) {
+                    g2.setColor(Color.WHITE);
+                    g2.fillRect(0, 0, w, h);
+                    g2.setColor(new Color(200, 200, 200));
+                    g2.drawLine(0, 0, w, 0);
+                } else {
+                    AeroPainters.paintOuterGlow(g2, new Rectangle(2, 0, w - 4, h), 12,
+                            new Color(0, 120, 215, 120), 6, 70);
 
-                // Glassy silver gradient fill
-                AeroPainters.paintVerticalGradient(g2, r,
-                        new Color(250, 250, 250, 220), new Color(226, 226, 226, 220), 12);
-                AeroPainters.paintGlassOverlay(g2, r, 12);
-                AeroPainters.paintInnerStroke(g2, r, 12, new Color(180, 180, 180, 180));
+                    AeroPainters.paintVerticalGradient(g2, r,
+                            new Color(250, 250, 250, 220), new Color(226, 226, 226, 220), 12);
+                    AeroPainters.paintGlassOverlay(g2, r, 12);
+                    AeroPainters.paintInnerStroke(g2, r, 12, new Color(180, 180, 180, 180));
 
-                // Thin accent line at the very top (Aero blue)
-                g2.setColor(new Color(0, 120, 215));
-                g2.fillRect(0, 0, w, 1);
+                    g2.setColor(new Color(0, 120, 215));
+                    g2.fillRect(0, 0, w, 1);
+                }
 
                 g2.dispose();
             }
@@ -611,21 +616,24 @@ public class MainMenuPanel extends JPanel {
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
                     int w = getWidth(), h = getHeight();
-                    // Silvery Aero gradient background
-                    Paint gp = new LinearGradientPaint(0, 0, 0, h,
-                            new float[]{0f, 0.5f, 1f},
-                            new Color[]{new Color(252,252,252,210), new Color(235,235,235,210), new Color(220,220,220,210)});
-                    g2.setPaint(gp);
-                    g2.fillRoundRect(0, 0, w, h, 20, 20);
-
-                    // Glass highlight
-                    g2.setPaint(new GradientPaint(0, 0, new Color(255,255,255,170), 0, h/2f, new Color(255,255,255,0)));
-                    g2.fillRoundRect(1, 1, w-2, h/2, 18, 18);
-
-                    // Border
-                    g2.setColor(new Color(170, 170, 170));
-                    g2.setStroke(new BasicStroke(1f));
-                    g2.drawRoundRect(0, 0, w - 1, h - 1, 20, 20);
+                    if (Theme.isPlainWhite()) {
+                        g2.setColor(Color.WHITE);
+                        g2.fillRoundRect(0, 0, w, h, 20, 20);
+                        g2.setColor(new Color(170, 170, 170));
+                        g2.setStroke(new BasicStroke(1f));
+                        g2.drawRoundRect(0, 0, w - 1, h - 1, 20, 20);
+                    } else {
+                        Paint gp = new LinearGradientPaint(0, 0, 0, h,
+                                new float[]{0f, 0.5f, 1f},
+                                new Color[]{new Color(252,252,252,210), new Color(235,235,235,210), new Color(220,220,220,210)});
+                        g2.setPaint(gp);
+                        g2.fillRoundRect(0, 0, w, h, 20, 20);
+                        g2.setPaint(new GradientPaint(0, 0, new Color(255,255,255,170), 0, h/2f, new Color(255,255,255,0)));
+                        g2.fillRoundRect(1, 1, w-2, h/2, 18, 18);
+                        g2.setColor(new Color(170, 170, 170));
+                        g2.setStroke(new BasicStroke(1f));
+                        g2.drawRoundRect(0, 0, w - 1, h - 1, 20, 20);
+                    }
 
                     // ----- Vector icon -----
                     int cx = w/2, cy = h/2;

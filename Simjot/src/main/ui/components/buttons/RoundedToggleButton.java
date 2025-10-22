@@ -4,6 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.Theme;
 
 public class RoundedToggleButton extends JToggleButton {
 
@@ -29,44 +30,41 @@ public class RoundedToggleButton extends JToggleButton {
         boolean pressed = m.isPressed();
         boolean hover = m.isRollover();
 
-        // Choose gradient based on state; use hover/press palette for selected as a distinct look
-        Color top;
-        Color bottom;
-        if (pressed) {
-            top = AeroTheme.BUTTON_PRESS_TOP;
-            bottom = AeroTheme.BUTTON_PRESS_BOTTOM;
-        } else if (selected) {
-            // Selected state uses hover gradient to stand out
-            top = AeroTheme.BUTTON_HOVER_TOP;
-            bottom = AeroTheme.BUTTON_HOVER_BOTTOM;
-        } else if (hover) {
-            top = AeroTheme.BUTTON_HOVER_TOP;
-            bottom = AeroTheme.BUTTON_HOVER_BOTTOM;
-        } else {
-            top = AeroTheme.BUTTON_BG_TOP;
-            bottom = AeroTheme.BUTTON_BG_BOTTOM;
-        }
-
         int arc = 12;
         Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
 
-        // Hover halo behind the button for a soft glow
-        if (hover && !pressed) {
-            Color glow = new Color(90, 150, 220, 180); // blue-tinted aura
-            AeroPainters.paintOuterGlow(g2, r, arc, glow, 6, 40);
-        }
-
-        // Base fill and glass overlay
-        AeroPainters.paintVerticalGradient(g2, r, top, bottom, arc);
-        AeroPainters.paintGlassOverlay(g2, r, arc);
-
-        // Inner highlight for glass edge
-        AeroPainters.paintInnerStroke(g2, r, arc, new Color(255, 255, 255, 70));
-
-        // Pressed/inset depth
-        if (pressed) {
-            AeroPainters.paintInnerShadow(g2, new Rectangle(r.x + 1, r.y + 1, r.width - 2, r.height - 2), arc - 2,
-                    new Color(0, 0, 0), 4, 60);
+        if (Theme.isPlainWhite()) {
+            Color fill = pressed ? new Color(220, 220, 220)
+                    : (hover || selected ? new Color(235, 235, 235) : new Color(245, 245, 245));
+            g2.setColor(fill);
+            g2.fillRoundRect(r.x, r.y, r.width, r.height, arc, arc);
+        } else {
+            Color top;
+            Color bottom;
+            if (pressed) {
+                top = AeroTheme.BUTTON_PRESS_TOP;
+                bottom = AeroTheme.BUTTON_PRESS_BOTTOM;
+            } else if (selected) {
+                top = AeroTheme.BUTTON_HOVER_TOP;
+                bottom = AeroTheme.BUTTON_HOVER_BOTTOM;
+            } else if (hover) {
+                top = AeroTheme.BUTTON_HOVER_TOP;
+                bottom = AeroTheme.BUTTON_HOVER_BOTTOM;
+            } else {
+                top = AeroTheme.BUTTON_BG_TOP;
+                bottom = AeroTheme.BUTTON_BG_BOTTOM;
+            }
+            if (hover && !pressed) {
+                Color glow = new Color(90, 150, 220, 180);
+                AeroPainters.paintOuterGlow(g2, r, arc, glow, 6, 40);
+            }
+            AeroPainters.paintVerticalGradient(g2, r, top, bottom, arc);
+            AeroPainters.paintGlassOverlay(g2, r, arc);
+            AeroPainters.paintInnerStroke(g2, r, arc, new Color(255, 255, 255, 70));
+            if (pressed) {
+                AeroPainters.paintInnerShadow(g2, new Rectangle(r.x + 1, r.y + 1, r.width - 2, r.height - 2), arc - 2,
+                        new Color(0, 0, 0), 4, 60);
+            }
         }
 
         // Soft border

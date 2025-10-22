@@ -7,6 +7,7 @@ import main.ui.components.icons.VectorIconPainter;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.Theme;
 
 /*
  * This class is used to create toolbar icons
@@ -67,16 +68,20 @@ public class ToolbarIconButton extends JButton {
         boolean pressed = getModel().isPressed();
         boolean hover = getModel().isRollover();
         // Selected gives a light blue tint similar to Windows 7 selection
-        Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover || selected ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
-        Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover || selected ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
-
-        Rectangle r = new Rectangle(0,0,getWidth(),getHeight());
-        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
-        AeroPainters.paintGlassOverlay(g2, r, 10);
-
-        // Soft border
-        g2.setColor(new Color(180,180,180));
-        g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
+        if (Theme.isPlainWhite()) {
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
+            g2.setColor(new Color(180,180,180));
+            g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
+        } else {
+            Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover || selected ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
+            Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover || selected ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
+            Rectangle r = new Rectangle(0,0,getWidth(),getHeight());
+            AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
+            AeroPainters.paintGlassOverlay(g2, r, 10);
+            g2.setColor(new Color(180,180,180));
+            g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
+        }
 
         // Draw icon via centralized renderer; fallback to vector
         boolean painted=false;
@@ -93,7 +98,7 @@ public class ToolbarIconButton extends JButton {
         if(!painted){ drawVector(g2); }
 
         // Optional glow retained but softened
-        if(glow){
+        if(glow && !Theme.isPlainWhite()){
             float alpha = 0.25f + 0.15f*(float)Math.sin(glowPhase);
             int glowSize = Math.min(getWidth(), getHeight());
             Color glowCol = new Color(255, 220, 120, (int)(alpha*255));

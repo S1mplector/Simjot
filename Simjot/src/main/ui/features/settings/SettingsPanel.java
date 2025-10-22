@@ -12,6 +12,7 @@ import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.aero.AeroLookAndFeel;
 
 public class SettingsPanel extends JPanel {
 
@@ -125,6 +126,10 @@ public class SettingsPanel extends JPanel {
 
         pages.values().forEach(SettingsPage::apply);
         SettingsStore.get().save();
+
+        // Reapply Look & Feel with potential theme change and refresh UI
+        try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
+        try { SwingUtilities.updateComponentTreeUI(app); } catch (Throwable ignored) {}
 
         // Determine Sim enable flag after saving
         boolean nowSimEnabled;

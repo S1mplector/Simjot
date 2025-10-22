@@ -5,6 +5,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
+import main.ui.theme.Theme;
 
 /**
  * Transparent overlay panel that renders animated category orbs and a
@@ -391,27 +392,32 @@ public class QuickSettingsOverlay extends JComponent {
             Composite old = g2.getComposite();
             g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
 
-            // Soft glow (reduced)
-            int glowR = Math.round(sd * 1.3f);
-            g2.setPaint(new RadialGradientPaint(new Point(p.x, p.y), glowR,
-                    new float[]{0f, 1f}, new Color[]{
-                            new Color(80, 170, 255, selected ? 200 : (hovered ? 170 : 140)),
-                            new Color(60, 150, 255, 0)}));
-            g2.fillOval(p.x - glowR, p.y - glowR, glowR * 2, glowR * 2);
+            if (main.ui.theme.Theme.isPlainWhite()) {
+                g2.setColor(Color.WHITE);
+                g2.fillOval(sx, sy, sd, sd);
+                g2.setColor(new Color(160,160,160));
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.drawOval(sx, sy, sd, sd);
+            } else {
+                int glowR = Math.round(sd * 1.3f);
+                g2.setPaint(new RadialGradientPaint(new Point(p.x, p.y), glowR,
+                        new float[]{0f, 1f}, new Color[]{
+                                new Color(80, 170, 255, selected ? 200 : (hovered ? 170 : 140)),
+                                new Color(60, 150, 255, 0)}));
+                g2.fillOval(p.x - glowR, p.y - glowR, glowR * 2, glowR * 2);
 
-            // Orb body (Aero blue)
-            Color c1 = selected ? new Color(20, 140, 255) : new Color(80, 160, 255);
-            Color c2 = selected ? new Color(10, 110, 220) : new Color(50, 120, 220);
-            Paint body = new GradientPaint(sx, sy, c1, sx, sy + sd, c2);
-            g2.setPaint(body);
-            g2.fillOval(sx, sy, sd, sd);
+                Color c1 = selected ? new Color(20, 140, 255) : new Color(80, 160, 255);
+                Color c2 = selected ? new Color(10, 110, 220) : new Color(50, 120, 220);
+                Paint body = new GradientPaint(sx, sy, c1, sx, sy + sd, c2);
+                g2.setPaint(body);
+                g2.fillOval(sx, sy, sd, sd);
 
-            // Gloss and border
-            g2.setPaint(new GradientPaint(sx, sy, new Color(255,255,255,180), sx, sy + sd/2f, new Color(255,255,255,0)));
-            g2.fillOval(sx + 3, sy + 3, sd - 6, sd - Math.max(10, Math.round(sd * 0.28f)));
-            g2.setColor(new Color(0, 70, 160, 200));
-            g2.setStroke(new BasicStroke(selected ? 3f : (hovered ? 2f : 1f)));
-            g2.drawOval(sx, sy, sd, sd);
+                g2.setPaint(new GradientPaint(sx, sy, new Color(255,255,255,180), sx, sy + sd/2f, new Color(255,255,255,0)));
+                g2.fillOval(sx + 3, sy + 3, sd - 6, sd - Math.max(10, Math.round(sd * 0.28f)));
+                g2.setColor(new Color(0, 70, 160, 200));
+                g2.setStroke(new BasicStroke(selected ? 3f : (hovered ? 2f : 1f)));
+                g2.drawOval(sx, sy, sd, sd);
+            }
 
             // Icon or letter
             javax.swing.Icon icon = categories.get(categoryIndex).getIcon();
@@ -503,14 +509,20 @@ public class QuickSettingsOverlay extends JComponent {
 
             int w = getWidth();
             int h = getHeight();
-            // White-themed card (restored)
-            Paint bg = new LinearGradientPaint(0, 0, 0, h,
-                    new float[]{0f, 0.6f, 1f},
-                    new Color[]{new Color(252,252,252,235), new Color(236,236,236,235), new Color(222,222,222,235)});
-            g2.setPaint(bg);
-            g2.fillRoundRect(0, 0, w, h, 14, 14);
-            g2.setColor(new Color(170,170,170));
-            g2.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
+            if (Theme.isPlainWhite()) {
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, w, h, 14, 14);
+                g2.setColor(new Color(170,170,170));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
+            } else {
+                Paint bg = new LinearGradientPaint(0, 0, 0, h,
+                        new float[]{0f, 0.6f, 1f},
+                        new Color[]{new Color(252,252,252,235), new Color(236,236,236,235), new Color(222,222,222,235)});
+                g2.setPaint(bg);
+                g2.fillRoundRect(0, 0, w, h, 14, 14);
+                g2.setColor(new Color(170,170,170));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
+            }
             g2.dispose();
         }
 

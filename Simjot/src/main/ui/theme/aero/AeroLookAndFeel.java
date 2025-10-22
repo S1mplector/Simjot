@@ -3,6 +3,7 @@ package main.ui.theme.aero;
 import javax.swing.*;
 import java.awt.*;
 import java.util.Enumeration;
+import main.ui.theme.Theme;
 
 public final class AeroLookAndFeel {
     private AeroLookAndFeel() {}
@@ -30,9 +31,15 @@ public final class AeroLookAndFeel {
         UIManager.put("ToolTip.font", base);
 
         // Colors for common elements (used where L&F reads UIManager)
-        UIManager.put("Panel.background", new Color(248, 248, 248));
-        UIManager.put("Button.foreground", AeroTheme.TEXT_PRIMARY);
-        UIManager.put("Label.foreground", AeroTheme.TEXT_PRIMARY);
+        if (Theme.isPlainWhite()) {
+            UIManager.put("Panel.background", Color.WHITE);
+            UIManager.put("Button.foreground", new Color(40, 40, 40));
+            UIManager.put("Label.foreground", new Color(40, 40, 40));
+        } else {
+            UIManager.put("Panel.background", new Color(248, 248, 248));
+            UIManager.put("Button.foreground", AeroTheme.TEXT_PRIMARY);
+            UIManager.put("Label.foreground", AeroTheme.TEXT_PRIMARY);
+        }
 
         // Note: We don't register custom UI classes via UIManager.put() because:
         // 1. Java modules block reflection access to our custom UI classes

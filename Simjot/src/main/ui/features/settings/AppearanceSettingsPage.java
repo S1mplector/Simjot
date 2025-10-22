@@ -38,11 +38,21 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridwidth = 1;
 
         SettingsStore store = SettingsStore.get();
-        String[] themes = {"Light", "Dark"};
+        String[] themes = {"Plain White", "Aero"};
         themeBox = new JComboBox<>(themes);
         themeBox.setUI(new ModernComboBoxUI());
         themeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        themeBox.setSelectedItem(store.getTheme());
+        {
+            String saved = store.getTheme();
+            String sel = "Aero";
+            if (saved != null) {
+                String s = saved.trim();
+                if (s.equalsIgnoreCase("Plain White") || s.equalsIgnoreCase("Plain") || s.equalsIgnoreCase("White")) sel = "Plain White";
+                else if (s.equalsIgnoreCase("Aero")) sel = "Aero";
+                else sel = "Aero"; // map legacy Light/Dark to Aero
+            }
+            themeBox.setSelectedItem(sel);
+        }
 
         glowChk = new JCheckBox("Enable button glow", store.isGlowEnabled());
         glowChk.setUI(new ModernCheckBoxUI());

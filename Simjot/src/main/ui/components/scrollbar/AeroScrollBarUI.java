@@ -3,6 +3,7 @@ package main.ui.components.scrollbar;
 import java.awt.*;
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicScrollBarUI;
+import main.ui.theme.Theme;
 
 public class AeroScrollBarUI extends BasicScrollBarUI {
     private static final Color TRACK = new Color(245, 245, 245);
@@ -30,11 +31,18 @@ public class AeroScrollBarUI extends BasicScrollBarUI {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        GradientPaint gp = new GradientPaint(0, tb.y, THUMB_TOP, 0, tb.y + tb.height, THUMB_BOTTOM);
-        g2.setPaint(gp);
-        g2.fillRoundRect(tb.x, tb.y, tb.width, tb.height, 8, 8);
-        g2.setColor(THUMB_BORDER);
-        g2.drawRoundRect(tb.x, tb.y, tb.width - 1, tb.height - 1, 8, 8);
+        if (Theme.isPlainWhite()) {
+            g2.setColor(new Color(235, 235, 235));
+            g2.fillRoundRect(tb.x, tb.y, tb.width, tb.height, 8, 8);
+            g2.setColor(new Color(190, 190, 190));
+            g2.drawRoundRect(tb.x, tb.y, tb.width - 1, tb.height - 1, 8, 8);
+        } else {
+            GradientPaint gp = new GradientPaint(0, tb.y, THUMB_TOP, 0, tb.y + tb.height, THUMB_BOTTOM);
+            g2.setPaint(gp);
+            g2.fillRoundRect(tb.x, tb.y, tb.width, tb.height, 8, 8);
+            g2.setColor(THUMB_BORDER);
+            g2.drawRoundRect(tb.x, tb.y, tb.width - 1, tb.height - 1, 8, 8);
+        }
         g2.dispose();
     }
 

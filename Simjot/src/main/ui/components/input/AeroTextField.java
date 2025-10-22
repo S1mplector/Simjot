@@ -1,6 +1,7 @@
 package main.ui.components.input;
 
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.Theme;
 
 import javax.swing.*;
 import java.awt.*;
@@ -23,16 +24,18 @@ public class AeroTextField extends JTextField {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Background: subtle Aero glass-like gradient
         int w = getWidth();
         int h = getHeight();
-        GradientPaint gp = new GradientPaint(0, 0, new Color(252, 252, 252), 0, h, new Color(235, 235, 235));
-        g2.setPaint(gp);
-        g2.fillRoundRect(0, 0, w, h, 10, 10);
-
-        // Top gloss highlight
-        g2.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 180), 0, h / 2f, new Color(255, 255, 255, 0)));
-        g2.fillRoundRect(1, 1, w - 2, h / 2, 9, 9);
+        if (Theme.isPlainWhite()) {
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(0, 0, w, h, 10, 10);
+        } else {
+            GradientPaint gp = new GradientPaint(0, 0, new Color(252, 252, 252), 0, h, new Color(235, 235, 235));
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, 10, 10);
+            g2.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 180), 0, h / 2f, new Color(255, 255, 255, 0)));
+            g2.fillRoundRect(1, 1, w - 2, h / 2, 9, 9);
+        }
 
         super.paintComponent(g2);
         g2.dispose();
@@ -50,7 +53,7 @@ public class AeroTextField extends JTextField {
         g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
 
         // Focus glow
-        if (isFocusOwner()) {
+        if (!Theme.isPlainWhite() && isFocusOwner()) {
             g2.setColor(new Color(AeroTheme.AERO_BLUE.getRed(), AeroTheme.AERO_BLUE.getGreen(), AeroTheme.AERO_BLUE.getBlue(), 120));
             g2.drawRoundRect(1, 1, w - 3, h - 3, 8, 8);
         }

@@ -5,6 +5,7 @@ import javax.swing.*;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.Theme;
 
 public class RoundedButton extends JButton {
     private boolean flat = false; // if true, paint solid fill without gradients
@@ -34,7 +35,7 @@ public class RoundedButton extends JButton {
         // Determine gradient by state
         boolean pressed = getModel().isPressed();
         boolean hover = getModel().isRollover();
-        if (flat) {
+        if (flat || Theme.isPlainWhite()) {
             // Solid fill based on state
             Color fill = pressed
                     ? new Color(220, 220, 220)
