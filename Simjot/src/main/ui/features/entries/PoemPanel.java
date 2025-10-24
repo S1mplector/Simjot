@@ -203,9 +203,6 @@ public class PoemPanel extends AbstractEditorPanel {
         );
         toolbarContainer = sharedToolbar.getContainer();
         poemTitleField = sharedToolbar.getTitleField();
-        // Add undo/redo support
-        this.poemContentUndoManager = new UndoRedoManager(poemEditor);
-        this.poemTitleUndoManager = new UndoRedoManager(poemTitleField);
         add(toolbarContainer, BorderLayout.NORTH);
 
         // Distraction-free header: only Back button, no other controls
@@ -268,6 +265,10 @@ public class PoemPanel extends AbstractEditorPanel {
         hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
         hbar.setOpaque(false);
         hbar.setUnitIncrement(16);
+
+        // Add undo/redo support (after components are created)
+        this.poemContentUndoManager = new UndoRedoManager(poemEditor);
+        this.poemTitleUndoManager = new UndoRedoManager(poemTitleField);
 
         textWrapper.add(scrollPane, BorderLayout.CENTER);
 
