@@ -21,9 +21,6 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
         // Ensure layout and preferred size reserve space for the checkbox box
         if (c instanceof AbstractButton) {
             AbstractButton b = (AbstractButton) c;
-            if (b.getIcon() == null) {
-                b.setIcon(DUMMY_ICON);
-            }
             if (b.getIconTextGap() < 6) {
                 b.setIconTextGap(6);
             }
@@ -31,6 +28,12 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
             // Avoid background fill artifacts; let parent paint background
             b.setOpaque(false);
         }
+    }
+
+    @Override
+    public Icon getDefaultIcon() {
+        // Provide our own logical icon for layout without mutating the component's icon
+        return DUMMY_ICON;
     }
 
     @Override
@@ -70,8 +73,16 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
         int x = iconRect.x + (iconRect.width - boxSize) / 2;
         int y = iconRect.y + (iconRect.height - boxSize) / 2;
 
-        g2.setColor(model.isSelected() ? CHECK_COLOR : BOX_COLOR);
+        Color box = model.isSelected() ? CHECK_COLOR : BOX_COLOR;
+        if (!b.isEnabled()) {
+            box = new Color(box.getRed(), box.getGreen(), box.getBlue(), 160);
+        }
+        g2.setColor(box);
         g2.fillRoundRect(x, y, boxSize, boxSize, 5, 5);
+        // Subtle border for visibility on white backgrounds
+        g2.setColor(new Color(170, 170, 170));
+        g2.setStroke(new BasicStroke(1f));
+        g2.drawRoundRect(x, y, boxSize, boxSize, 5, 5);
 
         if (model.isSelected()) {
             g2.setColor(Color.WHITE);
@@ -82,7 +93,9 @@ public class ModernCheckBoxUI extends BasicCheckBoxUI {
 
         // Paint the text
         if (text != null) {
-            g2.setColor(TEXT_COLOR);
+            Color tc = c.getForeground() != null ? c.getForeground() : TEXT_COLOR;
+            if (!b.isEnabled()) tc = new Color(tc.getRed(), tc.getGreen(), tc.getBlue(), 140);
+            g2.setColor(tc);
             g2.drawString(text, textRect.x, textRect.y + fm.getAscent());
         }
         g2.dispose();

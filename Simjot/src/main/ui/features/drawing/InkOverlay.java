@@ -30,12 +30,15 @@ public class InkOverlay extends JComponent {
     public InkOverlay(){
         setOpaque(false);
 
-        // Keyboard shortcuts for undo/redo
+        // Keyboard shortcuts for undo/redo (Control and Meta for cross-platform)
         getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.event.InputEvent.CTRL_DOWN_MASK), "undoInk");
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.event.InputEvent.META_DOWN_MASK), "undoInk");
         getActionMap().put("undoInk", new AbstractAction(){ public void actionPerformed(ActionEvent e){ undo(); }});
 
         getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.event.InputEvent.CTRL_DOWN_MASK | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoInk");
         getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, java.awt.event.InputEvent.CTRL_DOWN_MASK), "redoInk");
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.event.InputEvent.META_DOWN_MASK | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoInk");
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, java.awt.event.InputEvent.META_DOWN_MASK), "redoInk");
         getActionMap().put("redoInk", new AbstractAction(){ public void actionPerformed(ActionEvent e){ redo(); }});
 
         MouseAdapter ma = new MouseAdapter(){
@@ -60,6 +63,8 @@ public class InkOverlay extends JComponent {
 
     // -------------------- drawing ---------------------------
     private void beginStroke(Point p){
+        // New stroke invalidates redo history
+        redoStack.clear();
         active = new Stroke(currentTool, currentColor, currentSize);
         active.addPoint(p);
         strokes.add(active);

@@ -35,10 +35,22 @@ public final class AeroLookAndFeel {
             UIManager.put("Panel.background", Color.WHITE);
             UIManager.put("Button.foreground", new Color(40, 40, 40));
             UIManager.put("Label.foreground", new Color(40, 40, 40));
+            UIManager.put("CheckBox.background", Color.WHITE);
+            UIManager.put("CheckBox.foreground", new Color(40, 40, 40));
+            UIManager.put("ComboBox.background", Color.WHITE);
+            UIManager.put("ComboBox.foreground", new Color(40, 40, 40));
+            UIManager.put("TextField.background", Color.WHITE);
+            UIManager.put("TextField.foreground", new Color(40, 40, 40));
         } else {
             UIManager.put("Panel.background", new Color(248, 248, 248));
             UIManager.put("Button.foreground", AeroTheme.TEXT_PRIMARY);
             UIManager.put("Label.foreground", AeroTheme.TEXT_PRIMARY);
+            UIManager.put("CheckBox.background", new Color(248, 248, 248));
+            UIManager.put("CheckBox.foreground", AeroTheme.TEXT_PRIMARY);
+            UIManager.put("ComboBox.background", Color.WHITE);
+            UIManager.put("ComboBox.foreground", AeroTheme.TEXT_PRIMARY);
+            UIManager.put("TextField.background", Color.WHITE);
+            UIManager.put("TextField.foreground", AeroTheme.TEXT_PRIMARY);
         }
 
         // Note: We don't register custom UI classes via UIManager.put() because:

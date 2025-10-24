@@ -79,6 +79,8 @@ public class EntryPanel extends AbstractEditorPanel {
     private JLabel questionCountLabel;
     // Store text content per question
     private java.util.Map<Integer, String> questionResponses = new java.util.HashMap<>();
+    private UndoRedoManager titleUndoManager;
+    private UndoRedoManager contentUndoManager;
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -449,10 +451,8 @@ public class EntryPanel extends AbstractEditorPanel {
         });
 
         // Add undo/redo support
-        @SuppressWarnings("unused")
-        UndoRedoManager contentUndoManager = new UndoRedoManager(contentArea);
-        @SuppressWarnings("unused")
-        UndoRedoManager titleUndoManager = new UndoRedoManager(titleField);
+        this.contentUndoManager = new UndoRedoManager(contentArea);
+        this.titleUndoManager = new UndoRedoManager(titleField);
 
         // Add document listener for word count
         contentArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -460,28 +460,28 @@ public class EntryPanel extends AbstractEditorPanel {
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
-                if (autosaveManager != null) autosaveManager.markDirty();
+                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
 
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
-                if (autosaveManager != null) autosaveManager.markDirty();
+                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
 
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
-                if (autosaveManager != null) autosaveManager.markDirty();
+                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
         });
         // Autosave on title change too
         titleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
         });
 
         // Middle-click floating popup
@@ -850,6 +850,9 @@ public class EntryPanel extends AbstractEditorPanel {
     // Called by the "Save Entry" button.
     // This is overridden in EditEntryPanel to update an existing file.
     protected void saveEntry() {
+        if (autosaveManager != null) {
+            try { autosaveManager.stop(); } catch (Throwable ignored) {}
+        }
         // Snapshot UI state on EDT to avoid touching Swing components from autosave thread
         final String[] titleHolder = new String[1];
         final String[] contentHolder = new String[1];
@@ -953,6 +956,12 @@ public class EntryPanel extends AbstractEditorPanel {
             // Mark last successful save for status bar
             LastSaveTracker.markSaved();
 
+            // Mark undo save-points so subsequent undos redo to a clean state
+            try {
+                if (contentUndoManager != null) contentUndoManager.markSavePoint();
+                if (titleUndoManager != null) titleUndoManager.markSavePoint();
+            } catch (Throwable ignored) {}
+
             // Remember as last opened file for startup restore
             try {
                 SettingsStore.get().setLastOpenedFilePath(file.getAbsolutePath());
@@ -997,6 +1006,12 @@ public class EntryPanel extends AbstractEditorPanel {
         if (saveIndicator != null && f != null) {
             saveIndicator.setSavedFromTimestamp(f.lastModified());
         }
+        try {
+            if (contentUndoManager != null) contentUndoManager.clearHistory();
+            if (titleUndoManager != null) titleUndoManager.clearHistory();
+            if (contentUndoManager != null) contentUndoManager.markSavePoint();
+            if (titleUndoManager != null) titleUndoManager.markSavePoint();
+        } catch (Throwable ignored) {}
     }
 
     @Override
@@ -1042,6 +1057,12 @@ public class EntryPanel extends AbstractEditorPanel {
         if (questions != null && questions.length > 0) {
             showQuestion(0);
         }
+    }
+
+    @Override
+    public void removeNotify() {
+        try { if (autosaveManager != null) autosaveManager.stop(); } catch (Throwable ignored) {}
+        super.removeNotify();
     }
 
     private void createQuestionBubble() {

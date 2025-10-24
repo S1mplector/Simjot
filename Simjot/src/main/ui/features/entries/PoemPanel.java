@@ -31,6 +31,8 @@ import main.ui.features.poetry.RhymesDockPanel;
 import main.core.export.PoemExporter;
 import main.ui.dialog.export.PoemExportDialog;
 import main.ui.dialog.message.UIMessage;
+import main.ui.features.editing.UndoRedoManager;
+import main.core.service.LastSaveTracker;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -62,6 +64,8 @@ public class PoemPanel extends AbstractEditorPanel {
     // Optional poetry helpers
     private StatsSidebarPanel statsPanel;
     private RhymesDockPanel rhymesDock;
+    private UndoRedoManager poemTitleUndoManager;
+    private UndoRedoManager poemContentUndoManager;
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -199,6 +203,9 @@ public class PoemPanel extends AbstractEditorPanel {
         );
         toolbarContainer = sharedToolbar.getContainer();
         poemTitleField = sharedToolbar.getTitleField();
+        // Add undo/redo support
+        this.poemContentUndoManager = new UndoRedoManager(poemEditor);
+        this.poemTitleUndoManager = new UndoRedoManager(poemTitleField);
         add(toolbarContainer, BorderLayout.NORTH);
 
         // Distraction-free header: only Back button, no other controls
@@ -320,7 +327,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveManager != null) autosaveManager.markDirty();
+                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
@@ -328,7 +335,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveManager != null) autosaveManager.markDirty();
+                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
@@ -336,7 +343,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveManager != null) autosaveManager.markDirty();
+                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
         });
         // Caret listener to update rhyme/synonyms for current word
@@ -351,9 +358,9 @@ public class PoemPanel extends AbstractEditorPanel {
         });
         // Autosave on title change as well
         poemTitleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null) autosaveManager.markDirty(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
         });
 
         // Status + Inspire
@@ -437,8 +444,22 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // "Save Poem" logic for a new poem
     protected void savePoem() {
-        String title = poemTitleField.getText().trim();
-        String content = poemEditor.getText();
+        // Snapshot UI state on EDT to avoid touching Swing components from autosave worker threads
+        final String[] titleHolder = new String[1];
+        final String[] contentHolder = new String[1];
+        try {
+            if (SwingUtilities.isEventDispatchThread()) {
+                titleHolder[0] = poemTitleField.getText().trim();
+                contentHolder[0] = poemEditor.getText();
+            } else {
+                SwingUtilities.invokeAndWait(() -> {
+                    titleHolder[0] = poemTitleField.getText().trim();
+                    contentHolder[0] = poemEditor.getText();
+                });
+            }
+        } catch (Exception ignored) { return; }
+        String title = titleHolder[0];
+        String content = contentHolder[0];
         if (title.isEmpty() && content.trim().isEmpty()) {
             UIMessage.error(this,
                     "Error",
@@ -479,6 +500,13 @@ public class PoemPanel extends AbstractEditorPanel {
             try {
                 SettingsStore.get().setLastOpenedFilePath(poemFile.getAbsolutePath());
                 SettingsStore.get().save();
+            } catch (Throwable ignored) {}
+
+            // Mark last successful save for status bar and undo save-point
+            LastSaveTracker.markSaved();
+            try {
+                if (poemContentUndoManager != null) poemContentUndoManager.markSavePoint();
+                if (poemTitleUndoManager != null) poemTitleUndoManager.markSavePoint();
             } catch (Throwable ignored) {}
 
             String message = isNewFile ? "Poem saved successfully!" : "Poem updated successfully!";
@@ -709,6 +737,12 @@ public class PoemPanel extends AbstractEditorPanel {
         if (saveIndicator != null && f != null) {
             saveIndicator.setSavedFromTimestamp(f.lastModified());
         }
+        try {
+            if (poemContentUndoManager != null) poemContentUndoManager.clearHistory();
+            if (poemTitleUndoManager != null) poemTitleUndoManager.clearHistory();
+            if (poemContentUndoManager != null) poemContentUndoManager.markSavePoint();
+            if (poemTitleUndoManager != null) poemTitleUndoManager.markSavePoint();
+        } catch (Throwable ignored) {}
     }
 
     @Override
