@@ -22,7 +22,7 @@ public class MoodChartPanel extends JPanel {
     private JPanel cardPanel;
     private JournalApp app;
     private JComboBox<String> rangeBox;
-    private final String[] ranges = {"7 days","30 days","All"};
+    private final String[] ranges = {"7 days","30 days","90 days","365 days","All"};
     
     public MoodChartPanel(JournalApp app, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -64,14 +64,10 @@ public class MoodChartPanel extends JPanel {
     
     private void loadMoodData() {
         dayList.clear(); avgMoodList.clear();
-        // If there are no notebooks or no journal entries anywhere, suppress old mood data
-        if (!hasAnyJournalEntries()) {
-            return; // keeps lists empty so UI shows "No mood data yet."
-        }
         int daysLimit = switch(rangeBox.getSelectedIndex()){
-            case 0 -> 7; case 1 -> 30; default -> Integer.MAX_VALUE; };
+            case 0 -> 7; case 1 -> 30; case 2 -> 90; case 3 -> 365; default -> Integer.MAX_VALUE; };
         LocalDate today = LocalDate.now();
-        java.util.Map<LocalDate, java.util.List<Double>> map = new java.util.HashMap<>();
+        java.util.Map<LocalDate, java.util.List<Integer>> map = new java.util.HashMap<>();
         File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
         if (moodFile.exists()) {
             try (BufferedReader br = new BufferedReader(new FileReader(moodFile))) {
@@ -81,39 +77,48 @@ public class MoodChartPanel extends JPanel {
                     if (parts.length >= 2) {
                         LocalDate date;
                         try {
-                            date = LocalDate.parse(parts[0]); // ISO format yyyy-MM-dd
-                        } catch(java.time.format.DateTimeParseException ex){
+                            date = LocalDate.parse(parts[0]);
+                        } catch (Exception ex) {
                             try {
                                 DateTimeFormatter alt = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
                                 date = LocalDateTime.parse(parts[0], alt).toLocalDate();
-                            } catch(Exception ex2){
-                                continue; // skip malformed line
+                            } catch (Exception ex2) {
+                                continue;
                             }
                         }
-                        if(ChronoUnit.DAYS.between(date, today) > daysLimit) continue;
                         String moodStr = parts[1].trim();
-                        double val;
+                        int pct;
                         try {
-                            int num = Integer.parseInt(moodStr);
-                            // Map 0-100 → 0-2 for consistency with old range
-                            val = (num / 100.0) * 2.0;
+                            pct = Math.max(0, Math.min(100, Integer.parseInt(moodStr)));
                         } catch (NumberFormatException nfe) {
-                            // Fallback for legacy emoji records
-                            val = moodStr.equals(":)") ? 2.0 : moodStr.equals(":/") ? 1.0 : 0.0;
+                            pct = ":)".equals(moodStr) ? 100 : ":/".equals(moodStr) ? 50 : 0;
                         }
-                        map.computeIfAbsent(date,d->new ArrayList<>()).add(val);
+                        map.computeIfAbsent(date, d -> new ArrayList<>()).add(pct);
                     }
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
         }
+        if (map.isEmpty()) return;
         java.util.List<LocalDate> keys = new ArrayList<>(map.keySet());
         Collections.sort(keys);
-        for(LocalDate d: keys){
-            java.util.List<Double> l = map.get(d);
-            double avg = l.stream().mapToDouble(x->x).average().orElse(0);
-            dayList.add(d); avgMoodList.add(avg);
+        LocalDate start;
+        if (daysLimit == Integer.MAX_VALUE) {
+            start = keys.get(0);
+        } else {
+            start = today.minusDays(Math.max(0, daysLimit - 1));
+        }
+        LocalDate end = today;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            dayList.add(d);
+            java.util.List<Integer> l = map.get(d);
+            if (l == null || l.isEmpty()) {
+                avgMoodList.add(null);
+            } else {
+                double avg = l.stream().mapToInt(x -> x).average().orElse(0);
+                avgMoodList.add(avg);
+            }
         }
     }
     
@@ -143,7 +148,7 @@ public class MoodChartPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        if(dayList.isEmpty()){
+        if(dayList.isEmpty() || avgMoodList.stream().allMatch(Objects::isNull)){
             g2.setColor(Color.GRAY);
             String msg="No mood data yet.";
             FontMetrics fm=g2.getFontMetrics();
@@ -160,41 +165,81 @@ public class MoodChartPanel extends JPanel {
         g2.drawLine(margin, getHeight()-margin, margin, margin);
         g2.drawLine(margin, getHeight()-margin, getWidth()-margin, getHeight()-margin);
 
-        // plot line
-        if(dayList.size()>1){
-            for(int i=1;i<dayList.size();i++){
-                int x1 = margin + (int)((i-1)*w/(dayList.size()-1));
-                int x2 = margin + (int)(i*w/(dayList.size()-1));
-                int y1 = getHeight()-margin - (int)(avgMoodList.get(i-1)/2*h);
-                int y2 = getHeight()-margin - (int)(avgMoodList.get(i)/2*h);
-                g2.setColor(new Color(0,120,215));
-                g2.setStroke(new BasicStroke(2f));
-                g2.drawLine(x1,y1,x2,y2);
-                g2.fillOval(x1-3,y1-3,6,6);
-                if(i==dayList.size()-1) g2.fillOval(x2-3,y2-3,6,6);
+        for (int t = 0; t <= 4; t++) {
+            int pct = t * 25;
+            int y = getHeight()-margin - (int)(pct / 100.0 * h);
+            g2.setColor(new Color(200,200,200));
+            g2.drawLine(margin, y, getWidth()-margin, y);
+            g2.setColor(Color.DARK_GRAY);
+            String lab = String.valueOf(pct);
+            int tw = g2.getFontMetrics().stringWidth(lab);
+            g2.drawString(lab, margin - tw - 8, y + 4);
+        }
+
+        java.util.function.Function<Double, Color> colorFor = v -> {
+            int p = (int)Math.round(v);
+            if (p <= 33) return new Color(200,60,60);
+            if (p <= 66) return new Color(230,160,50);
+            return new Color(40,160,90);
+        };
+
+        java.util.List<Double> ma = new ArrayList<>(avgMoodList.size());
+        for (int i = 0; i < avgMoodList.size(); i++) {
+            Double a = avgMoodList.get(i);
+            Double b = i>0 ? avgMoodList.get(i-1) : null;
+            Double c = i+1<avgMoodList.size()? avgMoodList.get(i+1) : null;
+            double sum=0; int cnt=0;
+            if (b!=null){sum+=b;cnt++;}
+            if (a!=null){sum+=a;cnt++;}
+            if (c!=null){sum+=c;cnt++;}
+            ma.add(cnt==0?null:sum/cnt);
+        }
+
+        int n = dayList.size();
+        Integer lastX = null; Integer lastY = null;
+        for (int i = 0; i < n; i++) {
+            int x = margin + (int)(i * (n>1? (double)w/(n-1): w));
+            Double v = avgMoodList.get(i);
+            if (v != null) {
+                int y = getHeight()-margin - (int)(v / 100.0 * h);
+                if (lastX != null && lastY != null) {
+                    g2.setColor(new Color(0,120,215));
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawLine(lastX, lastY, x, y);
+                }
+                g2.setColor(colorFor.apply(v));
+                g2.fillOval(x-3,y-3,6,6);
+                lastX = x; lastY = y;
+            } else {
+                lastX = null; lastY = null;
             }
-        } else if (dayList.size() == 1) {
-            int x = margin + w / 2; // Center the single point
-            int y = getHeight() - margin - (int)(avgMoodList.get(0) / 2 * h);
-            g2.setColor(new Color(0, 120, 215));
-            g2.fillOval(x - 3, y - 3, 6, 6);
+        }
+
+        lastX = null; lastY = null;
+        g2.setColor(new Color(100,60,180));
+        g2.setStroke(new BasicStroke(1.5f));
+        for (int i = 0; i < n; i++) {
+            int x = margin + (int)(i * (n>1? (double)w/(n-1): w));
+            Double v = ma.get(i);
+            if (v != null) {
+                int y = getHeight()-margin - (int)(v / 100.0 * h);
+                if (lastX != null && lastY != null) g2.drawLine(lastX, lastY, x, y);
+                lastX = x; lastY = y;
+            } else { lastX = null; lastY = null; }
         }
 
         // date labels
         g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM-dd");
-        if (dayList.size() > 1) {
-            for(int i=0;i<dayList.size();i++){
-                int x = margin + (int)(i*w/(dayList.size()-1));
+        if (dayList.size() > 0) {
+            int labelTarget = 8;
+            int step = Math.max(1, dayList.size() / labelTarget);
+            for(int i=0;i<dayList.size();i+=step){
+                int x = margin + (int)(i*(dayList.size()>1? (double)w/(dayList.size()-1): w));
                 String txt = fmt.format(dayList.get(i));
                 int tw=g2.getFontMetrics().stringWidth(txt);
                 g2.drawString(txt, x-tw/2, getHeight()-margin+15);
             }
-        } else if (dayList.size() == 1) {
-            int x = margin + w / 2; // Center the label
-            String txt = fmt.format(dayList.get(0));
-            int tw = g2.getFontMetrics().stringWidth(txt);
-            g2.drawString(txt, x - tw / 2, getHeight() - margin + 15);
         }
 
         g2.dispose();
@@ -210,11 +255,11 @@ public class MoodChartPanel extends JPanel {
                 if(dayList.isEmpty()) return;
                 int margin=60;
                 int w = getWidth()-2*margin;
-                int idx = Math.round((float)(e.getX()-margin)/w*(dayList.size()-1));
+                int idx = Math.round((float)(e.getX()-margin)/Math.max(1,w)*(dayList.size()-1));
                 if(idx>=0 && idx<dayList.size()){
-                    double raw = avgMoodList.get(idx); // 0..2 scale
-                    int pct = (int)Math.round(raw / 2.0 * 100);
-                    setToolTipText(dayList.get(idx)+" avg mood: "+pct+"/100");
+                    Double raw = avgMoodList.get(idx);
+                    if (raw == null) setToolTipText(dayList.get(idx)+" no entry");
+                    else setToolTipText(dayList.get(idx)+" avg mood: "+(int)Math.round(raw)+"/100");
                 }
             }
         });
