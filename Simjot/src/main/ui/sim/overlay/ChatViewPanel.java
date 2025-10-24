@@ -57,7 +57,9 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
     @Override
     public void onTranscriptChanged() {
         SwingUtilities.invokeLater(() -> {
+            if (!isDisplayable() || scroll == null || !scroll.isDisplayable()) return;
             var bar = scroll.getVerticalScrollBar();
+            if (bar == null || !bar.isDisplayable()) return;
             int prevMax = bar.getMaximum();
             int prevVal = bar.getValue();
             boolean wasAtBottom = autoScroll || (prevMax - (prevVal + bar.getVisibleAmount()) < 8);
@@ -67,7 +69,11 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             canvas.repaint();
 
             if (wasAtBottom) {
-                SwingUtilities.invokeLater(() -> bar.setValue(bar.getMaximum()));
+                SwingUtilities.invokeLater(() -> {
+                    if (bar.isDisplayable()) {
+                        bar.setValue(bar.getMaximum());
+                    }
+                });
             }
         });
     }
@@ -218,6 +224,18 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
     /** A ScrollBarUI that paints nothing to visually hide the scrollbar. */
     private static final class InvisibleScrollBarUI extends BasicScrollBarUI {
         @Override
+        protected void layoutHScrollbar(JScrollBar sb) {
+            if (decrButton == null || incrButton == null) return; // UI may be uninstalling during shutdown
+            super.layoutHScrollbar(sb);
+        }
+
+        @Override
+        protected void layoutVScrollbar(JScrollBar sb) {
+            if (decrButton == null || incrButton == null) return; // UI may be uninstalling during shutdown
+            super.layoutVScrollbar(sb);
+        }
+
+        @Override
         protected void paintThumb(Graphics g, JComponent c, Rectangle thumbBounds) {
             // no-op
         }
@@ -250,5 +268,11 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             b.setContentAreaFilled(false);
             return b;
         }
+    }
+
+    @Override
+    public void removeNotify() {
+        try { model.removeListener(this); } catch (Throwable ignored) {}
+        super.removeNotify();
     }
 }
