@@ -6,7 +6,9 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.*;
 import javax.swing.*;
 import main.core.sim.api.SimEventBus;
+import main.core.service.SettingsStore;
 import main.ui.theme.aero.AeroPainters;
+import main.ui.util.AccentColorUtil;
 
 /**
  * Minimal overlay for Sim. Added to the JFrame layered pane.
@@ -327,6 +329,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         int w = getWidth();
         int h = getHeight();
+        // Resolve accent once per paint (cheap). Falls back to default Aero blue.
+        Color accent = resolveAccent();
 
         // Apply entrance fade and vertical offset
         Composite oldComp = g2.getComposite();
@@ -373,10 +377,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             float cxh = hb.x + hb.width * 0.45f;
             float cyh = hb.y + hb.height * 0.35f;
             float rh = Math.max(hb.width, hb.height) * 0.75f;
+            Color lightIdle = AccentColorUtil.lighten(accent, 0.40f);
+            Color darkIdle  = AccentColorUtil.darken(accent, 0.30f);
             RadialGradientPaint heartPaint = new RadialGradientPaint(
                     new Point2D.Float(cxh, cyh), rh,
                     new float[]{0f, 1f},
-                    new Color[]{new Color(153,209,255,150), new Color(0,84,153,130)}
+                    new Color[]{
+                        new Color(lightIdle.getRed(), lightIdle.getGreen(), lightIdle.getBlue(), 150),
+                        new Color(darkIdle.getRed(),  darkIdle.getGreen(),  darkIdle.getBlue(),  130)
+                    }
             );
             gh.setPaint(heartPaint);
             gh.translate(0, entranceOffsetY);
@@ -415,14 +424,19 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             gShadow.setColor(new Color(0,0,0,60));
             gShadow.fill(heart);
             gShadow.dispose();
-            // Gradient fill (bluish, matching header)
+            // Gradient fill (derived from accent)
             float cxh = hb.x + hb.width * 0.45f;
             float cyh = hb.y + hb.height * 0.35f;
             float rh = Math.max(hb.width, hb.height) * 0.75f;
+            Color light = AccentColorUtil.lighten(accent, 0.45f);
+            Color dark  = AccentColorUtil.darken(accent, 0.32f);
             RadialGradientPaint heartPaint = new RadialGradientPaint(
                     new Point2D.Float(cxh, cyh), rh,
                     new float[]{0f, 1f},
-                    new Color[]{new Color(153,209,255,210), new Color(0,84,153,190)}
+                    new Color[]{
+                        new Color(light.getRed(), light.getGreen(), light.getBlue(), 210),
+                        new Color(dark.getRed(),  dark.getGreen(),  dark.getBlue(),  190)
+                    }
             );
             gh.setPaint(heartPaint);
             gh.fill(heart);
@@ -625,6 +639,16 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         // restore
         g2.setComposite(oldComp);
         g2.dispose();
+    }
+
+    private Color resolveAccent(){
+        try {
+            int rgb = SettingsStore.get().getMainMenuAccentRGB();
+            if (rgb != Integer.MIN_VALUE) {
+                return new Color(rgb, false);
+            }
+        } catch (Throwable ignored) {}
+        return AccentColorUtil.defaultAccent();
     }
 
     // Beacon is shown when overlay is meant to be idle (no panel/orbs) but visible

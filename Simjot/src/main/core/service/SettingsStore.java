@@ -44,6 +44,7 @@ public final class SettingsStore {
     // Widgets
     private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
     private static final String KEY_WIDGET_ENABLED_PREFIX = "widget.enabled.";
+    private static final String KEY_STICKIES_PINNED = "stickies.pinned";
     // General extensions
     private static final String KEY_DATE_FORMAT = "dateFormat";
     private static final String KEY_OPEN_LAST = "openLastOnStartup";
@@ -345,6 +346,40 @@ public final class SettingsStore {
     public void setWidgetEnabled(String name, boolean enabled){
         if (name == null) return;
         props.setProperty(KEY_WIDGET_ENABLED_PREFIX + name, String.valueOf(enabled));
+    }
+
+    // --- Sticky notes pinning ---
+    public java.util.Set<String> getPinnedStickyIds(){
+        String csv = props.getProperty(KEY_STICKIES_PINNED, "");
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (csv == null || csv.isBlank()) return out;
+        for (String s : csv.split(",")){
+            String t = s.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+    public void setPinnedStickyIds(java.util.Set<String> ids){
+        if (ids == null || ids.isEmpty()) { props.remove(KEY_STICKIES_PINNED); return; }
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (String id : ids){
+            if (id == null || id.isBlank()) continue;
+            if (!first) sb.append(',');
+            sb.append(id.trim());
+            first = false;
+        }
+        props.setProperty(KEY_STICKIES_PINNED, sb.toString());
+    }
+    public boolean isStickyPinned(String id){
+        if (id == null || id.isBlank()) return false;
+        return getPinnedStickyIds().contains(id);
+    }
+    public void pinSticky(String id, boolean pinned){
+        if (id == null || id.isBlank()) return;
+        java.util.Set<String> s = getPinnedStickyIds();
+        if (pinned) s.add(id); else s.remove(id);
+        setPinnedStickyIds(s);
     }
 
     // -------- Generic accessors (for feature modules like Sim) -------- //

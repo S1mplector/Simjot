@@ -11,6 +11,8 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.util.AccentColorUtil;
+import main.ui.components.scrollbar.ModernScrollBarUI;
+ 
 
 /**
  * A comprehensive wallpaper gallery panel that allows users to select wallpapers
@@ -44,7 +46,20 @@ public class WallpaperGalleryPanel extends JDialog {
         
         // Image grid
         setupImageGrid();
-        add(new JScrollPane(list), BorderLayout.CENTER);
+        JScrollPane listScroll = new JScrollPane(list);
+        listScroll.setBorder(BorderFactory.createEmptyBorder());
+        // Apply the same modern scrollbars used in poetry/journal panels
+        JScrollBar vbar = listScroll.getVerticalScrollBar();
+        vbar.setUI(new ModernScrollBarUI());
+        vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
+        vbar.setOpaque(false);
+        vbar.setUnitIncrement(16);
+        JScrollBar hbar = listScroll.getHorizontalScrollBar();
+        hbar.setUI(new ModernScrollBarUI());
+        hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
+        hbar.setOpaque(false);
+        hbar.setUnitIncrement(16);
+        add(listScroll, BorderLayout.CENTER);
 
         // Live preview + accent swatch (right side)
         JPanel preview = new JPanel(new BorderLayout(8, 8));
@@ -92,7 +107,7 @@ public class WallpaperGalleryPanel extends JDialog {
         }
         add(bottomPanel, BorderLayout.SOUTH);
         
-        loadWallpapers();
+        loadWallpapersAsync();
         list.addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) updatePreview(); });
         if (model.getSize() > 0) {
             list.setSelectedIndex(0);
@@ -113,58 +128,49 @@ public class WallpaperGalleryPanel extends JDialog {
         list.setFixedCellHeight(180);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setBackground(Color.WHITE);
-        
-        list.setCellRenderer((JList<? extends WallpaperItem> l, WallpaperItem value, int idx, boolean sel, boolean focus) -> {
-            JPanel panel = new JPanel();
-            panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-            panel.setOpaque(true);
-            panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-            
-            if (value != null) {
-                // Image label
-                JLabel imageLabel = new JLabel();
-                imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-                imageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-                
-                if (value.getImage() != null) {
-                    Image scaledImage = value.getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH);
-                    imageLabel.setIcon(new ImageIcon(scaledImage));
-                } else {
-                    imageLabel.setText("Error loading image");
-                    imageLabel.setForeground(Color.RED);
-                }
-                
-                // Name label
-                JLabel nameLabel = new JLabel(value.getName());
-                nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
-                nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-                nameLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
-                
-                // Source label
-                JLabel sourceLabel = new JLabel(value.getSource());
-                sourceLabel.setHorizontalAlignment(SwingConstants.CENTER);
-                sourceLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-                sourceLabel.setFont(new Font("SansSerif", Font.ITALIC, 9));
-                sourceLabel.setForeground(Color.GRAY);
-                
-                panel.add(imageLabel);
-                panel.add(Box.createRigidArea(new Dimension(0, 5)));
-                panel.add(nameLabel);
-                panel.add(sourceLabel);
-                
-                // Tooltip
-                panel.setToolTipText(value.getName() + " (" + value.getSource() + ")");
-            } else {
-                // Show message when no images are available
-                JLabel emptyLabel = new JLabel("No wallpapers found");
-                emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
-                emptyLabel.setForeground(Color.GRAY);
-                panel.add(emptyLabel);
+
+        // Reusable renderer to avoid reallocations and rescaling during scroll
+        class Cell extends JPanel implements ListCellRenderer<WallpaperItem> {
+            private final JLabel img = new JLabel();
+            private final JLabel name = new JLabel();
+            private final JLabel source = new JLabel();
+            Cell(){
+                setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+                setOpaque(true);
+                setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
+                img.setHorizontalAlignment(SwingConstants.CENTER);
+                img.setAlignmentX(Component.CENTER_ALIGNMENT);
+                name.setHorizontalAlignment(SwingConstants.CENTER);
+                name.setAlignmentX(Component.CENTER_ALIGNMENT);
+                name.setFont(new Font("SansSerif", Font.PLAIN, 10));
+                source.setHorizontalAlignment(SwingConstants.CENTER);
+                source.setAlignmentX(Component.CENTER_ALIGNMENT);
+                source.setFont(new Font("SansSerif", Font.ITALIC, 9));
+                source.setForeground(Color.GRAY);
+                add(img); add(Box.createRigidArea(new Dimension(0,5))); add(name); add(source);
             }
-            
-            panel.setBackground(sel ? new Color(0, 120, 215, 60) : Color.WHITE);
-            return panel;
-        });
+            @Override
+            public Component getListCellRendererComponent(JList<? extends WallpaperItem> l, WallpaperItem v, int index, boolean isSelected, boolean cellHasFocus) {
+                if (v == null) {
+                    img.setIcon(null); img.setText("No wallpapers found");
+                    name.setText(""); source.setText("");
+                } else {
+                    img.setText("");
+                    ImageIcon thumb = v.getThumb();
+                    if (thumb == null && v.getImage() != null) {
+                        thumb = makeThumbIcon(v.getImage(), 120, 120);
+                        v.setThumb(thumb);
+                    }
+                    img.setIcon(thumb);
+                    name.setText(v.getName());
+                    source.setText(v.getSource());
+                    setToolTipText(v.getName() + " (" + v.getSource() + ")");
+                }
+                setBackground(isSelected ? new Color(0,120,215,60) : Color.WHITE);
+                return this;
+            }
+        }
+        list.setCellRenderer(new Cell());
     }
 
     private void updatePreview() {
@@ -224,7 +230,7 @@ private JPanel buttonPanel;
             dispose();
         });
         
-        refreshBtn.addActionListener(e -> loadWallpapers());
+        refreshBtn.addActionListener(e -> loadWallpapersAsync());
         
         openFolderBtn.addActionListener(e -> {
             try {
@@ -243,22 +249,108 @@ private JPanel buttonPanel;
         buttonPanel.add(cancelBtn);
     }
     
-    private void loadWallpapers() {
+    private void loadWallpapersAsync() {
         model.clear();
-        
-        // Load built-in wallpapers
-        loadBuiltInWallpapers();
-        
-        // Load user wallpapers
-        loadUserWallpapers();
-        
-        // Load gallery images (from drawings)
-        loadGalleryImages();
-        
-        // If no wallpapers found, show a message
-        if (model.isEmpty()) {
-            model.addElement(null);
-        }
+        SwingWorker<Void, WallpaperItem> worker = new SwingWorker<>(){
+            @Override protected Void doInBackground(){
+                // Vector generated wallpapers
+                try {
+                    java.util.List<String> ids = java.util.List.of(
+                            GeneratedWallpapers.ID_LINEAR,
+                            GeneratedWallpapers.ID_DIAGONAL,
+                            GeneratedWallpapers.ID_RADIAL
+                    );
+                    for (String id : ids) {
+                        String name = switch (id) {
+                            case GeneratedWallpapers.ID_LINEAR -> "Gray Gradient (Linear)";
+                            case GeneratedWallpapers.ID_DIAGONAL -> "Gray Gradient (Diagonal)";
+                            case GeneratedWallpapers.ID_RADIAL -> "Gray Gradient (Radial)";
+                            default -> id;
+                        };
+                        Image img = GeneratedWallpapers.render(id, 300, 168);
+                        WallpaperItem it = new WallpaperItem(name, id, "Vector", img);
+                        it.setThumb(makeThumbIcon(img, 120, 120));
+                        publish(it);
+                    }
+                } catch (Throwable ignored) {}
+
+                // Built-in resources
+                String[] builtIn = {"img/wallpapers/bg1.jpg","img/wallpapers/bg2.jpg","img/wallpapers/bg3.jpg"};
+                for (String res : builtIn) {
+                    try {
+                        Image img = ResourceLoader.createImage("Simjot/" + res);
+                        if (img != null) {
+                            String name = new java.io.File(res).getName();
+                            WallpaperItem it = new WallpaperItem(name, "res:" + res, "Built-in", img);
+                            it.setThumb(makeThumbIcon(img, 120, 120));
+                            publish(it);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
+                // User wallpapers
+                try {
+                    java.io.File wallpapersDir = AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+                    if (wallpapersDir.exists()) {
+                        java.io.File[] imageFiles = wallpapersDir.listFiles((d, f) -> {
+                            String lower = f.toLowerCase();
+                            return lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".png")||lower.endsWith(".gif")||lower.endsWith(".bmp")||lower.endsWith(".webp");
+                        });
+                        if (imageFiles != null) {
+                            for (java.io.File file : imageFiles) {
+                                try {
+                                    Image img = new ImageIcon(file.getAbsolutePath()).getImage();
+                                    WallpaperItem it = new WallpaperItem(file.getName(), file.getAbsolutePath(), "User", img);
+                                    it.setThumb(makeThumbIcon(img, 120, 120));
+                                    publish(it);
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // Gallery images
+                try {
+                    java.io.File drawingsDir = AppDirectories.folder(AppDirectories.Type.DRAWINGS);
+                    if (drawingsDir.exists()) {
+                        java.io.File[] pngFiles = drawingsDir.listFiles((d, f) -> f.toLowerCase().endsWith(".png"));
+                        if (pngFiles != null) {
+                            for (java.io.File file : pngFiles) {
+                                try {
+                                    Image img = new ImageIcon(file.getAbsolutePath()).getImage();
+                                    WallpaperItem it = new WallpaperItem(file.getName(), file.getAbsolutePath(), "Gallery", img);
+                                    it.setThumb(makeThumbIcon(img, 120, 120));
+                                    publish(it);
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                        java.io.File[] imageFiles = drawingsDir.listFiles((d, f) -> {
+                            String lower = f.toLowerCase();
+                            return lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".gif")||lower.endsWith(".bmp")||lower.endsWith(".webp");
+                        });
+                        if (imageFiles != null) {
+                            for (java.io.File file : imageFiles) {
+                                try {
+                                    Image img = new ImageIcon(file.getAbsolutePath()).getImage();
+                                    WallpaperItem it = new WallpaperItem(file.getName(), file.getAbsolutePath(), "Gallery", img);
+                                    it.setThumb(makeThumbIcon(img, 120, 120));
+                                    publish(it);
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                return null;
+            }
+            @Override protected void process(java.util.List<WallpaperItem> chunks){
+                for (WallpaperItem it : chunks) { model.addElement(it); }
+            }
+            @Override protected void done(){
+                if (model.isEmpty()) model.addElement(null);
+            }
+        };
+        worker.execute();
     }
     
     private void loadBuiltInWallpapers() {
@@ -278,6 +370,7 @@ private JPanel buttonPanel;
                 };
                 Image thumb = GeneratedWallpapers.render(id, 300, 168);
                 WallpaperItem item = new WallpaperItem(name, id, "Vector", thumb);
+                item.setThumb(makeThumbIcon(thumb, 120, 120));
                 model.addElement(item);
             }
         } catch (Exception ignored) {}
@@ -294,6 +387,7 @@ private JPanel buttonPanel;
                 if (img != null) {
                     String name = new File(wallpaperPath).getName();
                     WallpaperItem item = new WallpaperItem(name, "res:" + wallpaperPath, "Built-in", img);
+                    item.setThumb(makeThumbIcon(img, 120, 120));
                     model.addElement(item);
                 }
             } catch (Exception ex) {
@@ -322,6 +416,7 @@ private JPanel buttonPanel;
                     try {
                         Image img = new ImageIcon(file.getAbsolutePath()).getImage();
                         WallpaperItem item = new WallpaperItem(file.getName(), file.getAbsolutePath(), "User", img);
+                        item.setThumb(makeThumbIcon(img, 120, 120));
                         model.addElement(item);
                     } catch (Exception ex) {
                         // Skip if image can't be loaded
@@ -390,6 +485,7 @@ private JPanel buttonPanel;
                     try {
                         Image img = new ImageIcon(file.getAbsolutePath()).getImage();
                         WallpaperItem item = new WallpaperItem(file.getName(), file.getAbsolutePath(), "Gallery", img);
+                        item.setThumb(makeThumbIcon(img, 120, 120));
                         model.addElement(item);
                     } catch (Exception ex) {
                         // Skip if image can't be loaded
@@ -430,6 +526,7 @@ private JPanel buttonPanel;
         private final String path;
         private final String source;
         private final Image image;
+        private ImageIcon thumb;
         
         public WallpaperItem(String name, String path, String source, Image image) {
             this.name = name;
@@ -442,10 +539,28 @@ private JPanel buttonPanel;
         public String getPath() { return path; }
         public String getSource() { return source; }
         public Image getImage() { return image; }
+        public ImageIcon getThumb() { return thumb; }
+        public void setThumb(ImageIcon t) { this.thumb = t; }
         
         @Override
         public String toString() {
             return name + " (" + source + ")";
         }
+    }
+
+    private static ImageIcon makeThumbIcon(Image img, int maxW, int maxH) {
+        if (img == null) return null;
+        int iw = img.getWidth(null), ih = img.getHeight(null);
+        if (iw <= 0 || ih <= 0) return null;
+        double scale = Math.min(maxW / (double) iw, maxH / (double) ih);
+        int tw = Math.max(1, (int) Math.round(iw * scale));
+        int th = Math.max(1, (int) Math.round(ih * scale));
+        BufferedImage bi = new BufferedImage(tw, th, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = bi.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2.drawImage(img, 0, 0, tw, th, null);
+        g2.dispose();
+        return new ImageIcon(bi);
     }
 } 

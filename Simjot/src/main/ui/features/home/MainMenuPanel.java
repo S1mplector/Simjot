@@ -22,6 +22,7 @@ import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
 import main.ui.theme.Theme;
+import main.ui.components.icons.ImageIconRenderer;
 
 public class MainMenuPanel extends JPanel {
 
@@ -34,6 +35,7 @@ public class MainMenuPanel extends JPanel {
     private main.ui.features.widgets.WidgetManager widgetManager = new main.ui.features.widgets.WidgetManager();
     private DraggableWidgetPanel widgetPanel;
     private JLayeredPane layeredPane;
+    private JPanel pinnedRow;
     // Debounce timer to batch resize handling and reduce repaint storms
     private javax.swing.Timer resizeDebounce;
     private static final int RESIZE_DEBOUNCE_MS = 120;
@@ -41,6 +43,64 @@ public class MainMenuPanel extends JPanel {
     public MainMenuPanel(JournalApp app) {
         this.app = app;
         buildUI();
+    }
+
+    private JPanel buildPinnedStickiesRow() {
+        java.util.Set<String> ids = SettingsStore.get().getPinnedStickyIds();
+        if (ids == null || ids.isEmpty()) return null;
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        row.setOpaque(false);
+        JLabel title = new JLabel("Pinned Stickies");
+        title.setForeground(AeroTheme.TEXT_PRIMARY);
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+        row.add(title);
+        for (String id : ids) {
+            String label = readStickyTitle(id);
+            if (label == null) continue;
+            JButton b = new JButton(label, new ImageIcon(ImageIconRenderer.get("img/icons/sticky_widget.png", 16, false)));
+            b.setFocusPainted(false);
+            b.setOpaque(false);
+            b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            b.addActionListener(e -> openSticky(id));
+            row.add(b);
+        }
+        if (row.getComponentCount() <= 1) return null; // nothing valid
+        return row;
+    }
+
+    private void openSticky(String id) {
+        main.ui.features.widgets.Widget w = widgetManager.get("Idea Sticky");
+        if (w instanceof main.ui.features.widgets.IdeaStickyWidget sw) {
+            sw.openAndFocus(id);
+        } else if (w != null) {
+            // Fallback: enable generic widget if not the expected type
+            w.setEnabled(true);
+        }
+    }
+
+    private String readStickyTitle(String id){
+        try {
+            java.io.File dir = new java.io.File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "stickies");
+            java.io.File f = new java.io.File(dir, id + ".txt");
+            if (!f.exists()) return null;
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f))) {
+                String first = r.readLine();
+                java.util.List<String> lines = new java.util.ArrayList<>();
+                String line;
+                if (first != null && !first.startsWith("COLOR ")) lines.add(first);
+                while ((line = r.readLine()) != null) lines.add(line);
+                // For HTML notes, strip tags fast
+                StringBuilder sb = new StringBuilder();
+                for (String ln : lines) {
+                    String s = ln.replaceAll("<[^>]+>", "").trim();
+                    if (!s.isEmpty()) { sb.append(s); break; }
+                }
+                String t = sb.toString();
+                if (t.isEmpty()) t = "Untitled";
+                return t.length() > 28 ? t.substring(0, 28) + "…" : t;
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     // ---------- App Context Indicators (center of status bar) ----------
@@ -263,6 +323,14 @@ public class MainMenuPanel extends JPanel {
         clockRow.setAlignmentX(Component.CENTER_ALIGNMENT);
         content.add(Box.createRigidArea(new Dimension(0, 8)));
         content.add(clockRow);
+
+        // ----- Pinned Stickies row -----
+        pinnedRow = buildPinnedStickiesRow();
+        if (pinnedRow != null) {
+            pinnedRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+            content.add(Box.createRigidArea(new Dimension(0, 8)));
+            content.add(pinnedRow);
+        }
 
         // Create the button panel with animated fade-in
         JPanel buttonPanel = new JPanel();
