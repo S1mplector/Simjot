@@ -32,7 +32,7 @@ public class AutosaveManager {
                 // Signal UI that an autosave is actually starting now (after debounce)
                 SwingUtilities.invokeLater(onStart);
                 // Run save off the EDT to avoid UI stalls (especially with short delays)
-                new Thread(() -> {
+                Thread t = new Thread(() -> {
                     try {
                         onSave.run();
                     } finally {
@@ -44,7 +44,9 @@ public class AutosaveManager {
                             }
                         });
                     }
-                }, "AutosaveWorker").start();
+                }, "AutosaveWorker");
+                t.setDaemon(true);
+                t.start();
             }
         });
         this.timer.setRepeats(false);

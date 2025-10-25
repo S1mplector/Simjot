@@ -201,11 +201,11 @@ public class MainMenuPanel extends JPanel {
             } catch (Exception ex) {
                 return;
             }
-            new Thread(() -> {
+            Thread t = new Thread(() -> {
                 long size = 0L;
                 try {
-                    for (AppDirectories.Type t : AppDirectories.Type.values()) {
-                        size += folderSize(AppDirectories.folder(t));
+                    for (AppDirectories.Type typ : AppDirectories.Type.values()) {
+                        size += folderSize(AppDirectories.folder(typ));
                     }
                 } catch (Exception ignored) {}
                 final String txt = "Library: " + humanSize(size);
@@ -213,7 +213,9 @@ public class MainMenuPanel extends JPanel {
                 lastSizeText = txt;
                 // Trigger EDT repaint
                 SwingUtilities.invokeLater(() -> sizeLbl.setText(lastSizeText));
-            }, "lib-size-worker").start();
+            }, "lib-size-worker");
+            t.setDaemon(true);
+            t.start();
         }
 
         private long folderSize(java.io.File f) {

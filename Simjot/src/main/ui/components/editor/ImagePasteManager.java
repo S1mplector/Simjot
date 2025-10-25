@@ -19,6 +19,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import main.ui.components.containers.AeroPanel;
+import main.ui.components.buttons.RoundedButton;
 
 /**
  * ImagePasteManager adds crisp, reusable support for pasting and dropping images into a JTextPane.
@@ -271,37 +273,78 @@ public final class ImagePasteManager {
         JSlider slider = new JSlider(JSlider.HORIZONTAL, minW, maxW, currentW);
         slider.setMajorTickSpacing(Math.max(100, (maxW - minW) / 4));
         slider.setPaintTicks(true);
+        JLabel widthLbl = new JLabel(currentW + " px");
 
-        JButton fitBtn = new JButton("Fit to editor");
-        JButton minusBtn = new JButton("-100");
-        JButton plusBtn = new JButton("+100");
-        JButton removeBtn = new JButton("Remove");
+        JButton fitBtn = new RoundedButton("Fit");
+        JButton minusBtn = new RoundedButton("-100");
+        JButton plusBtn = new RoundedButton("+100");
+        JButton rotateLBtn = new RoundedButton("⟲");
+        JButton rotateRBtn = new RoundedButton("⟳");
+        JButton alignLeftBtn = new RoundedButton("L");
+        JButton alignCenterBtn = new RoundedButton("C");
+        JButton alignRightBtn = new RoundedButton("R");
+        JButton captionBtn = new RoundedButton("Caption");
+        JButton replaceBtn = new RoundedButton("Replace…");
+        JButton openBtn = new RoundedButton("Open");
+        JButton copyBtn = new RoundedButton("Copy");
+        JButton removeBtn = new RoundedButton("Remove");
 
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
-        panel.add(new JLabel("Width:"));
-        panel.add(slider);
-        panel.add(minusBtn);
-        panel.add(plusBtn);
-        panel.add(fitBtn);
-        panel.add(removeBtn);
+        // Compact margins
+        for (JButton b : new JButton[]{fitBtn, minusBtn, plusBtn, rotateLBtn, rotateRBtn, alignLeftBtn, alignCenterBtn, alignRightBtn, captionBtn, replaceBtn, openBtn, copyBtn, removeBtn}) {
+            b.setMargin(new Insets(2,6,2,6));
+        }
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(4,4,2,4);
+        gc.gridy = 0; gc.gridx = 0; gc.anchor = GridBagConstraints.WEST;
+        panel.add(new JLabel("Width:"), gc);
+        gc.gridx = 1; gc.weightx = 1; gc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(slider, gc);
+        gc.gridx = 2; gc.weightx = 0; gc.fill = GridBagConstraints.NONE;
+        panel.add(widthLbl, gc);
+        gc.gridx = 3; panel.add(minusBtn, gc);
+        gc.gridx = 4; panel.add(plusBtn, gc);
+        gc.gridx = 5; panel.add(fitBtn, gc);
+
+        // Row 2: actions
+        gc.insets = new Insets(2,4,4,4);
+        gc.gridy = 1; gc.gridx = 0; gc.gridwidth = 1;
+        panel.add(rotateLBtn, gc);
+        gc.gridx = 1; panel.add(rotateRBtn, gc);
+        gc.gridx = 2; panel.add(alignLeftBtn, gc);
+        gc.gridx = 3; panel.add(alignCenterBtn, gc);
+        gc.gridx = 4; panel.add(alignRightBtn, gc);
+        gc.gridx = 5; panel.add(captionBtn, gc);
+        gc.gridx = 6; panel.add(replaceBtn, gc);
+        gc.gridx = 7; panel.add(copyBtn, gc);
+        gc.gridx = 8; panel.add(openBtn, gc);
+        gc.gridx = 9; panel.add(removeBtn, gc);
 
         JPopupMenu popup = new JPopupMenu();
-        popup.setBorder(BorderFactory.createLineBorder(Color.GRAY));
-        popup.add(panel);
+        popup.setBorder(BorderFactory.createEmptyBorder());
+        AeroPanel aero = new AeroPanel(14);
+        aero.setLayout(new BorderLayout());
+        aero.setBorder(BorderFactory.createEmptyBorder(6,8,6,8));
+        aero.add(panel, BorderLayout.CENTER);
+        popup.add(aero);
 
         // Mutable holder for the source file so lambdas can update it
         final File[] srcRef = new File[]{ sourceFile };
 
-        Runnable applyResize = () -> resizeImageAt(editor, startOffset, srcRef, currentIcon, Math.max(minW, Math.min(maxW, slider.getValue())), attachmentsDirSupplier);
+        Runnable applyResize = () -> {
+            int tw = Math.max(minW, Math.min(maxW, slider.getValue()));
+            resizeImageAt(editor, startOffset, srcRef, currentIcon, tw, attachmentsDirSupplier);
+            try {
+                int fitW = Math.max(minW, editor.getVisibleRect().width - 64);
+                int pct = Math.max(1, Math.round((tw * 100f) / Math.max(1, fitW)));
+                widthLbl.setText(tw + " px  " + pct + "% of editor");
+            } catch (Throwable ignored3) { widthLbl.setText(tw + " px"); }
+        };
 
         minusBtn.addActionListener(e -> { slider.setValue(Math.max(minW, slider.getValue() - 100)); applyResize.run(); });
         plusBtn.addActionListener(e -> { slider.setValue(Math.min(maxW, slider.getValue() + 100)); applyResize.run(); });
-        fitBtn.addActionListener(e -> {
-            int inset = 64; // some padding inside the paper card
-            int fitW = Math.max(minW, editor.getVisibleRect().width - inset);
-            slider.setValue(fitW);
-            applyResize.run();
-        });
+        fitBtn.addActionListener(e -> { int fitW = fitWidth(editor, minW); slider.setValue(fitW); applyResize.run(); });
         slider.addChangeListener(e -> applyResize.run());
         removeBtn.addActionListener(e -> {
             try {
@@ -311,14 +354,43 @@ public final class ImagePasteManager {
             } catch (BadLocationException ignored) {}
         });
 
+        // Rotate (rewrites the source image and updates the icon keeping current width)
+        rotateLBtn.addActionListener(e -> rotateImageAt(editor, startOffset, srcRef, currentIcon, -90, attachmentsDirSupplier));
+        rotateRBtn.addActionListener(e -> rotateImageAt(editor, startOffset, srcRef, currentIcon, 90, attachmentsDirSupplier));
+
+        // Alignment for the paragraph hosting the icon
+        alignLeftBtn.addActionListener(e -> alignParagraphAt(editor, startOffset, StyleConstants.ALIGN_LEFT));
+        alignCenterBtn.addActionListener(e -> alignParagraphAt(editor, startOffset, StyleConstants.ALIGN_CENTER));
+        alignRightBtn.addActionListener(e -> alignParagraphAt(editor, startOffset, StyleConstants.ALIGN_RIGHT));
+
+        // Add caption line under the image (italic)
+        captionBtn.addActionListener(e -> addCaptionUnder(editor, startOffset));
+
+        // Replace with another image; maintain current slider width
+        replaceBtn.addActionListener(e -> replaceImageFromChooser(editor, startOffset, srcRef, slider.getValue(), attachmentsDirSupplier));
+
+        // Utilities: open file and copy to clipboard
+        openBtn.addActionListener(e -> { if (srcRef[0] != null) try { java.awt.Desktop.getDesktop().open(srcRef[0]); } catch (Throwable ignored) {} });
+        copyBtn.addActionListener(e -> copyImageToClipboard(currentIcon.getImage()));
+
         int px = (imageBounds != null) ? imageBounds.x : 10;
         int py = (imageBounds != null) ? imageBounds.y + imageBounds.height : 10;
-        Point p = new Point(px, py);
-        SwingUtilities.convertPointToScreen(p, editor);
-        popup.show(editor, px, py);
+        // Clamp popup location within the editor visible viewport
+        Dimension pref = popup.getPreferredSize();
+        Rectangle vr = editor.getVisibleRect();
+        int xClamped = Math.max(vr.x + 6, Math.min(px, vr.x + vr.width - pref.width - 6));
+        int yBelow = py;
+        int yAbove = (imageBounds != null) ? imageBounds.y - pref.height - 8 : py - pref.height - 8;
+        int yClamped = (yBelow + pref.height <= vr.y + vr.height - 4) ? yBelow : Math.max(vr.y + 4, yAbove);
+        popup.show(editor, xClamped, yClamped);
 
-        // Add draggable top-right handle for innovative resizing
+        // Add a robust overlay that follows the image and supports drag resize
         addResizeHandle(editor, startOffset, imageBounds, (newW) -> resizeImageAt(editor, startOffset, srcRef, currentIcon, Math.max(minW, Math.min(maxW, newW)), attachmentsDirSupplier));
+    }
+
+    private static int fitWidth(JTextPane editor, int minW) {
+        int inset = 64;
+        return Math.max(minW, editor.getVisibleRect().width - inset);
     }
 
     private static Rectangle resizeImageAt(JTextPane editor,
@@ -366,63 +438,225 @@ public final class ImagePasteManager {
         return null;
     }
 
+    private static void rotateImageAt(JTextPane editor,
+                                      int startOffset,
+                                      File[] srcRef,
+                                      ImageIcon currentIcon,
+                                      int degrees,
+                                      Supplier<File> attachmentsDirSupplier) {
+        try {
+            if (srcRef[0] == null) return;
+            BufferedImage orig = ImageIO.read(srcRef[0]);
+            if (orig == null) return;
+            BufferedImage rotated = rotate(orig, degrees);
+            if (rotated == null) return;
+            int targetW = currentIcon.getIconWidth();
+            BufferedImage scaled = scaleToMaxWidth(rotated, targetW);
+            try { ImageIO.write(scaled, "PNG", srcRef[0]); } catch (IOException ignored) {}
+            // Replace icon in document with the rotated one
+            ImageIcon newIcon = new ImageIcon(scaled);
+            StyledDocument doc = editor.getStyledDocument();
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setIcon(attrs, newIcon);
+            attrs.addAttribute("imageSourceFile", srcRef[0]);
+            try {
+                doc.remove(startOffset, 1);
+                doc.insertString(startOffset, " ", attrs);
+            } catch (BadLocationException ignored) {}
+            editor.revalidate(); editor.repaint();
+        } catch (IOException ignored) {}
+    }
+
+    private static BufferedImage rotate(BufferedImage src, int degrees) {
+        int d = ((degrees % 360) + 360) % 360;
+        if (d == 0) return src;
+        int w = src.getWidth();
+        int h = src.getHeight();
+        BufferedImage dst = (d == 90 || d == 270)
+                ? new BufferedImage(h, w, BufferedImage.TYPE_INT_ARGB)
+                : new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = dst.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
+        switch (d) {
+            case 90 -> { at.translate(h, 0); at.rotate(Math.toRadians(90)); }
+            case 180 -> { at.translate(w, h); at.rotate(Math.toRadians(180)); }
+            case 270 -> { at.translate(0, w); at.rotate(Math.toRadians(270)); }
+        }
+        g2.drawImage(src, at, null);
+        g2.dispose();
+        return dst;
+    }
+
+    private static void alignParagraphAt(JTextPane editor, int startOffset, int alignment) {
+        try {
+            StyledDocument doc = editor.getStyledDocument();
+            javax.swing.text.Element para = doc.getParagraphElement(startOffset);
+            if (para != null) {
+                SimpleAttributeSet attrs = new SimpleAttributeSet();
+                StyleConstants.setAlignment(attrs, alignment);
+                doc.setParagraphAttributes(para.getStartOffset(), para.getEndOffset() - para.getStartOffset(), attrs, false);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void addCaptionUnder(JTextPane editor, int startOffset) {
+        try {
+            StyledDocument doc = editor.getStyledDocument();
+            // Insert right after the icon + newline that follows it
+            int pos = Math.min(doc.getLength(), startOffset + 2);
+            SimpleAttributeSet italic = new SimpleAttributeSet();
+            StyleConstants.setItalic(italic, true);
+            StyleConstants.setForeground(italic, new java.awt.Color(90, 90, 90));
+            doc.insertString(pos, "Caption...\n", italic);
+            editor.requestFocusInWindow();
+            editor.setCaretPosition(Math.min(doc.getLength(), pos + 8));
+        } catch (BadLocationException ignored) {}
+    }
+
+    private static void replaceImageFromChooser(JTextPane editor,
+                                                int startOffset,
+                                                File[] srcRef,
+                                                int targetW,
+                                                Supplier<File> attachmentsDirSupplier) {
+        try {
+            javax.swing.JFileChooser ch = new javax.swing.JFileChooser();
+            int res = ch.showOpenDialog(editor);
+            if (res == javax.swing.JFileChooser.APPROVE_OPTION) {
+                File sel = ch.getSelectedFile();
+                BufferedImage bi = ImageIO.read(sel);
+                if (bi != null) {
+                    if (srcRef[0] == null) {
+                        File dir = attachmentsDirSupplier != null ? attachmentsDirSupplier.get() : null;
+                        if (dir != null && !dir.exists()) dir.mkdirs();
+                        srcRef[0] = new File(dir != null ? dir : new File("."), timestampName()+".png");
+                    }
+                    BufferedImage scaled = scaleToMaxWidth(bi, targetW);
+                    try { ImageIO.write(scaled, "PNG", srcRef[0]); } catch (IOException ignored) {}
+                    ImageIcon icon = new ImageIcon(scaled);
+                    StyledDocument doc = editor.getStyledDocument();
+                    SimpleAttributeSet attrs = new SimpleAttributeSet();
+                    StyleConstants.setIcon(attrs, icon);
+                    attrs.addAttribute("imageSourceFile", srcRef[0]);
+                    try { doc.remove(startOffset, 1); doc.insertString(startOffset, " ", attrs); } catch (BadLocationException ignored) {}
+                    editor.revalidate(); editor.repaint();
+                }
+            }
+        } catch (IOException ignored) {}
+    }
+
+    private static void copyImageToClipboard(Image img) {
+        try {
+            if (img == null) return;
+            java.awt.image.BufferedImage bi = toBufferedImage(img);
+            java.awt.datatransfer.Transferable t = new java.awt.datatransfer.Transferable() {
+                @Override public java.awt.datatransfer.DataFlavor[] getTransferDataFlavors() { return new java.awt.datatransfer.DataFlavor[]{ java.awt.datatransfer.DataFlavor.imageFlavor }; }
+                @Override public boolean isDataFlavorSupported(java.awt.datatransfer.DataFlavor flavor) { return java.awt.datatransfer.DataFlavor.imageFlavor.equals(flavor); }
+                @Override public Object getTransferData(java.awt.datatransfer.DataFlavor flavor) { return bi; }
+            };
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(t, null);
+        } catch (Throwable ignored) {}
+    }
+
     private static void addResizeHandle(JTextPane editor, int startOffset, Rectangle imageBounds, java.util.function.IntFunction<Rectangle> onResize) {
         if (imageBounds == null) return;
         JRootPane root = SwingUtilities.getRootPane(editor);
         if (root == null) return;
         JLayeredPane lp = root.getLayeredPane();
 
-        // Small square handle
-        JPanel handle = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
+        final int HANDLE = 12;
+        final int BORDER = 2;
+
+        JComponent overlay = new JComponent(){
+            @Override protected void paintComponent(Graphics g){
+                Graphics2D g2=(Graphics2D)g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w=getWidth(), h=getHeight();
+                // Border
+                g2.setColor(new Color(0,120,215,160));
+                g2.setStroke(new BasicStroke(BORDER));
+                g2.drawRect(0,0,w-1,h-1);
+                // Corner handle (bottom-right)
                 g2.setColor(new Color(255,255,255,230));
-                g2.fillRoundRect(0,0,getWidth()-1,getHeight()-1,6,6);
+                g2.fillRoundRect(w-HANDLE, h-HANDLE, HANDLE-2, HANDLE-2, 6, 6);
                 g2.setColor(new Color(0,0,0,160));
-                g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,6,6);
+                g2.drawRoundRect(w-HANDLE, h-HANDLE, HANDLE-2, HANDLE-2, 6, 6);
+                // Right edge indicator
+                g2.setColor(new Color(0,120,215,120));
+                g2.fillRect(w-3, 2, 2, h-4);
                 g2.dispose();
             }
         };
-        handle.setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
-        handle.setSize(16,16);
-        // Position at TOP-RIGHT relative to layered pane coordinates
-        Point tr = new Point(imageBounds.x + imageBounds.width - 8, imageBounds.y - 8);
-        SwingUtilities.convertPointToScreen(tr, editor);
-        SwingUtilities.convertPointFromScreen(tr, lp);
-        handle.setLocation(tr);
-        lp.add(handle, JLayeredPane.POPUP_LAYER);
+        overlay.setCursor(Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR));
+
+        // Initial bounds
+        Point tl = new Point(imageBounds.x, imageBounds.y);
+        SwingUtilities.convertPointToScreen(tl, editor);
+        SwingUtilities.convertPointFromScreen(tl, lp);
+        overlay.setBounds(tl.x, tl.y, imageBounds.width, imageBounds.height);
+        lp.add(overlay, JLayeredPane.POPUP_LAYER);
         lp.repaint();
 
         final int[] startX = new int[1];
         final int[] startWidth = new int[1];
-        handle.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mousePressed(java.awt.event.MouseEvent e) {
-                startX[0] = e.getXOnScreen();
-                startWidth[0] = imageBounds.width;
+        final boolean[] dragging = new boolean[1];
+
+        java.awt.event.MouseAdapter ma = new java.awt.event.MouseAdapter(){
+            @Override public void mousePressed(java.awt.event.MouseEvent e){
+                int w = overlay.getWidth(), h = overlay.getHeight();
+                int x=e.getX(), y=e.getY();
+                boolean inCorner = (x >= w-HANDLE && y >= h-HANDLE);
+                boolean onRightEdge = (x >= w-8);
+                if (inCorner || onRightEdge) {
+                    dragging[0]=true;
+                    startX[0]=e.getXOnScreen();
+                    startWidth[0]=w;
+                }
             }
-            @Override public void mouseReleased(java.awt.event.MouseEvent e) {
-                lp.remove(handle);
+            @Override public void mouseReleased(java.awt.event.MouseEvent e){
+                dragging[0]=false;
+                lp.remove(overlay);
                 lp.repaint();
             }
-        });
-        handle.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override public void mouseDragged(java.awt.event.MouseEvent e) {
+            @Override public void mouseDragged(java.awt.event.MouseEvent e){
+                if(!dragging[0]) return;
                 int dx = e.getXOnScreen() - startX[0];
                 int newW = Math.max(60, startWidth[0] + dx);
                 Rectangle updated = onResize.apply(newW);
-                // Reposition handle to stay attached to the image's TOP-RIGHT corner
                 if (updated != null) {
-                    Point nbr = new Point(updated.x + updated.width - 8, updated.y - 8);
-                    SwingUtilities.convertPointToScreen(nbr, editor);
-                    SwingUtilities.convertPointFromScreen(nbr, lp);
-                    handle.setLocation(nbr);
+                    Point tl2 = new Point(updated.x, updated.y);
+                    SwingUtilities.convertPointToScreen(tl2, editor);
+                    SwingUtilities.convertPointFromScreen(tl2, lp);
+                    overlay.setBounds(tl2.x, tl2.y, updated.width, updated.height);
                 } else {
-                    // Fallback: move relatively
-                    Point p = handle.getLocation();
-                    handle.setLocation(p.x + dx, p.y);
+                    overlay.setSize(newW, overlay.getHeight());
                 }
                 lp.repaint();
+            }
+        };
+        overlay.addMouseListener(ma);
+        overlay.addMouseMotionListener(ma);
+
+        // Keep overlay following the image as the view scrolls/resizes
+        javax.swing.Timer follow = new javax.swing.Timer(120, ev -> {
+            try {
+                java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
+                if (r2 != null) {
+                    Rectangle r = r2.getBounds();
+                    Point tl3 = new Point(r.x, r.y);
+                    SwingUtilities.convertPointToScreen(tl3, editor);
+                    SwingUtilities.convertPointFromScreen(tl3, lp);
+                    overlay.setBounds(tl3.x, tl3.y, r.width, r.height);
+                    overlay.revalidate(); overlay.repaint();
+                }
+            } catch (Throwable ignored) {}
+        });
+        follow.setRepeats(true); follow.start();
+
+        overlay.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.DISPLAYABILITY_CHANGED) != 0 && !overlay.isDisplayable()) {
+                follow.stop();
             }
         });
     }
