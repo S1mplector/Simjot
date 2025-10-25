@@ -34,6 +34,7 @@ import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.scaling.UIScalingManager;
+import main.core.security.LockController;
 
 /**
  * The main application window for Simjot.
@@ -302,6 +303,13 @@ public class JournalApp extends JFrame {
 
         // After UI visible, optionally show tutorial, then force fullscreen
         SwingUtilities.invokeLater(() -> {
+            // Initialize lock controller and optionally lock immediately on startup
+            try {
+                LockController.get().init(this);
+                if (SettingsStore.get().isLockEnabled() && SettingsStore.get().isLockRequireOnStart()) {
+                    LockController.get().lockNowBlocking();
+                }
+            } catch (Throwable ignored) {}
             showTutorialIfFirstTime();
             ensureFullScreen();
             // Force widget panel visible and on top
@@ -484,6 +492,12 @@ public class JournalApp extends JFrame {
      * exist yet, it will be created and added to the CardLayout on-the-fly.
      */
     public void openNotebookEntries(NotebookInfo nb) {
+        try {
+            // Gate behind lock if notebook is locked
+            if (!LockController.get().promptUnlockNotebook(nb.getName())) {
+                return;
+            }
+        } catch (Throwable ignored) {}
         String cardId = "NotebookEntries_" + nb.getName();
         if (!notebookPanels.containsKey(cardId)) {
             NotebookEntriesPanel panel = new NotebookEntriesPanel(this, nb);
@@ -513,6 +527,11 @@ public class JournalApp extends JFrame {
      * For journal entries, shows a template selection dialog first.
      */
     public void openNewEntryEditor(NotebookInfo nb) {
+        try {
+            if (!LockController.get().promptUnlockNotebook(nb.getName())) {
+                return;
+            }
+        } catch (Throwable ignored) {}
         String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
         java.io.File targetFolder = nb.getFolder();
         
@@ -550,6 +569,11 @@ public class JournalApp extends JFrame {
 
     /** Opens an existing file in proper editor based on notebook type */
     public void openExistingEntryEditor(NotebookInfo nb, java.io.File file) {
+        try {
+            if (!LockController.get().promptUnlockNotebook(nb.getName())) {
+                return;
+            }
+        } catch (Throwable ignored) {}
         String cardId = "Edit_" + file.getName();
         if (cardMap.containsKey(cardId)) {
             showCardImmediate(cardId);

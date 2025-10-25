@@ -50,7 +50,15 @@ public final class SettingsStore {
     private static final String KEY_AUTOSAVE_ON_BLUR = "autosaveOnFocusLoss";
     public static final String KEY_BACKUP_FREQ = "backup.frequency";
     public static final String KEY_BACKUP_KEEP = "backup.keep";
-    public static final String KEY_LAST_BACKUP_EPOCH = "backup.last.epoch";
+    private static final String KEY_LAST_BACKUP_EPOCH = "backup.last.epoch";
+    // Security / Lock settings
+    private static final String KEY_LOCK_ENABLED = "lock.enabled";
+    private static final String KEY_LOCK_TIMEOUT_SEC = "lock.timeoutSec";
+    private static final String KEY_LOCK_REQUIRE_ON_START = "lock.requireOnStart";
+    private static final String KEY_LOCK_PW_HASH = "lock.passwordHash";
+    private static final String KEY_LOCK_PW_SALT = "lock.passwordSalt";
+    private static final String KEY_LOCK_NB_PREFIX = "lock.nb.";
+    private static final String KEY_LOCK_ENTRY_PREFIX = "lock.entry.";
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
@@ -84,6 +92,10 @@ public final class SettingsStore {
     public static final String DEF_BACKUP_FREQ = "Off";
     public static final int DEF_BACKUP_KEEP = 7;
     public static final long DEF_LAST_BACKUP_EPOCH = 0L;
+    // Security defaults
+    private static final boolean DEF_LOCK_ENABLED = false;
+    private static final int DEF_LOCK_TIMEOUT_SEC = 0;
+    private static final boolean DEF_LOCK_REQUIRE_ON_START = false;
 
     // Singleton handling
     private static SettingsStore instance;
@@ -338,5 +350,45 @@ public final class SettingsStore {
     public void setValue(String key, String value) {
         if (key == null) return;
         props.setProperty(key, value == null ? "" : value);
+    }
+
+    // -------------- Security / Lock -------------- //
+    public boolean isLockEnabled(){
+        return Boolean.parseBoolean(props.getProperty(KEY_LOCK_ENABLED, String.valueOf(DEF_LOCK_ENABLED)));
+    }
+    public void setLockEnabled(boolean enabled){ props.setProperty(KEY_LOCK_ENABLED, String.valueOf(enabled)); }
+
+    public int getLockTimeoutSec(){
+        try { return Integer.parseInt(props.getProperty(KEY_LOCK_TIMEOUT_SEC, String.valueOf(DEF_LOCK_TIMEOUT_SEC))); }
+        catch (NumberFormatException e){ return DEF_LOCK_TIMEOUT_SEC; }
+    }
+    public void setLockTimeoutSec(int seconds){ props.setProperty(KEY_LOCK_TIMEOUT_SEC, String.valueOf(Math.max(0, seconds))); }
+
+    public boolean isLockRequireOnStart(){
+        return Boolean.parseBoolean(props.getProperty(KEY_LOCK_REQUIRE_ON_START, String.valueOf(DEF_LOCK_REQUIRE_ON_START)));
+    }
+    public void setLockRequireOnStart(boolean b){ props.setProperty(KEY_LOCK_REQUIRE_ON_START, String.valueOf(b)); }
+
+    public String getLockPasswordHash(){ return props.getProperty(KEY_LOCK_PW_HASH, ""); }
+    public void setLockPasswordHash(String h){ if (h==null||h.isBlank()) props.remove(KEY_LOCK_PW_HASH); else props.setProperty(KEY_LOCK_PW_HASH, h); }
+    public String getLockPasswordSalt(){ return props.getProperty(KEY_LOCK_PW_SALT, ""); }
+    public void setLockPasswordSalt(String s){ if (s==null||s.isBlank()) props.remove(KEY_LOCK_PW_SALT); else props.setProperty(KEY_LOCK_PW_SALT, s); }
+
+    public boolean isNotebookLocked(String name){
+        if (name == null) return false;
+        return Boolean.parseBoolean(props.getProperty(KEY_LOCK_NB_PREFIX + name, String.valueOf(false)));
+    }
+    public void setNotebookLocked(String name, boolean locked){
+        if (name == null) return;
+        props.setProperty(KEY_LOCK_NB_PREFIX + name, String.valueOf(locked));
+    }
+
+    public boolean isEntryLocked(String path){
+        if (path == null) return false;
+        return Boolean.parseBoolean(props.getProperty(KEY_LOCK_ENTRY_PREFIX + path, String.valueOf(false)));
+    }
+    public void setEntryLocked(String path, boolean locked){
+        if (path == null) return;
+        props.setProperty(KEY_LOCK_ENTRY_PREFIX + path, String.valueOf(locked));
     }
 }

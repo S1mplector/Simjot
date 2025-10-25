@@ -8,6 +8,7 @@ import javax.swing.*;
 
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
+ 
 import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -32,7 +33,9 @@ public class NotebookManagerPanel extends JPanel {
         ToolbarIconButton backBtn = new ToolbarIconButton("back");
         backBtn.setToolTipText("Back to Main Menu");
         backBtn.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
+
         topBar.add(backBtn);
+        
 
         add(topBar, BorderLayout.NORTH);
 

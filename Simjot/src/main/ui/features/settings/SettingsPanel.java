@@ -44,6 +44,7 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("General");
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
+        sectionModel.addElement("Security");
         sectionModel.addElement("Sim");
         sectionModel.addElement("About");
 
@@ -82,6 +83,10 @@ public class SettingsPanel extends JPanel {
 
         StorageSettingsPage storagePage = new StorageSettingsPage();
         addPage("Storage", storagePage);
+
+        // Security (lock & password)
+        SecuritySettingsPage security = new SecuritySettingsPage();
+        addPage("Security", security);
 
         // Sim (AI companion)
         SimSettingsPage simPage = new SimSettingsPage();
