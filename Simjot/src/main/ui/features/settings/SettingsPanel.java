@@ -11,7 +11,6 @@ import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroLookAndFeel;
 
 public class SettingsPanel extends JPanel {
@@ -175,25 +174,9 @@ public class SettingsPanel extends JPanel {
         @Override public Component getListCellRendererComponent(JList<? extends String> list, String value,int idx,boolean sel,boolean focus){
             this.selected = sel;
             lbl.setText(value);
-            // Attach an icon next to the section name using centralized PNG renderer
-            String id = switch (value.toLowerCase()){
-                case "general" -> "general_settings";
-                case "appearance" -> "appearance_settings";
-                case "storage" -> "storage_settings";
-                case "sim" -> "sim_settings";
-                case "about" -> "about_settings";
-                default -> null;
-            };
-            javax.swing.Icon icon = null;
-            if (id != null){
-                String res = ImageIconRenderer.mapIdToResource(id);
-                if (res != null){
-                    java.awt.image.BufferedImage buf = ImageIconRenderer.get(res, 20, true);
-                    if (buf != null) icon = new ImageIcon(buf);
-                }
-            }
-            lbl.setIcon(icon);
-            lbl.setIconTextGap(8);
+            // No category icons; render text-only
+            lbl.setIcon(null);
+            lbl.setIconTextGap(0);
             lbl.setForeground(AeroTheme.TEXT_PRIMARY); // keep text dark even when selected
             setPreferredSize(new Dimension(list.getFixedCellWidth(),40));
             return this;
