@@ -66,21 +66,21 @@ public class LockScreenDialog extends JDialog {
         content.add(Box.createVerticalStrut(4));
         content.add(sub);
 
-        // Clock + calendar row (scaled for screen size)
-        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-        int minDim = Math.min(screen.width, screen.height);
-        int clockSize = Math.max(120, Math.min(180, (int)(minDim * 0.16))); // 16% of min side
-        int calSize   = Math.max(100, Math.min(150, (int)(minDim * 0.12)));
+        // Clock + calendar row (match MainMenuPanel sizing)
+        int clockSize = 200; // preferred size in main menu
+        int clockMax  = 220; // maximum size in main menu
+        int calSize   = 150; // preferred size in main menu
+        int calMax    = 170; // maximum size in main menu
 
         JPanel row = new JPanel();
         row.setOpaque(false);
         row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
         AnalogClockPanel clock = new AnalogClockPanel();
         clock.setPreferredSize(new Dimension(clockSize, clockSize));
-        clock.setMaximumSize(new Dimension(clockSize, clockSize));
+        clock.setMaximumSize(new Dimension(clockMax, clockMax));
         TodayCalendarPanel cal = new TodayCalendarPanel();
         cal.setPreferredSize(new Dimension(calSize, calSize));
-        cal.setMaximumSize(new Dimension(calSize, calSize));
+        cal.setMaximumSize(new Dimension(calMax, calMax));
         row.add(Box.createHorizontalGlue());
         row.add(clock);
         row.add(Box.createRigidArea(new Dimension(18, 0)));
@@ -98,11 +98,8 @@ public class LockScreenDialog extends JDialog {
         passwordField.addActionListener(e -> tryUnlock());
         RoundedButton unlockBtn = new RoundedButton("Unlock");
         unlockBtn.addActionListener(e -> tryUnlock());
-        RoundedButton changePwBtn = new RoundedButton("Set / Change Password…");
-        changePwBtn.addActionListener(e -> openSetPassword());
         login.add(passwordField);
         login.add(unlockBtn);
-        login.add(changePwBtn);
         getRootPane().setDefaultButton(unlockBtn);
 
         content.add(Box.createVerticalStrut(16));
@@ -147,12 +144,6 @@ public class LockScreenDialog extends JDialog {
             content.setBackground(Color.WHITE);
         }
         return content;
-    }
-
-    private void openSetPassword(){
-        Frame owner = (Frame) getOwner();
-        new SetPasswordDialog(owner).setVisible(true);
-        passwordField.setText("");
     }
 
     private void tryUnlock(){
