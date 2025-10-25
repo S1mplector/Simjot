@@ -187,7 +187,7 @@ public class QuickSettingsOverlay extends JComponent {
         revalidate();
         repaint();
         // Drive a quick fade-in using the main timer
-        new Thread(() -> {
+        Thread t = new Thread(() -> {
             // simple fade-in over ~225ms
             try {
                 for (int i = 0; i <= 15; i++) {
@@ -196,7 +196,9 @@ public class QuickSettingsOverlay extends JComponent {
                     Thread.sleep(15);
                 }
             } catch (InterruptedException ignored) {}
-        }, "menu-fade-in").start();
+        }, "menu-fade-in");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void layoutMenuPanel() {

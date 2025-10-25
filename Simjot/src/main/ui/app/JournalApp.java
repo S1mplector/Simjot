@@ -356,8 +356,23 @@ public class JournalApp extends JFrame {
                             try { ed.triggerSave(); } catch (Throwable ignored) {}
                         }
                     } catch (Throwable ignored) {}
-                    // Then run due backup
-                    try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+
+                    // Stop Sim components and overlay animations to ensure timers/threads end
+                    try { if (simOverlay != null) simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
+                    try { if (simScheduler != null) simScheduler.stop(); } catch (Throwable ignored) {}
+                    try { if (simBrain != null) simBrain.shutdown(); } catch (Throwable ignored) {}
+
+                    // Run backup off the EDT to avoid UI freeze; do not block close
+                    try {
+                        Thread t = new Thread(() -> {
+                            try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+                        }, "BackupOnWindowClose");
+                        t.setDaemon(true);
+                        t.start();
+                    } catch (Throwable ignored) {}
+
+                    // After scheduling background cleanup, request JVM exit now
+                    try { System.exit(0); } catch (Throwable ignored) {}
                 }
             });
         } catch (Throwable ignored) {}
@@ -370,7 +385,17 @@ public class JournalApp extends JFrame {
                         try { ed.triggerSave(); } catch (Throwable ignored) {}
                     }
                 } catch (Throwable ignored) {}
-                try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+                // Run backup in a daemon helper and wait briefly; if it takes too long, let JVM exit
+                try {
+                    Thread t = new Thread(() -> {
+                        try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+                    }, "BackupOnShutdown");
+                    t.setDaemon(true);
+                    t.start();
+                    try { t.join(5000L); } catch (InterruptedException ie) { /* ignore */ }
+                } catch (Throwable ignored) {}
+                // Hard failsafe: guarantee termination even if other hooks misbehave
+                try { Runtime.getRuntime().halt(0); } catch (Throwable ignored) {}
             }, "SimjotShutdownSave"));
         } catch (Throwable ignored) {}
     }

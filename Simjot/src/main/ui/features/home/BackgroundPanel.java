@@ -146,6 +146,14 @@ public class BackgroundPanel extends JPanel {
 		}
 		resizeDebounce.restart();
 	}
+
+	@Override
+	public void removeNotify() {
+		// Ensure background tasks are stopped so the JVM can exit cleanly
+		try { if (resizeDebounce != null) { resizeDebounce.stop(); resizeDebounce = null; } } catch (Throwable ignored) {}
+		try { if (currentWorker != null) { currentWorker.cancel(true); currentWorker = null; } } catch (Throwable ignored) {}
+		super.removeNotify();
+	}
 	
 	// Recompute the cached scaled image off-EDT
 	private void recomputeScaledImage() {
@@ -227,8 +235,8 @@ public class BackgroundPanel extends JPanel {
                 scheduleRecompute();
             }
 
-            // Draw cached if available, otherwise quick fallback
-            if (cachedScaled != null) {
+            // Draw cached if available and fully covering. If underfills (edge case), draw a direct scaled fallback.
+            if (cachedScaled != null && cachedScaled.getWidth() >= panelW && cachedScaled.getHeight() >= panelH) {
                 g.drawImage(cachedScaled, cachedX, cachedY, this);
             } else {
                 int imgW = backgroundImage.getWidth(this);
@@ -239,9 +247,12 @@ public class BackgroundPanel extends JPanel {
                     int drawH = (int) Math.round(imgH * scale);
                     int x = (panelW - drawW) / 2;
                     int y = (panelH - drawH) / 2;
-                    Graphics2D g2 = (Graphics2D) g;
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    // Apply current opacity on-the-fly for the fallback draw
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, currentOpacity));
                     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
                     g2.drawImage(backgroundImage, x, y, drawW, drawH, this);
+                    g2.dispose();
                 }
             }
         }
