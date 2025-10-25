@@ -929,6 +929,88 @@ public class EntryPanel extends AbstractEditorPanel {
         return bi;
     }
 
+    private static BufferedImage renderSmallClockIcon(int w, int h) {
+        int s = Math.max(12, Math.min(w, h));
+        BufferedImage bi = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = bi.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        int cx = s / 2;
+        int cy = s / 2;
+        int r = Math.max(5, (int) Math.round(s * 0.48));
+
+        // Dial background
+        Paint dial = new RadialGradientPaint(new Point(cx, cy), r,
+                new float[]{0f, 1f}, new Color[]{new Color(250, 250, 250), new Color(220, 220, 220)});
+        g2.setPaint(dial);
+        g2.fillOval(cx - r, cy - r, r * 2, r * 2);
+        g2.setColor(new Color(160, 160, 160));
+        g2.setStroke(new BasicStroke(Math.max(1f, s * 0.05f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawOval(cx - r, cy - r, r * 2, r * 2);
+
+        // Hour markers (12 only)
+        g2.setStroke(new BasicStroke(Math.max(1f, s * 0.07f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.setColor(new Color(120, 120, 120));
+        for (int i = 0; i < 12; i++) {
+            double ang = Math.toRadians(i * 30 - 90);
+            double cos = Math.cos(ang), sin = Math.sin(ang);
+            int r0 = (int) Math.round(r * 0.72);
+            int r1 = (int) Math.round(r * 0.88);
+            int x0 = cx + (int) Math.round(r0 * cos);
+            int y0 = cy + (int) Math.round(r0 * sin);
+            int x1 = cx + (int) Math.round(r1 * cos);
+            int y1 = cy + (int) Math.round(r1 * sin);
+            g2.drawLine(x0, y0, x1, y1);
+        }
+
+        // Time
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int hr = cal.get(java.util.Calendar.HOUR_OF_DAY) % 12;
+        int min = cal.get(java.util.Calendar.MINUTE);
+        int sec = cal.get(java.util.Calendar.SECOND);
+
+        double ah = Math.toRadians(((hr + min / 60.0) * 30.0) - 90);
+        double am = Math.toRadians(min * 6.0 - 90);
+        double as = Math.toRadians(sec * 6.0 - 90);
+
+        // Hands
+        // Hour hand
+        g2.setColor(new Color(60, 60, 60));
+        g2.setStroke(new BasicStroke(Math.max(1.2f, s * 0.11f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int hLen = (int) Math.round(r * 0.52);
+        int hx = cx + (int) Math.round(hLen * Math.cos(ah));
+        int hy = cy + (int) Math.round(hLen * Math.sin(ah));
+        g2.drawLine(cx, cy, hx, hy);
+
+        // Minute hand
+        g2.setColor(new Color(40, 40, 40));
+        g2.setStroke(new BasicStroke(Math.max(1.0f, s * 0.08f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int mLen = (int) Math.round(r * 0.76);
+        int mx = cx + (int) Math.round(mLen * Math.cos(am));
+        int my = cy + (int) Math.round(mLen * Math.sin(am));
+        g2.drawLine(cx, cy, mx, my);
+
+        // Second hand (thin red)
+        g2.setColor(new Color(200, 30, 30));
+        g2.setStroke(new BasicStroke(Math.max(0.8f, s * 0.05f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int sLen = (int) Math.round(r * 0.82);
+        int sx = cx + (int) Math.round(sLen * Math.cos(as));
+        int sy = cy + (int) Math.round(sLen * Math.sin(as));
+        g2.drawLine(cx, cy, sx, sy);
+
+        // Center cap
+        int cap = Math.max(2, (int) Math.round(s * 0.12));
+        g2.setPaint(new RadialGradientPaint(new Point(cx - cap / 3, cy - cap / 3), cap,
+                new float[]{0f, 1f}, new Color[]{new Color(255, 255, 255), new Color(160, 160, 160)}));
+        g2.fillOval(cx - cap, cy - cap, cap * 2, cap * 2);
+        g2.setColor(new Color(90, 90, 90));
+        g2.drawOval(cx - cap, cy - cap, cap * 2, cap * 2);
+
+        g2.dispose();
+        return bi;
+    }
+
     private static final class ClockToolbarButton extends JButton {
         private javax.swing.Timer timer;
         ClockToolbarButton(){
@@ -963,7 +1045,7 @@ public class EntryPanel extends AbstractEditorPanel {
             g2.setColor(new Color(180,180,180));
             g2.drawRoundRect(0,0,w-1,h-1,10,10);
 
-            int size = Math.min(w, h) - 10;
+            int size = Math.max(18, Math.min(w, h) - 16);
             BufferedImage img = renderStatic(size);
             if (img != null) {
                 g2.drawImage(img, (w - img.getWidth())/2, (h - img.getHeight())/2, null);
@@ -971,22 +1053,16 @@ public class EntryPanel extends AbstractEditorPanel {
             g2.dispose();
         }
         private BufferedImage renderStatic(int s){
-            int ss = Math.max(18, s);
-            BufferedImage bi = new BufferedImage(ss, ss, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2 = bi.createGraphics();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int ss = Math.max(16, s);
             int pad = 1;
-            BufferedImage clock = new BufferedImage(ss-2*pad, ss-2*pad, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = clock.createGraphics();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = clock.getWidth();
-            int h = clock.getHeight();
-            BufferedImage scene = EntryPanel.renderClock(w,h);
-            g.drawImage(scene,0,0,null);
-            g.dispose();
-            g2.drawImage(clock,pad,pad,null);
+            BufferedImage clock = renderSmallClockIcon(ss - 2 * pad, ss - 2 * pad);
+            if (clock == null) return null;
+            BufferedImage out = new BufferedImage(ss, ss, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = out.createGraphics();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.drawImage(clock, pad, pad, null);
             g2.dispose();
-            return bi;
+            return out;
         }
     }
 
