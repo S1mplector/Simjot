@@ -2,7 +2,7 @@ package main.core.security;
 
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
-import main.ui.dialog.security.LockDialog;
+import main.ui.dialog.security.LockScreenDialog;
 
 import java.awt.*;
 import java.awt.event.AWTEventListener;
@@ -105,7 +105,7 @@ public final class LockController {
             locked = true;
             unlockedNotebooks.clear();
             if (cover != null) cover.setVisible(true);
-            LockDialog dlg = new LockDialog(app, LockDialog.Mode.UNLOCK, false);
+            LockScreenDialog dlg = new LockScreenDialog(app, false);
             boolean ok = dlg.blockUntilUnlocked();
             if (ok) {
                 locked = false;
@@ -120,7 +120,7 @@ public final class LockController {
         locked = true;
         unlockedNotebooks.clear();
         if (cover != null) cover.setVisible(true);
-        LockDialog dlg = new LockDialog(app, LockDialog.Mode.UNLOCK, true);
+        LockScreenDialog dlg = new LockScreenDialog(app, false);
         boolean ok = dlg.blockUntilUnlocked();
         if (ok) {
             locked = false;
@@ -135,7 +135,7 @@ public final class LockController {
         if (!s.isLockEnabled()) return true;
         if (!s.isNotebookLocked(name)) return true;
         if (unlockedNotebooks.contains(name)) return true;
-        LockDialog dlg = new LockDialog(app, LockDialog.Mode.UNLOCK, true);
+        LockScreenDialog dlg = new LockScreenDialog(app, false);
         boolean ok = dlg.blockUntilUnlocked();
         if (ok) {
             unlockedNotebooks.add(name);

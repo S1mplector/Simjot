@@ -20,28 +20,45 @@ import java.awt.*;
 public class LockScreenDialog extends JDialog {
     private final AeroPasswordField passwordField = new AeroPasswordField(18);
     private boolean unlocked = false;
+    private final boolean fullScreen;
 
-    public LockScreenDialog(Frame owner) {
+    public LockScreenDialog(Frame owner) { this(owner, true); }
+
+    public LockScreenDialog(Frame owner, boolean fullScreen) {
         super(owner, "Unlock", true);
+        this.fullScreen = fullScreen;
         setUndecorated(true);
         setBackground(new Color(0,0,0,0));
         buildUI();
-        // Always size to full screen bounds (owner size may not be finalized yet on startup)
-        Rectangle bounds;
-        try {
-            if (owner != null && owner.getGraphicsConfiguration() != null) {
-                bounds = owner.getGraphicsConfiguration().getBounds();
-            } else {
-                GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-                GraphicsDevice gd = ge.getDefaultScreenDevice();
-                bounds = gd.getDefaultConfiguration().getBounds();
+        // Size based on mode
+        if (this.fullScreen) {
+            Rectangle bounds;
+            try {
+                if (owner != null && owner.getGraphicsConfiguration() != null) {
+                    bounds = owner.getGraphicsConfiguration().getBounds();
+                } else {
+                    GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+                    GraphicsDevice gd = ge.getDefaultScreenDevice();
+                    bounds = gd.getDefaultConfiguration().getBounds();
+                }
+            } catch (Throwable t) {
+                Dimension s = Toolkit.getDefaultToolkit().getScreenSize();
+                bounds = new Rectangle(0,0,s.width,s.height);
             }
-        } catch (Throwable t) {
-            Dimension s = Toolkit.getDefaultToolkit().getScreenSize();
-            bounds = new Rectangle(0,0,s.width,s.height);
+            setBounds(bounds);
+            setLocation(bounds.x, bounds.y);
+        } else {
+            // Window-scoped: match owner window bounds on screen
+            try {
+                Point p = owner.getLocationOnScreen();
+                Dimension d = owner.getSize();
+                setBounds(p.x, p.y, d.width, d.height);
+            } catch (Throwable t) {
+                // Fallback to full screen
+                Dimension s = Toolkit.getDefaultToolkit().getScreenSize();
+                setBounds(0,0,s.width,s.height);
+            }
         }
-        setBounds(bounds);
-        setLocation(bounds.x, bounds.y);
         try { setAlwaysOnTop(true); } catch (Throwable ignored) {}
         try { toFront(); requestFocus(); } catch (Throwable ignored) {}
     }
