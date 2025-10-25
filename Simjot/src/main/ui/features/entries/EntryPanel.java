@@ -2,10 +2,12 @@ package main.ui.features.entries;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.*;
+import javax.imageio.ImageIO;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -38,6 +40,7 @@ import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.infrastructure.backup.NotebookInfo;
 import main.core.sim.api.SimEventBus;
+ 
 
 public class EntryPanel extends AbstractEditorPanel {
 
@@ -288,6 +291,9 @@ public class EntryPanel extends AbstractEditorPanel {
         // Build right-side controls (journal-specific)
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
+        JButton clockBtn = new ClockToolbarButton();
+        clockBtn.setToolTipText("Insert time snapshot");
+        clockBtn.addActionListener(e -> insertClockSnapshot());
         ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
@@ -310,6 +316,8 @@ public class EntryPanel extends AbstractEditorPanel {
                 SimEventBus.get().emitGuidanceRequested(text);
             } catch (BadLocationException ex) { /* no-op */ }
         });
+        rightToolbar.add(clockBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(guidanceBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(dfBtn);
@@ -737,6 +745,249 @@ public class EntryPanel extends AbstractEditorPanel {
         SwingUtilities.invokeLater(this::updateFormattingToggleState);
 
         return bar;
+    }
+
+    private void insertClockSnapshot() {
+        try {
+            int size = 220;
+            BufferedImage img = renderClock(size, size);
+            File dir = new File(journalFolder, "attachments");
+            if (!dir.exists()) dir.mkdirs();
+            String name = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new java.util.Date()) + "_clock.png";
+            File out = new File(dir, name);
+            try { ImageIO.write(img, "PNG", out); } catch (IOException ignored) {}
+
+            ImageIcon icon = new ImageIcon(img);
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setIcon(attrs, icon);
+            attrs.addAttribute("imageSourceFile", out);
+            StyledDocument doc = contentArea.getStyledDocument();
+            int pos = contentArea.getCaretPosition();
+            doc.insertString(pos, " ", attrs);
+            doc.insertString(pos + 1, "\n", null);
+
+            ensureSimStyles();
+            Style normal = doc.getStyle("normalText");
+            String sep = "——————————————";
+            doc.insertString(pos + 2, sep + "\n\n", normal);
+            contentArea.setCaretPosition(Math.min(doc.getLength(), pos + 2 + sep.length() + 2));
+            contentArea.requestFocusInWindow();
+        } catch (BadLocationException ignored) {}
+    }
+
+    private static BufferedImage renderClock(int w, int h) {
+        int size = Math.max(32, Math.min(w, h));
+        BufferedImage bi = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = bi.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        int cx = size / 2;
+        int cy = size / 2;
+        int r = Math.max(20, size / 2 - 2);
+
+        Graphics2D sh = (Graphics2D) g2.create();
+        sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+        sh.setPaint(new RadialGradientPaint(new Point(cx, cy + r/3), r,
+                new float[]{0f, 1f}, new Color[]{new Color(0,0,0,60), new Color(0,0,0,0)}));
+        sh.fillOval(cx - r - 4, cy - r + 8, (r * 2) + 8, (r * 2) - 6);
+        sh.dispose();
+
+        Paint bezel = new LinearGradientPaint(cx, cy - r, cx, cy + r,
+                new float[]{0f, 0.5f, 1f},
+                new Color[]{new Color(230,230,230), new Color(190,190,190), new Color(220,220,220)});
+        g2.setPaint(bezel);
+        g2.fillOval(cx - r, cy - r, r*2, r*2);
+
+        int dialInset = Math.max(4, (int)(r * 0.06));
+        int dialR = r - dialInset;
+        java.awt.geom.Point2D center = new java.awt.geom.Point2D.Float(cx, cy);
+        RadialGradientPaint dialPaint = new RadialGradientPaint(center, dialR,
+                new float[]{0f, 0.85f, 1f},
+                new Color[]{new Color(255,255,255), new Color(242,242,242), new Color(230,230,230)});
+        g2.setPaint(dialPaint);
+        g2.fillOval(cx - dialR, cy - dialR, dialR*2, dialR*2);
+
+        g2.setColor(new Color(180,180,180));
+        g2.setStroke(new BasicStroke(Math.max(1f, r * 0.02f)));
+        g2.drawOval(cx - dialR, cy - dialR, dialR*2, dialR*2);
+
+        int tickOuter = dialR - Math.max(2, (int)(r * 0.02));
+        for (int i = 0; i < 60; i++) {
+            double a = Math.toRadians(i * 6 - 90);
+            boolean hour = (i % 5 == 0);
+            int len = hour ? Math.max(12, (int)(r * 0.10)) : Math.max(5, (int)(r * 0.05));
+            int inner = tickOuter - len;
+            int x1 = cx + (int)(inner * Math.cos(a));
+            int y1 = cy + (int)(inner * Math.sin(a));
+            int x2 = cx + (int)(tickOuter * Math.cos(a));
+            int y2 = cy + (int)(tickOuter * Math.sin(a));
+            if (hour) {
+                g2.setColor(new Color(80,80,80));
+                g2.setStroke(new BasicStroke(Math.max(2f, r * 0.02f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            } else {
+                g2.setColor(new Color(120,120,120,160));
+                g2.setStroke(new BasicStroke(Math.max(1f, r * 0.013f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            }
+            g2.drawLine(x1, y1, x2, y2);
+        }
+
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int hours = cal.get(java.util.Calendar.HOUR);
+        int minutes = cal.get(java.util.Calendar.MINUTE);
+        int seconds = cal.get(java.util.Calendar.SECOND);
+
+        double hourAngle = Math.toRadians((hours + minutes / 60.0) * 30 - 90);
+        double minuteAngle = Math.toRadians((minutes + seconds / 60.0) * 6 - 90);
+        double secondAngle = Math.toRadians(seconds * 6 - 90);
+
+        int hourLen = (int)(dialR * 0.55);
+        int minuteLen = (int)(dialR * 0.78);
+        int secondLen = (int)(dialR * 0.84);
+
+        {
+            int base = (int)(dialR * 0.10);
+            int tipW = Math.max(3, (int)(r * 0.04));
+            int baseW = Math.max(tipW + 2, (int)(r * 0.07));
+            java.awt.geom.Path2D p = new java.awt.geom.Path2D.Double();
+            p.moveTo(-baseW/2.0, 0);
+            p.lineTo(baseW/2.0, 0);
+            p.lineTo(tipW/2.0, hourLen);
+            p.lineTo(-tipW/2.0, hourLen);
+            p.closePath();
+            java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
+            at.translate(cx, cy);
+            at.rotate(hourAngle);
+            at.translate(0, -base);
+            Shape shp = at.createTransformedShape(p);
+            g2.setPaint(new LinearGradientPaint(cx, cy - hourLen, cx, cy + hourLen,
+                    new float[]{0f,1f}, new Color[]{new Color(70,70,70), new Color(30,30,30)}));
+            g2.fill(shp);
+            g2.setColor(new Color(20,20,20));
+            g2.setStroke(new BasicStroke(1.2f));
+            g2.draw(shp);
+        }
+
+        {
+            int base = (int)(dialR * 0.12);
+            int tipW = Math.max(2, (int)(r * 0.03));
+            int baseW = Math.max(tipW + 2, (int)(r * 0.055));
+            java.awt.geom.Path2D p = new java.awt.geom.Path2D.Double();
+            p.moveTo(-baseW/2.0, 0);
+            p.lineTo(baseW/2.0, 0);
+            p.lineTo(tipW/2.0, minuteLen);
+            p.lineTo(-tipW/2.0, minuteLen);
+            p.closePath();
+            java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
+            at.translate(cx, cy);
+            at.rotate(minuteAngle);
+            at.translate(0, -base);
+            Shape shp = at.createTransformedShape(p);
+            g2.setPaint(new LinearGradientPaint(cx, cy - minuteLen, cx, cy + minuteLen,
+                    new float[]{0f,1f}, new Color[]{new Color(90,90,90), new Color(40,40,40)}));
+            g2.fill(shp);
+            g2.setColor(new Color(25,25,25));
+            g2.setStroke(new BasicStroke(1.0f));
+            g2.draw(shp);
+        }
+
+        {
+            int tail = (int)(dialR * 0.20);
+            int cwR = Math.max(3, (int)(r * 0.045));
+            double cos = Math.cos(secondAngle), sin = Math.sin(secondAngle);
+            int xTip = cx + (int)(secondLen * cos);
+            int yTip = cy + (int)(secondLen * sin);
+            int xTail = cx - (int)(tail * cos);
+            int yTail = cy - (int)(tail * sin);
+            g2.setStroke(new BasicStroke(Math.max(1f, r * 0.012f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(new Color(200, 40, 40));
+            g2.drawLine(xTail, yTail, xTip, yTip);
+            Paint redGlass = new RadialGradientPaint(new Point(cx, cy), cwR,
+                    new float[]{0f,1f}, new Color[]{new Color(255, 80, 80), new Color(180,20,20)});
+            g2.setPaint(redGlass);
+            g2.fillOval(cx - cwR, cy - cwR, cwR*2, cwR*2);
+            g2.setColor(new Color(120,0,0,180));
+            g2.drawOval(cx - cwR, cy - cwR, cwR*2, cwR*2);
+        }
+
+        int capR = Math.max(3, (int)(r * 0.06));
+        Paint cap = new RadialGradientPaint(new Point(cx - capR/3, cy - capR/3), capR,
+                new float[]{0f, 0.65f, 1f},
+                new Color[]{new Color(255,255,255), new Color(210,210,210), new Color(160,160,160)});
+        g2.setPaint(cap);
+        g2.fillOval(cx - capR, cy - capR, capR*2, capR*2);
+        g2.setColor(new Color(90,90,90));
+        g2.drawOval(cx - capR, cy - capR, capR*2, capR*2);
+
+        Graphics2D hg = (Graphics2D) g2.create();
+        hg.setClip(new java.awt.geom.Ellipse2D.Double(cx - dialR, cy - dialR, dialR*2, dialR*2));
+        hg.setPaint(new GradientPaint(0, cy - dialR, new Color(255,255,255,120), 0, cy, new Color(255,255,255,0)));
+        hg.fillRoundRect(cx - dialR + 4, cy - dialR + 4, dialR*2 - 8, dialR - 6, dialR, dialR);
+        hg.dispose();
+
+        g2.dispose();
+        return bi;
+    }
+
+    private static final class ClockToolbarButton extends JButton {
+        private javax.swing.Timer timer;
+        ClockToolbarButton(){
+            setPreferredSize(new Dimension(40, 40));
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+        }
+        @Override public void addNotify(){
+            super.addNotify();
+            if (timer == null) {
+                timer = new javax.swing.Timer(1000, e -> repaint());
+                timer.start();
+            }
+        }
+        @Override public void removeNotify(){
+            if (timer != null) { timer.stop(); timer = null; }
+            super.removeNotify();
+        }
+        @Override protected void paintComponent(Graphics g){
+            Graphics2D g2=(Graphics2D)g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+            int w=getWidth(), h=getHeight();
+            Color top = new Color(252,252,252,230);
+            Color bottom = new Color(226,226,226,230);
+            Rectangle r = new Rectangle(0,0,w,h);
+            GradientPaint gp = new GradientPaint(0,0,top,0,h,bottom);
+            g2.setPaint(gp);
+            g2.fillRoundRect(0,0,w,h,10,10);
+            g2.setPaint(new GradientPaint(0,0,new Color(255,255,255,170),0,h/2f,new Color(255,255,255,0)));
+            g2.fillRoundRect(1,1,w-2,h/2,9,9);
+            g2.setColor(new Color(180,180,180));
+            g2.drawRoundRect(0,0,w-1,h-1,10,10);
+
+            int size = Math.min(w, h) - 10;
+            BufferedImage img = renderStatic(size);
+            if (img != null) {
+                g2.drawImage(img, (w - img.getWidth())/2, (h - img.getHeight())/2, null);
+            }
+            g2.dispose();
+        }
+        private BufferedImage renderStatic(int s){
+            int ss = Math.max(18, s);
+            BufferedImage bi = new BufferedImage(ss, ss, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = bi.createGraphics();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int pad = 1;
+            BufferedImage clock = new BufferedImage(ss-2*pad, ss-2*pad, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = clock.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = clock.getWidth();
+            int h = clock.getHeight();
+            BufferedImage scene = EntryPanel.renderClock(w,h);
+            g.drawImage(scene,0,0,null);
+            g.dispose();
+            g2.drawImage(clock,pad,pad,null);
+            g2.dispose();
+            return bi;
+        }
     }
 
     private void updateFormattingToggleState() {
