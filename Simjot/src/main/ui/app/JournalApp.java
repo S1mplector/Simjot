@@ -695,6 +695,57 @@ public class JournalApp extends JFrame {
                     } catch (Throwable ignored) {}
                     try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
+                    // Warm template manager (built-ins + globals) so template dialogs are instant
+                    publish("Loading templates…");
+                    try {
+                        main.ui.features.entries.JournalTemplateManager.getInstance().getTemplates();
+                    } catch (Throwable ignored) {}
+                    try { Thread.sleep(60); } catch (InterruptedException ignored) {}
+
+                    // Prime common UI paints (Aero panels/fields) and load custom UI classes
+                    publish("Priming UI components…");
+                    try {
+                        java.awt.image.BufferedImage off = new java.awt.image.BufferedImage(640, 140, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                        java.awt.Graphics2D g2 = off.createGraphics();
+                        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                        main.ui.components.containers.AeroPanel ap = new main.ui.components.containers.AeroPanel(14);
+                        ap.setSize(620, 60);
+                        ap.doLayout();
+                        ap.paint(g2);
+                        main.ui.components.input.AeroTextField tf = new main.ui.components.input.AeroTextField(22);
+                        tf.setText("Loading…");
+                        tf.setSize(320, 28);
+                        tf.paint(g2);
+                        g2.dispose();
+                        // Touch custom UIs to load classes and static resources
+                        new main.ui.components.scrollbar.ModernScrollBarUI();
+                        new main.ui.components.combobox.ModernComboBoxUI();
+                    } catch (Throwable ignored) {}
+                    try { Thread.sleep(60); } catch (InterruptedException ignored) {}
+
+                    // Decode current background image / render generated wallpaper to warm caches
+                    publish("Priming backgrounds…");
+                    try {
+                        String bg = main.core.service.SettingsStore.get().getBackgroundImage();
+                        if (bg != null && !bg.isEmpty()) {
+                            java.awt.Image img = null;
+                            if (bg.startsWith("gen:")) {
+                                img = main.ui.features.gallery.GeneratedWallpapers.render(bg, 1600, 900);
+                            } else if (bg.startsWith("res:")) {
+                                img = main.infrastructure.io.ResourceLoader.createImage("Simjot/" + bg.substring(4));
+                            } else {
+                                img = new javax.swing.ImageIcon(bg).getImage();
+                            }
+                            if (img != null) { img.getWidth(null); img.getHeight(null); }
+                        }
+                    } catch (Throwable ignored) {}
+                    try { Thread.sleep(60); } catch (InterruptedException ignored) {}
+
+                    // Load transition classes (fade panels) to avoid first-use class load hiccup
+                    publish("Priming transitions…");
+                    try { Class.forName("main.ui.animations.transitions.FadeTransitionPanel"); } catch (Throwable ignored) {}
+                    try { Thread.sleep(30); } catch (InterruptedException ignored) {}
+
                     // Theme is already applied before the splash is shown to avoid visual changes while splash is visible
 
                     publish("Preparing filesystem…");
