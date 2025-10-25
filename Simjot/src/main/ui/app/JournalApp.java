@@ -35,6 +35,7 @@ import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.scaling.UIScalingManager;
 import main.core.security.LockController;
+import main.ui.dialog.security.LockScreenDialog;
 
 /**
  * The main application window for Simjot.
@@ -295,7 +296,10 @@ public class JournalApp extends JFrame {
             }
         } catch (Throwable ignored) {}
 
+        // Start maximized before showing to avoid small initial window
+        try { setExtendedState(JFrame.MAXIMIZED_BOTH); } catch (Throwable ignored) {}
         setVisible(true);
+        try { toFront(); requestFocus(); } catch (Throwable ignored) {}
         switchCard(MAIN_MENU);
 
         // Ensure backup service is watching according to settings
@@ -307,7 +311,8 @@ public class JournalApp extends JFrame {
             try {
                 LockController.get().init(this);
                 if (SettingsStore.get().isLockEnabled() && SettingsStore.get().isLockRequireOnStart()) {
-                    LockController.get().lockNowBlocking();
+                    // Show full-screen Aero-styled lock screen on startup
+                    new LockScreenDialog(this).blockUntilUnlocked();
                 }
             } catch (Throwable ignored) {}
             showTutorialIfFirstTime();
