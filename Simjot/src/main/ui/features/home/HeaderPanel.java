@@ -9,6 +9,8 @@ import javax.swing.*;
 
 import main.infrastructure.monitoring.AppPerf;
 import main.core.service.SettingsStore;
+import main.ui.theme.aero.AeroTheme;
+import main.ui.util.AccentColorUtil;
 
 public class HeaderPanel extends JPanel {
     private float textAlpha = 0f;
@@ -22,10 +24,16 @@ public class HeaderPanel extends JPanel {
     private double lastBeatValue = 0; // for peak detection on eased curve
     private float spring = 0f;      // small overshoot that decays after peak
     private String quote;
+    private final Color accent;
     
     public HeaderPanel() {
+        this(AeroTheme.AERO_BLUE);
+    }
+
+    public HeaderPanel(Color accent) {
         setPreferredSize(new Dimension(800, 120));
         setOpaque(false);
+        this.accent = (accent != null ? accent : AeroTheme.AERO_BLUE);
         // Random calming quotes.
         String[] quotes = {
             "Take a deep breath. You are enough.",
@@ -127,16 +135,18 @@ public class HeaderPanel extends JPanel {
         }
         gShadow.dispose();
 
-        // Gradient fill
+        // Gradient fill (derived from accent)
         float cx = bounds.x + bounds.width * 0.45f;
         float cy = bounds.y + bounds.height * 0.35f;
         float radius = Math.max(bounds.width, bounds.height) * 0.75f;
+        Color lightBase = AccentColorUtil.lighten(accent, 0.45f);
+        Color darkBase  = AccentColorUtil.darken(accent, 0.30f);
         RadialGradientPaint heartPaint = new RadialGradientPaint(
             new Point2D.Float(cx, cy), radius,
             new float[]{0f, 1f},
             new Color[]{
-                new Color(153, 209, 255, (int)(210 * textAlpha)), // light
-                new Color(0, 84, 153, (int)(190 * textAlpha))      // dark
+                new Color(lightBase.getRed(), lightBase.getGreen(), lightBase.getBlue(), (int)(210 * textAlpha)),
+                new Color(darkBase.getRed(),  darkBase.getGreen(),  darkBase.getBlue(),  (int)(190 * textAlpha))
             }
         );
         g2.setPaint(heartPaint);
@@ -169,7 +179,10 @@ public class HeaderPanel extends JPanel {
             RadialGradientPaint glowPaint = new RadialGradientPaint(
                 new Point2D.Float(bounds.x + bounds.width/2f, bounds.y + bounds.height/2f), glowR,
                 new float[]{0f, 1f},
-                new Color[]{new Color(153,209,255,140), new Color(153,209,255,0)}
+                new Color[]{
+                    new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 140),
+                    new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 0)
+                }
             );
             gGlow.setPaint(glowPaint);
             gGlow.fill(new Ellipse2D.Float(bounds.x - glowR*0.15f, bounds.y - glowR*0.15f, bounds.width + glowR*0.3f, bounds.height + glowR*0.3f));

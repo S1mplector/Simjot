@@ -10,6 +10,7 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.util.AccentColorUtil;
 
 /**
  * A comprehensive wallpaper gallery panel that allows users to select wallpapers
@@ -21,6 +22,9 @@ public class WallpaperGalleryPanel extends JDialog {
     private final JList<WallpaperItem> list = new JList<>(model);
     private WallpaperItem selectedItem = null;
     private final boolean autoSaveSelection; // New field to control auto-saving
+    private JLabel previewImageLabel;
+    private JPanel accentSwatch;
+    private JSlider opacitySlider; // only for main menu (autoSaveSelection)
     
     public WallpaperGalleryPanel(Component parent) {
         this(parent, true); // Default to auto-saving for backward compatibility
@@ -41,14 +45,58 @@ public class WallpaperGalleryPanel extends JDialog {
         // Image grid
         setupImageGrid();
         add(new JScrollPane(list), BorderLayout.CENTER);
+
+        // Live preview + accent swatch (right side)
+        JPanel preview = new JPanel(new BorderLayout(8, 8));
+        preview.setPreferredSize(new Dimension(280, 0));
+        preview.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
+        previewImageLabel = new JLabel("Preview", SwingConstants.CENTER);
+        previewImageLabel.setOpaque(true);
+        previewImageLabel.setBackground(Color.WHITE);
+        previewImageLabel.setBorder(BorderFactory.createLineBorder(new Color(200,200,200)));
+        preview.add(previewImageLabel, BorderLayout.CENTER);
+
+        JPanel swatchRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
+        swatchRow.add(new JLabel("Detected Accent:"));
+        accentSwatch = new JPanel();
+        accentSwatch.setPreferredSize(new Dimension(42, 18));
+        accentSwatch.setBorder(BorderFactory.createLineBorder(new Color(160,160,160)));
+        accentSwatch.setBackground(AccentColorUtil.defaultAccent());
+        swatchRow.setOpaque(false);
+        swatchRow.add(accentSwatch);
+        preview.add(swatchRow, BorderLayout.SOUTH);
+
+        add(preview, BorderLayout.EAST);
         
         // Buttons panel
         JPanel bottomPanel = new JPanel(new BorderLayout());
         setupButtons();
         bottomPanel.add(buttonPanel, BorderLayout.CENTER);
+
+        // Optional main-menu opacity slider when auto-saving the selection
+        if (autoSaveSelection) {
+            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            right.add(new JLabel("Opacity:"));
+            opacitySlider = new JSlider(0, 100, (int)(SettingsStore.get().getBackgroundOpacity()*100f));
+            opacitySlider.setPreferredSize(new Dimension(180, 22));
+            right.add(opacitySlider);
+            JLabel val = new JLabel(String.valueOf(opacitySlider.getValue()) + "%");
+            right.add(val);
+            opacitySlider.addChangeListener(e -> {
+                int v = opacitySlider.getValue();
+                val.setText(v + "%");
+                SettingsStore.get().setBackgroundOpacity(v/100f);
+                SettingsStore.get().save();
+            });
+            bottomPanel.add(right, BorderLayout.EAST);
+        }
         add(bottomPanel, BorderLayout.SOUTH);
         
         loadWallpapers();
+        list.addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) updatePreview(); });
+        if (model.getSize() > 0) {
+            list.setSelectedIndex(0);
+        }
     }
 
     private static ImageIcon iconById(String id) {
@@ -118,6 +166,25 @@ public class WallpaperGalleryPanel extends JDialog {
             return panel;
         });
     }
+
+    private void updatePreview() {
+        WallpaperItem it = list.getSelectedValue();
+        if (it == null || it.getImage() == null) {
+            previewImageLabel.setIcon(null);
+            previewImageLabel.setText("Preview");
+            accentSwatch.setBackground(AccentColorUtil.defaultAccent());
+            return;
+        }
+        Image img = it.getImage();
+        int w = 240;
+        int h = (int)(w * (img.getHeight(null)/(double)img.getWidth(null)));
+        if (h <= 0) h = 160;
+        Image scaled = img.getScaledInstance(w, h, Image.SCALE_SMOOTH);
+        previewImageLabel.setIcon(new ImageIcon(scaled));
+        previewImageLabel.setText("");
+        Color ac = AccentColorUtil.extractAccent(img);
+        accentSwatch.setBackground(ac);
+    }
     
 private JPanel buttonPanel;
     
@@ -147,7 +214,11 @@ private JPanel buttonPanel;
             if (selectedItem != null && autoSaveSelection) {
                 SettingsStore settings = SettingsStore.get();
                 settings.setBackgroundImage(selectedItem.getPath());
-                // Keep the existing opacity setting
+                // Persist detected accent for main menu
+                try {
+                    java.awt.Color ac = AccentColorUtil.extractAccent(selectedItem.getImage());
+                    settings.setMainMenuAccentRGB(ac.getRGB());
+                } catch (Throwable ignored) {}
                 settings.save();
             }
             dispose();

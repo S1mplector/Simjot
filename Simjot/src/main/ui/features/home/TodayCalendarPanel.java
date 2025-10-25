@@ -6,6 +6,8 @@ import java.awt.geom.*;
 import java.time.*;
 import java.time.format.TextStyle;
 import java.util.Locale;
+import main.ui.theme.aero.AeroTheme;
+import main.ui.util.AccentColorUtil;
 
 /**
  * Vector-rendered compact calendar showing today's date.
@@ -16,15 +18,23 @@ public class TodayCalendarPanel extends JPanel {
 
     private LocalDate today = LocalDate.now();
     private final Timer timer;
+    private Color accent = AeroTheme.AERO_BLUE;
 
     public TodayCalendarPanel() {
+        this(AeroTheme.AERO_BLUE);
+    }
+
+    public TodayCalendarPanel(Color accent) {
         setOpaque(false);
         setPreferredSize(new Dimension(140, 150));
         setMinimumSize(new Dimension(110, 130));
+        if (accent != null) this.accent = accent;
         // Update once per second to detect minute/day boundary; cheap repaint
         timer = new Timer(1000, e -> tick());
         timer.start();
     }
+
+    public void setAccent(Color c){ if (c!=null){ this.accent = c; repaint(); } }
 
     private void tick() {
         LocalDate now = LocalDate.now();
@@ -68,7 +78,7 @@ public class TodayCalendarPanel extends JPanel {
         g2.setStroke(new BasicStroke(1.2f));
         g2.drawRoundRect(rect.x, rect.y, rect.width, rect.height, arc, arc);
 
-        // Header bar for month name
+        // Header bar for month name (use accent color gradient)
         int headerH = Math.max(28, rect.height / 5);
         RoundRectangle2D header = new RoundRectangle2D.Double(rect.x, rect.y, rect.width, headerH, arc, arc);
         // Clip to top to avoid rounded bottom in header fill
@@ -77,8 +87,10 @@ public class TodayCalendarPanel extends JPanel {
         headerClip.subtract(bottomCut);
         Graphics2D h2 = (Graphics2D) g2.create();
         h2.setClip(headerClip);
+        Color top = AccentColorUtil.lighten(accent, 0.15f);
+        Color bot = AccentColorUtil.darken(accent, 0.18f);
         Paint headerPaint = new LinearGradientPaint(rect.x, rect.y, rect.x, rect.y + headerH,
-                new float[]{0f, 1f}, new Color[]{new Color(0,120,215), new Color(0,95,190)});
+                new float[]{0f, 1f}, new Color[]{top, bot});
         h2.setPaint(headerPaint);
         h2.fillRect(rect.x, rect.y, rect.width, headerH);
         // Header gloss

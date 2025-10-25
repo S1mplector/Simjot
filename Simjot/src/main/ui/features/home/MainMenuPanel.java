@@ -20,6 +20,7 @@ import main.ui.components.DragController;
 import main.ui.components.buttons.MainMenuButton;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.util.AccentColorUtil;
 import main.ui.theme.Theme;
 
 public class MainMenuPanel extends JPanel {
@@ -179,6 +180,7 @@ public class MainMenuPanel extends JPanel {
 
     private void buildUI() {
         String bgPath = SettingsStore.get().getBackgroundImage();
+        Color accent = AccentColorUtil.defaultAccent();
         JPanel content;
         if (bgPath != null && !bgPath.isEmpty()) {
             if (bgPath.startsWith("gen:")) {
@@ -186,6 +188,7 @@ public class MainMenuPanel extends JPanel {
                 String id = bgPath;
                 // Render a large backing image; BackgroundPanel will scale efficiently and cache
                 Image img = main.ui.features.gallery.GeneratedWallpapers.render(id, 2560, 1440);
+                try { accent = AccentColorUtil.extractAccent(img); } catch (Throwable ignored) {}
                 BackgroundPanel bg = new BackgroundPanel(img);
                 bg.setOpacityOverride(1.0f);
                 content = bg;
@@ -194,6 +197,7 @@ public class MainMenuPanel extends JPanel {
                 String resPath = bgPath.substring(4);
                 Image img = ResourceLoader.createImage("Simjot/" + resPath);
                 if (img != null) {
+                    try { accent = AccentColorUtil.extractAccent(img); } catch (Throwable ignored) {}
                     BackgroundPanel bg = new BackgroundPanel(img);
                     bg.setOpacityOverride(1.0f);
                     content = bg;
@@ -202,6 +206,7 @@ public class MainMenuPanel extends JPanel {
                 }
             } else {
                 // User-selected file path
+                try { accent = AccentColorUtil.extractAccent(new ImageIcon(bgPath).getImage()); } catch (Throwable ignored) {}
                 BackgroundPanel bg = new BackgroundPanel(bgPath);
                 bg.setOpacityOverride(1.0f);
                 content = bg;
@@ -226,7 +231,7 @@ public class MainMenuPanel extends JPanel {
         } catch (Exception ignored) { }
 
         // Add header and clock.
-        HeaderPanel header = new HeaderPanel();
+        HeaderPanel header = new HeaderPanel(accent);
         header.setAlignmentX(Component.CENTER_ALIGNMENT);
         content.add(Box.createRigidArea(new Dimension(0, 10)));
         content.add(header);
@@ -242,7 +247,7 @@ public class MainMenuPanel extends JPanel {
         clockPanel.setPreferredSize(new Dimension(200, 200));
         clockPanel.setMaximumSize(new Dimension(220, 220));
 
-        TodayCalendarPanel calendarPanel = new TodayCalendarPanel();
+        TodayCalendarPanel calendarPanel = new TodayCalendarPanel(accent);
         calendarPanel.setPreferredSize(new Dimension(150, 150));
         calendarPanel.setMaximumSize(new Dimension(170, 170));
 

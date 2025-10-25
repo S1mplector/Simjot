@@ -39,6 +39,8 @@ public final class SettingsStore {
     private static final String KEY_UI_SCALE = "uiScale";
     private static final String KEY_UI_SCALING_ENABLED = "uiScalingEnabled";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
+    // Visual accents
+    private static final String KEY_MAINMENU_ACCENT_RGB = "mainMenuAccentRGB";
     // Widgets
     private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
     private static final String KEY_WIDGET_ENABLED_PREFIX = "widget.enabled.";
@@ -312,6 +314,20 @@ public final class SettingsStore {
     }
     public void setLastBackupEpochMillis(long epoch) {
         props.setProperty(KEY_LAST_BACKUP_EPOCH, String.valueOf(Math.max(0L, epoch)));
+    }
+
+    // --- Accent color persistence ---
+    public int getMainMenuAccentRGB(){
+        try {
+            String v = props.getProperty(KEY_MAINMENU_ACCENT_RGB, null);
+            if (v == null || v.isEmpty()) return Integer.MIN_VALUE;
+            return Integer.parseInt(v);
+        } catch (NumberFormatException e){
+            return Integer.MIN_VALUE;
+        }
+    }
+    public void setMainMenuAccentRGB(int rgb){
+        props.setProperty(KEY_MAINMENU_ACCENT_RGB, String.valueOf(rgb));
     }
 
     // --- Widgets persistence ---
