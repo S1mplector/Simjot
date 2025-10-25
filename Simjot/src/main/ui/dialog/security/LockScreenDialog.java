@@ -64,24 +64,27 @@ public class LockScreenDialog extends JDialog {
     }
 
     private void buildUI(){
-        // Background
+        // Background container with centered column
         JComponent content = createBackground();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setLayout(new GridBagLayout());
 
-        // Welcome header
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+
+        // Welcome header (bigger)
         JLabel title = new JLabel("Welcome back");
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
         title.setForeground(Color.WHITE);
-        title.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 28f));
+        title.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 34f));
         JLabel sub = new JLabel("Enter your password to continue");
         sub.setAlignmentX(Component.CENTER_ALIGNMENT);
         sub.setForeground(new Color(240, 240, 240));
         sub.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 14f));
 
-        content.add(Box.createVerticalStrut(28));
-        content.add(title);
-        content.add(Box.createVerticalStrut(4));
-        content.add(sub);
+        column.add(title);
+        column.add(Box.createVerticalStrut(6));
+        column.add(sub);
 
         // Clock + calendar row (match MainMenuPanel sizing)
         int clockSize = 200; // preferred size in main menu
@@ -98,15 +101,13 @@ public class LockScreenDialog extends JDialog {
         TodayCalendarPanel cal = new TodayCalendarPanel();
         cal.setPreferredSize(new Dimension(calSize, calSize));
         cal.setMaximumSize(new Dimension(calMax, calMax));
-        row.add(Box.createHorizontalGlue());
         row.add(clock);
         row.add(Box.createRigidArea(new Dimension(18, 0)));
         row.add(cal);
-        row.add(Box.createHorizontalGlue());
 
-        content.add(Box.createVerticalStrut(16));
+        column.add(Box.createVerticalStrut(16));
         row.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(row);
+        column.add(row);
 
         // Password input and buttons
         JPanel login = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
@@ -119,15 +120,17 @@ public class LockScreenDialog extends JDialog {
         login.add(unlockBtn);
         getRootPane().setDefaultButton(unlockBtn);
 
-        content.add(Box.createVerticalStrut(16));
+        column.add(Box.createVerticalStrut(16));
         login.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(login);
+        column.add(login);
 
-        // Center everything vertically somewhat
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setOpaque(false);
-        wrapper.add(content, BorderLayout.CENTER);
-        setContentPane(wrapper);
+        // Add the centered column into the background using GridBag
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0; gbc.gridy = 0;
+        gbc.weightx = 1; gbc.weighty = 1;
+        gbc.anchor = GridBagConstraints.CENTER;
+        content.add(column, gbc);
+        setContentPane(content);
     }
 
     private JComponent createBackground(){
