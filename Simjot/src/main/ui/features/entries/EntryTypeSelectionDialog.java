@@ -8,7 +8,8 @@ import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
-import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.input.AeroTextField;
+import main.ui.components.containers.AeroPanel;
 
 /**
  * Dialog that presents different journal entry types/templates to choose from
@@ -42,9 +43,9 @@ public class EntryTypeSelectionDialog extends JDialog {
         mainPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         mainPanel.setBackground(Color.WHITE);
 
-        // Top toolbar-style header
-        JPanel topBar = new JPanel(new BorderLayout());
-        topBar.setBackground(new Color(230, 230, 230));
+        // Top toolbar-style header (Aero panel)
+        AeroPanel topBar = new AeroPanel(16);
+        topBar.setLayout(new BorderLayout());
         topBar.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
         
         JLabel titleLabel = new JLabel("What would you like to write about?");
@@ -55,7 +56,7 @@ public class EntryTypeSelectionDialog extends JDialog {
         // Search field
         JPanel rightTools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         rightTools.setOpaque(false);
-        searchField = new JTextField(18);
+        searchField = new AeroTextField(22);
         searchField.setToolTipText("Search templates…");
         searchField.putClientProperty("JTextField.placeholderText", "Search templates…");
         searchField.addActionListener(e -> refreshTemplates());
@@ -175,19 +176,10 @@ public class EntryTypeSelectionDialog extends JDialog {
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.setBackground(Color.WHITE);
 
-        // Icon + text content
+        // Text content only (no icons)
         JPanel center = new JPanel();
         center.setOpaque(false);
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
-
-        // Icon
-        String iconId = iconIdForTemplate(template);
-        JLabel iconLbl = new JLabel();
-        iconLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-        try {
-            String res = ImageIconRenderer.mapIdToResource(iconId);
-            if (res != null) iconLbl.setIcon(new ImageIcon(ImageIconRenderer.get(res, 48, false)));
-        } catch (Throwable ignored) {}
 
         JLabel titleLbl = new JLabel(template.getName());
         titleLbl.setFont(titleLbl.getFont().deriveFont(Font.BOLD, 14f));
@@ -216,9 +208,7 @@ public class EntryTypeSelectionDialog extends JDialog {
         JLabel previewLbl = new JLabel("<html><div style='text-align:center;color:#6D6D6D;font-size:11px;'>" + preview + "</div></html>");
         previewLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        center.add(Box.createVerticalStrut(8));
-        center.add(iconLbl);
-        center.add(Box.createVerticalStrut(6));
+        center.add(Box.createVerticalStrut(12));
         center.add(titleLbl);
         center.add(Box.createVerticalStrut(2));
         center.add(descLbl);
@@ -290,20 +280,7 @@ public class EntryTypeSelectionDialog extends JDialog {
         return card;
     }
 
-    private String iconIdForTemplate(JournalTemplateManager.JournalTemplate t){
-        String id = t.getId();
-        if (id == null) return "notebook";
-        id = id.toUpperCase(java.util.Locale.ROOT);
-        return switch (id) {
-            case "GRATITUDE" -> "tick";
-            case "ANXIETY" -> "breath";
-            case "DAILY_LOG" -> "list";
-            case "MOOD_TRACKER" -> "smile";
-            case "GOAL_PLANNING" -> "clock";
-            case "REFLECTION" -> "notebook";
-            default -> "notebook";
-        };
-    }
+    
 
     private void updateGridColumns(){
         int w = grid.getParent() != null ? grid.getParent().getWidth() : grid.getWidth();

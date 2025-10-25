@@ -7,6 +7,8 @@ import javax.swing.*;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.RoundedPanel;
+import main.ui.components.input.AeroTextField;
+import main.ui.components.containers.AeroPanel;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.UIMessage;
@@ -20,7 +22,7 @@ public class TemplateManagerDialog extends JDialog {
     private JList<JournalTemplateManager.JournalTemplate> templateList;
     private final NotebookInfo notebook; // null => global management
     private TemplateEditorPanel editorPanel;
-    private JTextField searchField;
+    private AeroTextField searchField;
     private List<JournalTemplateManager.JournalTemplate> allTemplates;
 
     public TemplateManagerDialog(Frame parent) { this(parent, null); }
@@ -59,9 +61,10 @@ public class TemplateManagerDialog extends JDialog {
         JPanel left = new JPanel(new BorderLayout(8, 8));
         left.setOpaque(false);
 
-        JPanel searchRow = new JPanel(new BorderLayout());
-        searchRow.setOpaque(false);
-        searchField = new JTextField();
+        AeroPanel searchRow = new AeroPanel(16);
+        searchRow.setLayout(new BorderLayout());
+        searchRow.setBorder(BorderFactory.createEmptyBorder(6,6,6,6));
+        searchField = new AeroTextField(22);
         searchField.setToolTipText("Search templates…");
         searchField.putClientProperty("JTextField.placeholderText", "Search templates…");
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
@@ -287,13 +290,13 @@ public class TemplateManagerDialog extends JDialog {
      */
     private static class TemplateEditorPanel extends JPanel {
         private JournalTemplateManager.JournalTemplate template;
-        private final JTextField nameField;
-        private final JTextField descField;
+        private final AeroTextField nameField;
+        private final AeroTextField descField;
         private final DefaultListModel<String> questionModel;
         private final JList<String> questionList;
         private java.util.function.Consumer<JournalTemplateManager.JournalTemplate> onSave;
         private Runnable onCancel;
-        private final JTextField quickAddField;
+        private final AeroTextField quickAddField;
         private final JLabel roLabel;
 
         TemplateEditorPanel() {
@@ -316,7 +319,7 @@ public class TemplateManagerDialog extends JDialog {
             nameLbl.setFont(nameLbl.getFont().deriveFont(Font.BOLD));
             formPanel.add(nameLbl, gc);
             gc.gridx = 1; gc.weightx = 1;
-            nameField = new JTextField("", 30);
+            nameField = new AeroTextField(30);
             nameField.setFont(nameField.getFont().deriveFont(14f));
             formPanel.add(nameField, gc);
 
@@ -325,7 +328,7 @@ public class TemplateManagerDialog extends JDialog {
             descLbl.setFont(descLbl.getFont().deriveFont(Font.BOLD));
             formPanel.add(descLbl, gc);
             gc.gridx = 1; gc.weightx = 1;
-            descField = new JTextField("", 30);
+            descField = new AeroTextField(30);
             descField.setFont(descField.getFont().deriveFont(14f));
             formPanel.add(descField, gc);
 
@@ -352,15 +355,12 @@ public class TemplateManagerDialog extends JDialog {
             JPanel qButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
             qButtons.setOpaque(false);
             RoundedButton addQBtn = new RoundedButton("Add");
-            addQBtn.putClientProperty("iconId", "new");
             addQBtn.setPreferredSize(new Dimension(90, 32));
             addQBtn.addActionListener(e -> addQuestion());
             RoundedButton editQBtn = new RoundedButton("Edit");
-            editQBtn.putClientProperty("iconId", "write");
             editQBtn.setPreferredSize(new Dimension(90, 32));
             editQBtn.addActionListener(e -> editQuestion());
             RoundedButton deleteQBtn = new RoundedButton("Delete");
-            deleteQBtn.putClientProperty("iconId", "delete");
             deleteQBtn.setPreferredSize(new Dimension(90, 32));
             deleteQBtn.addActionListener(e -> deleteQuestion());
             RoundedButton upBtn = new RoundedButton("Move Up");
@@ -379,9 +379,10 @@ public class TemplateManagerDialog extends JDialog {
 
             // Quick-add field below buttons
             gc.gridy = 5; gc.gridwidth = 2;
-            JPanel quickRow = new JPanel(new BorderLayout(6, 0));
-            quickRow.setOpaque(false);
-            quickAddField = new JTextField();
+            AeroPanel quickRow = new AeroPanel(12);
+            quickRow.setLayout(new BorderLayout(6, 0));
+            quickRow.setBorder(BorderFactory.createEmptyBorder(4,6,4,6));
+            quickAddField = new AeroTextField(20);
             quickAddField.setToolTipText("Type a question and press Enter to add");
             quickAddField.addActionListener(e -> { String t = quickAddField.getText().trim(); if (!t.isEmpty()) { questionModel.addElement(t); quickAddField.setText(""); } });
             quickRow.add(quickAddField, BorderLayout.CENTER);
@@ -402,11 +403,9 @@ public class TemplateManagerDialog extends JDialog {
             JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             bottomPanel.setOpaque(false);
             RoundedButton saveBtn = new RoundedButton("Save");
-            saveBtn.putClientProperty("iconId", "save");
             saveBtn.setPreferredSize(new Dimension(120, 36));
             saveBtn.addActionListener(e -> save());
             RoundedButton cancelBtn = new RoundedButton("Cancel");
-            cancelBtn.putClientProperty("iconId", "close");
             cancelBtn.setPreferredSize(new Dimension(120, 36));
             cancelBtn.addActionListener(e -> { if (onCancel != null) onCancel.run(); });
             bottomPanel.add(saveBtn);
