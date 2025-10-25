@@ -19,10 +19,9 @@ public class TemplateManagerDialog extends JDialog {
     private DefaultListModel<JournalTemplateManager.JournalTemplate> listModel;
     private JList<JournalTemplateManager.JournalTemplate> templateList;
     private final NotebookInfo notebook; // null => global management
-    private CardLayout cardLayout;
-    private JPanel cards;
-    private JPanel listPanel;
     private TemplateEditorPanel editorPanel;
+    private JTextField searchField;
+    private List<JournalTemplateManager.JournalTemplate> allTemplates;
 
     public TemplateManagerDialog(Frame parent) { this(parent, null); }
 
@@ -45,7 +44,7 @@ public class TemplateManagerDialog extends JDialog {
 
         RoundedPanel mainPanel = new RoundedPanel();
         mainPanel.setArc(18);
-        mainPanel.setFlat(true); // remove gradient/glass overlay
+        mainPanel.setFlat(true);
         mainPanel.setLayout(new BorderLayout(12, 12));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         mainPanel.setBackground(Color.WHITE);
@@ -56,72 +55,104 @@ public class TemplateManagerDialog extends JDialog {
         titleLabel.setForeground(new Color(40, 40, 40));
         mainPanel.add(titleLabel, BorderLayout.NORTH);
 
-        // Template list
+        // Left column: search + list + actions
+        JPanel left = new JPanel(new BorderLayout(8, 8));
+        left.setOpaque(false);
+
+        JPanel searchRow = new JPanel(new BorderLayout());
+        searchRow.setOpaque(false);
+        searchField = new JTextField();
+        searchField.setToolTipText("Search templates…");
+        searchField.putClientProperty("JTextField.placeholderText", "Search templates…");
+        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
+            public void insertUpdate(javax.swing.event.DocumentEvent e){ filterAsync(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e){ filterAsync(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e){ filterAsync(); }
+            private void filterAsync(){ SwingUtilities.invokeLater(() -> refreshList()); }
+        });
+        left.add(searchRow, BorderLayout.NORTH);
+        searchRow.add(searchField, BorderLayout.CENTER);
+
         listModel = new DefaultListModel<>();
         templateList = new JList<>(listModel);
         templateList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         templateList.setCellRenderer(new TemplateListRenderer());
-        refreshList();
-
+        templateList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) loadSelectedIntoEditor();
+        });
         JScrollPane scroll = new JScrollPane(templateList);
-        scroll.setPreferredSize(new Dimension(500, 300));
+        scroll.setPreferredSize(new Dimension(320, 360));
+        try {
+            JScrollBar vbar = scroll.getVerticalScrollBar();
+            vbar.setUI(new main.ui.components.scrollbar.ModernScrollBarUI());
+            vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
+            vbar.setOpaque(false);
+        } catch (Throwable ignored) {}
+        left.add(scroll, BorderLayout.CENTER);
 
-        // Buttons for list view
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        buttonPanel.setOpaque(false);
-
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
         RoundedButton addBtn = new RoundedButton("Add New");
-        addBtn.setPreferredSize(new Dimension(110, 36));
+        addBtn.setPreferredSize(new Dimension(110, 34));
         addBtn.addActionListener(e -> addTemplate());
-
-        RoundedButton editBtn = new RoundedButton("Edit");
-        editBtn.setPreferredSize(new Dimension(110, 36));
-        editBtn.addActionListener(e -> editTemplate());
-
-        RoundedButton deleteBtn = new RoundedButton("Delete");
-        deleteBtn.setPreferredSize(new Dimension(110, 36));
+        RoundedButton dupBtn = new RoundedButton("Duplicate");
+        dupBtn.setPreferredSize(new Dimension(110, 34));
+        dupBtn.addActionListener(e -> duplicateSelected());
+        RoundedButton deleteBtn = new RoundedButton("Delete/Hide");
+        deleteBtn.setPreferredSize(new Dimension(120, 34));
         deleteBtn.addActionListener(e -> deleteTemplate());
-
         RoundedButton closeBtn = new RoundedButton("Close");
-        closeBtn.setPreferredSize(new Dimension(110, 36));
+        closeBtn.setPreferredSize(new Dimension(100, 34));
         closeBtn.addActionListener(e -> dispose());
+        actions.add(addBtn);
+        actions.add(dupBtn);
+        actions.add(deleteBtn);
+        actions.add(closeBtn);
+        left.add(actions, BorderLayout.SOUTH);
 
-        buttonPanel.add(addBtn);
-        buttonPanel.add(editBtn);
-        buttonPanel.add(deleteBtn);
-        buttonPanel.add(closeBtn);
-
-        listPanel = new JPanel(new BorderLayout());
-        listPanel.setOpaque(false);
-        listPanel.add(scroll, BorderLayout.CENTER);
-        listPanel.add(buttonPanel, BorderLayout.SOUTH);
-
-        // Cards container: list + editor
-        cards = new JPanel(cardLayout = new CardLayout());
+        // Right column: editor
         editorPanel = new TemplateEditorPanel();
-        cards.add(listPanel, "list");
-        cards.add(editorPanel, "editor");
-        mainPanel.add(cards, BorderLayout.CENTER);
+        editorPanel.setOnSave(tmpl -> {
+            // Save updates to the correct scope
+            if (tmpl.getScope() == JournalTemplateManager.Scope.NOTEBOOK_CUSTOM && notebook != null) {
+                JournalTemplateManager.getInstance().updateTemplate(tmpl);
+            } else if (tmpl.getScope() == JournalTemplateManager.Scope.GLOBAL_CUSTOM || tmpl.isCustom()) {
+                JournalTemplateManager.getInstance().updateTemplate(tmpl);
+            }
+            refreshList();
+            selectTemplate(tmpl);
+        });
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, editorPanel);
+        split.setResizeWeight(0.35);
+        split.setBorder(BorderFactory.createEmptyBorder());
+        mainPanel.add(split, BorderLayout.CENTER);
 
         add(mainPanel);
-        pack();
+        setSize(860, 560);
         setLocationRelativeTo(parent);
+
+        // Initial load
+        refreshList();
+        if (!listModel.isEmpty()) templateList.setSelectedIndex(0);
     }
 
     private void refreshList() {
         listModel.clear();
-        List<JournalTemplateManager.JournalTemplate> templates =
-                (notebook!=null)
-                        ? JournalTemplateManager.getInstance().getTemplates(notebook)
-                        : JournalTemplateManager.getInstance().getTemplates();
-        for (JournalTemplateManager.JournalTemplate template : templates) {
-            listModel.addElement(template);
+        allTemplates = (notebook!=null)
+                ? JournalTemplateManager.getInstance().getTemplates(notebook)
+                : JournalTemplateManager.getInstance().getTemplates();
+        String q = searchField != null ? searchField.getText().trim().toLowerCase() : "";
+        for (JournalTemplateManager.JournalTemplate template : allTemplates) {
+            if (q.isEmpty() || template.getName().toLowerCase().contains(q) || template.getDescription().toLowerCase().contains(q)) {
+                listModel.addElement(template);
+            }
         }
     }
 
     private void addTemplate() {
         editorPanel.load(null);
-        editorPanel.setOnCancel(() -> cardLayout.show(cards, "list"));
+        editorPanel.setReadOnly(false);
         editorPanel.setOnSave(tmpl -> {
             if (notebook != null) {
                 tmpl.setScope(JournalTemplateManager.Scope.NOTEBOOK_CUSTOM);
@@ -132,36 +163,50 @@ public class TemplateManagerDialog extends JDialog {
                 JournalTemplateManager.getInstance().addTemplate(tmpl);
             }
             refreshList();
-            cardLayout.show(cards, "list");
+            selectTemplate(tmpl);
         });
-        cardLayout.show(cards, "editor");
     }
 
-    private void editTemplate() {
+    private void loadSelectedIntoEditor() {
         JournalTemplateManager.JournalTemplate selected = templateList.getSelectedValue();
-        if (selected == null) {
-            UIMessage.warn(this,
-                    "No Template Selected",
-                    "You haven't selected a template to edit.",
-                    "Click a template in the list, then press Edit.");
-            return;
-        }
-        if (!selected.isCustom()) {
-            UIMessage.warn(this,
-                    "Editing Not Allowed",
-                    "Built-in templates are read-only.",
-                    "Choose a custom template or create a new one with Add New.");
-            return;
-        }
-
+        if (selected == null) return;
         editorPanel.load(selected);
-        editorPanel.setOnCancel(() -> cardLayout.show(cards, "list"));
+        editorPanel.setReadOnly(!selected.isCustom());
         editorPanel.setOnSave(tmpl -> {
-            JournalTemplateManager.getInstance().updateTemplate(selected);
+            JournalTemplateManager.getInstance().updateTemplate(tmpl);
             refreshList();
-            cardLayout.show(cards, "list");
+            selectTemplate(tmpl);
         });
-        cardLayout.show(cards, "editor");
+    }
+
+    private void selectTemplate(JournalTemplateManager.JournalTemplate t){
+        for (int i=0;i<listModel.size();i++){
+            if (listModel.get(i).getId().equals(t.getId())){ templateList.setSelectedIndex(i); break; }
+        }
+    }
+
+    private void duplicateSelected(){
+        JournalTemplateManager.JournalTemplate sel = templateList.getSelectedValue();
+        if (sel == null) return;
+        JournalTemplateManager.JournalTemplate copy = new JournalTemplateManager.JournalTemplate(
+                "CUSTOM_" + System.currentTimeMillis(),
+                sel.getName() + " (Copy)",
+                sel.getDescription(),
+                sel.getQuestions(),
+                true
+        );
+        if (notebook != null) {
+            copy.setScope(JournalTemplateManager.Scope.NOTEBOOK_CUSTOM);
+            copy.setNotebookName(notebook.getName());
+            JournalTemplateManager.getInstance().addTemplateForNotebook(notebook, copy);
+        } else {
+            copy.setScope(JournalTemplateManager.Scope.GLOBAL_CUSTOM);
+            JournalTemplateManager.getInstance().addTemplate(copy);
+        }
+        refreshList();
+        selectTemplate(copy);
+        editorPanel.load(copy);
+        editorPanel.setReadOnly(false);
     }
 
     private void deleteTemplate() {
@@ -219,19 +264,15 @@ public class TemplateManagerDialog extends JDialog {
                 int index,
                 boolean isSelected,
                 boolean cellHasFocus) {
-            String text = template.getName();
-            if (!template.isCustom()) {
-                text += " (Built-in)";
-            } else if (template.getScope()==JournalTemplateManager.Scope.NOTEBOOK_CUSTOM) {
-                text += " (Notebook)";
-            } else {
-                text += " (Custom)";
-            }
+            String text = "<html>" + template.getName() +
+                    (template.isCustom() ? "<span style='color:#6A6;'>  • Custom</span>"
+                            : "<span style='color:#66a;'>  • Built-in</span>") +
+                    "<br><span style='font-size:10px;color:#888;'>" + template.getDescription() + "</span></html>";
             setText(text);
 
             if (isSelected) {
-                setBackground(new Color(88, 133, 255, 50));
-                setForeground(new Color(40, 40, 40));
+                setBackground(new Color(240, 245, 255));
+                setForeground(new Color(30, 30, 30));
             } else {
                 setBackground(Color.WHITE);
                 setForeground(new Color(60, 60, 60));
@@ -252,6 +293,8 @@ public class TemplateManagerDialog extends JDialog {
         private final JList<String> questionList;
         private java.util.function.Consumer<JournalTemplateManager.JournalTemplate> onSave;
         private Runnable onCancel;
+        private final JTextField quickAddField;
+        private final JLabel roLabel;
 
         TemplateEditorPanel() {
             setLayout(new BorderLayout(16, 16));
@@ -334,6 +377,26 @@ public class TemplateManagerDialog extends JDialog {
             gc.gridy = 4;
             formPanel.add(qButtons, gc);
 
+            // Quick-add field below buttons
+            gc.gridy = 5; gc.gridwidth = 2;
+            JPanel quickRow = new JPanel(new BorderLayout(6, 0));
+            quickRow.setOpaque(false);
+            quickAddField = new JTextField();
+            quickAddField.setToolTipText("Type a question and press Enter to add");
+            quickAddField.addActionListener(e -> { String t = quickAddField.getText().trim(); if (!t.isEmpty()) { questionModel.addElement(t); quickAddField.setText(""); } });
+            quickRow.add(quickAddField, BorderLayout.CENTER);
+            formPanel.add(quickRow, gc);
+
+            // Read-only hint label
+            roLabel = new JLabel("Built-in template (read-only). Duplicate to customize.");
+            roLabel.setForeground(new Color(120, 120, 120));
+            roLabel.setVisible(false);
+            gc.gridy = 6; gc.gridwidth = 2;
+            formPanel.add(roLabel, gc);
+
+            // Enable drag-reorder of questions
+            installReorderDnD(questionList, questionModel);
+
             add(formPanel, BorderLayout.CENTER);
 
             JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
@@ -353,6 +416,13 @@ public class TemplateManagerDialog extends JDialog {
 
         void setOnSave(java.util.function.Consumer<JournalTemplateManager.JournalTemplate> cb) { this.onSave = cb; }
         void setOnCancel(Runnable cb) { this.onCancel = cb; }
+        void setReadOnly(boolean ro){
+            nameField.setEnabled(!ro);
+            descField.setEnabled(!ro);
+            questionList.setEnabled(!ro);
+            quickAddField.setEnabled(!ro);
+            roLabel.setVisible(ro);
+        }
 
         void load(JournalTemplateManager.JournalTemplate existing) {
             this.template = existing;
@@ -416,6 +486,48 @@ public class TemplateManagerDialog extends JDialog {
                         new JournalTemplateManager.JournalTemplate(id, name, desc, questions.toArray(new String[0]), true);
                 if (onSave != null) onSave.accept(newTemplate);
             }
+        }
+
+        private static void installReorderDnD(JList<String> list, DefaultListModel<String> model){
+            list.setDragEnabled(true);
+            list.setDropMode(DropMode.INSERT);
+            list.setTransferHandler(new TransferHandler(){
+                private int[] indices = null;
+                private int addIndex = -1; // Location where items were added
+                private int addCount = 0;   // Number of items added.
+                @Override public int getSourceActions(JComponent c){ return MOVE; }
+                @Override protected java.awt.datatransfer.Transferable createTransferable(JComponent c){
+                    indices = list.getSelectedIndices();
+                    List<String> values = new ArrayList<>();
+                    for (int i : indices) values.add(model.get(i));
+                    return new java.awt.datatransfer.StringSelection(String.join("\n", values));
+                }
+                @Override public boolean canImport(TransferSupport info){ return info.isDrop(); }
+                @Override public boolean importData(TransferSupport info){
+                    if (!info.isDrop()) return false;
+                    JList.DropLocation dl = (JList.DropLocation) info.getDropLocation();
+                    int index = dl.getIndex();
+                    addIndex = index;
+                    addCount = 0;
+                    try {
+                        String data = (String) info.getTransferable().getTransferData(java.awt.datatransfer.DataFlavor.stringFlavor);
+                        String[] items = data.split("\n");
+                        for (String s : items){ model.add(index++, s); addCount++; }
+                        return true;
+                    } catch (Exception ex){ return false; }
+                }
+                @Override protected void exportDone(JComponent c, java.awt.datatransfer.Transferable t, int action){
+                    if (action == MOVE && indices != null){
+                        // If we moved items to a later index, adjust for earlier removals
+                        if (addIndex > indices[0]){
+                            for (int i = indices.length - 1; i >= 0; i--) model.remove(indices[i]);
+                        } else {
+                            for (int i = 0; i < indices.length; i++) model.remove(indices[i]);
+                        }
+                        indices = null; addCount = 0; addIndex = -1;
+                    }
+                }
+            });
         }
     }
 }

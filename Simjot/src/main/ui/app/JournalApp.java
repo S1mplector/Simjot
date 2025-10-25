@@ -17,6 +17,10 @@ import main.infrastructure.io.AppDirectories;
 import main.infrastructure.monitoring.RamMonitor;
 import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
+import main.ui.components.icons.ImageIconRenderer;
+import main.ui.util.AccentColorUtil;
+import main.ui.features.gallery.GeneratedWallpapers;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
@@ -635,6 +639,49 @@ public class JournalApp extends JFrame {
                     try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
                     long start = System.nanoTime();
+
+                    // Derive wallpaper accent and configure icon tinting
+                    publish("Deriving accent color…");
+                    try {
+                        java.awt.Color accent = AccentColorUtil.defaultAccent();
+                        String bgPath = main.core.service.SettingsStore.get().getBackgroundImage();
+                        if (bgPath != null && !bgPath.isEmpty()) {
+                            if (bgPath.startsWith("gen:")) {
+                                java.awt.Image img = GeneratedWallpapers.render(bgPath, 1920, 1080);
+                                if (img != null) accent = AccentColorUtil.extractAccent(img);
+                            } else if (bgPath.startsWith("res:")) {
+                                String resPath = bgPath.substring(4);
+                                java.awt.Image img = ResourceLoader.createImage("Simjot/" + resPath);
+                                if (img != null) accent = AccentColorUtil.extractAccent(img);
+                            } else {
+                                java.awt.Image img = new javax.swing.ImageIcon(bgPath).getImage();
+                                if (img != null) accent = AccentColorUtil.extractAccent(img);
+                            }
+                        }
+                        ImageIconRenderer.setAccentTint(accent);
+                    } catch (Throwable ignored) {}
+
+                    publish("Warming accented icons…");
+                    try {
+                        int[] sizes = {16,20,24,32,48};
+                        String[] ids = {
+                            "settings","write","save","back","list","close","trash","delete_entry","load",
+                            "fullscreen","export","rhyme","explorer","refreshsizes","revealselected",
+                            "general_settings","appearance_settings","storage_settings","sim_settings","about_settings",
+                            "notebook","smile","breathing_widget","pomodoro_widget","sticky_widget"
+                        };
+                        for (int s : sizes) {
+                            for (String id : ids) {
+                                try {
+                                    String res = ImageIconRenderer.mapIdToResource(id);
+                                    if (res != null) {
+                                        ImageIconRenderer.get(res, s, false);
+                                        ImageIconRenderer.get(res, s, true);
+                                    }
+                                } catch (Throwable ignored2) {}
+                            }
+                        }
+                    } catch (Throwable ignored) {}
 
                     publish("Warming vector icons…");
                     try {

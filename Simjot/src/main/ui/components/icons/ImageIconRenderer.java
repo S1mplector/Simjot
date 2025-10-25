@@ -6,6 +6,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.ImageIcon;
 import main.infrastructure.io.ResourceLoader;
+import main.ui.util.AccentColorUtil;
+import main.core.service.SettingsStore;
+import main.ui.features.gallery.GeneratedWallpapers;
 
 /**
  * Central PNG icon loader/renderer with high-quality scaling and in-memory caching.
@@ -15,15 +18,25 @@ public final class ImageIconRenderer {
     private ImageIconRenderer() {}
 
     private static final class Key {
-        final String path; final int size; final boolean shadow;
-        Key(String path, int size, boolean shadow){ this.path=path; this.size=size; this.shadow=shadow; }
+        final String path; final int size; final boolean shadow; final int tint;
+        Key(String path, int size, boolean shadow, int tint){ this.path=path; this.size=size; this.shadow=shadow; this.tint=tint; }
         @Override public boolean equals(Object o){
-            if (!(o instanceof Key k)) return false; return size==k.size && shadow==k.shadow && path.equals(k.path);
+            if (!(o instanceof Key k)) return false; return size==k.size && shadow==k.shadow && tint==k.tint && path.equals(k.path);
         }
-        @Override public int hashCode(){ return path.hashCode()*31 + size*3 + (shadow?1:0); }
+        @Override public int hashCode(){ int h = path.hashCode()*31 + size*3 + (shadow?1:0); return h*31 + tint; }
     }
 
     private static final Map<Key, BufferedImage> CACHE = new ConcurrentHashMap<>();
+    private static volatile Color sAccentTint = null;
+    public static void setAccentTint(Color c) {
+        int before = tintSignature();
+        sAccentTint = c;
+        int after = tintSignature();
+        if (before != after) {
+            CACHE.clear();
+        }
+    }
+    private static int tintSignature() { Color c = sAccentTint; return c == null ? 0 : c.getRGB(); }
 
     public static BufferedImage get(String resourcePath, int size, boolean shadow){
         if (resourcePath == null) return null;
@@ -31,7 +44,8 @@ public final class ImageIconRenderer {
         if (resourcePath.startsWith("Simjot/")) {
             resourcePath = resourcePath.substring("Simjot/".length());
         }
-        Key key = new Key(resourcePath, size, shadow);
+        ensureAccentTintInitialized();
+        Key key = new Key(resourcePath, size, shadow, tintSignature());
         return CACHE.computeIfAbsent(key, k -> build(k.path, k.size, k.shadow));
     }
 
@@ -85,11 +99,14 @@ public final class ImageIconRenderer {
         g.dispose();
         if (current != src) current.flush();
 
-        if (!withShadow) return scaled;
+        // Optional accent recolor (blue-hue -> accent hue)
+        BufferedImage tinted = recolorToAccentIfEnabled(scaled);
+
+        if (!withShadow) return tinted;
         BufferedImage shadow = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gSh = shadow.createGraphics();
         gSh.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        gSh.drawImage(scaled, 0, 0, null);
+        gSh.drawImage(tinted, 0, 0, null);
         gSh.setComposite(AlphaComposite.SrcAtop);
         gSh.setColor(new Color(0,0,0,80));
         gSh.fillRect(0, 0, target, target);
@@ -98,9 +115,62 @@ public final class ImageIconRenderer {
         BufferedImage out = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gOut = out.createGraphics();
         gOut.drawImage(shadow, 1, 1, null);
-        gOut.drawImage(scaled, 0, 0, null);
+        gOut.drawImage(tinted, 0, 0, null);
         gOut.dispose();
         return out;
+    }
+
+    // Recolor by remapping pixel luminance to the accent hue (monochrome colorize),
+    // preserving near-black strokes and near-white highlights.
+    private static BufferedImage recolorToAccentIfEnabled(BufferedImage src){
+        Color target = sAccentTint;
+        if (target == null) return src;
+        float[] tgtHSB = Color.RGBtoHSB(target.getRed(), target.getGreen(), target.getBlue(), null);
+        float tgtHue = tgtHSB[0];
+        float tgtSat = Math.max(0.35f, tgtHSB[1]); // ensure enough color presence
+
+        int w = src.getWidth(), height = src.getHeight();
+        BufferedImage out = new BufferedImage(w, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y=0; y<height; y++){
+            for (int x=0; x<w; x++){
+                int argb = src.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                if (a == 0) { out.setRGB(x, y, 0); continue; }
+                int r = (argb >>> 16) & 0xFF;
+                int g = (argb >>> 8) & 0xFF;
+                int b = (argb) & 0xFF;
+                // Relative luminance (sRGB) to preserve shading
+                float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+                // Preserve near-black strokes and near-white highlights (often borders/gloss)
+                if (lum < 0.06f || lum > 0.97f) { out.setRGB(x, y, argb); continue; }
+                float v = clamp01(lum * 1.0f); // direct luminance -> value
+                int rgb = Color.HSBtoRGB(tgtHue, tgtSat, v);
+                out.setRGB(x, y, (a << 24) | (rgb & 0x00FFFFFF));
+            }
+        }
+        return out;
+    }
+
+    private static float clamp01(float v){ return (v < 0f ? 0f : (v > 1f ? 1f : v)); }
+
+    private static void ensureAccentTintInitialized(){
+        if (sAccentTint != null) return;
+        try {
+            Color accent = AccentColorUtil.defaultAccent();
+            String bgPath = SettingsStore.get().getBackgroundImage();
+            if (bgPath != null && !bgPath.isEmpty()) {
+                Image img = null;
+                if (bgPath.startsWith("gen:")) {
+                    img = GeneratedWallpapers.render(bgPath, 1280, 720);
+                } else if (bgPath.startsWith("res:")) {
+                    img = ResourceLoader.createImage("Simjot/" + bgPath.substring(4));
+                } else {
+                    img = new ImageIcon(bgPath).getImage();
+                }
+                if (img != null) accent = AccentColorUtil.extractAccent(img);
+            }
+            setAccentTint(accent);
+        } catch (Throwable ignored) {}
     }
 
     // Convenience mapping for common IDs used across the app

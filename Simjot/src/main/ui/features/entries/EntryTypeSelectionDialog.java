@@ -3,12 +3,12 @@ package main.ui.features.entries;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.List;
 import javax.swing.*;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.icons.ImageIconRenderer;
 
 /**
  * Dialog that presents different journal entry types/templates to choose from
@@ -19,6 +19,10 @@ public class EntryTypeSelectionDialog extends JDialog {
     private boolean accepted = false;
     private final JPanel grid;
     private final NotebookInfo notebook;
+    private java.util.List<JournalTemplateManager.JournalTemplate> allTemplates;
+    private JTextField searchField;
+    private RoundedButton useBtn;
+    private int currentCols = 2;
 
 
     public EntryTypeSelectionDialog(Frame parent) {
@@ -48,11 +52,27 @@ public class EntryTypeSelectionDialog extends JDialog {
         titleLabel.setForeground(new Color(40, 40, 40));
         topBar.add(titleLabel, BorderLayout.WEST);
         
+        // Search field
+        JPanel rightTools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        rightTools.setOpaque(false);
+        searchField = new JTextField(18);
+        searchField.setToolTipText("Search templates…");
+        searchField.putClientProperty("JTextField.placeholderText", "Search templates…");
+        searchField.addActionListener(e -> refreshTemplates());
+        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
+            public void insertUpdate(javax.swing.event.DocumentEvent e){ filterAsync(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e){ filterAsync(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e){ filterAsync(); }
+            private void filterAsync(){ SwingUtilities.invokeLater(() -> refreshTemplates()); }
+        });
+        
         // Manage templates button
         ToolbarIconButton manageBtn = new ToolbarIconButton("options");
         manageBtn.setToolTipText("Manage Templates");
         manageBtn.addActionListener(e -> openTemplateManager());
-        topBar.add(manageBtn, BorderLayout.EAST);
+        rightTools.add(searchField);
+        rightTools.add(manageBtn);
+        topBar.add(rightTools, BorderLayout.EAST);
         
         mainPanel.add(topBar, BorderLayout.NORTH);
 
@@ -70,6 +90,10 @@ public class EntryTypeSelectionDialog extends JDialog {
         scroll.setBackground(Color.WHITE);
         scroll.getViewport().setOpaque(true);
         scroll.getViewport().setBackground(Color.WHITE);
+        // Responsive: adjust cols with width
+        scroll.getViewport().addComponentListener(new java.awt.event.ComponentAdapter(){
+            @Override public void componentResized(java.awt.event.ComponentEvent e){ updateGridColumns(); }
+        });
         
         // Apply modern, slim scrollbars (same as poetry panel)
         JScrollBar vbar = scroll.getVerticalScrollBar();
@@ -89,6 +113,18 @@ public class EntryTypeSelectionDialog extends JDialog {
         bottomPanel.setOpaque(true);
         bottomPanel.setBackground(Color.WHITE);
 
+        useBtn = new RoundedButton("Use Template");
+        useBtn.setPreferredSize(new Dimension(140, 36));
+        useBtn.setForeground(new Color(30, 30, 30));
+        useBtn.setEnabled(false);
+        useBtn.addActionListener(e -> {
+            if (selectedTemplate != null) {
+                accepted = true;
+                setVisible(false);
+                dispose();
+            }
+        });
+
         RoundedButton cancelBtn = new RoundedButton("Cancel");
         cancelBtn.setPreferredSize(new Dimension(100, 36));
         cancelBtn.setForeground(Color.DARK_GRAY);
@@ -98,6 +134,7 @@ public class EntryTypeSelectionDialog extends JDialog {
             dispose();
         });
 
+        bottomPanel.add(useBtn);
         bottomPanel.add(cancelBtn);
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
 
@@ -107,14 +144,25 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
 
     private void refreshTemplates() {
-        grid.removeAll();
-        List<JournalTemplateManager.JournalTemplate> templates =
-                (notebook != null)
-                        ? JournalTemplateManager.getInstance().getTemplates(notebook)
-                        : JournalTemplateManager.getInstance().getTemplates();
-        for (JournalTemplateManager.JournalTemplate template : templates) {
-            grid.add(createTemplateCard(template));
+        if (allTemplates == null) {
+            allTemplates = (notebook != null)
+                    ? JournalTemplateManager.getInstance().getTemplates(notebook)
+                    : JournalTemplateManager.getInstance().getTemplates();
+        } else {
+            // Refresh underlying set in case manager changed
+            allTemplates = (notebook != null)
+                    ? JournalTemplateManager.getInstance().getTemplates(notebook)
+                    : JournalTemplateManager.getInstance().getTemplates();
         }
+        String q = searchField != null ? searchField.getText().trim().toLowerCase() : "";
+        grid.removeAll();
+        for (JournalTemplateManager.JournalTemplate t : allTemplates) {
+            if (q.isEmpty() || t.getName().toLowerCase().contains(q) || t.getDescription().toLowerCase().contains(q)) {
+                grid.add(createTemplateCard(t));
+            }
+        }
+        // Add an inline "Create New" card for quick access
+        grid.add(createNewTemplateCard());
         grid.revalidate();
         grid.repaint();
     }
@@ -123,14 +171,23 @@ public class EntryTypeSelectionDialog extends JDialog {
         RoundedPanel card = new RoundedPanel();
         card.setArc(12);
         card.setLayout(new BorderLayout(8, 8));
-        card.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        card.setBorder(BorderFactory.createLineBorder(new Color(230,235,245)));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        card.setBackground(new Color(248, 249, 252));
+        card.setBackground(Color.WHITE);
 
-        // Text content
-        JPanel textPanel = new JPanel();
-        textPanel.setOpaque(false);
-        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        // Icon + text content
+        JPanel center = new JPanel();
+        center.setOpaque(false);
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+
+        // Icon
+        String iconId = iconIdForTemplate(template);
+        JLabel iconLbl = new JLabel();
+        iconLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        try {
+            String res = ImageIconRenderer.mapIdToResource(iconId);
+            if (res != null) iconLbl.setIcon(new ImageIcon(ImageIconRenderer.get(res, 48, false)));
+        } catch (Throwable ignored) {}
 
         JLabel titleLbl = new JLabel(template.getName());
         titleLbl.setFont(titleLbl.getFont().deriveFont(Font.BOLD, 14f));
@@ -142,44 +199,123 @@ public class EntryTypeSelectionDialog extends JDialog {
         descLbl.setForeground(new Color(100, 100, 100));
         descLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        textPanel.add(titleLbl);
-        textPanel.add(Box.createVerticalStrut(4));
-        textPanel.add(descLbl);
+        // Question preview / badge
+        String[] qs = template.getQuestions();
+        int qCount = (qs == null ? 0 : qs.length);
+        JLabel badge = new JLabel(qCount > 0 ? ("Guided • " + qCount + " Qs") : "Freeform");
+        badge.setFont(badge.getFont().deriveFont(Font.PLAIN, 11f));
+        badge.setForeground(new Color(90, 110, 140));
+        badge.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        card.add(textPanel, BorderLayout.CENTER);
+        String preview = "";
+        if (qCount > 0) {
+            String p1 = qs[0];
+            String p2 = qCount > 1 ? qs[1] : null;
+            preview = p1 + (p2 != null ? "<br>" + p2 : "");
+        }
+        JLabel previewLbl = new JLabel("<html><div style='text-align:center;color:#6D6D6D;font-size:11px;'>" + preview + "</div></html>");
+        previewLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        center.add(Box.createVerticalStrut(8));
+        center.add(iconLbl);
+        center.add(Box.createVerticalStrut(6));
+        center.add(titleLbl);
+        center.add(Box.createVerticalStrut(2));
+        center.add(descLbl);
+        center.add(Box.createVerticalStrut(6));
+        center.add(badge);
+        if (qCount > 0) {
+            center.add(Box.createVerticalStrut(6));
+            center.add(previewLbl);
+        }
+
+        card.add(center, BorderLayout.CENTER);
 
         // Hover and click effects
         card.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 selectedTemplate = template;
-                accepted = true;
-                setVisible(false);
-                dispose();
+                useBtn.setEnabled(true);
+                // Double-click to accept immediately
+                if (e.getClickCount() >= 2) {
+                    accepted = true;
+                    setVisible(false);
+                    dispose();
+                }
             }
             
             @Override
             public void mouseEntered(MouseEvent e) {
-                card.setBackground(new Color(240, 245, 255));
+                card.setBackground(new Color(245, 248, 255));
+                card.setBorder(BorderFactory.createLineBorder(new Color(170, 200, 255)));
             }
             
             @Override
             public void mouseExited(MouseEvent e) {
-                card.setBackground(new Color(248, 249, 252));
+                card.setBackground(Color.WHITE);
+                card.setBorder(BorderFactory.createLineBorder(new Color(230,235,245)));
             }
             
             @Override
             public void mousePressed(MouseEvent e) {
-                card.setBackground(new Color(220, 230, 255));
+                card.setBackground(new Color(230, 238, 255));
             }
             
             @Override
             public void mouseReleased(MouseEvent e) {
-                card.setBackground(new Color(240, 245, 255));
+                card.setBackground(new Color(245, 248, 255));
             }
         });
 
         return card;
+    }
+
+    private JPanel createNewTemplateCard(){
+        RoundedPanel card = new RoundedPanel();
+        card.setArc(12);
+        card.setLayout(new BorderLayout());
+        card.setBackground(new Color(248, 249, 252));
+        JLabel lbl = new JLabel("+ Create New Template", SwingConstants.CENTER);
+        lbl.setBorder(BorderFactory.createEmptyBorder(24, 12, 24, 12));
+        lbl.setForeground(new Color(60, 90, 160));
+        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 13f));
+        card.add(lbl, BorderLayout.CENTER);
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.addMouseListener(new MouseAdapter(){
+            @Override public void mouseClicked(MouseEvent e){ openTemplateManager(); }
+            @Override public void mouseEntered(MouseEvent e){ card.setBackground(new Color(240,245,255)); }
+            @Override public void mouseExited(MouseEvent e){ card.setBackground(new Color(248,249,252)); }
+        });
+        return card;
+    }
+
+    private String iconIdForTemplate(JournalTemplateManager.JournalTemplate t){
+        String id = t.getId();
+        if (id == null) return "notebook";
+        id = id.toUpperCase(java.util.Locale.ROOT);
+        return switch (id) {
+            case "GRATITUDE" -> "tick";
+            case "ANXIETY" -> "breath";
+            case "DAILY_LOG" -> "list";
+            case "MOOD_TRACKER" -> "smile";
+            case "GOAL_PLANNING" -> "clock";
+            case "REFLECTION" -> "notebook";
+            default -> "notebook";
+        };
+    }
+
+    private void updateGridColumns(){
+        int w = grid.getParent() != null ? grid.getParent().getWidth() : grid.getWidth();
+        if (w <= 0) return;
+        int padding = 40;
+        int available = Math.max(200, w - padding);
+        int col = Math.max(2, Math.min(4, available / 260));
+        if (col != currentCols){
+            currentCols = col;
+            grid.setLayout(new GridLayout(0, currentCols, 16, 16));
+            refreshTemplates();
+        }
     }
 
     public boolean isAccepted() {

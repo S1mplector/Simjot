@@ -277,6 +277,8 @@ public class MainMenuPanel extends JPanel {
             content = new JPanel();
             content.setBackground(Color.WHITE);
         }
+        // Apply the accent tint globally for PNG icons so all menu icons recolor immediately
+        try { main.ui.components.icons.ImageIconRenderer.setAccentTint(accent); } catch (Throwable ignored) {}
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
         // -------- Widgets registration (centralized) ---------
