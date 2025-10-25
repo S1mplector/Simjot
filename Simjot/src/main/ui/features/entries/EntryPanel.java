@@ -133,18 +133,33 @@ public class EntryPanel extends AbstractEditorPanel {
                 rest.append(line).append("\n");
             }
             String remainder = rest.toString();
-            if (remainder.stripLeading().startsWith("{\\rtf")) {
+            // Extract optional image manifest header before RTF
+            String manifest = null;
+            String r = remainder;
+            int nl = r.indexOf('\n');
+            if (nl >= 0) {
+                String head = r.substring(0, nl).trim();
+                if (head.startsWith("IMGMAP:")) {
+                    manifest = head.length() > 7 ? head.substring(7).trim() : "";
+                    // Advance past header and an optional extra blank line
+                    r = r.substring(nl + 1);
+                    r = r.stripLeading();
+                }
+            }
+            if (r.stripLeading().startsWith("{\\rtf")) {
                 RTFEditorKit kit = new RTFEditorKit();
                 StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
-                try (ByteArrayInputStream bin = new ByteArrayInputStream(remainder.getBytes())) {
+                try (ByteArrayInputStream bin = new ByteArrayInputStream(r.getBytes())) {
                     kit.read(bin, doc, 0);
                 }
-                // Important: set the loaded document and DO NOT replace the editor kit afterwards,
-                // or Swing will create a new default document and drop our loaded content.
                 contentArea.setDocument(doc);
                 ensureSimStyles();
+                // Reinsert icons from manifest using saved offsets and filenames
+                if (manifest != null && !manifest.isBlank()) {
+                    try { applyImageManifest(doc, manifest); } catch (Throwable ignored) {}
+                }
             } else {
-                contentArea.setText(remainder);
+                contentArea.setText(r);
             }
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -1238,14 +1253,20 @@ public class EntryPanel extends AbstractEditorPanel {
             }
 
             // Save title + a blank line + content (with guided mode metadata if applicable)
+            String manifestForRestore = null;
             try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
                 writer.println(title);
                 writer.println(); // separator
                 
                 // Save guided mode if active
                 if (guidedQuestions != null && guidedQuestions.length > 0) {
-                    // Save current question's response first
-                    questionResponses.put(currentQuestionIndex, contentArea.getText());
+                    // Save current question's response first (tokenize images)
+                    try {
+                        String tok = stringifyWithImageTokens((StyledDocument) contentArea.getDocument());
+                        questionResponses.put(currentQuestionIndex, tok);
+                    } catch (Throwable t) {
+                        questionResponses.put(currentQuestionIndex, contentArea.getText());
+                    }
                     
                     // Write guided mode metadata
                     writer.println("[GUIDED_MODE:" + getGuidedModeTemplateName() + "]");
@@ -1261,7 +1282,11 @@ public class EntryPanel extends AbstractEditorPanel {
                         writer.println();
                     }
                 } else {
-                    // Regular mode: just header written here; RTF appended below
+                    // Regular mode: write image manifest header, then RTF appended below
+                    manifestForRestore = buildImageManifest((StyledDocument) contentArea.getDocument());
+                    if (manifestForRestore == null) manifestForRestore = "";
+                    writer.println("IMGMAP:" + manifestForRestore);
+                    writer.println();
                     writer.flush();
                 }
             }
@@ -1272,12 +1297,20 @@ public class EntryPanel extends AbstractEditorPanel {
                     RTFEditorKit kit = new RTFEditorKit();
                     StyledDocument sd = (StyledDocument) contentArea.getDocument();
                     try {
+                        // Document already tokenized by buildImageManifest for header; just write it.
                         kit.write(fos, sd, 0, sd.getLength());
                     } catch (BadLocationException ble) {
                         // fallback to plain text if unexpected
                         fos.write(content.getBytes());
                     }
                 }
+                // Restore icons back into the live document so the UI remains unchanged
+                try {
+                    StyledDocument sd = (StyledDocument) contentArea.getDocument();
+                    if (manifestForRestore != null && !manifestForRestore.isBlank()) {
+                        restoreIconsFromTokens(sd, manifestForRestore);
+                    }
+                } catch (Throwable ignored) {}
             }
 
             // Mark last successful save for status bar
@@ -1306,6 +1339,136 @@ public class EntryPanel extends AbstractEditorPanel {
             ex.printStackTrace();
             SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog());
             if (saveIndicator != null) saveIndicator.setError("Error saving");
+        }
+    }
+
+    // --- Image persistence helpers (tokenize -> write -> restore) ---
+    private String buildImageManifest(StyledDocument doc) {
+        try {
+            int len = doc.getLength();
+            StringBuilder sb = new StringBuilder(128);
+            int pos = 0;
+            while (pos < len) {
+                javax.swing.text.Element el = doc.getCharacterElement(pos);
+                if (el == null) { pos++; continue; }
+                javax.swing.text.AttributeSet as = el.getAttributes();
+                Object ico = javax.swing.text.StyleConstants.getIcon(as);
+                if (ico instanceof ImageIcon) {
+                    ImageIcon icon = (ImageIcon) ico;
+                    int w = icon.getIconWidth();
+                    int h = icon.getIconHeight();
+                    Object srcAttr = as.getAttribute("imageSourceFile");
+                    File srcFile = (srcAttr instanceof File) ? (File) srcAttr : null;
+                    if (srcFile == null) {
+                        // Persist icon to attachments if not already saved
+                        File dir = new File(journalFolder, "attachments");
+                        if (!dir.exists()) dir.mkdirs();
+                        String name = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new java.util.Date()) + ".png";
+                        srcFile = new File(dir, name);
+                        try {
+                            BufferedImage buf = toBuffered(icon.getImage());
+                            ImageIO.write(buf, "PNG", srcFile);
+                        } catch (Throwable ignored) {}
+                    }
+                    String rel = makeRelativeToJournal(srcFile);
+                    // Replace the icon character with a token including rel path and size
+                    String token = "[[IMG|" + rel + "|" + w + "x" + h + "]]";
+                    try {
+                        doc.remove(el.getStartOffset(), 1);
+                        doc.insertString(el.getStartOffset(), token, null);
+                        len = doc.getLength();
+                        pos = el.getStartOffset() + token.length();
+                    } catch (BadLocationException ignored) { pos++; }
+                    // Append to manifest as a reference for completeness (not used in replacement)
+                    if (sb.length() > 0) sb.append(';');
+                    sb.append(rel).append('|').append(w).append('x').append(h);
+                } else {
+                    pos = el.getEndOffset();
+                }
+            }
+            return sb.toString();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    private void restoreIconsFromTokens(StyledDocument doc, String manifest) {
+        try {
+            String text = doc.getText(0, doc.getLength());
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\[\\[IMG\\|([^|]+)\\|(\\d+)x(\\d+)\\]\\]");
+            java.util.regex.Matcher m = p.matcher(text);
+            java.util.List<int[]> ranges = new java.util.ArrayList<>();
+            java.util.List<String> rels = new java.util.ArrayList<>();
+            java.util.List<Integer> widths = new java.util.ArrayList<>();
+            while (m.find()) {
+                ranges.add(new int[]{m.start(), m.end()});
+                rels.add(m.group(1));
+                widths.add(Integer.parseInt(m.group(2)));
+            }
+            // Replace from end to start to keep offsets valid
+            for (int i = ranges.size() - 1; i >= 0; i--) {
+                int start = ranges.get(i)[0];
+                int end = ranges.get(i)[1];
+                String rel = rels.get(i);
+                int targetW = widths.get(i);
+                File f = new File(journalFolder, rel);
+                BufferedImage img = null;
+                try { img = ImageIO.read(f); } catch (Throwable ignored) {}
+                if (img == null) continue;
+                BufferedImage scaled = (targetW > 0) ? scaleToWidth(img, targetW) : img;
+                ImageIcon icon = new ImageIcon(scaled);
+                javax.swing.text.SimpleAttributeSet attrs = new javax.swing.text.SimpleAttributeSet();
+                javax.swing.text.StyleConstants.setIcon(attrs, icon);
+                attrs.addAttribute("imageSourceFile", f);
+                try {
+                    doc.remove(start, end - start);
+                    doc.insertString(start, " ", attrs);
+                } catch (BadLocationException ignored) {}
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private void applyImageManifest(StyledDocument doc, String manifest) {
+        // Current strategy relies on tokens in the RTF; the header is informational only.
+        restoreIconsFromTokens(doc, manifest);
+    }
+
+    private static BufferedImage scaleToWidth(BufferedImage src, int targetW) {
+        if (targetW <= 0 || src.getWidth() == targetW) return src;
+        float scale = targetW / (float) src.getWidth();
+        int w = Math.max(1, Math.round(src.getWidth() * scale));
+        int h = Math.max(1, Math.round(src.getHeight() * scale));
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(src, 0, 0, w, h, null);
+        g2.dispose();
+        return out;
+    }
+
+    private static BufferedImage toBuffered(Image img) {
+        if (img instanceof BufferedImage) return (BufferedImage) img;
+        BufferedImage b = new BufferedImage(img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = b.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.drawImage(img, 0, 0, null);
+        g2.dispose();
+        return b;
+    }
+
+    private String makeRelativeToJournal(File f) {
+        try {
+            String base = journalFolder.getAbsolutePath();
+            String path = f.getAbsolutePath();
+            if (path.startsWith(base)) {
+                String rel = path.substring(base.length());
+                if (rel.startsWith(File.separator)) rel = rel.substring(1);
+                return rel.replace('\\', '/');
+            }
+            return f.getName();
+        } catch (Throwable t) {
+            return f.getName();
         }
     }
 
@@ -1449,9 +1612,14 @@ public class EntryPanel extends AbstractEditorPanel {
             return;
         }
         
-        // Save current question's response before switching
+        // Save current question's response before switching (tokenize images)
         if (currentQuestionIndex >= 0 && currentQuestionIndex < guidedQuestions.length) {
-            questionResponses.put(currentQuestionIndex, contentArea.getText());
+            try {
+                String tok = stringifyWithImageTokens((StyledDocument) contentArea.getDocument());
+                questionResponses.put(currentQuestionIndex, tok);
+            } catch (Throwable t) {
+                questionResponses.put(currentQuestionIndex, contentArea.getText());
+            }
         }
         
         // Clamp index to valid range
@@ -1466,8 +1634,9 @@ public class EntryPanel extends AbstractEditorPanel {
         
         // Restore this question's response
         String savedResponse = questionResponses.getOrDefault(index, "");
-        contentArea.setText(savedResponse);
-        contentArea.setCaretPosition(savedResponse.length());
+        contentArea.setText(savedResponse == null ? "" : savedResponse);
+        try { restoreIconsFromTokens((StyledDocument) contentArea.getDocument(), ""); } catch (Throwable ignored) {}
+        contentArea.setCaretPosition(contentArea.getDocument().getLength());
         
         // Enable/disable buttons based on position
         prevQuestionBtn.setEnabled(index > 0);
@@ -1543,12 +1712,11 @@ public class EntryPanel extends AbstractEditorPanel {
             questionResponses.put(currentQ, currentResponse.toString().trim());
         }
 
-        // Apply reconstructed questions; if none parsed, fall back to template lookup
+        // Apply reconstructed questions; if none parsed, leave guided mode empty
         if (!questions.isEmpty()) {
             this.guidedQuestions = questions.toArray(new String[0]);
         } else {
-            JournalTemplateManager.JournalTemplate template = JournalTemplateManager.getInstance().getTemplateById(templateName);
-            this.guidedQuestions = (template != null) ? template.getQuestions() : new String[0];
+            this.guidedQuestions = new String[0];
         }
 
         // Important: prevent showQuestion() from saving the (empty) editor content over Q0
@@ -1557,6 +1725,47 @@ public class EntryPanel extends AbstractEditorPanel {
 
         // Show first question (if any)
         showQuestion(0);
+    }
+
+    // Build a plain string from a StyledDocument, replacing any icon runs with [[IMG|rel|WxH]] tokens.
+    private String stringifyWithImageTokens(StyledDocument doc) throws BadLocationException {
+        StringBuilder out = new StringBuilder(doc.getLength() + 64);
+        int pos = 0;
+        int len = doc.getLength();
+        while (pos < len) {
+            javax.swing.text.Element el = doc.getCharacterElement(pos);
+            if (el == null) { pos++; continue; }
+            javax.swing.text.AttributeSet as = el.getAttributes();
+            Object ico = javax.swing.text.StyleConstants.getIcon(as);
+            if (ico instanceof ImageIcon) {
+                ImageIcon icon = (ImageIcon) ico;
+                int w = icon.getIconWidth();
+                int h = icon.getIconHeight();
+                Object srcAttr = as.getAttribute("imageSourceFile");
+                File srcFile = (srcAttr instanceof File) ? (File) srcAttr : null;
+                if (srcFile == null) {
+                    // Persist icon to attachments if not already saved
+                    File dir = new File(journalFolder, "attachments");
+                    if (!dir.exists()) dir.mkdirs();
+                    String name = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new java.util.Date()) + ".png";
+                    srcFile = new File(dir, name);
+                    try {
+                        BufferedImage buf = toBuffered(icon.getImage());
+                        ImageIO.write(buf, "PNG", srcFile);
+                    } catch (Throwable ignored) {}
+                }
+                String rel = makeRelativeToJournal(srcFile);
+                out.append("[[IMG|").append(rel).append('|').append(w).append('x').append(h).append("]] ");
+                pos = el.getEndOffset();
+            } else {
+                int start = el.getStartOffset();
+                int end = Math.min(el.getEndOffset(), len);
+                String seg = doc.getText(start, end - start);
+                out.append(seg);
+                pos = end;
+            }
+        }
+        return out.toString();
     }
 }
 
