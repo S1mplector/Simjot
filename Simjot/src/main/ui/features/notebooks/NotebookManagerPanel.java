@@ -104,7 +104,7 @@ public class NotebookManagerPanel extends JPanel {
         if(folder==null || !folder.exists()) return 0;
         File[] files = folder.listFiles((d,name)->{
             String s=name.toLowerCase();
-            return s.endsWith(".txt")||s.endsWith(".md")||s.endsWith(".rtf")||s.endsWith(".note")||s.endsWith(".poem");
+            return s.endsWith(".txt")||s.endsWith(".md")||s.endsWith(".rtf")||s.endsWith(".note")||s.endsWith(".poem")||s.endsWith(".ntk");
         });
         return files==null?0:files.length;
     }
@@ -203,7 +203,7 @@ public class NotebookManagerPanel extends JPanel {
     private static class CreateNotebookDialog extends JDialog{
         private boolean accepted=false;
         private final ModernTextField nameField = new ModernTextField(20);
-        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.JOURNAL, NotebookInfo.Type.POETRY });
+        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.JOURNAL, NotebookInfo.Type.POETRY, NotebookInfo.Type.NOTETAKING });
 
         CreateNotebookDialog(Frame parent){
             super(parent, "Create Notebook", true);
@@ -250,8 +250,16 @@ public class NotebookManagerPanel extends JPanel {
                     cell.setBorder(BorderFactory.createEmptyBorder(3,8,3,8));
                 }
                 @Override public Component getListCellRendererComponent(JList<? extends NotebookInfo.Type> list, NotebookInfo.Type value, int index, boolean isSelected, boolean cellHasFocus){
-                    String friendly = value==NotebookInfo.Type.JOURNAL?"Journaling":"Poetry";
-                    String desc = value==NotebookInfo.Type.JOURNAL?"Daily notes, moods, reflections":"Write and organize poems";
+                    String friendly = switch (value) {
+                        case JOURNAL -> "Journaling";
+                        case POETRY -> "Poetry";
+                        case NOTETAKING -> "Notetaking";
+                    };
+                    String desc = switch (value) {
+                        case JOURNAL -> "Daily notes, moods, reflections";
+                        case POETRY -> "Write and organize poems";
+                        case NOTETAKING -> "Rich notes with images & formatting";
+                    };
                     t.setText(friendly);
                     sub.setText(index>=0?desc:"");
                     if(isSelected){ cell.setBackground(list.getSelectionBackground()); t.setForeground(list.getSelectionForeground()); sub.setForeground(list.getSelectionForeground()); }
@@ -269,7 +277,12 @@ public class NotebookManagerPanel extends JPanel {
 
             typeBox.addActionListener(e->{
                 NotebookInfo.Type t = (NotebookInfo.Type) typeBox.getSelectedItem();
-                descLabel.setText(t==NotebookInfo.Type.JOURNAL?"Daily notes, moods, reflections":"Write and organize poems");
+                String desc = switch (t) {
+                    case JOURNAL -> "Daily notes, moods, reflections";
+                    case POETRY -> "Write and organize poems";
+                    case NOTETAKING -> "Rich notes with images & formatting";
+                };
+                descLabel.setText(desc);
             });
 
             panel.add(center, BorderLayout.CENTER);

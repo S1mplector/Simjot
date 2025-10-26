@@ -6,7 +6,7 @@ import java.io.File;
  * Simple value object describing a user notebook.
  */
 public class NotebookInfo {
-    public enum Type { JOURNAL, POETRY }
+    public enum Type { JOURNAL, POETRY, NOTETAKING }
 
     private final String name;
     private final Type type;

@@ -592,8 +592,14 @@ public class JournalApp extends JFrame {
             
             cardPanel.add(editor.getMainComponent(), cardId);
             switchCard(cardId);
+        } else if (nb.getType() == NotebookInfo.Type.NOTETAKING) {
+            // Notetaking: open the dedicated editor
+            NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.NOTETAKING, targetFolder);
+            openEditors.add(editor);
+            cardPanel.add(editor.getMainComponent(), cardId);
+            switchCard(cardId);
         } else {
-            // Poetry or other types: use existing flow
+            // Poetry
             NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.POEM, targetFolder);
             openEditors.add(editor);
             cardPanel.add(editor.getMainComponent(), cardId);

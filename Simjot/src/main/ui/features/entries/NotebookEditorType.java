@@ -5,5 +5,6 @@ package main.ui.features.entries;
  */
 public enum NotebookEditorType {
     ENTRY,
-    POEM
+    POEM,
+    NOTETAKING
 }

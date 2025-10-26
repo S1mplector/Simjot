@@ -41,6 +41,7 @@ public class NotebookEditorFactory {
         register(".txt", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".md", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".rtf", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
+        register(".ntk", () -> new NotetakingPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".poem", () -> new PoemPanel(app, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel));
     }
 
@@ -67,6 +68,7 @@ public class NotebookEditorFactory {
         return switch (type) {
             case ENTRY -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel);
             case POEM -> new PoemPanel(app, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel);
+            case NOTETAKING -> new NotetakingPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel);
         };
     }
 
@@ -80,6 +82,7 @@ public class NotebookEditorFactory {
         return switch (type) {
             case ENTRY -> new EntryPanel(app, targetFolder, cardLayout, cardPanel);
             case POEM -> new PoemPanel(app, targetFolder, cardLayout, cardPanel);
+            case NOTETAKING -> new NotetakingPanel(app, targetFolder, cardLayout, cardPanel);
         };
     }
 
@@ -98,8 +101,10 @@ public class NotebookEditorFactory {
         NotebookEditor editor;
         if (".poem".equals(ext)) {
             editor = createInFolder(NotebookEditorType.POEM, parentFolder);
+        } else if (".ntk".equals(ext)) {
+            editor = createInFolder(NotebookEditorType.NOTETAKING, parentFolder);
         } else {
-            // Treat all non-.poem text-like extensions as journal entries
+            // Treat other text-like extensions as journal entries
             editor = createInFolder(NotebookEditorType.ENTRY, parentFolder);
         }
         // Load the file contents after constructing the editor in the proper notebook context
