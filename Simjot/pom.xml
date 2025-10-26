@@ -22,9 +22,17 @@
     <build>
         <sourceDirectory>src</sourceDirectory>
         <resources>
+            <!-- Standard Maven resources path: place contents at the classpath root (e.g., /img/...) -->
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Legacy project-level resources: also place at classpath root (not under /resources) -->
             <resource>
                 <directory>resources</directory>
-                <targetPath>resources</targetPath>
+                <targetPath>.</targetPath>
+                <includes>
+                    <include>**/*</include>
+                </includes>
             </resource>
         </resources>
 

@@ -17,6 +17,14 @@ public class ResourceLoader {
         if (url != null) {
             return url;
         }
+        url = ResourceLoader.class.getResource("/resources/" + path);
+        if (url != null) {
+            return url;
+        }
+        url = ResourceLoader.class.getResource("/main/resources/" + path);
+        if (url != null) {
+            return url;
+        }
 
         // Fallbacks for development environment where resources aren't copied to output:
         // 1) relative to working directory
@@ -40,6 +48,10 @@ public class ResourceLoader {
         }
         // 1) Try classpath first
         InputStream in = ResourceLoader.class.getResourceAsStream("/" + path);
+        if (in != null) return in;
+        in = ResourceLoader.class.getResourceAsStream("/resources/" + path);
+        if (in != null) return in;
+        in = ResourceLoader.class.getResourceAsStream("/main/resources/" + path);
         if (in != null) return in;
 
         // 2) Fallbacks for development environment where resources aren't copied to output

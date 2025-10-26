@@ -24,11 +24,9 @@ RUNTIME_DIR="build/runtime-macos"
 DEST_DIR="dist"
 APP_NAME="Simjot"
 
-# Build shaded jar if missing
-if [[ ! -f "$JAR_PATH" ]]; then
-  echo "Building shaded JAR..."
-  mvn -DskipTests clean package
-fi
+# Always build shaded JAR to capture resource changes
+echo "Building shaded JAR..."
+mvn -DskipTests clean package
 
 # Compute required modules for a minimal runtime
 echo "Computing required modules with jdeps..."
