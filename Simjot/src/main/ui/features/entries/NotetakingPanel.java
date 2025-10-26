@@ -31,6 +31,21 @@ public class NotetakingPanel extends EntryPanel {
         // Add richer formatting accelerators on top of base behavior
         installAdvancedFormattingShortcuts();
     }
+    
+    @Override
+    protected boolean supportsMoodControls() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsClockButton() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsGuidanceButton() {
+        return false;
+    }
 
     private void installAdvancedFormattingShortcuts() {
         int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();

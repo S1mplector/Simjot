@@ -101,6 +101,22 @@ public class EntryPanel extends AbstractEditorPanel {
         } catch (Throwable ignored) {}
     }
 
+    /**
+     * Whether this editor should display mood controls under the toolbar.
+     * Subclasses can override to disable (e.g., NotetakingPanel).
+     */
+    protected boolean supportsMoodControls() { return true; }
+
+    /**
+     * Whether to show the clock (insert time) button in the right toolbar.
+     */
+    protected boolean supportsClockButton() { return true; }
+
+    /**
+     * Whether to show the Sim guidance button in the right toolbar.
+     */
+    protected boolean supportsGuidanceButton() { return true; }
+
     // Load an existing entry file into the editor fields
     private void loadExistingEntry(File fileToEdit) {
         try (BufferedReader reader = new BufferedReader(new FileReader(fileToEdit))) {
@@ -306,9 +322,6 @@ public class EntryPanel extends AbstractEditorPanel {
         // Build right-side controls (journal-specific)
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
-        JButton clockBtn = new ClockToolbarButton();
-        clockBtn.setToolTipText("Insert time snapshot");
-        clockBtn.addActionListener(e -> insertClockSnapshot());
         ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
@@ -319,22 +332,29 @@ public class EntryPanel extends AbstractEditorPanel {
             dialog.setVisible(true);
             repaint();
         });
-        ToolbarIconButton guidanceBtn = new ToolbarIconButton("simguidance");
-        guidanceBtn.setToolTipText("Ask Sim for guidance on this entry");
-        guidanceBtn.addActionListener(e -> {
-            try {
-                Document doc = contentArea.getDocument();
-                String all = doc.getText(0, doc.getLength());
-                int cap = 4000;
-                String text = all.length() > cap ? all.substring(all.length() - cap) : all;
-                showGuidanceThinkingPlaceholder();
-                SimEventBus.get().emitGuidanceRequested(text);
-            } catch (BadLocationException ex) { /* no-op */ }
-        });
-        rightToolbar.add(clockBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        rightToolbar.add(guidanceBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
+        if (supportsClockButton()) {
+            JButton clockBtn = new ClockToolbarButton();
+            clockBtn.setToolTipText("Insert time snapshot");
+            clockBtn.addActionListener(e -> insertClockSnapshot());
+            rightToolbar.add(clockBtn);
+            rightToolbar.add(Box.createHorizontalStrut(6));
+        }
+        if (supportsGuidanceButton()) {
+            ToolbarIconButton guidanceBtn = new ToolbarIconButton("simguidance");
+            guidanceBtn.setToolTipText("Ask Sim for guidance on this entry");
+            guidanceBtn.addActionListener(e -> {
+                try {
+                    Document doc = contentArea.getDocument();
+                    String all = doc.getText(0, doc.getLength());
+                    int cap = 4000;
+                    String text = all.length() > cap ? all.substring(all.length() - cap) : all;
+                    showGuidanceThinkingPlaceholder();
+                    SimEventBus.get().emitGuidanceRequested(text);
+                } catch (BadLocationException ex) { /* no-op */ }
+            });
+            rightToolbar.add(guidanceBtn);
+            rightToolbar.add(Box.createHorizontalStrut(6));
+        }
         rightToolbar.add(dfBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(settingsBtn);
@@ -373,44 +393,50 @@ public class EntryPanel extends AbstractEditorPanel {
         // Bind the shared title field to our reference used elsewhere
         titleField = sharedToolbar.getTitleField();
 
-        // Build mood slider stack to show under the shared toolbar
-        JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        moodRow.setOpaque(false);
-        moodSlider = new MoodSlider();
-        moodRow.add(moodSlider);
-        moodSlider.addChangeListener(e -> {
-            try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
-        });
-        RoundedButton expandMoodBtn = new RoundedButton("\u203A");
-        expandMoodBtn.setToolTipText("Open detailed mood logging");
-        expandMoodBtn.setForeground(AeroTheme.TEXT_PRIMARY);
-        expandMoodBtn.setPreferredSize(new Dimension(28, 28));
-        expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
-        moodRow.add(expandMoodBtn);
-        JPanel bottomStack = new JPanel();
-        bottomStack.setOpaque(false);
-        bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
-        bottomStack.add(moodRow);
-        detailedMoodPanel = new DetailedMoodPanel(composite -> {
-            moodSlider.setValue(composite);
-            recordMood(composite);
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this),
-                    "Mood Logged",
-                    "Detailed mood saved (" + composite + ")",
-                    false).showDialog();
-        });
-        bottomStack.add(detailedMoodPanel);
-        expandMoodBtn.addActionListener(e -> {
-            boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
-            if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
-            expandMoodBtn.setText(next ? "\u2039" : "\u203A");
-        });
+        // Build mood slider stack to show under the shared toolbar (optional)
+        JPanel bottomStack = null;
+        if (supportsMoodControls()) {
+            JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            moodRow.setOpaque(false);
+            moodSlider = new MoodSlider();
+            moodRow.add(moodSlider);
+            moodSlider.addChangeListener(e -> {
+                try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
+            });
+            RoundedButton expandMoodBtn = new RoundedButton("\u203A");
+            expandMoodBtn.setToolTipText("Open detailed mood logging");
+            expandMoodBtn.setForeground(AeroTheme.TEXT_PRIMARY);
+            expandMoodBtn.setPreferredSize(new Dimension(28, 28));
+            expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
+            moodRow.add(expandMoodBtn);
+            bottomStack = new JPanel();
+            bottomStack.setOpaque(false);
+            bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
+            bottomStack.add(moodRow);
+            detailedMoodPanel = new DetailedMoodPanel(composite -> {
+                moodSlider.setValue(composite);
+                recordMood(composite);
+                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this),
+                        "Mood Logged",
+                        "Detailed mood saved (" + composite + ")",
+                        false).showDialog();
+            });
+            bottomStack.add(detailedMoodPanel);
+            RoundedButton finalExpandMoodBtn = expandMoodBtn;
+            expandMoodBtn.addActionListener(e -> {
+                boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
+                if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
+                finalExpandMoodBtn.setText(next ? "\u2039" : "\u203A");
+            });
+        }
 
         // Wrap shared toolbar + mood stack into a single NORTH container
         JPanel northWrapper = new JPanel(new BorderLayout());
         northWrapper.setOpaque(false);
         northWrapper.add(sharedToolbar, BorderLayout.NORTH);
-        northWrapper.add(bottomStack, BorderLayout.CENTER);
+        if (bottomStack != null) {
+            northWrapper.add(bottomStack, BorderLayout.CENTER);
+        }
 
         toolbarContainer.add(northWrapper, BorderLayout.CENTER);
         toolbarContainer.add(rightToolbar, BorderLayout.EAST);
@@ -1203,12 +1229,12 @@ public class EntryPanel extends AbstractEditorPanel {
             if (SwingUtilities.isEventDispatchThread()) {
                 titleHolder[0] = titleField.getText().trim();
                 contentHolder[0] = contentArea.getText();
-                moodHolder[0] = moodSlider.getValue();
+                moodHolder[0] = (moodSlider != null) ? moodSlider.getValue() : -1;
             } else {
                 SwingUtilities.invokeAndWait(() -> {
                     titleHolder[0] = titleField.getText().trim();
                     contentHolder[0] = contentArea.getText();
-                    moodHolder[0] = moodSlider.getValue();
+                    moodHolder[0] = (moodSlider != null) ? moodSlider.getValue() : -1;
                 });
             }
         } catch (Exception invokeErr) {
@@ -1225,7 +1251,9 @@ public class EntryPanel extends AbstractEditorPanel {
             return;
         }
         int moodValue = moodHolder[0]; // 0 - 100
-        recordMood(moodValue);
+        if (moodValue >= 0) {
+            recordMood(moodValue);
+        }
 
         try {
             // Update status to Saving…

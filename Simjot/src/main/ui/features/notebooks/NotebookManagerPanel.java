@@ -191,6 +191,8 @@ public class NotebookManagerPanel extends JPanel {
             NotebookInfo.Type type = dlg.getNotebookType();
             if(name!=null && !name.isEmpty()){
                 NotebookInfo nb = store.create(name, type, "notebook");
+                // Immediately refresh the gallery to show the new notebook
+                refresh();
             }
         }
     }
