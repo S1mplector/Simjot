@@ -28,7 +28,7 @@ public class NotetakingPanel extends EntryPanel {
     private boolean overlayVisible = true;  // paint overlay visibility
     private DrawTool currentDrawTool = DrawTool.PEN;
     private final List<DrawStroke> drawStrokes = new ArrayList<>(); // persisted per-note
-    private main.ui.components.popup.AnimatedGlassPopup toolPopup;
+    private JWindow colorWindow;
     private JPopupMenu drawToolMenu;
     private Color penColor = new Color(20,20,20,255);
     private Color highlightColor = new Color(255,235,59,120);
@@ -38,6 +38,10 @@ public class NotetakingPanel extends EntryPanel {
     private JSpinner strokeSpinner;
     private JButton colorBtn;
     private JLayeredPane overlayStack;
+    private main.ui.components.buttons.ToolbarIconButton textModeBtn;
+    private main.ui.components.buttons.ToolbarIconButton paintModeBtn;
+    private EditingMode editingMode = EditingMode.TEXT;
+    private final java.util.Deque<Color> recentColors = new java.util.ArrayDeque<>();
 
     public NotetakingPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -108,16 +112,20 @@ public class NotetakingPanel extends EntryPanel {
         layerBtn.setIconOpacity(overlayVisible ? 1f : 0.45f);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
-        // Draw capture toggle (write icon) — enables drawing interactions
-        main.ui.components.buttons.ToolbarIconButton drawBtn = new main.ui.components.buttons.ToolbarIconButton("write");
-        drawBtn.setToolTipText("Draw mode (click to toggle)");
-        drawBtn.addActionListener(e -> {
-            drawingEnabled = !drawingEnabled;
-            if (drawingOverlay != null) drawingOverlay.setCaptureEnabled(drawingEnabled);
-            drawBtn.setForeground(drawingEnabled ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
-        });
-        // No context menu on write; right-click menu is bound to the brush button
-        rightToolbar.add(drawBtn);
+        // Text mode selector (mutually exclusive with Paint mode)
+        textModeBtn = new main.ui.components.buttons.ToolbarIconButton("notebook");
+        textModeBtn.setToolTipText("Text mode (click to type)");
+        try { textModeBtn.setRolloverEnabled(false); } catch (Throwable ignored) {}
+        textModeBtn.addActionListener(e -> selectTextMode());
+        rightToolbar.add(textModeBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+
+        // Paint mode selector (mutually exclusive with Text mode)
+        paintModeBtn = new main.ui.components.buttons.ToolbarIconButton("write");
+        paintModeBtn.setToolTipText("Paint mode (click to draw)");
+        try { paintModeBtn.setRolloverEnabled(false); } catch (Throwable ignored) {}
+        paintModeBtn.addActionListener(e -> selectPaintMode());
+        rightToolbar.add(paintModeBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
         strokeSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 64, 1));
@@ -136,9 +144,13 @@ public class NotetakingPanel extends EntryPanel {
         colorBtn.setPreferredSize(new Dimension(24, 24));
         colorBtn.setFocusPainted(false);
         colorBtn.addActionListener(e -> {
-            ensureColorPopup();
-            Point p = colorBtn.getLocationOnScreen();
-            toolPopup.showAt(p.x + colorBtn.getWidth()/2, p.y, () -> buildColorPopupContent());
+            ensureColorWindow();
+            JPanel content = buildColorPopupContent();
+            colorWindow.setContentPane(content);
+            colorWindow.pack();
+            Point on = colorBtn.getLocationOnScreen();
+            colorWindow.setLocation(on.x, on.y + colorBtn.getHeight() + 6);
+            colorWindow.setVisible(true);
         });
         rightToolbar.add(colorBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
@@ -155,27 +167,94 @@ public class NotetakingPanel extends EntryPanel {
         rightToolbar.add(exportBtn);
 
         updatePickersForCurrentTool();
+        // Initialize in Text mode by default (capture off, overlay visibility governed by brush button)
+        setEditingMode(EditingMode.TEXT);
     }
 
-    private void ensureColorPopup() {
-        if (toolPopup != null) return;
+    private void selectTextMode() {
+        setEditingMode(EditingMode.TEXT);
+    }
+
+    private void selectPaintMode() {
+        setEditingMode(EditingMode.PAINT);
+    }
+
+    private void setEditingMode(EditingMode mode) {
+        this.editingMode = mode;
+        boolean paint = (mode == EditingMode.PAINT);
+        drawingEnabled = paint;
+        if (drawingOverlay != null) drawingOverlay.setCaptureEnabled(paint);
+        if (textModeBtn != null) {
+            boolean textActive = !paint;
+            textModeBtn.setSelected(textActive);
+            textModeBtn.setIconOpacity(textActive ? 1f : 0.45f);
+            textModeBtn.setForeground(textActive ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
+        }
+        if (paintModeBtn != null) {
+            boolean paintActive = paint;
+            paintModeBtn.setSelected(paintActive);
+            paintModeBtn.setIconOpacity(paintActive ? 1f : 0.45f);
+            paintModeBtn.setForeground(paintActive ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
+        }
+    }
+
+    private enum EditingMode { TEXT, PAINT }
+
+    private void ensureColorWindow() {
+        if (colorWindow != null) return;
         Window owner = SwingUtilities.getWindowAncestor(this);
-        toolPopup = new main.ui.components.popup.AnimatedGlassPopup(owner);
+        colorWindow = new JWindow(owner);
+        colorWindow.setAlwaysOnTop(true);
+        colorWindow.setBackground(Color.WHITE);
+        colorWindow.setFocusableWindowState(true);
+        // Dismiss on outside click or ESC
+        Toolkit.getDefaultToolkit().addAWTEventListener(ev -> {
+            if (!(ev instanceof MouseEvent me) || me.getID() != MouseEvent.MOUSE_PRESSED) return;
+            if (!colorWindow.isVisible()) return;
+            Component src = me.getComponent();
+            if (src == null) { colorWindow.setVisible(false); return; }
+            SwingUtilities.invokeLater(() -> {
+                if (colorWindow.isVisible() && !SwingUtilities.isDescendingFrom(src, colorWindow)) {
+                    colorWindow.setVisible(false);
+                }
+            });
+        }, AWTEvent.MOUSE_EVENT_MASK);
+        colorWindow.getRootPane().registerKeyboardAction(e -> colorWindow.setVisible(false),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
     }
 
     private JPanel buildColorPopupContent() {
-        JPanel panel = new JPanel();
-        panel.setOpaque(false);
-        panel.setLayout(new GridBagLayout());
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(4,6,4,6);
-        gc.gridx = 0; gc.gridy = 0; gc.anchor = GridBagConstraints.WEST;
+        // Determine starting color (ignore alpha for preview)
+        Color base = (currentDrawTool == DrawTool.PEN ? penColor : highlightColor);
+        Color baseOpaque = new Color(base.getRed(), base.getGreen(), base.getBlue());
 
-        JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        colorRow.setOpaque(false);
-        colorRow.add(new JLabel("Color:"));
-        JPanel swatches = new JPanel(new GridLayout(2, 8, 6, 6));
-        swatches.setOpaque(false);
+        JPanel panel = new JPanel();
+        panel.setOpaque(true);
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(8,10,10,10));
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setPreferredSize(new Dimension(240, currentDrawTool==DrawTool.HIGHLIGHT ? 180 : 150));
+
+        // Row: header + preview
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0)); header.setOpaque(false);
+        JLabel modeLbl = new JLabel(currentDrawTool == DrawTool.PEN ? "Pen" : "Highlighter");
+        JPanel preview = new JPanel(); preview.setPreferredSize(new Dimension(34, 16)); preview.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60))); preview.setBackground(baseOpaque);
+        header.add(modeLbl); header.add(preview);
+        panel.add(header);
+        panel.add(Box.createVerticalStrut(6));
+
+        // Row: Recent
+        JPanel recentRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); recentRow.setOpaque(false);
+        recentRow.add(new JLabel("Recent:"));
+        JPanel recentBox = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0)); recentBox.setOpaque(false);
+        for (Color rc : recentColors) { recentBox.add(makeSwatch(rc, 18, c -> { applyPickedColor(c); preview.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue())); })); }
+        recentRow.add(recentBox);
+        panel.add(recentRow);
+        panel.add(Box.createVerticalStrut(6));
+
+        // Palette grid (2x8), no labels
+        JPanel paletteRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); paletteRow.setOpaque(false);
+        JPanel grid = new JPanel(new GridLayout(2, 8, 6, 6)); grid.setOpaque(false);
         Color[] palette = new Color[]{
                 new Color(20,20,20), new Color(90,90,90), new Color(150,150,150), new Color(220,220,220),
                 new Color(244,67,54), new Color(255,152,0), new Color(255,235,59), new Color(255,193,7),
@@ -183,26 +262,81 @@ public class NotetakingPanel extends EntryPanel {
                 new Color(63,81,181), new Color(156,39,176), new Color(233,30,99), new Color(121,85,72)
         };
         for (Color c : palette) {
-            JButton sw = new JButton();
-            sw.setPreferredSize(new Dimension(20,20));
-            sw.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
-            sw.setBackground(c);
-            sw.setFocusPainted(false);
-            sw.addActionListener(e -> {
-                if (currentDrawTool == DrawTool.HIGHLIGHT) {
-                    highlightColor = new Color(c.getRed(), c.getGreen(), c.getBlue(), 120);
-                } else if (currentDrawTool == DrawTool.PEN) {
-                    penColor = new Color(c.getRed(), c.getGreen(), c.getBlue(), 255);
-                }
-                updatePickersForCurrentTool();
-            });
-            swatches.add(sw);
+            grid.add(makeSwatch(c, 18, chosen -> { applyPickedColor(chosen); preview.setBackground(new Color(chosen.getRed(), chosen.getGreen(), chosen.getBlue())); }));
         }
-        boolean colorEnabled = currentDrawTool != DrawTool.ERASER;
-        for (Component c : swatches.getComponents()) c.setEnabled(colorEnabled);
-        colorRow.add(swatches);
-        panel.add(colorRow, gc);
+        paletteRow.add(grid);
+        panel.add(paletteRow);
+        panel.add(Box.createVerticalStrut(6));
+
+        // Row: Opacity (only for highlighter)
+        if (currentDrawTool == DrawTool.HIGHLIGHT) {
+            JPanel alphaRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); alphaRow.setOpaque(false);
+            alphaRow.add(new JLabel("Opacity:"));
+            int[] alphas = new int[]{60, 90, 120, 150, 180, 210};
+            for (int a : alphas) {
+                JButton chip = new JButton(Integer.toString(a));
+                chip.setMargin(new Insets(2,6,2,6));
+                chip.setFocusPainted(false);
+                chip.addActionListener(e -> {
+                    Color rgb = new Color(preview.getBackground().getRed(), preview.getBackground().getGreen(), preview.getBackground().getBlue());
+                    highlightColor = new Color(rgb.getRed(), rgb.getGreen(), rgb.getBlue(), a);
+                    updatePickersForCurrentTool();
+                });
+                alphaRow.add(chip);
+            }
+            panel.add(alphaRow);
+        }
+
         return panel;
+    }
+
+    private void rebuildShades(JPanel shadesBox, Color hueBase, JPanel preview) {
+        shadesBox.removeAll();
+        float[] hsb = Color.RGBtoHSB(hueBase.getRed(), hueBase.getGreen(), hueBase.getBlue(), null);
+        // Generate 8 shades across brightness while keeping saturation high
+        for (int i=0;i<8;i++){
+            float v = 0.25f + (i*(0.75f/7f));
+            Color shade = Color.getHSBColor(hsb[0], 0.9f, v);
+            shadesBox.add(makeSwatch(shade, 18, c -> {
+                applyPickedColor(c);
+                preview.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue()));
+            }));
+        }
+        shadesBox.revalidate(); shadesBox.repaint();
+    }
+
+    private JButton makeSwatch(Color c, int size, java.util.function.Consumer<Color> onPick){
+        JButton sw = new JButton();
+        sw.setPreferredSize(new Dimension(size, size));
+        sw.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
+        sw.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue()));
+        sw.setFocusPainted(false);
+        sw.addActionListener(e -> onPick.accept(new Color(c.getRed(), c.getGreen(), c.getBlue())));
+        return sw;
+    }
+
+    private void applyPickedColor(Color rgb){
+        if (currentDrawTool == DrawTool.HIGHLIGHT) {
+            // Preserve existing alpha
+            int a = highlightColor.getAlpha();
+            highlightColor = new Color(rgb.getRed(), rgb.getGreen(), rgb.getBlue(), a);
+        } else if (currentDrawTool == DrawTool.PEN) {
+            penColor = new Color(rgb.getRed(), rgb.getGreen(), rgb.getBlue(), 255);
+        }
+        pushRecentColor(rgb);
+        updatePickersForCurrentTool();
+        try { if (colorWindow != null) colorWindow.setVisible(false); } catch (Throwable ignored) {}
+    }
+
+    private void pushRecentColor(Color rgb){
+        // Store as opaque RGB, most-recent first, de-duplicate
+        int rgbInt = (rgb.getRGB() & 0x00FFFFFF);
+        java.util.Iterator<Color> it = recentColors.iterator();
+        while(it.hasNext()){
+            if ((it.next().getRGB() & 0x00FFFFFF) == rgbInt) { it.remove(); break; }
+        }
+        recentColors.addFirst(new Color(rgb.getRed(), rgb.getGreen(), rgb.getBlue()));
+        while(recentColors.size() > 8) recentColors.removeLast();
     }
 
     private void ensureDrawMenu() {
