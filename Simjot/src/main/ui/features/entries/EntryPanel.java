@@ -119,6 +119,9 @@ public class EntryPanel extends AbstractEditorPanel {
      */
     protected boolean supportsGuidanceButton() { return true; }
 
+    protected void installExtraRightToolbarButtons(JPanel rightToolbar) { }
+    protected void installContentOverlay(JComponent textWrapper, JScrollPane scrollPane) { }
+
     // Load an existing entry file into the editor fields
     private void loadExistingEntry(File fileToEdit) {
         try (BufferedReader reader = new BufferedReader(new FileReader(fileToEdit))) {
@@ -369,6 +372,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 journalFolder.lastModified(),
                 null
         );
+        installExtraRightToolbarButtons(rightToolbar);
         main.ui.components.toolbars.PoetryStyleToolbar sharedToolbar = new main.ui.components.toolbars.PoetryStyleToolbar(
                 app,
                 nbInfo,
@@ -568,6 +572,7 @@ public class EntryPanel extends AbstractEditorPanel {
         // Add scroll pane to the translucent wrapper (no inline formatting bar)
         textWrapper.setLayout(new BorderLayout());
         textWrapper.add(scrollPane, BorderLayout.CENTER);
+        installContentOverlay(textWrapper, scrollPane);
 
         // Add some vertical space between toolbar and content (like PoemPanel)
         JPanel centerContainer = new JPanel(new BorderLayout());
