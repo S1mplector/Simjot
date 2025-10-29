@@ -24,9 +24,11 @@ public class NotetakingPanel extends EntryPanel {
 
     // --- Drawing overlay state ---
     private DrawingOverlay drawingOverlay;
-    private boolean drawingEnabled = false;
+    private boolean drawingEnabled = false; // capture mode (draw interactions)
+    private boolean overlayVisible = true;  // paint overlay visibility
     private DrawTool currentDrawTool = DrawTool.PEN;
     private final List<DrawStroke> drawStrokes = new ArrayList<>(); // persisted per-note
+    private main.ui.components.popup.AnimatedGlassPopup toolPopup;
     private JPopupMenu drawToolMenu;
     private Color penColor = new Color(20,20,20,255);
     private Color highlightColor = new Color(255,235,59,120);
@@ -50,6 +52,14 @@ public class NotetakingPanel extends EntryPanel {
         // Add richer formatting accelerators on top of base behavior
         installAdvancedFormattingShortcuts();
     }
+
+    private void maybeShowDrawMenu(MouseEvent e, JComponent invoker) {
+        if (!(e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3)) return; // right-click or platform popup
+        if (drawToolMenu != null && drawToolMenu.isVisible()) return; // prevent re-show on release
+        ensureDrawMenu();
+        drawToolMenu.show(invoker, 0, invoker.getHeight());
+        e.consume();
+    }
     
     @Override
     protected boolean supportsMoodControls() {
@@ -69,25 +79,49 @@ public class NotetakingPanel extends EntryPanel {
     // Install Draw toggle + tool chooser into the right toolbar
     @Override
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) {
-        JButton drawBtn = new main.ui.components.buttons.ToolbarIconButton("pencil");
-        drawBtn.setToolTipText("Draw on (click to toggle, right-click to choose tool)");
-        drawBtn.addActionListener(e -> {
-            drawingEnabled = !drawingEnabled;
-            if (drawingOverlay != null) drawingOverlay.setActive(drawingEnabled);
-            drawBtn.setForeground(drawingEnabled ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
+        // Layer visibility toggle (brush icon) — does NOT capture input
+        main.ui.components.buttons.ToolbarIconButton layerBtn = new main.ui.components.buttons.ToolbarIconButton("brush");
+        layerBtn.setToolTipText("Show/Hide drawing overlay (right-click: choose tool)");
+        layerBtn.addActionListener(e -> {
+            overlayVisible = !overlayVisible;
+            if (drawingOverlay != null) drawingOverlay.setOverlayVisible(overlayVisible);
+            layerBtn.setIconOpacity(overlayVisible ? 1f : 0.45f);
         });
-        drawBtn.addMouseListener(new MouseAdapter() {
+        // Bind tool chooser to the brush (paint mode) button
+        layerBtn.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    ensureDrawMenu();
-                    drawToolMenu.show(drawBtn, 0, drawBtn.getHeight());
+                if (e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3) {
+                    ButtonModel m = layerBtn.getModel();
+                    m.setArmed(false); m.setPressed(false);
+                    maybeShowDrawMenu(e, layerBtn);
+                }
+            }
+            @Override public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3) {
+                    ButtonModel m = layerBtn.getModel();
+                    m.setArmed(false); m.setPressed(false);
+                    maybeShowDrawMenu(e, layerBtn);
                 }
             }
         });
+        rightToolbar.add(layerBtn);
+        layerBtn.setIconOpacity(overlayVisible ? 1f : 0.45f);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+
+        // Draw capture toggle (write icon) — enables drawing interactions
+        main.ui.components.buttons.ToolbarIconButton drawBtn = new main.ui.components.buttons.ToolbarIconButton("write");
+        drawBtn.setToolTipText("Draw mode (click to toggle)");
+        drawBtn.addActionListener(e -> {
+            drawingEnabled = !drawingEnabled;
+            if (drawingOverlay != null) drawingOverlay.setCaptureEnabled(drawingEnabled);
+            drawBtn.setForeground(drawingEnabled ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
+        });
+        // No context menu on write; right-click menu is bound to the brush button
         rightToolbar.add(drawBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
         strokeSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 64, 1));
+        try { strokeSpinner.setUI(new main.ui.components.spinner.ModernSpinnerUI()); } catch (Throwable ignored) {}
         strokeSpinner.addChangeListener(e -> {
             int v = (int) strokeSpinner.getValue();
             if (currentDrawTool == DrawTool.PEN) penThickness = v;
@@ -102,12 +136,9 @@ public class NotetakingPanel extends EntryPanel {
         colorBtn.setPreferredSize(new Dimension(24, 24));
         colorBtn.setFocusPainted(false);
         colorBtn.addActionListener(e -> {
-            Color base = JColorChooser.showDialog(NotetakingPanel.this, "Choose Color", currentDrawTool==DrawTool.HIGHLIGHT ? new Color(highlightColor.getRed(), highlightColor.getGreen(), highlightColor.getBlue()) : new Color(penColor.getRed(), penColor.getGreen(), penColor.getBlue()));
-            if (base != null) {
-                if (currentDrawTool == DrawTool.HIGHLIGHT) highlightColor = new Color(base.getRed(), base.getGreen(), base.getBlue(), 120);
-                else if (currentDrawTool == DrawTool.PEN) penColor = new Color(base.getRed(), base.getGreen(), base.getBlue(), 255);
-                updatePickersForCurrentTool();
-            }
+            ensureColorPopup();
+            Point p = colorBtn.getLocationOnScreen();
+            toolPopup.showAt(p.x + colorBtn.getWidth()/2, p.y, () -> buildColorPopupContent());
         });
         rightToolbar.add(colorBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
@@ -126,21 +157,92 @@ public class NotetakingPanel extends EntryPanel {
         updatePickersForCurrentTool();
     }
 
+    private void ensureColorPopup() {
+        if (toolPopup != null) return;
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        toolPopup = new main.ui.components.popup.AnimatedGlassPopup(owner);
+    }
+
+    private JPanel buildColorPopupContent() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new GridBagLayout());
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(4,6,4,6);
+        gc.gridx = 0; gc.gridy = 0; gc.anchor = GridBagConstraints.WEST;
+
+        JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        colorRow.setOpaque(false);
+        colorRow.add(new JLabel("Color:"));
+        JPanel swatches = new JPanel(new GridLayout(2, 8, 6, 6));
+        swatches.setOpaque(false);
+        Color[] palette = new Color[]{
+                new Color(20,20,20), new Color(90,90,90), new Color(150,150,150), new Color(220,220,220),
+                new Color(244,67,54), new Color(255,152,0), new Color(255,235,59), new Color(255,193,7),
+                new Color(76,175,80), new Color(0,150,136), new Color(3,169,244), new Color(33,150,243),
+                new Color(63,81,181), new Color(156,39,176), new Color(233,30,99), new Color(121,85,72)
+        };
+        for (Color c : palette) {
+            JButton sw = new JButton();
+            sw.setPreferredSize(new Dimension(20,20));
+            sw.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
+            sw.setBackground(c);
+            sw.setFocusPainted(false);
+            sw.addActionListener(e -> {
+                if (currentDrawTool == DrawTool.HIGHLIGHT) {
+                    highlightColor = new Color(c.getRed(), c.getGreen(), c.getBlue(), 120);
+                } else if (currentDrawTool == DrawTool.PEN) {
+                    penColor = new Color(c.getRed(), c.getGreen(), c.getBlue(), 255);
+                }
+                updatePickersForCurrentTool();
+            });
+            swatches.add(sw);
+        }
+        boolean colorEnabled = currentDrawTool != DrawTool.ERASER;
+        for (Component c : swatches.getComponents()) c.setEnabled(colorEnabled);
+        colorRow.add(swatches);
+        panel.add(colorRow, gc);
+        return panel;
+    }
+
     private void ensureDrawMenu() {
-        if (drawToolMenu != null) return;
-        drawToolMenu = new JPopupMenu();
-        JRadioButtonMenuItem pen = new JRadioButtonMenuItem("Pen", true);
-        JRadioButtonMenuItem hi = new JRadioButtonMenuItem("Highlighter");
-        JRadioButtonMenuItem er = new JRadioButtonMenuItem("Eraser");
+        if (drawToolMenu == null) {
+            drawToolMenu = new JPopupMenu();
+            try { drawToolMenu.setLightWeightPopupEnabled(false); } catch (Throwable ignored) { try { JPopupMenu.setDefaultLightWeightPopupEnabled(false); } catch (Throwable ignored2) {} }
+        }
+        drawToolMenu.removeAll();
+        JRadioButtonMenuItem pen = new JRadioButtonMenuItem("Pen", currentDrawTool == DrawTool.PEN);
+        JRadioButtonMenuItem hi = new JRadioButtonMenuItem("Highlighter", currentDrawTool == DrawTool.HIGHLIGHT);
+        JRadioButtonMenuItem er = new JRadioButtonMenuItem("Eraser", currentDrawTool == DrawTool.ERASER);
+        pen.setActionCommand("pen"); hi.setActionCommand("highlighter"); er.setActionCommand("eraser");
         ButtonGroup g = new ButtonGroup(); g.add(pen); g.add(hi); g.add(er);
-        pen.addActionListener(e -> currentDrawTool = DrawTool.PEN);
-        hi.addActionListener(e -> currentDrawTool = DrawTool.HIGHLIGHT);
-        er.addActionListener(e -> currentDrawTool = DrawTool.ERASER);
-        ActionListener sync = e -> updatePickersForCurrentTool();
-        pen.addActionListener(sync); hi.addActionListener(sync); er.addActionListener(sync);
-        drawToolMenu.add(pen);
-        drawToolMenu.add(hi);
-        drawToolMenu.add(er);
+        ActionListener act = e -> {
+            String cmd = e.getActionCommand();
+            if ("pen".equals(cmd)) {
+                currentDrawTool = DrawTool.PEN;
+                pen.setSelected(true); hi.setSelected(false); er.setSelected(false);
+            } else if ("highlighter".equals(cmd)) {
+                currentDrawTool = DrawTool.HIGHLIGHT;
+                pen.setSelected(false); hi.setSelected(true); er.setSelected(false);
+            } else {
+                currentDrawTool = DrawTool.ERASER;
+                pen.setSelected(false); hi.setSelected(false); er.setSelected(true);
+            }
+            updatePickersForCurrentTool();
+            // Close after selection to avoid event re-entry quirks
+            try { drawToolMenu.setVisible(false); } catch (Throwable ignored) {}
+        };
+        pen.addActionListener(act); hi.addActionListener(act); er.addActionListener(act);
+        java.awt.event.MouseAdapter immediate = new java.awt.event.MouseAdapter(){
+            @Override public void mousePressed(java.awt.event.MouseEvent e){
+                Object src = e.getSource();
+                if (src == pen) pen.doClick(0);
+                else if (src == hi) hi.doClick(0);
+                else if (src == er) er.doClick(0);
+            }
+        };
+        pen.addMouseListener(immediate); hi.addMouseListener(immediate); er.addMouseListener(immediate);
+        drawToolMenu.add(pen); drawToolMenu.add(hi); drawToolMenu.add(er);
     }
 
     // Overlay above the text scrollPane that scrolls in sync with content
@@ -157,7 +259,8 @@ public class NotetakingPanel extends EntryPanel {
         overlayStack.add(scrollPane, Integer.valueOf(0));
         overlayStack.add(drawingOverlay, Integer.valueOf(100));
         textWrapper.add(overlayStack, BorderLayout.CENTER);
-        drawingOverlay.setActive(drawingEnabled);
+        drawingOverlay.setOverlayVisible(overlayVisible);
+        drawingOverlay.setCaptureEnabled(drawingEnabled);
     }
 
     private void installAdvancedFormattingShortcuts() {
@@ -404,7 +507,7 @@ public class NotetakingPanel extends EntryPanel {
                     cs.drawImage(pdImg, 0, 0, rect.getWidth(), rect.getHeight());
                 }
                 doc.save(out);
-            } catch (IOException ignored) {}
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -420,7 +523,7 @@ public class NotetakingPanel extends EntryPanel {
         private final JScrollPane host;
         private final JViewport vp;
         private final JComponent view;
-        private boolean active = false;
+        private boolean capture = false; // whether to intercept mouse events
         private DrawStroke current;
         DrawingOverlay(JScrollPane host, JComponent view) {
             this.host = host;
@@ -429,7 +532,7 @@ public class NotetakingPanel extends EntryPanel {
             setOpaque(false);
             MouseAdapter ma = new MouseAdapter() {
                 @Override public void mousePressed(MouseEvent e) {
-                    if (!active || !SwingUtilities.isLeftMouseButton(e)) return;
+                    if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
                     current = makeStroke();
@@ -438,7 +541,7 @@ public class NotetakingPanel extends EntryPanel {
                     repaint();
                 }
                 @Override public void mouseDragged(MouseEvent e) {
-                    if (!active) return;
+                    if (!capture) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
                     if (current == null) return;
@@ -455,12 +558,17 @@ public class NotetakingPanel extends EntryPanel {
                 @Override public void componentResized(ComponentEvent e) { revalidate(); repaint(); }
             });
         }
-        void setActive(boolean on) {
-            this.active = on;
+        void setOverlayVisible(boolean on) {
             setVisible(on);
-            setEnabled(on);
-            setCursor(on ? Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR) : Cursor.getDefaultCursor());
             repaint();
+        }
+        void setCaptureEnabled(boolean on) {
+            this.capture = on;
+            setCursor(on ? Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR) : Cursor.getDefaultCursor());
+        }
+        @Override public boolean contains(int x, int y) {
+            // When not capturing, pretend we are not under the mouse so the text editor receives events
+            return capture && super.contains(x, y);
         }
         private Point toDoc(Point p) { Point vpPos = vp.getViewPosition(); return new Point(p.x + vpPos.x, p.y + vpPos.y); }
         private DrawStroke makeStroke() {

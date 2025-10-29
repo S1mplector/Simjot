@@ -1,13 +1,28 @@
 package main.ui.components.buttons;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Dimension;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.Point;
+import java.awt.RadialGradientPaint;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
-import javax.swing.*;
-import main.ui.components.icons.VectorIconPainter;
+
+import javax.swing.JButton;
+import javax.swing.Timer;
+
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.icons.VectorIconPainter;
+import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.theme.Theme;
 
 /*
  * This class is used to create toolbar icons
@@ -22,6 +37,7 @@ public class ToolbarIconButton extends JButton {
     private boolean glow;
     private Timer glowTimer;
     private float glowPhase=0f;
+    private float iconOpacity = 1f; // 0..1 alpha multiplier for icon only
 
     private static boolean globalGlow = main.core.service.SettingsStore.get().isGlowEnabled();
     private static final java.util.List<ToolbarIconButton> INSTANCES = new java.util.ArrayList<>();
@@ -40,6 +56,12 @@ public class ToolbarIconButton extends JButton {
     }
 
     public void setSelected(boolean s){ this.selected=s; repaint(); }
+
+    /** Adjust only the icon opacity (0..1), leaving button chrome unchanged. */
+    public void setIconOpacity(float alpha){
+        float a = Math.max(0f, Math.min(1f, alpha));
+        if (this.iconOpacity != a) { this.iconOpacity = a; repaint(); }
+    }
 
     /** Enable or disable fancy glow animation */
     public void setGlow(boolean g){
@@ -91,11 +113,19 @@ public class ToolbarIconButton extends JButton {
         if (resourcePath != null) {
             java.awt.image.BufferedImage buf = ImageIconRenderer.get(resourcePath, size, true);
             if (buf != null) {
+                Composite old = g2.getComposite();
+                if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
                 g2.drawImage(buf, ix, iy, null);
+                if (iconOpacity < 0.999f) g2.setComposite(old);
                 painted = true;
             }
         }
-        if(!painted){ drawVector(g2); }
+        if(!painted){
+            Composite old = g2.getComposite();
+            if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
+            drawVector(g2);
+            if (iconOpacity < 0.999f) g2.setComposite(old);
+        }
 
         // Optional glow retained but softened
         if(glow && !Theme.isPlainWhite()){

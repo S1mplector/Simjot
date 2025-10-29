@@ -182,6 +182,7 @@ public final class ImageIconRenderer {
             case "wrench", "settings", "options" -> "img/icons/settings.png";
             case "trash" -> "img/icons/trash.png";
             case "new", "write", "plus" -> "img/icons/write.png";
+            case "brush" -> "img/icons/brush.png";
             case "delete", "delete_entry" -> "img/icons/delete_entry.png";
             case "back" -> "img/icons/back.png";
             case "list" -> "img/icons/list.png";
