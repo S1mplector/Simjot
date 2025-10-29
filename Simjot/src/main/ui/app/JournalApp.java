@@ -350,29 +350,8 @@ public class JournalApp extends JFrame {
         try {
             this.addWindowListener(new WindowAdapter(){
                 @Override public void windowClosing(WindowEvent e) {
-                    // Best-effort: trigger save on all open editors first (persist guided responses)
-                    try {
-                        for (main.ui.features.entries.NotebookEditor ed : new java.util.ArrayList<>(openEditors)) {
-                            try { ed.triggerSave(); } catch (Throwable ignored) {}
-                        }
-                    } catch (Throwable ignored) {}
-
-                    // Stop Sim components and overlay animations to ensure timers/threads end
-                    try { if (simOverlay != null) simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
-                    try { if (simScheduler != null) simScheduler.stop(); } catch (Throwable ignored) {}
-                    try { if (simBrain != null) simBrain.shutdown(); } catch (Throwable ignored) {}
-
-                    // Run backup off the EDT to avoid UI freeze; do not block close
-                    try {
-                        Thread t = new Thread(() -> {
-                            try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
-                        }, "BackupOnWindowClose");
-                        t.setDaemon(true);
-                        t.start();
-                    } catch (Throwable ignored) {}
-
-                    // After scheduling background cleanup, request JVM exit now
-                    try { System.exit(0); } catch (Throwable ignored) {}
+                    // Unified graceful shutdown (shows exiting splash, closes resources, exits)
+                    exitGracefully();
                 }
             });
         } catch (Throwable ignored) {}
@@ -518,6 +497,64 @@ public class JournalApp extends JFrame {
     public void updateWidgetPanelVisibility() {
         if (mainMenuPanel instanceof MainMenuPanel) {
             ((MainMenuPanel) mainMenuPanel).updateWidgetPanelVisibility();
+        }
+    }
+
+    /**
+     * Shows an exiting splash and performs a graceful shutdown:
+     * saves open editors, stops Sim components, stops services, triggers a final backup,
+     * then exits the JVM.
+     */
+    public void exitGracefully() {
+        try {
+            final AeroSplashScreen splash = new AeroSplashScreen();
+            splash.setStatus("Exiting…");
+            splash.setVisible(true);
+            try { setEnabled(false); } catch (Throwable ignored) {}
+            try { setVisible(false); } catch (Throwable ignored) {}
+
+            final java.util.List<main.ui.features.entries.NotebookEditor> editors = new java.util.ArrayList<>(openEditors);
+
+            new javax.swing.SwingWorker<Void, String>() {
+                @Override protected Void doInBackground() {
+                    publish("Saving open editors…");
+                    try {
+                        javax.swing.SwingUtilities.invokeAndWait(() -> {
+                            for (main.ui.features.entries.NotebookEditor ed : editors) {
+                                try { ed.triggerSave(); } catch (Throwable ignored) {}
+                            }
+                        });
+                    } catch (Throwable ignored) {}
+
+                    publish("Stopping Sim components…");
+                    try {
+                        javax.swing.SwingUtilities.invokeAndWait(() -> {
+                            try { if (simOverlay != null) simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
+                            try { if (simScheduler != null) simScheduler.stop(); } catch (Throwable ignored) {}
+                            try { if (simBrain != null) simBrain.shutdown(); } catch (Throwable ignored) {}
+                        });
+                    } catch (Throwable ignored) {}
+
+                    publish("Stopping services…");
+                    try { main.infrastructure.backup.BackupService.get().stop(); } catch (Throwable ignored) {}
+
+                    publish("Finalizing backup…");
+                    try { main.infrastructure.backup.BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+
+                    try { Thread.sleep(150); } catch (Throwable ignored) {}
+                    return null;
+                }
+                @Override protected void process(java.util.List<String> chunks) {
+                    if (!chunks.isEmpty()) splash.setStatus(chunks.get(chunks.size()-1));
+                }
+                @Override protected void done() {
+                    splash.fadeOutAndDispose(() -> {
+                        try { System.exit(0); } catch (Throwable ignored) {}
+                    });
+                }
+            }.execute();
+        } catch (Throwable t) {
+            try { System.exit(0); } catch (Throwable ignored) {}
         }
     }
 

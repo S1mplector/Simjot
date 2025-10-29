@@ -408,6 +408,21 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(settingsButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
 
+        // ---- Exit button (bottom) ----
+        buttonPanel.add(Box.createRigidArea(new Dimension(0, 16)));
+        FadingButton exitButton = new MainMenuButton("Exit", "close");
+        exitButton.setForeground(AeroTheme.TEXT_PRIMARY);
+        exitButton.setFont(exitButton.getFont().deriveFont(Font.BOLD, 20f));
+        exitButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        exitButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        exitButton.addActionListener(e -> {
+            // Use the owning app instance to perform a graceful shutdown with exiting splash
+            if (app != null) {
+                app.exitGracefully();
+            }
+        });
+        buttonPanel.add(exitButton);
+
         content.add(Box.createRigidArea(new Dimension(0, 20)));
         content.add(buttonPanel);
 
