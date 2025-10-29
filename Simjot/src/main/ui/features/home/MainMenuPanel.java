@@ -1135,7 +1135,7 @@ public class MainMenuPanel extends JPanel {
         }
 
         private void update() {
-            java.time.LocalTime now = java.time.LocalTime.now();
+            java.time.LocalTime now = java.time.LocalTime.now(java.time.ZoneId.systemDefault());
             timeLbl.setText("It's currently " + now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
             int seconds = now.toSecondOfDay();
             double pct = seconds / 86400.0 * 100.0;

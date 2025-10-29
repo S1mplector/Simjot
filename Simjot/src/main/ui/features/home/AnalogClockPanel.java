@@ -3,7 +3,8 @@ package main.ui.features.home;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.AffineTransform;
-import java.util.Calendar;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import javax.swing.*;
 
 public class AnalogClockPanel extends JPanel {
@@ -82,14 +83,15 @@ public class AnalogClockPanel extends JPanel {
         }
 
         // Time
-        Calendar cal = Calendar.getInstance();
-        int hours = cal.get(Calendar.HOUR);
-        int minutes = cal.get(Calendar.MINUTE);
-        int seconds = cal.get(Calendar.SECOND);
+        LocalTime now = LocalTime.now(ZoneId.systemDefault());
+        int hours = now.getHour() % 12;
+        int minutes = now.getMinute();
+        int seconds = now.getSecond();
 
         // Angles
-        double hourAngle = Math.toRadians((hours + minutes / 60.0) * 30 - 90);
-        double minuteAngle = Math.toRadians((minutes + seconds / 60.0) * 6 - 90);
+        // Note: Hour/Minute hands are Path2D shapes defined along +Y (down), so rotate by an extra -90°
+        double hourAngle = Math.toRadians((hours + minutes / 60.0 + seconds / 3600.0) * 30 - 180);
+        double minuteAngle = Math.toRadians((minutes + seconds / 60.0) * 6 - 180);
         double secondAngle = Math.toRadians(seconds * 6 - 90);
 
         // Hands lengths

@@ -59,6 +59,7 @@ main/ui/features/entries/EntryPanel$6.class
 main/core/sim/engine/SimBrain$1.class
 main/core/sim/llm/api/DefaultSimSuggestionService$1.class
 main/ui/components/spinner/ModernSpinner.class
+main/ui/features/entries/NotetakingPanel$5.class
 main/ui/sim/overlay/SimOverlay$ChatLine.class
 main/ui/features/drawing/DrawingCanvas$1.class
 main/ui/features/home/MainMenuPanel$DraggableWidgetPanel$2.class
@@ -85,11 +86,13 @@ main/ui/features/poetry/StatsSidebarPanel$3.class
 main/ui/components/buttons/RoundedToggleButton.class
 main/ui/components/datepicker/ModernDatePicker$1.class
 main/infrastructure/backup/NotebookInfo.class
+main/ui/features/notebooks/NotebookManagerPanel$4.class
 main/ui/features/entries/PoemPanel$3.class
 main/ui/features/entries/AutosaveManager$1.class
 main/infrastructure/backup/NotebookInfo$Type.class
 main/ui/features/settings/StorageSettingsPage$StorageTreeCellRenderer$IconCanvas.class
 main/ui/features/quicksettings/QuickSettingsOverlay$1.class
+main/ui/features/entries/NotetakingPanel$3.class
 main/ui/features/entries/EntryPanel$4.class
 main/ui/sim/overlay/ChatTranscriptModel$Role.class
 main/ui/features/drawing/DrawingPanel$ModernComboBoxUI.class
@@ -109,6 +112,7 @@ main/ui/features/splash/AeroSplashScreen$Spinner.class
 main/ui/components/combobox/ModernComboBoxUI.class
 main/ui/dialog/security/LockScreenDialog.class
 main/ui/features/quicksettings/QuickSettingsOverlay$2.class
+main/ui/features/entries/NotetakingPanel$7.class
 main/ui/features/drawing/DrawingPanel$ModernComboBoxRenderer.class
 main/ui/features/drawing/InkOverlay$3.class
 main/infrastructure/io/AppDirectories$Type.class
@@ -151,6 +155,7 @@ main/ui/features/home/MoodChartPanel$2.class
 main/ui/features/drawing/InkOverlay$2.class
 main/ui/features/editing/UndoRedoManager.class
 main/core/sim/data/SimDataGateway$MoodSample.class
+main/ui/features/entries/NotetakingPanel$6.class
 main/ui/components/icons/VectorIconPainter.class
 main/ui/components/util/EditorUIUtils.class
 main/ui/features/widgets/BreathingWidget$Phase.class
@@ -159,6 +164,7 @@ main/ui/sim/overlay/ChatTranscriptModel.class
 main/ui/features/gallery/GeneratedWallpapers.class
 main/ui/features/editing/UndoRedoManager$1.class
 main/ui/features/splash/AeroSplashScreen.class
+main/ui/features/entries/NotetakingPanel$8.class
 main/core/security/LockUtil.class
 main/ui/app/JournalApp$2.class
 main/ui/features/drawing/Stroke.class
@@ -213,6 +219,7 @@ main/ui/features/settings/StorageSettingsPage$SizeBadgeLabel.class
 main/ui/components/combobox/ModernComboBoxUI$1.class
 main/ui/features/drawing/DrawingPanel$BrushPreviewPopup.class
 main/core/security/LockController$1.class
+main/ui/features/entries/NotetakingPanel$4.class
 main/ui/components/popup/AnimatedGlassPopup$1.class
 main/ui/features/home/BackgroundPanel$3.class
 main/ui/dialog/setup/TutorialDialog.class
@@ -286,6 +293,7 @@ main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog$1.class
 main/ui/components/containers/TranslucentPanel.class
 main/ui/features/entries/EntryPanel$5.class
 main/ui/features/quicksettings/QuickSettingsController$HostApi.class
+main/ui/features/entries/NotetakingPanel$2.class
 main/ui/features/widgets/IdeaStickyWidget.class
 main/core/sim/engine/TurnManager.class
 main/ui/features/widgets/IdeaStickyWidget$6.class
@@ -327,6 +335,7 @@ main/ui/components/buttons/RoundedButton.class
 main/ui/dialog/config/BreathingConfigDialog$1.class
 main/core/sim/api/SimEventBus.class
 main/ui/scaling/UIScalingManager.class
+main/ui/features/entries/NotetakingPanel$1.class
 main/ui/dialog/message/CustomMessageDialog.class
 main/core/sim/engine/NudgePrefaceBuilder.class
 main/ui/features/entries/EntryTypeSelectionDialog.class
@@ -385,6 +394,7 @@ main/ui/features/drawing/DrawingCanvas$Tool.class
 main/ui/features/widgets/PomodoroWidget$1.class
 main/ui/dialog/confirmation/CustomConfirmDialog.class
 main/ui/components/combobox/ModernComboBoxUI$ModernComboBoxRenderer.class
+main/ui/features/entries/NotetakingPanel.class
 main/ui/features/notebooks/NotebookManagerPanel$NotebookTile$1.class
 main/ui/theme/aero/AeroPainters.class
 main/ui/features/widgets/BreathingWidget.class

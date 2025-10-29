@@ -6,6 +6,8 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import javax.swing.*;
 import javax.imageio.ImageIO;
 import javax.swing.border.EmptyBorder;
@@ -873,13 +875,13 @@ public class EntryPanel extends AbstractEditorPanel {
             g2.drawLine(x1, y1, x2, y2);
         }
 
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        int hours = cal.get(java.util.Calendar.HOUR);
-        int minutes = cal.get(java.util.Calendar.MINUTE);
-        int seconds = cal.get(java.util.Calendar.SECOND);
+        LocalTime now = LocalTime.now(ZoneId.systemDefault());
+        int hours = now.getHour() % 12;
+        int minutes = now.getMinute();
+        int seconds = now.getSecond();
 
-        double hourAngle = Math.toRadians((hours + minutes / 60.0) * 30 - 90);
-        double minuteAngle = Math.toRadians((minutes + seconds / 60.0) * 6 - 90);
+        double hourAngle = Math.toRadians((hours + minutes / 60.0 + seconds / 3600.0) * 30 - 180);
+        double minuteAngle = Math.toRadians((minutes + seconds / 60.0) * 6 - 180);
         double secondAngle = Math.toRadians(seconds * 6 - 90);
 
         int hourLen = (int)(dialR * 0.55);
@@ -1006,13 +1008,13 @@ public class EntryPanel extends AbstractEditorPanel {
         }
 
         // Time
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        int hr = cal.get(java.util.Calendar.HOUR_OF_DAY) % 12;
-        int min = cal.get(java.util.Calendar.MINUTE);
-        int sec = cal.get(java.util.Calendar.SECOND);
+        LocalTime now = LocalTime.now(ZoneId.systemDefault());
+        int hr = now.getHour() % 12;
+        int min = now.getMinute();
+        int sec = now.getSecond();
 
-        double ah = Math.toRadians(((hr + min / 60.0) * 30.0) - 90);
-        double am = Math.toRadians(min * 6.0 - 90);
+        double ah = Math.toRadians(((hr + min / 60.0 + sec / 3600.0) * 30.0) - 90);
+        double am = Math.toRadians((min + sec / 60.0) * 6.0 - 90);
         double as = Math.toRadians(sec * 6.0 - 90);
 
         // Hands
