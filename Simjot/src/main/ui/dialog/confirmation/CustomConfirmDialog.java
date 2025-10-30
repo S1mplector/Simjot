@@ -15,6 +15,15 @@ public class CustomConfirmDialog extends JDialog {
 
     private CustomConfirmDialog(Frame parent, String title, String message) {
         super(parent, title, true);
+        buildUI(message, parent);
+    }
+
+    private CustomConfirmDialog(Window owner, String title, String message) {
+        super(owner, title, ModalityType.APPLICATION_MODAL);
+        buildUI(message, owner);
+    }
+
+    private void buildUI(String message, Window parent) {
         setUndecorated(true);
         setBackground(new Color(0,0,0,0));
         setLayout(new BorderLayout());
@@ -57,14 +66,18 @@ public class CustomConfirmDialog extends JDialog {
      * Shows the confirmation dialog and returns true if user pressed Yes.
      */
     public static boolean confirm(Component parent, String title, String message) {
-        Frame frame = (parent instanceof Frame) ? (Frame) parent : (Frame) SwingUtilities.getWindowAncestor(parent);
-        if(frame == null) frame = new JFrame();
-        CustomConfirmDialog dialog = new CustomConfirmDialog(frame, title, message);
+        Window win = (parent != null) ? SwingUtilities.getWindowAncestor(parent) : null;
+        CustomConfirmDialog dialog;
+        if (win instanceof Frame f) {
+            dialog = new CustomConfirmDialog(f, title, message);
+        } else {
+            dialog = new CustomConfirmDialog(win, title, message);
+        }
         dialog.setVisible(true);
         boolean result = dialog.accepted;
-        if(frame instanceof JournalApp) {
-            ((JournalApp)frame).ensureFullScreen();
+        if(win instanceof JournalApp) {
+            ((JournalApp)win).ensureFullScreen();
         }
         return result;
     }
-} 
+}
