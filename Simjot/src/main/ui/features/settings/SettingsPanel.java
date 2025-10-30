@@ -12,6 +12,7 @@ import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.theme.aero.AeroLookAndFeel;
+import main.ui.features.splash.AeroSplashScreen;
 
 public class SettingsPanel extends JPanel {
 
@@ -124,39 +125,56 @@ public class SettingsPanel extends JPanel {
     }
 
     private void saveAll(){
-        // Capture Sim enable flag before applying changes
-        boolean wasSimEnabled;
-        try { wasSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable t) { wasSimEnabled = false; }
+        final AeroSplashScreen splash = new AeroSplashScreen();
+        splash.setStatus("Saving settings…");
+        splash.setVisible(true);
 
-        pages.values().forEach(SettingsPage::apply);
-        SettingsStore.get().save();
+        final boolean wasSimEnabled;
+        try { wasSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable t) { throw new RuntimeException(t); }
 
-        // Reapply Look & Feel with potential theme change and refresh UI
-        try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
-        try { SwingUtilities.updateComponentTreeUI(app); } catch (Throwable ignored) {}
+        new javax.swing.SwingWorker<Void, String>() {
+            private boolean nowSimEnabled = false;
+            @Override protected Void doInBackground() {
+                publish("Saving preferences…");
+                try { pages.values().forEach(SettingsPage::apply); } catch (Throwable ignored) {}
+                try { SettingsStore.get().save(); } catch (Throwable ignored) {}
 
-        // Determine Sim enable flag after saving
-        boolean nowSimEnabled;
-        try { nowSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable t) { nowSimEnabled = false; }
+                publish("Updating look & feel…");
+                try {
+                    javax.swing.SwingUtilities.invokeAndWait(() -> {
+                        try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
+                        try { javax.swing.SwingUtilities.updateComponentTreeUI(app); } catch (Throwable ignored) {}
+                    });
+                } catch (Throwable ignored) {}
 
-        // Toggle Sim runtime if changed
-        if (wasSimEnabled != nowSimEnabled) {
-            try {
-                if (nowSimEnabled) {
-                    app.enableSimFeatures();
-                } else {
-                    app.disableSimFeatures();
+                publish("Applying features…");
+                try { nowSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable ignored) {}
+                if (wasSimEnabled != nowSimEnabled) {
+                    try {
+                        javax.swing.SwingUtilities.invokeAndWait(() -> {
+                            try { if (nowSimEnabled) app.enableSimFeatures(); else app.disableSimFeatures(); } catch (Throwable ignored) {}
+                        });
+                    } catch (Throwable ignored) {}
                 }
-            } catch (Throwable ignored) {}
-        }
 
-        // Refresh main menu so background / theme update instantly
-        app.recreateMainMenuPanel();
-        
-        // Update widget panel visibility immediately
-        app.updateWidgetPanelVisibility();
-
-        CustomMessageDialog.display(this, "Success", "Settings saved.", false);
+                publish("Refreshing UI…");
+                try {
+                    javax.swing.SwingUtilities.invokeAndWait(() -> {
+                        try { app.recreateMainMenuPanel(); } catch (Throwable ignored) {}
+                        try { app.updateWidgetPanelVisibility(); } catch (Throwable ignored) {}
+                    });
+                } catch (Throwable ignored) {}
+                return null;
+            }
+            @Override protected void process(java.util.List<String> chunks) {
+                if (!chunks.isEmpty()) splash.setStatus(chunks.get(chunks.size()-1));
+            }
+            @Override protected void done() {
+                splash.fadeOutAndDispose(() -> {
+                    try { CustomMessageDialog.display(SettingsPanel.this, "Success", "Settings saved.", false); } catch (Throwable ignored) {}
+                });
+            }
+        }.execute();
     }
 
     // ---------- Page types ---------- //
