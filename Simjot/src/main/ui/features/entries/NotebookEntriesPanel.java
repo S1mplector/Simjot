@@ -48,6 +48,13 @@ public class NotebookEntriesPanel extends JPanel {
     private final javax.swing.Timer searchDebounce = new javax.swing.Timer(200, e -> update());
     private SwingWorker<Void, FileMeta> metaLoader;
 
+    // Debounced list rebuild to avoid frequent model churn on metadata updates
+    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(80, e -> applyFilterSort());
+    // Track which files have computed metadata and which are enqueued
+    private final java.util.Set<File> metaComputed = new java.util.HashSet<>();
+    private final java.util.Set<File> metaQueued = new java.util.HashSet<>();
+    private javax.swing.JScrollPane listScroll;
+
     // Folder watch
     private WatchService watchService;
     private Thread watchThread;
@@ -250,9 +257,22 @@ public class NotebookEntriesPanel extends JPanel {
                 if(e.getClickCount()==2){ openSelected(); }
             }
         });
-        add(new JScrollPane(list),BorderLayout.CENTER);
+        listScroll = new JScrollPane(list);
+        add(listScroll,BorderLayout.CENTER);
+        // Prioritize metadata for visible items on scroll/resize
+        try {
+            listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
+                if (!e.getValueIsAdjusting()) ensureMetaForVisibleRange();
+            });
+        } catch (Throwable ignored) {}
 
-        loadFiles(); update();
+        // Configure debouncers
+        listUpdateDebounce.setRepeats(false);
+
+        loadFiles();
+        update();
+        // After initial layout, compute meta for visible items first
+        SwingUtilities.invokeLater(this::ensureMetaForVisibleRange);
     }
 
     private void loadFiles(){
@@ -273,6 +293,8 @@ public class NotebookEntriesPanel extends JPanel {
         });
         titles.clear();
         wordCounts.clear();
+        metaComputed.clear();
+        metaQueued.clear();
         if(arr!=null){
             allFiles = Arrays.asList(arr);
             // Seed placeholders fast on EDT
@@ -280,34 +302,19 @@ public class NotebookEntriesPanel extends JPanel {
                 titles.put(f, null);
                 wordCounts.put(f, 0);
             }
-
-            // Load real metadata in background and live-update UI
-            metaLoader = new SwingWorker<>() {
-                @Override protected Void doInBackground() {
-                    for (File f : allFiles) {
-                        if (isCancelled()) break;
-                        int wc = calculateWordCount(f);
-                        String t = extractTitle(f);
-                        publish(new FileMeta(f, wc, t));
-                    }
-                    return null;
-                }
-                @Override protected void process(java.util.List<FileMeta> chunks) {
-                    for (FileMeta m : chunks) {
-                        titles.put(m.file, m.title);
-                        wordCounts.put(m.file, m.wc);
-                    }
-                    // Re-apply filter/sort as data enriches
-                    update();
-                }
-            };
-            metaLoader.execute();
+            // Start prioritized metadata loading (visible first)
+            startPrioritizedMetaLoader(java.util.List.copyOf(allFiles));
         } else {
             allFiles = java.util.Collections.emptyList();
         }
     }
 
     private void update(){
+        // Debounce model rebuilds
+        listUpdateDebounce.restart();
+    }
+
+    private void applyFilterSort(){
         String q = searchField.getText()==null? "" : searchField.getText().toLowerCase();
         List<File> filtered = allFiles.stream().filter(f -> {
             String name = f.getName().toLowerCase();
@@ -324,6 +331,8 @@ public class NotebookEntriesPanel extends JPanel {
         }
         model.clear();
         filtered.forEach(model::addElement);
+        // After resort/filter, make sure visible items are prioritized for metadata
+        ensureMetaForVisibleRange();
     }
 
     private void createNew(){
@@ -405,6 +414,7 @@ public class NotebookEntriesPanel extends JPanel {
         super.addNotify();
         startWatching();
         refresh();
+        SwingUtilities.invokeLater(this::ensureMetaForVisibleRange);
     }
 
     @Override public void removeNotify(){
@@ -456,6 +466,59 @@ public class NotebookEntriesPanel extends JPanel {
             try { watchService.close(); } catch (Exception ignored) {}
             watchService = null;
         }
+    }
+
+    // Prioritize metadata loading for currently visible items
+    private void ensureMetaForVisibleRange(){
+        try {
+            int first = list.getFirstVisibleIndex();
+            int last = list.getLastVisibleIndex();
+            if (first < 0 || last < 0 || last < first) return;
+            java.util.List<File> visible = new java.util.ArrayList<>();
+            for (int i = first; i <= last && i < model.size(); i++) {
+                File f = model.get(i);
+                if (f != null) visible.add(f);
+            }
+            if (!visible.isEmpty()) {
+                startPrioritizedMetaLoader(visible);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private void startPrioritizedMetaLoader(java.util.List<File> preferredFirst){
+        if (preferredFirst == null) preferredFirst = java.util.Collections.emptyList();
+        // Cancel ongoing worker to re-prioritize
+        if (metaLoader != null && !metaLoader.isDone()) {
+            metaLoader.cancel(true);
+        }
+        java.util.LinkedHashSet<File> order = new java.util.LinkedHashSet<>(preferredFirst);
+        for (File f : allFiles) order.add(f);
+        metaLoader = new SwingWorker<>() {
+            @Override protected Void doInBackground() {
+                for (File f : order) {
+                    if (isCancelled()) break;
+                    if (metaComputed.contains(f)) continue;
+                    synchronized (metaQueued) {
+                        if (metaQueued.contains(f)) continue;
+                        metaQueued.add(f);
+                    }
+                    int wc = calculateWordCount(f);
+                    String t = extractTitle(f);
+                    publish(new FileMeta(f, wc, t));
+                    if (isCancelled()) break;
+                }
+                return null;
+            }
+            @Override protected void process(java.util.List<FileMeta> chunks) {
+                for (FileMeta m : chunks) {
+                    titles.put(m.file, m.title);
+                    wordCounts.put(m.file, m.wc);
+                    metaComputed.add(m.file);
+                }
+                update();
+            }
+        };
+        metaLoader.execute();
     }
 
     // --- Helpers ---

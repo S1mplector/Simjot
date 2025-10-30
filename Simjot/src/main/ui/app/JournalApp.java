@@ -90,6 +90,9 @@ public class JournalApp extends JFrame {
     // Factory/DI for editors
     private NotebookEditorFactory editorFactory;
 
+    // Track which static cards have been created lazily
+    private final java.util.Set<String> createdStaticCards = new java.util.HashSet<>();
+
     // Sim components
     private SimOverlay simOverlay;
     private SimBrain simBrain;
@@ -257,34 +260,7 @@ public class JournalApp extends JFrame {
         // Editor factory/DI
         editorFactory = new NotebookEditorFactory(this, cardLayout, cardPanel);
 
-        // "New" creation panels (use factory)
-        {
-            NotebookEditor e = editorFactory.create(NotebookEditorType.ENTRY);
-            cardPanel.add(e.getMainComponent(), NEW_ENTRY);
-        }
-        {
-            NotebookEditor p = editorFactory.create(NotebookEditorType.POEM);
-            cardPanel.add(p.getMainComponent(), NEW_POEM);
-        }
-
-
-        // Additional Panels
-        cardPanel.add(new MoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
-        settingsPanel = new SettingsPanel(this, cardLayout, cardPanel);
-        cardPanel.add(settingsPanel, SETTINGS);
-
-        // Drawing panel
-        DrawingPanel drawingPanel = new DrawingPanel(this);
-        cardPanel.add(drawingPanel, "Drawing");
-
-        // Gallery panel uses drawings dir and needs drawingPanel reference
-        galleryPanel = new GalleryPanel(AppDirectories.folder(AppDirectories.Type.DRAWINGS), cardLayout, cardPanel,
-                this, drawingPanel);
-        cardPanel.add(galleryPanel, GALLERY);
-
-        // ----------------- Notebooks Manager Panel -----------------
-        NotebookManagerPanel notebookManagerPanel = new NotebookManagerPanel(this);
-        cardPanel.add(notebookManagerPanel, NOTEBOOK_MANAGER);
+        // Remaining panels are created lazily upon first navigation
 
         getContentPane().add(cardPanel);
 
@@ -384,6 +360,9 @@ public class JournalApp extends JFrame {
         // Emit Sim event for card switch
         try { SimEventBus.get().emitCardSwitched(cardName); } catch (Throwable ignored) {}
 
+        // Ensure target card exists (lazy creation) before showing
+        maybeCreateLazyCard(cardName);
+
         if (SettingsStore.get().isAnimationsDisabled() || !firstSwitchDone) {
             // If animations are off, or it's the first switch, do it instantly.
             cardLayout.show(cardPanel, cardName);
@@ -423,6 +402,7 @@ public class JournalApp extends JFrame {
         }
 
         fadePanel.startFadeOut(() -> {
+            maybeCreateLazyCard(cardName);
             cardLayout.show(cardPanel, cardName);
             if (cardName.equals(NOTEBOOK_MANAGER)) {
                 for (Component c : cardPanel.getComponents()) {
@@ -440,6 +420,36 @@ public class JournalApp extends JFrame {
             }
             fadePanel.startFadeIn();
         });
+    }
+
+    private void maybeCreateLazyCard(String cardName) {
+        if (cardName == null) return;
+        if (createdStaticCards.contains(cardName)) return;
+        try {
+            if (cardName.equals(MOOD_CHART)) {
+                cardPanel.add(new MoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
+                createdStaticCards.add(MOOD_CHART);
+            } else if (cardName.equals(SETTINGS)) {
+                settingsPanel = new SettingsPanel(this, cardLayout, cardPanel);
+                cardPanel.add(settingsPanel, SETTINGS);
+                createdStaticCards.add(SETTINGS);
+            } else if (cardName.equals(GALLERY)) {
+                DrawingPanel dp = new DrawingPanel(this);
+                cardPanel.add(dp, "Drawing");
+                createdStaticCards.add("Drawing");
+                galleryPanel = new GalleryPanel(AppDirectories.folder(AppDirectories.Type.DRAWINGS), cardLayout, cardPanel,
+                        this, dp);
+                cardPanel.add(galleryPanel, GALLERY);
+                createdStaticCards.add(GALLERY);
+            } else if (cardName.equals(NOTEBOOK_MANAGER)) {
+                NotebookManagerPanel notebookManagerPanel = new NotebookManagerPanel(this);
+                cardPanel.add(notebookManagerPanel, NOTEBOOK_MANAGER);
+                createdStaticCards.add(NOTEBOOK_MANAGER);
+            } else if (cardName.equals(MAIN_MENU)) {
+                // already created in initUI
+                createdStaticCards.add(MAIN_MENU);
+            }
+        } catch (Throwable ignored) {}
     }
 
     // MAIN MENU: Contains the big background, the clock, the header, and animated
