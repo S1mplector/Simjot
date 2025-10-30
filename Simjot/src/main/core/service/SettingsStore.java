@@ -54,6 +54,13 @@ public final class SettingsStore {
     public static final String KEY_BACKUP_FREQ = "backup.frequency";
     public static final String KEY_BACKUP_KEEP = "backup.keep";
     private static final String KEY_LAST_BACKUP_EPOCH = "backup.last.epoch";
+    private static final String KEY_BACKUP_DEST = "backup.dest";
+    private static final String KEY_BACKUP_ON_EXIT_ALWAYS = "backup.onExitAlways";
+    private static final String KEY_BACKUP_INCLUDE_WALLPAPERS = "backup.include.wallpapers";
+    private static final String KEY_BACKUP_INCLUDE_MOOD = "backup.include.mood";
+    private static final String KEY_BACKUP_INCLUDE_SETTINGS = "backup.include.settings";
+    private static final String KEY_BACKUP_VERIFY = "backup.verify";
+    private static final String KEY_BACKUP_PRUNE_DAYS = "backup.prune.days";
     // Security / Lock settings
     private static final String KEY_LOCK_ENABLED = "lock.enabled";
     private static final String KEY_LOCK_TIMEOUT_SEC = "lock.timeoutSec";
@@ -95,6 +102,12 @@ public final class SettingsStore {
     public static final String DEF_BACKUP_FREQ = "Off";
     public static final int DEF_BACKUP_KEEP = 7;
     public static final long DEF_LAST_BACKUP_EPOCH = 0L;
+    private static final boolean DEF_BACKUP_ON_EXIT_ALWAYS = false;
+    private static final boolean DEF_BACKUP_INCLUDE_WALLPAPERS = false;
+    private static final boolean DEF_BACKUP_INCLUDE_MOOD = true;
+    private static final boolean DEF_BACKUP_INCLUDE_SETTINGS = true;
+    private static final boolean DEF_BACKUP_VERIFY = false;
+    private static final int DEF_BACKUP_PRUNE_DAYS = 0;
     // Security defaults
     private static final boolean DEF_LOCK_ENABLED = false;
     private static final int DEF_LOCK_TIMEOUT_SEC = 0;
@@ -316,6 +329,30 @@ public final class SettingsStore {
     public void setLastBackupEpochMillis(long epoch) {
         props.setProperty(KEY_LAST_BACKUP_EPOCH, String.valueOf(Math.max(0L, epoch)));
     }
+
+    public String getBackupDestinationPath(){ return props.getProperty(KEY_BACKUP_DEST, ""); }
+    public void setBackupDestinationPath(String p){ if(p==null || p.isBlank()) props.remove(KEY_BACKUP_DEST); else props.setProperty(KEY_BACKUP_DEST, p); }
+
+    public boolean isBackupOnExitAlways(){ return Boolean.parseBoolean(props.getProperty(KEY_BACKUP_ON_EXIT_ALWAYS, String.valueOf(DEF_BACKUP_ON_EXIT_ALWAYS))); }
+    public void setBackupOnExitAlways(boolean b){ props.setProperty(KEY_BACKUP_ON_EXIT_ALWAYS, String.valueOf(b)); }
+
+    public boolean isBackupIncludeWallpapers(){ return Boolean.parseBoolean(props.getProperty(KEY_BACKUP_INCLUDE_WALLPAPERS, String.valueOf(DEF_BACKUP_INCLUDE_WALLPAPERS))); }
+    public void setBackupIncludeWallpapers(boolean b){ props.setProperty(KEY_BACKUP_INCLUDE_WALLPAPERS, String.valueOf(b)); }
+
+    public boolean isBackupIncludeMood(){ return Boolean.parseBoolean(props.getProperty(KEY_BACKUP_INCLUDE_MOOD, String.valueOf(DEF_BACKUP_INCLUDE_MOOD))); }
+    public void setBackupIncludeMood(boolean b){ props.setProperty(KEY_BACKUP_INCLUDE_MOOD, String.valueOf(b)); }
+
+    public boolean isBackupIncludeSettings(){ return Boolean.parseBoolean(props.getProperty(KEY_BACKUP_INCLUDE_SETTINGS, String.valueOf(DEF_BACKUP_INCLUDE_SETTINGS))); }
+    public void setBackupIncludeSettings(boolean b){ props.setProperty(KEY_BACKUP_INCLUDE_SETTINGS, String.valueOf(b)); }
+
+    public boolean isBackupVerify(){ return Boolean.parseBoolean(props.getProperty(KEY_BACKUP_VERIFY, String.valueOf(DEF_BACKUP_VERIFY))); }
+    public void setBackupVerify(boolean b){ props.setProperty(KEY_BACKUP_VERIFY, String.valueOf(b)); }
+
+    public int getBackupPruneDays(){
+        try { return Integer.parseInt(props.getProperty(KEY_BACKUP_PRUNE_DAYS, String.valueOf(DEF_BACKUP_PRUNE_DAYS))); }
+        catch (NumberFormatException e){ return DEF_BACKUP_PRUNE_DAYS; }
+    }
+    public void setBackupPruneDays(int days){ props.setProperty(KEY_BACKUP_PRUNE_DAYS, String.valueOf(Math.max(0, days))); }
 
     // --- Accent color persistence ---
     public int getMainMenuAccentRGB(){

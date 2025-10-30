@@ -76,8 +76,12 @@ public final class BackupService {
     public void triggerOnExit() {
         try {
             SettingsStore store = SettingsStore.get();
+            boolean always = store.isBackupOnExitAlways();
+            if (always) {
+                runBackupNow();
+                return;
+            }
             if (BackupManager.parseFrequency(store.getBackupFrequency()) == BackupManager.Frequency.OFF) return;
-            // If it's due, do it synchronously to ensure it's created before exit.
             long now = System.currentTimeMillis();
             long last = store.getLastBackupEpochMillis();
             String freqStr = store.getBackupFrequency();
@@ -99,12 +103,31 @@ public final class BackupService {
     private void runBackupNow() {
         try {
             File src = AppDirectories.getRoot();
-            File backupRoot = new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "backups");
             SettingsStore store = SettingsStore.get();
+            String customDest = store.getBackupDestinationPath();
+            File backupRoot = (customDest == null || customDest.isBlank())
+                    ? new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "backups")
+                    : new File(customDest);
             int keep = Math.max(1, store.getBackupKeepCount());
-            BackupManager.performBackup(src, backupRoot, keep);
+            int pruneDays = Math.max(0, store.getBackupPruneDays());
+            boolean includeMood = store.isBackupIncludeMood();
+            boolean includeSettings = store.isBackupIncludeSettings();
+            boolean includeWallpapers = store.isBackupIncludeWallpapers();
+            boolean verify = store.isBackupVerify();
+
+            if (!backupRoot.exists()) backupRoot.mkdirs();
+            BackupManager.performBackup(
+                    src,
+                    backupRoot,
+                    keep,
+                    pruneDays,
+                    includeMood,
+                    includeSettings,
+                    includeWallpapers,
+                    verify
+            );
+
             store.setLastBackupEpochMillis(System.currentTimeMillis());
-            // Persist settings so we don't repeat on next launch
             store.save();
         } catch (Throwable ignored) {}
     }

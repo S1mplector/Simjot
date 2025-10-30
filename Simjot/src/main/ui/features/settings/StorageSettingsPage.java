@@ -32,6 +32,10 @@ import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
 import javax.swing.SwingWorker;
 import javax.swing.SwingConstants;
+import javax.swing.JFileChooser;
+import javax.swing.JTextField;
+import javax.swing.JCheckBox;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -43,6 +47,10 @@ import main.infrastructure.monitoring.AppPerf;
 import main.core.service.SettingsStore;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.components.checkbox.ModernCheckBoxUI;
+import main.infrastructure.backup.BackupService;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.infrastructure.backup.BackupManager;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
@@ -55,6 +63,13 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<String> backupFreqBox;
     private final JSpinner backupKeepSpin;
     private final javax.swing.JButton backupNowBtn;
+    private final JTextField backupDestField;
+    private final JSpinner backupPruneDaysSpin;
+    private final JCheckBox includeMoodChk;
+    private final JCheckBox includeSettingsChk;
+    private final JCheckBox includeWallpapersChk;
+    private final JCheckBox verifyChk;
+    private final JCheckBox onExitAlwaysChk;
 
     StorageSettingsPage() {
         setLayout(new BorderLayout());
@@ -227,6 +242,68 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         });
         bgc.gridx = 0; bgc.gridy = 2; bgc.gridwidth = 2; backups.add(backupNowBtn, bgc);
 
+        bgc.gridy = 3; bgc.gridwidth = 1; bgc.gridx = 0; backups.add(SettingsUi.label("Destination:"), bgc);
+        JPanel destRow = new JPanel(new BorderLayout(6,0)); destRow.setOpaque(false);
+        String dest = store.getBackupDestinationPath();
+        backupDestField = new JTextField(dest==null?"":dest);
+        backupDestField.setColumns(24);
+        javax.swing.JButton chooseDest = new RoundedButton("Choose…");
+        chooseDest.addActionListener(ev -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            if (!backupDestField.getText().isBlank()) fc.setCurrentDirectory(new File(backupDestField.getText()));
+            int res = fc.showOpenDialog(StorageSettingsPage.this);
+            if (res == JFileChooser.APPROVE_OPTION && fc.getSelectedFile()!=null) {
+                backupDestField.setText(fc.getSelectedFile().getAbsolutePath());
+            }
+        });
+        destRow.add(backupDestField, BorderLayout.CENTER);
+        destRow.add(chooseDest, BorderLayout.EAST);
+        bgc.gridx = 1; backups.add(destRow, bgc);
+
+        includeMoodChk = new JCheckBox("Include mood data", store.isBackupIncludeMood()); includeMoodChk.setOpaque(false); includeMoodChk.setUI(new ModernCheckBoxUI());
+        includeSettingsChk = new JCheckBox("Include app settings", store.isBackupIncludeSettings()); includeSettingsChk.setOpaque(false); includeSettingsChk.setUI(new ModernCheckBoxUI());
+        includeWallpapersChk = new JCheckBox("Include wallpapers", store.isBackupIncludeWallpapers()); includeWallpapersChk.setOpaque(false); includeWallpapersChk.setUI(new ModernCheckBoxUI());
+        verifyChk = new JCheckBox("Verify after backup", store.isBackupVerify()); verifyChk.setOpaque(false); verifyChk.setUI(new ModernCheckBoxUI());
+        onExitAlwaysChk = new JCheckBox("Always backup on exit", store.isBackupOnExitAlways()); onExitAlwaysChk.setOpaque(false); onExitAlwaysChk.setUI(new ModernCheckBoxUI());
+
+        bgc.gridy = 4; bgc.gridx = 0; backups.add(SettingsUi.label("Includes:"), bgc);
+        JPanel includesRow = new JPanel(); includesRow.setOpaque(false); includesRow.setLayout(new BoxLayout(includesRow, BoxLayout.Y_AXIS));
+        includesRow.add(includeMoodChk);
+        includesRow.add(includeSettingsChk);
+        includesRow.add(includeWallpapersChk);
+        bgc.gridx = 1; backups.add(includesRow, bgc);
+
+        bgc.gridy = 5; bgc.gridx = 0; backups.add(SettingsUi.label("Safeguards:"), bgc);
+        JPanel safeRow = new JPanel(); safeRow.setOpaque(false); safeRow.setLayout(new BoxLayout(safeRow, BoxLayout.Y_AXIS));
+        safeRow.add(verifyChk);
+        safeRow.add(onExitAlwaysChk);
+        bgc.gridx = 1; backups.add(safeRow, bgc);
+
+        backupPruneDaysSpin = new JSpinner(new SpinnerNumberModel(store.getBackupPruneDays(), 0, 3650, 1));
+        backupPruneDaysSpin.setUI(new ModernSpinnerUI());
+        ((JSpinner.DefaultEditor) backupPruneDaysSpin.getEditor()).getTextField().setColumns(4);
+        bgc.gridy = 6; bgc.gridx = 0; backups.add(SettingsUi.label("Prune backups older than (days):"), bgc);
+        bgc.gridx = 1; backups.add(backupPruneDaysSpin, bgc);
+
+        JPanel bottomActions = new JPanel(); bottomActions.setOpaque(false); bottomActions.setLayout(new BoxLayout(bottomActions, BoxLayout.X_AXIS));
+        RoundedButton openBackups = new RoundedButton("Open Backups Folder");
+        openBackups.putClientProperty("iconId", "explorer");
+        openBackups.addActionListener(ev -> {
+            try {
+                String d = backupDestField.getText();
+                File backupRoot = (d==null || d.isBlank()) ? new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "backups") : new File(d);
+                Desktop.getDesktop().open(backupRoot);
+            } catch (Exception ignored) {}
+        });
+        RoundedButton restoreBtn = new RoundedButton("Restore…");
+        restoreBtn.putClientProperty("iconId", "load");
+        restoreBtn.addActionListener(ev -> doRestore());
+        bottomActions.add(openBackups);
+        bottomActions.add(Box.createHorizontalStrut(8));
+        bottomActions.add(restoreBtn);
+        bgc.gridx = 0; bgc.gridy = 7; bgc.gridwidth = 2; backups.add(bottomActions, bgc);
+
         backupsCard.add(backups, BorderLayout.CENTER);
         content.add(backupsCard);
 
@@ -256,6 +333,14 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             SettingsStore store = SettingsStore.get();
             store.setBackupFrequency((String) backupFreqBox.getSelectedItem());
             store.setBackupKeepCount((Integer) backupKeepSpin.getValue());
+            store.setBackupDestinationPath(backupDestField.getText());
+            store.setBackupPruneDays((Integer) backupPruneDaysSpin.getValue());
+            store.setBackupIncludeMood(includeMoodChk.isSelected());
+            store.setBackupIncludeSettings(includeSettingsChk.isSelected());
+            store.setBackupIncludeWallpapers(includeWallpapersChk.isSelected());
+            store.setBackupVerify(verifyChk.isSelected());
+            store.setBackupOnExitAlways(onExitAlwaysChk.isSelected());
+            try { BackupService.get().start(); } catch (Throwable ignored) {}
         } catch (Throwable ignored) {}
     }
 
@@ -398,6 +483,37 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         TreePath sel = dirTree.getSelectionPath();
         if (sel == null) return;
         openPath(sel);
+    }
+
+    private void doRestore() {
+        try {
+            String d = backupDestField.getText();
+            File defaultRoot = (d==null || d.isBlank()) ? new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "backups") : new File(d);
+            JFileChooser fc = new JFileChooser(defaultRoot);
+            fc.setDialogTitle("Choose a backup folder to restore");
+            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            int res = fc.showOpenDialog(this);
+            if (res != JFileChooser.APPROVE_OPTION) return;
+            File selected = fc.getSelectedFile();
+            if (selected == null || !selected.isDirectory()) return;
+            boolean looksBackup = new File(selected, "notebooks").exists() || new File(selected, "notebooks.json").exists();
+            if (!looksBackup) {
+                try { main.ui.dialog.message.CustomMessageDialog.display(this, "Restore", "This folder does not look like a Simjot backup.", true); } catch (Throwable ignored) {}
+                return;
+            }
+            boolean ok = CustomConfirmDialog.confirm(SwingUtilities.getWindowAncestor(this), "Restore Backup",
+                    "This will overwrite your current data with the selected backup. Continue?");
+            if (!ok) return;
+            new SwingWorker<Void, Void>() {
+                @Override protected Void doInBackground() {
+                    try { BackupManager.restoreFromBackup(selected, AppDirectories.getRoot()); } catch (Throwable ignored) {}
+                    return null;
+                }
+                @Override protected void done() {
+                    try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Restore", "Restore completed.", false); } catch (Throwable ignored) {}
+                }
+            }.execute();
+        } catch (Throwable ignored) {}
     }
 
     // ---- Async sizes ----
