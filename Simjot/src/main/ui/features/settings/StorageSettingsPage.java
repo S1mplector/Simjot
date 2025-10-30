@@ -51,6 +51,7 @@ import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.infrastructure.backup.BackupService;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.infrastructure.backup.BackupManager;
+import main.ui.components.scrollbar.AeroScrollBarUI;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
@@ -323,7 +324,15 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
         gc.gridx = 0; gc.gridy = 0;
         centerWrapper.add(content, gc);
-        add(centerWrapper, BorderLayout.CENTER);
+        JScrollPane outerScroll = new JScrollPane(centerWrapper);
+        outerScroll.setBorder(BorderFactory.createEmptyBorder());
+        outerScroll.setOpaque(false);
+        outerScroll.getViewport().setOpaque(false);
+        outerScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        if (outerScroll.getVerticalScrollBar() != null) {
+            outerScroll.getVerticalScrollBar().setUI(new AeroScrollBarUI());
+        }
+        add(outerScroll, BorderLayout.CENTER);
     }
 
     @Override public JComponent getComponent() { return this; }
