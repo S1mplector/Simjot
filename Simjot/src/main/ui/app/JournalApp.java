@@ -24,6 +24,7 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
+import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.features.drawing.DrawingPanel;
 import main.ui.features.entries.NotebookEditor;
 import main.ui.features.entries.NotebookEditorFactory;
@@ -336,6 +337,7 @@ public class JournalApp extends JFrame {
         try {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
+                    CustomMessageDialog.setGlobalSuppressed(true);
                     for (main.ui.features.entries.NotebookEditor ed : new java.util.ArrayList<>(openEditors)) {
                         try { ed.triggerSave(); } catch (Throwable ignored) {}
                     }
@@ -517,6 +519,7 @@ public class JournalApp extends JFrame {
      */
     public void exitGracefully() {
         try {
+            CustomMessageDialog.setGlobalSuppressed(true);
             final AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Exiting…");
             splash.setVisible(true);

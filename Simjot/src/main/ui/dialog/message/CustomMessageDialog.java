@@ -7,6 +7,9 @@ import main.ui.app.JournalApp;
 import main.ui.components.containers.RoundedPanel;
 
 public class CustomMessageDialog extends JDialog {
+ 
+    private static volatile boolean SUPPRESS_ALL = false;
+    public static void setGlobalSuppressed(boolean suppressed) { SUPPRESS_ALL = suppressed; }
 
     public CustomMessageDialog(Frame parent, String title, String message, boolean isError) {
         super(parent, title, true); // true for modal
@@ -59,11 +62,13 @@ public class CustomMessageDialog extends JDialog {
     }
 
     public void showDialog() {
+        if (SUPPRESS_ALL) return;
         setVisible(true);
     }
 
     // Convenience helper for quick calls from anywhere (panel, frame, etc.)
     public static void display(Component parent, String title, String message, boolean isError) {
+        if (SUPPRESS_ALL) return;
         Frame frame;
         if (parent instanceof Frame) {
             frame = (Frame) parent;
