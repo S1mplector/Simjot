@@ -6,11 +6,17 @@
 
 A feature-rich and highly personalizable journaling application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
 
+## Project Status
+
+- **Development Ended**: Due to scalability and maintenance constraints, Simjot is no longer in active development. The current codebase represents the final version.
+- **Support/PRs**: Issues and pull requests may not be reviewed or merged. Please feel free to fork for personal use.
+
 ## Features
 
 ### **Multi-Format Content Creation**
 - **Journal Entries**: Traditional diary-style entries with mood tracking and rich formatting
 - **Poetry Writing**: Dedicated poetry editor with metering and rhyme tips. 
+- **Notetaking**: Lightweight text notes with their own notebook type.
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
@@ -19,7 +25,7 @@ A feature-rich and highly personalizable journaling application built with Java 
 - **Visual mood trends** to track emotional patterns over time
 
 ### **Organization & Management**
-- **Notebook system** with different types (Journal, Poetry)
+- **Notebook system** with different types (Journal, Notetaking, Poetry)
 - **File browser** with entry previews and word counts
 - **Auto-save functionality** with timestamp-based filenames
 - **Search and filter** capabilities across all content
@@ -74,22 +80,18 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 
 ### Installation & Build
 1. **Clone or download** the project to your local machine
-2. **Open PowerShell or Command Prompt** in the project directory
-3. **Run the build script**:
+2. On Windows, you can use the provided packaging script (no longer actively maintained):
    ```cmd
    package_simjournal.bat
    ```
-
-The build process will:
-- Compile all Java sources
-- Create a modular JAR file
-- Generate a standalone application in the `dist/` folder
+   This compiles sources, builds a modular `Simjot.jar`, copies resources, and produces a Windows app image under `dist/`.
+3. On macOS/Linux (or if you prefer), build/run from your IDE or via `javac`/`jar` with the main class set to `main.ui.app.JournalApp`.
 
 ### Running the Application
 
 After building, you can run Simjot in two ways:
 
-**Option 1: Native Executable (Recommended)**
+**Option 1: Native Executable (Windows)**
 ```
 dist/Simjot/Simjot.exe
 ```
@@ -122,11 +124,15 @@ On first startup, Simjot will prompt you to:
 3. Use the "Inspire Me" button for creative prompts
 4. Track stanza count in real-time
 
+#### **Notetaking**
+1. Create or select a Notetaking notebook
+2. Use the streamlined editor for quick notes
+
 ### Organization
 
 #### **Notebooks**
 - Create separate notebooks for different topics or time periods
-- Choose notebook types: Journal, or Poetry
+- Choose notebook types: Journal, Notetaking, or Poetry
 - Each notebook maintains its own file structure
 
 #### **Viewing Content**
@@ -190,18 +196,15 @@ Simjot/
 
 ## Contributing
 
-This application wasn't meant to be commercially available, it's a personal journaling application, but if you'd like to contribute:
+This application wasn't meant to be commercially available; it's a personal journaling application. Given development has ended, contributions are unlikely to be merged, but you may:
 
 1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit your changes**: `git commit -m 'Add amazing feature'`
-4. **Push to the branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
+2. Maintain changes in your fork (recommended)
 
 ### Development Setup
 1. **Ensure Java 17+ is installed**
 2. **Import the project** into your preferred IDE
-3. **Run the main class**: `main.ui.JournalApp`
+3. **Run the main class**: `main.ui.app.JournalApp`
 4. **Make changes** and test thoroughly
 
 
@@ -213,7 +216,7 @@ This application wasn't meant to be commercially available, it's a personal jour
 - **File not found errors**: Check that the journal folder path is accessible
 
 ### Support
-For technical issues or feature requests, please check the project documentation or create an issue in the project repository.
+For technical questions, please refer to the existing documentation and code. New issues may not receive responses.
 
 ## Acknowledgments
 
