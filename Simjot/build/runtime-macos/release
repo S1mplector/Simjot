@@ -1,2 +1,2 @@
-JAVA_VERSION="22.0.2"
-MODULES="java.base java.datatransfer java.xml java.prefs java.desktop java.net.http jdk.unsupported"
+JAVA_VERSION="24.0.2"
+MODULES="java.base java.datatransfer java.xml java.prefs java.desktop java.logging java.net.http jdk.unsupported"

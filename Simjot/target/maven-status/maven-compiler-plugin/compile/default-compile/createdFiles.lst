@@ -14,6 +14,7 @@ main/ui/dialog/export/PoemExportDialog$1.class
 main/core/sim/persona/SimPersonality$Type.class
 main/core/sim/proactive/TriggerStatsStore$Stat.class
 main/ui/features/notebooks/NotebookManagerPanel$2.class
+main/ui/features/entries/NotetakingPanel$EditingMode.class
 main/ui/features/splash/AeroSplashScreen$1.class
 main/ui/components/checkbox/ModernCheckBoxUI.class
 main/ui/features/entries/AutosaveManager.class
@@ -45,6 +46,7 @@ main/core/sim/retrieval/RetrievalRanker.class
 main/ui/features/entries/TemplateManagerDialog$TemplateEditorPanel.class
 main/core/sim/llm/api/SimSuggestionService.class
 main/core/sim/proactive/ProactiveTriggerEngine$Input.class
+main/ui/features/entries/NotetakingPanel$DrawingOverlay.class
 main/ui/sim/overlay/SimOverlay$1.class
 main/ui/features/drawing/DrawingChooserDialog$1.class
 main/ui/features/widgets/IdeaStickyWidget$4.class
@@ -72,6 +74,7 @@ main/ui/components/checkbox/ModernCheckBoxUI$1.class
 main/ui/components/DragController.class
 main/ui/features/home/BackgroundPanel$2.class
 main/ui/components/datepicker/ModernDatePicker$CalendarPanel$DayButton.class
+main/ui/features/entries/NotetakingPanel$10.class
 main/ui/features/gallery/WallpaperGalleryPanel.class
 main/core/sim/proactive/ProactiveTriggerEngine$Output.class
 main/core/sim/memory/PersistentMemoryStore.class
@@ -121,6 +124,7 @@ main/ui/components/scrollbar/AeroScrollBarUI.class
 main/ui/features/entries/JournalTemplateManager$Scope.class
 main/ui/components/datepicker/ModernDatePicker$PresetButton.class
 main/ui/components/buttons/MainMenuButton.class
+main/ui/app/JournalApp$3.class
 main/core/sim/state/UserState.class
 main/ui/features/drawing/DrawingPanel$DrawingMouseAdapter.class
 main/core/sim/engine/SimBrain.class
@@ -211,6 +215,7 @@ main/ui/features/entries/NotebookEntriesPanel$FileMeta.class
 main/ui/features/settings/SettingsUi.class
 main/ui/features/drawing/DrawingPanel$Stroke.class
 main/ui/features/entries/EntryTypeSelectionDialog$3.class
+main/ui/features/entries/NotetakingPanel$9.class
 main/ui/features/widgets/BreathingWidget$PhaseInfo.class
 main/ui/features/notebooks/NotebookManagerPanel.class
 main/ui/theme/aero/AeroTheme.class
@@ -283,6 +288,7 @@ main/ui/sim/overlay/SimOverlay$Role.class
 main/core/poetry/MeterAnalysis.class
 main/ui/features/entries/TemplateManagerDialog$TemplateListRenderer.class
 main/ui/dialog/confirmation/CustomChoiceDialog.class
+main/ui/features/entries/NotetakingPanel$DrawStroke.class
 main/ui/features/entries/DetailedMoodDialog$SimpleGradientSliderUI.class
 main/ui/sim/overlay/ChatTranscriptModel$Entry.class
 main/infrastructure/io/DateFormatUtil.class
@@ -301,12 +307,14 @@ main/ui/features/entries/Mood.class
 main/ui/features/quicksettings/QuickSettingsIcons$BaseIcon.class
 main/ui/components/containers/RoundedPanel.class
 main/ui/features/notebooks/NotebookManagerPanel$NotebookTile.class
+main/ui/features/entries/NotetakingPanel$11.class
 main/core/sim/api/SimEventBus$Listener.class
 main/ui/features/drawing/DrawingPanel$ColorPopup.class
 main/ui/features/settings/StorageSettingsPage$GlassCardPanel.class
 main/core/sim/proactive/ProactiveTriggerEngine.class
 main/ui/components/DragController$1.class
 main/ui/features/gallery/WallpaperGalleryPanel$1.class
+main/ui/features/settings/StorageSettingsPage$5.class
 main/ui/features/home/BackgroundPanel.class
 main/ui/features/drawing/DrawingCanvas$Stroke.class
 main/ui/features/widgets/IdeaStickyWidget$5.class
@@ -354,6 +362,7 @@ main/ui/features/home/MainMenuPanel.class
 main/ui/features/entries/NotebookEntriesPanel$3.class
 main/ui/components/editor/ImagePasteManager$1.class
 main/core/sim/engine/SimScheduler.class
+main/ui/features/settings/SettingsPanel$1.class
 main/ui/features/entries/NotebookEditorFactory.class
 main/ui/features/home/HeaderPanel$2.class
 main/ui/components/input/AeroPasswordField.class
@@ -369,6 +378,7 @@ main/ui/features/home/MainMenuPanel$5.class
 main/ui/dialog/security/SetPasswordDialog.class
 main/ui/features/settings/SettingsPanel.class
 main/ui/features/drawing/InkOverlay$Stroke.class
+main/ui/features/entries/NotetakingPanel$DrawingOverlay$2.class
 main/ui/features/entries/TemplateManagerDialog$1.class
 main/ui/features/home/MainMenuPanel$2.class
 main/ui/features/widgets/PomodoroWidget$2.class
@@ -379,7 +389,9 @@ main/infrastructure/backup/BackupManager.class
 main/ui/dialog/utils/BreathingExerciseWindow.class
 main/ui/features/quicksettings/QuickSettingsIcons.class
 main/ui/dialog/message/CustomMessageDialog$1.class
+main/ui/features/entries/NotetakingPanel$DrawTool.class
 main/ui/features/entries/EditEntryPanel.class
+main/ui/features/entries/NotetakingPanel$DrawingOverlay$1.class
 main/ui/components/editor/ImagePasteManager$4.class
 main/ui/features/widgets/PomodoroWidget.class
 main/ui/components/slider/MoodSlider$MoodSliderUI.class

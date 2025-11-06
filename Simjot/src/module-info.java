@@ -7,6 +7,7 @@
 module Simjot {
 	requires transitive java.desktop;
     requires java.net.http;
+    requires org.apache.pdfbox;
 	
 	exports main.core.service;
 	exports main.core.model;
