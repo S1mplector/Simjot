@@ -175,6 +175,14 @@ public final class ImagePasteManager {
         }
     }
 
+    public static boolean insertImageFromBuffer(JTextPane editor,
+                                                BufferedImage bi,
+                                                java.util.function.Supplier<File> attachmentsDirSupplier,
+                                                int maxWidthPx) {
+        File dir = attachmentsDirSupplier != null ? attachmentsDirSupplier.get() : null;
+        return insertImage(editor, bi, dir, maxWidthPx);
+    }
+
     private static String timestampName() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS"));
     }

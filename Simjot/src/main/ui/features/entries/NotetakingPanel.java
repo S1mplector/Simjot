@@ -155,6 +155,28 @@ public class NotetakingPanel extends EntryPanel {
         rightToolbar.add(colorBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
+        // Math formula inserter (opens a small popup dialog, renders LaTeX to image, inserts at caret)
+        JButton mathBtn = new JButton("Math");
+        mathBtn.setToolTipText("Insert math formula (LaTeX)");
+        mathBtn.addActionListener(e -> {
+            try {
+                java.awt.Window owner = SwingUtilities.getWindowAncestor(this);
+                main.ui.dialog.input.MathFormulaDialog.Result res = main.ui.dialog.input.MathFormulaDialog.showDialog(owner);
+                if (res != null && res.image != null) {
+                    try {
+                        ImagePasteManager.insertImageFromBuffer(
+                                contentArea,
+                                res.image,
+                                () -> new File(journalFolder, "attachments"),
+                                1200
+                        );
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        });
+        rightToolbar.add(mathBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+
         JButton exportBtn = new JButton("Export");
         JPopupMenu exportMenu = new JPopupMenu();
         JMenuItem exportPng = new JMenuItem("Image (PNG)");
