@@ -38,15 +38,10 @@ public class EditPoemPanel extends PoemPanel {
     protected void savePoem() {
         String title = poemTitleField.getText().trim();
         String content = poemEditor.getText().trim();
-        if (title.isEmpty() && content.isEmpty()) {
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Please enter a title or some content for your poem.", true).showDialog();
-            return;
-        }
         try (PrintWriter writer = new PrintWriter(new FileWriter(poemFile))) {
             writer.println(title);
             writer.println();
             writer.println(content);
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", "Poem updated successfully!", false).showDialog();
             // Stay in the current panel - don't navigate away
         } catch (IOException ex) {
             ex.printStackTrace();

@@ -30,7 +30,6 @@ import main.ui.features.poetry.StatsSidebarPanel;
 import main.ui.features.poetry.RhymesDockPanel;
 import main.core.export.PoemExporter;
 import main.ui.dialog.export.PoemExportDialog;
-import main.ui.dialog.message.UIMessage;
 import main.ui.features.editing.UndoRedoManager;
 import main.core.service.LastSaveTracker;
 
@@ -461,13 +460,6 @@ public class PoemPanel extends AbstractEditorPanel {
         } catch (Exception ignored) { return; }
         String title = titleHolder[0];
         String content = contentHolder[0];
-        if (title.isEmpty() && content.trim().isEmpty()) {
-            UIMessage.error(this,
-                    "Error",
-                    "<b>Error:</b> cannot save poem without content.\n\n\"Your poem is empty.\"",
-                    "- Add a title or a few lines\n- Press Save again");
-            return;
-        }
         if (saveIndicator != null) saveIndicator.setSaving();
         // 'journalFolder' already points to the poems directory provided by AppDirectories
         if (!journalFolder.exists()) {
@@ -476,7 +468,6 @@ public class PoemPanel extends AbstractEditorPanel {
         
         try {
             File poemFile;
-            boolean isNewFile = false;
             
             if (currentFile == null) {
                 // First save - create new file
@@ -485,7 +476,6 @@ public class PoemPanel extends AbstractEditorPanel {
                 String filename = timestamp + ".poem";
                 poemFile = new File(journalFolder, filename);
                 currentFile = poemFile;
-                isNewFile = true;
             } else {
                 // Subsequent saves - use existing file
                 poemFile = currentFile;
@@ -510,10 +500,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (poemTitleUndoManager != null) poemTitleUndoManager.markSavePoint();
             } catch (Throwable ignored) {}
 
-            String message = isNewFile ? "Poem saved successfully!" : "Poem updated successfully!";
-            if (!isAutosaving) {
-                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog();
-            }
+            // Suppress success popups; rely on status indicator only
             if (saveIndicator != null) saveIndicator.setSaved(new Date());
             
             // Don't clear fields - keep content like NewEntryPanel does

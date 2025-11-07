@@ -32,7 +32,6 @@ import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.popup.AnimatedGlassPopup;
 import main.ui.components.slider.MoodSlider;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.dialog.message.UIMessage;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
@@ -1250,13 +1249,6 @@ public class EntryPanel extends AbstractEditorPanel {
         }
         String title = titleHolder[0];
         String content = contentHolder[0];
-        if (title.isEmpty() && content.trim().isEmpty()) {
-            SwingUtilities.invokeLater(() -> UIMessage.error(this,
-                    "Error",
-                    "<b>Error:</b> cannot save entry without a content.\n\n\"Your entry is empty.\"",
-                    "- Add a title or a few lines\n- Press Save again"));
-            return;
-        }
         int moodValue = moodHolder[0]; // 0 - 100
         if (moodValue >= 0) {
             recordMood(moodValue);
@@ -1272,7 +1264,6 @@ public class EntryPanel extends AbstractEditorPanel {
             }
 
             File file;
-            boolean isNewFile = false;
 
             if (currentFile == null) {
                 // First save - create new file
@@ -1281,7 +1272,6 @@ public class EntryPanel extends AbstractEditorPanel {
                 String filename = timestamp + fileExtension();
                 file = new File(journalFolder, filename);
                 currentFile = file;
-                isNewFile = true;
             } else {
                 // Subsequent saves - use existing file
                 file = currentFile;
@@ -1363,10 +1353,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 SettingsStore.get().save();
             } catch (Throwable ignored) {}
 
-            String message = isNewFile ? "Journal entry saved successfully!" : "Journal entry updated successfully!";
-            if (!isAutosaving) {
-                SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Success", message, false).showDialog());
-            }
+            // Suppress success popups; rely on status indicator only
 
             // Update status to Saved · time
             if (saveIndicator != null) saveIndicator.setSaved(new Date());
