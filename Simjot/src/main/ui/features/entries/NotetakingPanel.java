@@ -143,14 +143,15 @@ public class NotetakingPanel extends EntryPanel {
         colorBtn = new JButton();
         colorBtn.setPreferredSize(new Dimension(24, 24));
         colorBtn.setFocusPainted(false);
+        colorBtn.setOpaque(true);
+        colorBtn.setContentAreaFilled(true);
+        colorBtn.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
         colorBtn.addActionListener(e -> {
             ensureColorWindow();
             JPanel content = buildColorPopupContent();
             colorWindow.setContentPane(content);
             colorWindow.pack();
-            Point on = colorBtn.getLocationOnScreen();
-            colorWindow.setLocation(on.x, on.y + colorBtn.getHeight() + 6);
-            colorWindow.setVisible(true);
+            showColorWindowNear(colorBtn);
         });
         rightToolbar.add(colorBtn);
         // NOTE: Math and Export toolbar buttons are temporarily disabled while we test these features.
@@ -212,6 +213,40 @@ public class NotetakingPanel extends EntryPanel {
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
     }
 
+    private void showColorWindowNear(JComponent invoker){
+        if (colorWindow == null) return;
+        // Compute desired position (below invoker), then clamp to usable screen
+        Point p = invoker.getLocationOnScreen();
+        Dimension pref = colorWindow.getPreferredSize();
+        Rectangle screen = getUsableScreenBounds(invoker);
+        int x = p.x;
+        int y = p.y + invoker.getHeight() + 6; // prefer below
+        // If bottom overflows, try above
+        if (y + pref.height > screen.y + screen.height) {
+            int above = p.y - pref.height - 6;
+            y = Math.max(screen.y, above);
+        }
+        // Clamp horizontally
+        if (x + pref.width > screen.x + screen.width) x = (screen.x + screen.width) - pref.width;
+        if (x < screen.x) x = screen.x;
+        // Final safety clamp for vertical
+        if (y + pref.height > screen.y + screen.height) y = (screen.y + screen.height) - pref.height;
+        if (y < screen.y) y = screen.y;
+        colorWindow.setLocation(x, y);
+        colorWindow.setVisible(true);
+    }
+
+    private static Rectangle getUsableScreenBounds(Component c){
+        GraphicsConfiguration gc = c.getGraphicsConfiguration();
+        if (gc == null) gc = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+        Rectangle b = gc.getBounds();
+        Insets in = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+        return new Rectangle(b.x + in.left,
+                             b.y + in.top,
+                             b.width - in.left - in.right,
+                             b.height - in.top - in.bottom);
+    }
+
     private JPanel buildColorPopupContent() {
         // Determine starting color (ignore alpha for preview)
         Color base = (currentDrawTool == DrawTool.PEN ? penColor : highlightColor);
@@ -227,7 +262,11 @@ public class NotetakingPanel extends EntryPanel {
         // Row: header + preview
         JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0)); header.setOpaque(false);
         JLabel modeLbl = new JLabel(currentDrawTool == DrawTool.PEN ? "Pen" : "Highlighter");
-        JPanel preview = new JPanel(); preview.setPreferredSize(new Dimension(34, 16)); preview.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60))); preview.setBackground(baseOpaque);
+        JPanel preview = new JPanel();
+        preview.setOpaque(true);
+        preview.setPreferredSize(new Dimension(34, 16));
+        preview.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
+        preview.setBackground(baseOpaque);
         header.add(modeLbl); header.add(preview);
         panel.add(header);
         panel.add(Box.createVerticalStrut(6));
@@ -236,7 +275,7 @@ public class NotetakingPanel extends EntryPanel {
         JPanel recentRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); recentRow.setOpaque(false);
         recentRow.add(new JLabel("Recent:"));
         JPanel recentBox = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0)); recentBox.setOpaque(false);
-        for (Color rc : recentColors) { recentBox.add(makeSwatch(rc, 18, c -> { applyPickedColor(c); preview.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue())); })); }
+        for (Color rc : recentColors) { recentBox.add(makeSwatch(rc, 18, c -> { applyPickedColor(c, false); preview.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue())); rebuildRecentRow(recentBox, preview); })); }
         recentRow.add(recentBox);
         panel.add(recentRow);
         panel.add(Box.createVerticalStrut(6));
@@ -251,7 +290,7 @@ public class NotetakingPanel extends EntryPanel {
                 new Color(63,81,181), new Color(156,39,176), new Color(233,30,99), new Color(121,85,72)
         };
         for (Color c : palette) {
-            grid.add(makeSwatch(c, 18, chosen -> { applyPickedColor(chosen); preview.setBackground(new Color(chosen.getRed(), chosen.getGreen(), chosen.getBlue())); }));
+            grid.add(makeSwatch(c, 18, chosen -> { applyPickedColor(chosen, false); preview.setBackground(new Color(chosen.getRed(), chosen.getGreen(), chosen.getBlue())); rebuildRecentRow(recentBox, preview); }));
         }
         paletteRow.add(grid);
         panel.add(paletteRow);
@@ -287,7 +326,7 @@ public class NotetakingPanel extends EntryPanel {
             float v = 0.25f + (i*(0.75f/7f));
             Color shade = Color.getHSBColor(hsb[0], 0.9f, v);
             shadesBox.add(makeSwatch(shade, 18, c -> {
-                applyPickedColor(c);
+                applyPickedColor(c, false);
                 preview.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue()));
             }));
         }
@@ -297,14 +336,17 @@ public class NotetakingPanel extends EntryPanel {
     private JButton makeSwatch(Color c, int size, java.util.function.Consumer<Color> onPick){
         JButton sw = new JButton();
         sw.setPreferredSize(new Dimension(size, size));
+        sw.setMargin(new Insets(0,0,0,0));
         sw.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
-        sw.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue()));
+        sw.setOpaque(true);
+        sw.setContentAreaFilled(true);
         sw.setFocusPainted(false);
+        sw.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue()));
         sw.addActionListener(e -> onPick.accept(new Color(c.getRed(), c.getGreen(), c.getBlue())));
         return sw;
     }
 
-    private void applyPickedColor(Color rgb){
+    private void applyPickedColor(Color rgb, boolean closeAfter){
         if (currentDrawTool == DrawTool.HIGHLIGHT) {
             // Preserve existing alpha
             int a = highlightColor.getAlpha();
@@ -314,7 +356,17 @@ public class NotetakingPanel extends EntryPanel {
         }
         pushRecentColor(rgb);
         updatePickersForCurrentTool();
-        try { if (colorWindow != null) colorWindow.setVisible(false); } catch (Throwable ignored) {}
+        if (closeAfter) {
+            try { if (colorWindow != null) colorWindow.setVisible(false); } catch (Throwable ignored) {}
+        }
+    }
+
+    private void rebuildRecentRow(JPanel recentBox, JPanel preview){
+        recentBox.removeAll();
+        for (Color rc : recentColors) {
+            recentBox.add(makeSwatch(rc, 18, c -> { applyPickedColor(c, false); preview.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue())); rebuildRecentRow(recentBox, preview); }));
+        }
+        recentBox.revalidate(); recentBox.repaint();
     }
 
     private void pushRecentColor(Color rgb){
@@ -554,6 +606,7 @@ public class NotetakingPanel extends EntryPanel {
             strokeSpinner.setValue(eraserRadius);
             colorBtn.setEnabled(false);
         }
+        colorBtn.repaint();
     }
 
     private java.awt.image.BufferedImage renderSnapshotImage() {
