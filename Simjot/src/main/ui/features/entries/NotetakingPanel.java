@@ -153,40 +153,7 @@ public class NotetakingPanel extends EntryPanel {
             colorWindow.setVisible(true);
         });
         rightToolbar.add(colorBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-
-        // Math formula inserter (opens a small popup dialog, renders LaTeX to image, inserts at caret)
-        JButton mathBtn = new JButton("Math");
-        mathBtn.setToolTipText("Insert math formula (LaTeX)");
-        mathBtn.addActionListener(e -> {
-            try {
-                java.awt.Window owner = SwingUtilities.getWindowAncestor(this);
-                main.ui.dialog.input.MathFormulaDialog.Result res = main.ui.dialog.input.MathFormulaDialog.showDialog(owner);
-                if (res != null && res.image != null) {
-                    try {
-                        ImagePasteManager.insertImageFromBuffer(
-                                contentArea,
-                                res.image,
-                                () -> new File(journalFolder, "attachments"),
-                                1200
-                        );
-                    } catch (Throwable ignored) {}
-                }
-            } catch (Throwable ignored) {}
-        });
-        rightToolbar.add(mathBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-
-        JButton exportBtn = new JButton("Export");
-        JPopupMenu exportMenu = new JPopupMenu();
-        JMenuItem exportPng = new JMenuItem("Image (PNG)");
-        JMenuItem exportPdf = new JMenuItem("PDF");
-        exportPng.addActionListener(e -> exportSnapshotToImage());
-        exportPdf.addActionListener(e -> exportSnapshotToPdf());
-        exportMenu.add(exportPng);
-        exportMenu.add(exportPdf);
-        exportBtn.addActionListener(e -> exportMenu.show(exportBtn, 0, exportBtn.getHeight()));
-        rightToolbar.add(exportBtn);
+        // NOTE: Math and Export toolbar buttons are temporarily disabled while we test these features.
 
         updatePickersForCurrentTool();
         // Initialize in Text mode by default (capture off, overlay visibility governed by brush button)
