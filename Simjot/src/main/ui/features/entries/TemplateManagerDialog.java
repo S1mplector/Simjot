@@ -436,8 +436,14 @@ public class TemplateManagerDialog extends JDialog {
         }
 
         private void addQuestion() {
-            String q = CustomInputDialog.prompt(this, "Add Question", "Enter question:", "");
-            if (q != null && !q.trim().isEmpty()) questionModel.addElement(q.trim());
+            String t = quickAddField.getText().trim();
+            if (!t.isEmpty()) {
+                questionModel.addElement(t);
+                quickAddField.setText("");
+                quickAddField.requestFocusInWindow();
+            } else {
+                quickAddField.requestFocusInWindow();
+            }
         }
         private void editQuestion() {
             int index = questionList.getSelectedIndex();
