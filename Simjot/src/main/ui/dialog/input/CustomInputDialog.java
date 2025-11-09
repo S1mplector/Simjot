@@ -60,7 +60,8 @@ public class CustomInputDialog extends JDialog {
     }
 
     public static String prompt(Component parent, String title, String message, String initial) {
-        Frame frame = (parent instanceof Frame) ? (Frame) parent : (Frame) SwingUtilities.getWindowAncestor(parent);
+        Window win = SwingUtilities.getWindowAncestor(parent);
+        Frame frame = (parent instanceof Frame) ? (Frame) parent : (win instanceof Frame ? (Frame) win : null);
         if(frame == null) frame = new JFrame();
         CustomInputDialog dialog = new CustomInputDialog(frame, title, message, initial);
         dialog.setVisible(true);
