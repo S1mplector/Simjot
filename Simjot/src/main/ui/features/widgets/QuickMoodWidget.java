@@ -14,6 +14,7 @@ import java.util.Date;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.slider.MoodSlider;
 
 /**
  * A compact widget to quickly log mood to mood_log.txt without opening an editor.
@@ -24,7 +25,7 @@ public class QuickMoodWidget implements Widget {
     private JDialog dialog;
     private boolean enabled = false;
 
-    private JSlider slider;
+    private MoodSlider slider;
     private JLabel statusLabel;
     private javax.swing.Timer statusClearTimer;
 
@@ -61,7 +62,7 @@ public class QuickMoodWidget implements Widget {
         dialog = new JDialog(owner, "Quick Mood", false);
         dialog.setUndecorated(true);
         dialog.setAlwaysOnTop(true);
-        dialog.getRootPane().putClientProperty("apple.awt.draggableWindowBackground", Boolean.TRUE);
+        dialog.getRootPane().putClientProperty("apple.awt.draggableWindowBackground", Boolean.FALSE);
         dialog.setBackground(new Color(0,0,0,0));
         dialog.setLayout(new BorderLayout());
 
@@ -104,24 +105,14 @@ public class QuickMoodWidget implements Widget {
         header.add(title, BorderLayout.CENTER);
         content.add(header, BorderLayout.NORTH);
 
-        // Center: preset buttons + slider
+        // Center: mood slider + Log
         JPanel center = new JPanel();
         center.setOpaque(false);
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
 
-        JPanel presets = new JPanel(new GridLayout(1,5,6,0));
-        presets.setOpaque(false);
-        presets.add(makePresetButton("Bad", 20, new Color(200,60,60)));
-        presets.add(makePresetButton("Meh", 40, new Color(220,140,70)));
-        presets.add(makePresetButton("Okay", 60, new Color(180,160,80)));
-        presets.add(makePresetButton("Good", 80, new Color(70,160,90)));
-        presets.add(makePresetButton("Great", 100, new Color(60,180,120)));
-        center.add(presets);
-        center.add(Box.createVerticalStrut(8));
-
         JPanel sliderRow = new JPanel(new BorderLayout(6,0));
         sliderRow.setOpaque(false);
-        slider = new JSlider(0, 100, 50);
+        slider = new MoodSlider();
         slider.setOpaque(false);
         sliderRow.add(slider, BorderLayout.CENTER);
         RoundedButton logBtn = new RoundedButton("Log");
@@ -137,7 +128,7 @@ public class QuickMoodWidget implements Widget {
 
         content.add(center, BorderLayout.CENTER);
 
-        // Drag anywhere
+        // Drag only by header
         MouseAdapter drag = new MouseAdapter() {
             Point offset;
             @Override public void mousePressed(MouseEvent e) { offset = e.getPoint(); }
@@ -146,23 +137,14 @@ public class QuickMoodWidget implements Widget {
                 dialog.setLocation(p.x - offset.x, p.y - offset.y);
             }
         };
-        content.addMouseListener(drag);
-        content.addMouseMotionListener(drag);
+        header.addMouseListener(drag);
+        header.addMouseMotionListener(drag);
 
         dialog.setContentPane(content);
-        dialog.setSize(260, 160);
+        dialog.setSize(260, 120);
         Point loc = owner != null ? owner.getLocationOnScreen() : new Point(100, 100);
         Dimension ownerSize = owner != null ? owner.getSize() : Toolkit.getDefaultToolkit().getScreenSize();
         dialog.setLocation(loc.x + ownerSize.width - dialog.getWidth() - 24, loc.y + 240);
-    }
-
-    private JButton makePresetButton(String text, int value, Color color) {
-        RoundedButton b = new RoundedButton(text);
-        b.setPreferredSize(new Dimension(80, 30));
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setForeground(Color.DARK_GRAY);
-        b.addActionListener(e -> logMood(value));
-        return b;
     }
 
     private void logMood(int moodValue) {
