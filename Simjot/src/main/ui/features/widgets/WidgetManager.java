@@ -33,6 +33,11 @@ public class WidgetManager {
             @Override public String getName() { return "Idea Sticky"; }
             @Override public String getIconId() { return "sticky_widget"; }
         });
+
+        widgets.put("Quick Mood Log", new QuickMoodWidget(app) {
+            @Override public String getName() { return "Quick Mood Log"; }
+            @Override public String getIconId() { return "smile"; }
+        });
     }
 
     public Map<String, Widget> getAll() { return widgets; }

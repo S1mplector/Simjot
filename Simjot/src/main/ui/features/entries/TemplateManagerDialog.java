@@ -43,6 +43,7 @@ public class TemplateManagerDialog extends JDialog {
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
+        setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 
         RoundedPanel mainPanel = new RoundedPanel();
         mainPanel.setArc(18);
@@ -125,6 +126,8 @@ public class TemplateManagerDialog extends JDialog {
             refreshList();
             selectTemplate(tmpl);
         });
+        // Ensure Cancel closes the manager dialog
+        editorPanel.setOnCancel(() -> TemplateManagerDialog.this.dispose());
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, editorPanel);
         split.setResizeWeight(0.35);
@@ -134,6 +137,13 @@ public class TemplateManagerDialog extends JDialog {
         add(mainPanel);
         setSize(860, 560);
         setLocationRelativeTo(parent);
+
+        // ESC to close
+        try {
+            getRootPane().registerKeyboardAction(e -> dispose(),
+                    KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0),
+                    JComponent.WHEN_IN_FOCUSED_WINDOW);
+        } catch (Throwable ignored) {}
 
         // Initial load
         refreshList();
