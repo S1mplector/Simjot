@@ -1,30 +1,69 @@
 package main.ui.features.entries;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Composite;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.util.*;
-import java.util.List;
-import java.util.stream.Collectors;
-import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import java.text.SimpleDateFormat;
-import java.nio.file.*;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Scanner;
+import java.util.stream.Collectors;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.DefaultListModel;
+import javax.swing.ImageIcon;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-import main.infrastructure.io.ResourceLoader;
 
 public class NotebookEntriesPanel extends JPanel {
     private final JournalApp app;
@@ -49,11 +88,14 @@ public class NotebookEntriesPanel extends JPanel {
     private SwingWorker<Void, FileMeta> metaLoader;
 
     // Debounced list rebuild to avoid frequent model churn on metadata updates
-    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(80, e -> applyFilterSort());
+    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(160, e -> applyFilterSort());
     // Track which files have computed metadata and which are enqueued
     private final java.util.Set<File> metaComputed = new java.util.HashSet<>();
     private final java.util.Set<File> metaQueued = new java.util.HashSet<>();
     private javax.swing.JScrollPane listScroll;
+
+    // Debounced folder watch refresh to coalesce rapid file system events
+    private final javax.swing.Timer watchDebounce = new javax.swing.Timer(250, e -> refresh());
 
     // Folder watch
     private WatchService watchService;
@@ -268,6 +310,7 @@ public class NotebookEntriesPanel extends JPanel {
 
         // Configure debouncers
         listUpdateDebounce.setRepeats(false);
+        watchDebounce.setRepeats(false);
 
         loadFiles();
         update();
@@ -315,6 +358,11 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void applyFilterSort(){
+        // Preserve selection and scroll to minimize visible twitch
+        File sel = list.getSelectedValue();
+        int scrollVal = 0;
+        try { scrollVal = listScroll.getVerticalScrollBar().getValue(); } catch (Throwable ignored) {}
+
         String q = searchField.getText()==null? "" : searchField.getText().toLowerCase();
         List<File> filtered = allFiles.stream().filter(f -> {
             String name = f.getName().toLowerCase();
@@ -322,15 +370,50 @@ public class NotebookEntriesPanel extends JPanel {
             return name.contains(q) || title.contains(q);
         }).collect(Collectors.toList());
         switch(sortBox.getSelectedIndex()){
-            case 0 -> filtered.sort(Comparator.comparingLong(File::lastModified).reversed());
-            case 1 -> filtered.sort(Comparator.comparingLong(File::lastModified));
-            case 2 -> filtered.sort(Comparator.comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER));
-            case 3 -> filtered.sort(Comparator.comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER).reversed());
-            case 4 -> filtered.sort(Comparator.comparingInt((File f)->wordCounts.getOrDefault(f,0)).reversed());
-            case 5 -> filtered.sort(Comparator.comparingInt((File f)->wordCounts.getOrDefault(f,0)));
+            case 0 -> filtered.sort(Comparator
+                    .comparingLong(File::lastModified)
+                    .reversed()
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
+            case 1 -> filtered.sort(Comparator
+                    .comparingLong(File::lastModified)
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
+            case 2 -> filtered.sort(Comparator
+                    .comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
+            case 3 -> filtered.sort(Comparator
+                    .comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER)
+                    .reversed()
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
+            case 4 -> filtered.sort(Comparator
+                    .comparingInt((File f)->wordCounts.getOrDefault(f,0))
+                    .reversed()
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
+            case 5 -> filtered.sort(Comparator
+                    .comparingInt((File f)->wordCounts.getOrDefault(f,0))
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
         }
-        model.clear();
-        filtered.forEach(model::addElement);
+        // If order hasn't changed, skip rebuild to avoid flicker
+        boolean sameOrder = (model.size() == filtered.size());
+        if (sameOrder) {
+            for (int i = 0; i < model.size(); i++) {
+                if (!Objects.equals(model.get(i), filtered.get(i))) { sameOrder = false; break; }
+            }
+        }
+        if (!sameOrder) {
+            model.clear();
+            filtered.forEach(model::addElement);
+        }
+
+        // Restore selection without forcing scroll
+        if (sel != null && filtered.contains(sel)) {
+            list.setSelectedValue(sel, false);
+        }
+        // Restore approximate scroll position
+        try {
+            JScrollBar bar = listScroll.getVerticalScrollBar();
+            bar.setValue(Math.min(scrollVal, Math.max(0, bar.getMaximum() - bar.getVisibleAmount())));
+        } catch (Throwable ignored) {}
+
         // After resort/filter, make sure visible items are prioritized for metadata
         ensureMetaForVisibleRange();
     }
@@ -437,8 +520,10 @@ public class NotebookEntriesPanel extends JPanel {
                     try {
                         WatchKey key = watchService.take();
                         for (WatchEvent<?> event : key.pollEvents()) {
-                            // Debounce a bit by coalescing via Swing EDT
-                            SwingUtilities.invokeLater(this::refresh);
+                            // Debounce via EDT timer to coalesce rapid saves/changes
+                            SwingUtilities.invokeLater(() -> {
+                                try { watchDebounce.restart(); } catch (Throwable ignored2) {}
+                            });
                         }
                         key.reset();
                     } catch (InterruptedException ie) {
