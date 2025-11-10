@@ -18,11 +18,21 @@ import main.ui.components.combobox.ModernComboBoxUI;
 public class MoodChartPanel extends JPanel {
     private java.util.List<LocalDate> dayList = new ArrayList<>();
     private java.util.List<Double> avgMoodList = new ArrayList<>();
+    private java.util.Map<LocalDate, java.util.List<File>> entriesByDate = new java.util.HashMap<>();
+    private final java.util.Map<LocalDate, java.util.List<LocalDateTime>> moodTimesByDate = new java.util.HashMap<>();
+    private final java.util.Map<LocalDate, java.util.List<EntryRef>> entryTimesByDate = new java.util.HashMap<>();
     private CardLayout cardLayout;
     private JPanel cardPanel;
     private JournalApp app;
     private JComboBox<String> rangeBox;
     private final String[] ranges = {"7 days","30 days","90 days","365 days","All"};
+    private javax.swing.Timer hoverOpenTimer;
+    private Integer pendingHoverIdx = null;
+
+    private static class EntryRef {
+        final File file; final LocalDateTime ts;
+        EntryRef(File f, LocalDateTime ts){ this.file=f; this.ts=ts; }
+    }
     
     public MoodChartPanel(JournalApp app, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -64,6 +74,9 @@ public class MoodChartPanel extends JPanel {
     
     private void loadMoodData() {
         dayList.clear(); avgMoodList.clear();
+        entriesByDate.clear();
+        moodTimesByDate.clear();
+        entryTimesByDate.clear();
         int daysLimit = switch(rangeBox.getSelectedIndex()){
             case 0 -> 7; case 1 -> 30; case 2 -> 90; case 3 -> 365; default -> Integer.MAX_VALUE; };
         LocalDate today = LocalDate.now();
@@ -75,13 +88,14 @@ public class MoodChartPanel extends JPanel {
                 while ((line = br.readLine()) != null) {
                     String[] parts = line.split(",");
                     if (parts.length >= 2) {
-                        LocalDate date;
+                        LocalDate date; LocalDateTime dateTime = null;
                         try {
                             date = LocalDate.parse(parts[0]);
                         } catch (Exception ex) {
                             try {
                                 DateTimeFormatter alt = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-                                date = LocalDateTime.parse(parts[0], alt).toLocalDate();
+                                dateTime = LocalDateTime.parse(parts[0], alt);
+                                date = dateTime.toLocalDate();
                             } catch (Exception ex2) {
                                 continue;
                             }
@@ -94,6 +108,9 @@ public class MoodChartPanel extends JPanel {
                             pct = ":)".equals(moodStr) ? 100 : ":/".equals(moodStr) ? 50 : 0;
                         }
                         map.computeIfAbsent(date, d -> new ArrayList<>()).add(pct);
+                        if (dateTime != null) {
+                            moodTimesByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(dateTime);
+                        }
                     }
                 }
             } catch (IOException ex) {
@@ -120,6 +137,36 @@ public class MoodChartPanel extends JPanel {
                 avgMoodList.add(avg);
             }
         }
+
+        try {
+            NotebookStore store = new NotebookStore();
+            java.util.List<NotebookInfo> nbs = store.list();
+            DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyyMMdd");
+            for (NotebookInfo nb : nbs) {
+                if (nb == null || nb.getType() != NotebookInfo.Type.JOURNAL) continue;
+                File folder = nb.getFolder();
+                if (folder == null) continue;
+                File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
+                if (files == null) continue;
+                for (File f : files) {
+                    String name = f.getName();
+                    LocalDate d; LocalDateTime ts;
+                    try {
+                        if (name.matches("\\d{8}_\\d{6}.*\\.txt")) {
+                            String ymd = name.substring(0, 8);
+                            String hms = name.substring(9, 15);
+                            ts = LocalDateTime.parse(ymd+"_"+hms, DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+                            d = ts.toLocalDate();
+                        } else {
+                            ts = Instant.ofEpochMilli(f.lastModified()).atZone(ZoneId.systemDefault()).toLocalDateTime();
+                            d = ts.toLocalDate();
+                        }
+                    } catch (Throwable ignored) { continue; }
+                    entriesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(f);
+                    entryTimesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(new EntryRef(f, ts));
+                }
+            }
+        } catch (Throwable ignored) {}
     }
     
     private boolean hasAnyJournalEntries() {
@@ -258,10 +305,118 @@ public class MoodChartPanel extends JPanel {
                 int idx = Math.round((float)(e.getX()-margin)/Math.max(1,w)*(dayList.size()-1));
                 if(idx>=0 && idx<dayList.size()){
                     Double raw = avgMoodList.get(idx);
-                    if (raw == null) setToolTipText(dayList.get(idx)+" no entry");
-                    else setToolTipText(dayList.get(idx)+" avg mood: "+(int)Math.round(raw)+"/100");
+                    LocalDate d = dayList.get(idx);
+                    java.util.List<File> files = entriesByDate.get(d);
+                    if (raw == null) {
+                        if (files == null || files.isEmpty()) setToolTipText(d+" no entry");
+                        else setToolTipText(d+" ("+files.size()+") click to open");
+                    } else {
+                        if (files == null || files.isEmpty()) setToolTipText(d+" avg mood: "+(int)Math.round(raw)+"/100");
+                        else if (files.size()==1) setToolTipText(d+" · "+safeTitle(files.get(0))+" (click)");
+                        else setToolTipText(d+" · "+files.size()+" entries (click)");
+                    }
+
+                    // Cmd-hover: open after a short delay if Command is held
+                    if (e.isMetaDown() && files != null && !files.isEmpty()) {
+                        if (!Integer.valueOf(idx).equals(pendingHoverIdx)) {
+                            pendingHoverIdx = idx;
+                            if (hoverOpenTimer != null && hoverOpenTimer.isRunning()) hoverOpenTimer.stop();
+                            final int targetIdx = idx;
+                            hoverOpenTimer = new javax.swing.Timer(250, ae -> {
+                                try {
+                                    if (pendingHoverIdx != null && pendingHoverIdx == targetIdx) {
+                                        openNearestForDay(dayList.get(targetIdx));
+                                        pendingHoverIdx = null;
+                                    }
+                                } catch (Throwable ignored) {}
+                            });
+                            hoverOpenTimer.setRepeats(false);
+                            hoverOpenTimer.start();
+                        }
+                    } else {
+                        pendingHoverIdx = null;
+                        if (hoverOpenTimer != null && hoverOpenTimer.isRunning()) hoverOpenTimer.stop();
+                    }
                 }
             }
         });
+        addMouseListener(new MouseAdapter(){
+            @Override public void mouseClicked(MouseEvent e){
+                if(dayList.isEmpty()) return;
+                int margin=60;
+                int w = getWidth()-2*margin;
+                int idx = Math.round((float)(e.getX()-margin)/Math.max(1,w)*(dayList.size()-1));
+                if(idx<0 || idx>=dayList.size()) return;
+                Double raw = avgMoodList.get(idx);
+                if (raw == null) return;
+                LocalDate d = dayList.get(idx);
+                java.util.List<File> files = entriesByDate.get(d);
+                if (files == null || files.isEmpty()) return;
+                if (e.isMetaDown()) {
+                    openNearestForDay(d);
+                    return;
+                }
+                if (files.size() == 1) {
+                    NotebookInfo nb = findNotebookFor(files.get(0));
+                    if (nb != null) app.openExistingEntryEditor(nb, files.get(0));
+                } else {
+                    JPopupMenu menu = new JPopupMenu();
+                    for (File f : files) {
+                        JMenuItem it = new JMenuItem(safeTitle(f));
+                        it.addActionListener(ev -> {
+                            NotebookInfo nb = findNotebookFor(f);
+                            if (nb != null) app.openExistingEntryEditor(nb, f);
+                        });
+                        menu.add(it);
+                    }
+                    menu.show(MoodChartPanel.this, e.getX(), e.getY());
+                }
+            }
+        });
+    }
+
+    private void openNearestForDay(LocalDate d){
+        java.util.List<EntryRef> refs = entryTimesByDate.get(d);
+        java.util.List<LocalDateTime> moodTimes = moodTimesByDate.get(d);
+        if (refs == null || refs.isEmpty()) return;
+        File target = null;
+        if (moodTimes != null && !moodTimes.isEmpty()) {
+            LocalDateTime anchor = moodTimes.get(moodTimes.size()-1); // prefer latest mood sample that day
+            long best = Long.MAX_VALUE;
+            for (EntryRef r : refs) {
+                if (r.ts == null) continue;
+                long diff = Math.abs(ChronoUnit.SECONDS.between(anchor, r.ts));
+                if (diff < best) { best = diff; target = r.file; }
+            }
+        }
+        if (target == null) {
+            // Fallback: open the most recently modified entry that day
+            target = refs.stream().max(java.util.Comparator.comparingLong(er -> er.file.lastModified())).map(er -> er.file).orElse(null);
+        }
+        if (target != null) {
+            NotebookInfo nb = findNotebookFor(target);
+            if (nb != null) app.openExistingEntryEditor(nb, target);
+        }
+    }
+
+    private NotebookInfo findNotebookFor(File f){
+        try {
+            NotebookStore store = new NotebookStore();
+            for (NotebookInfo nb : store.list()) {
+                File folder = nb.getFolder();
+                if (folder != null && f.getAbsolutePath().startsWith(folder.getAbsolutePath()+File.separator)) return nb;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private String safeTitle(File f){
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String first = br.readLine();
+            if (first != null && !first.isBlank()) return first.trim();
+        } catch (IOException ignored) {}
+        String nm = f.getName();
+        int dot = nm.lastIndexOf('.');
+        return dot>0?nm.substring(0,dot):nm;
     }
 }
