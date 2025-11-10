@@ -41,7 +41,21 @@ public class HeaderPanel extends JPanel {
             "Peace begins with a smile.",
             "Keep calm and carry on.",
             "What's something you did that you're proud of today?",
-            "Jot down your thoughts, calm them down."
+            "Jot down your thoughts, calm them down.",
+            "Inhale calm, exhale tension.",
+            "One thing at a time.",
+            "Let today be gentle.",
+            "Slow is smooth, smooth is fast.",
+            "You are safe here.",
+            "Soft shoulders, unclenched jaw.",
+            "Be kind to your mind.",
+            "A small step is still a step.",
+            "You have done enough for now.",
+            "Rest is productive.",
+            "Return to your breath.",
+            "Let go of what you can’t control.",
+            "Notice one good thing.",
+            "May your thoughts be light today."
         };
         quote = quotes[new Random().nextInt(quotes.length)];
     }
