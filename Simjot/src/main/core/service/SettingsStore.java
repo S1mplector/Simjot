@@ -223,7 +223,7 @@ public final class SettingsStore {
         props.setProperty(KEY_POEM_BG_OPACITY, String.valueOf(clamped));
     }
     
-    public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); }
+    public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); props.remove(KEY_MAINMENU_ACCENT_RGB); }
 
     public int getDefaultBrushSize(){ return Integer.parseInt(props.getProperty(KEY_BRUSH_SIZE, String.valueOf(DEF_BRUSH_SIZE))); }
     public void setDefaultBrushSize(int v){ props.setProperty(KEY_BRUSH_SIZE, String.valueOf(v)); }

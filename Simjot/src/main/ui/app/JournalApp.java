@@ -737,20 +737,28 @@ public class JournalApp extends JFrame {
                     // Derive wallpaper accent and configure icon tinting
                     publish("Deriving accent color…");
                     try {
-                        java.awt.Color accent = AccentColorUtil.defaultAccent();
-                        String bgPath = main.core.service.SettingsStore.get().getBackgroundImage();
-                        if (bgPath != null && !bgPath.isEmpty()) {
-                            if (bgPath.startsWith("gen:")) {
-                                java.awt.Image img = GeneratedWallpapers.render(bgPath, 1920, 1080);
-                                if (img != null) accent = AccentColorUtil.extractAccent(img);
-                            } else if (bgPath.startsWith("res:")) {
-                                String resPath = bgPath.substring(4);
-                                java.awt.Image img = ResourceLoader.createImage("Simjot/" + resPath);
-                                if (img != null) accent = AccentColorUtil.extractAccent(img);
-                            } else {
-                                java.awt.Image img = new javax.swing.ImageIcon(bgPath).getImage();
-                                if (img != null) accent = AccentColorUtil.extractAccent(img);
+                        main.core.service.SettingsStore store = main.core.service.SettingsStore.get();
+                        int cached = store.getMainMenuAccentRGB();
+                        java.awt.Color accent;
+                        if (cached != Integer.MIN_VALUE) {
+                            accent = new java.awt.Color(cached, true);
+                        } else {
+                            accent = AccentColorUtil.defaultAccent();
+                            String bgPath = store.getBackgroundImage();
+                            if (bgPath != null && !bgPath.isEmpty()) {
+                                if (bgPath.startsWith("gen:")) {
+                                    java.awt.Image img = GeneratedWallpapers.render(bgPath, 1920, 1080);
+                                    if (img != null) accent = AccentColorUtil.extractAccent(img);
+                                } else if (bgPath.startsWith("res:")) {
+                                    String resPath = bgPath.substring(4);
+                                    java.awt.Image img = ResourceLoader.createImage("Simjot/" + resPath);
+                                    if (img != null) accent = AccentColorUtil.extractAccent(img);
+                                } else {
+                                    java.awt.Image img = new javax.swing.ImageIcon(bgPath).getImage();
+                                    if (img != null) accent = AccentColorUtil.extractAccent(img);
+                                }
                             }
+                            try { store.setMainMenuAccentRGB(accent.getRGB()); store.save(); } catch (Throwable ignored2) {}
                         }
                         ImageIconRenderer.setAccentTint(accent);
                     } catch (Throwable ignored) {}
