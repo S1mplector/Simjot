@@ -160,13 +160,28 @@ public class MoodChartPanel extends JPanel {
                     Double raw = model.getValues().get(idx);
                     LocalDate d = model.getDays().get(idx);
                     java.util.List<File> files = model.getEntriesByDate().get(d);
+                    MoodChartModel.Details det = model.getLatestDetailsFor(d);
                     if (raw == null) {
-                        if (files == null || files.isEmpty()) setToolTipText(d+" no entry");
-                        else setToolTipText(d+" ("+files.size()+") click to open");
+                        String base = d + (files == null || files.isEmpty() ? " no entry" : " ("+files.size()+") click to open");
+                        if (det != null) {
+                            String detail = String.format(" · J:%d C:%d G:%d En:%d | Sa:%d Ang:%d Anx:%d St:%d",
+                                    det.joy, det.calm, det.gratitude, det.energy,
+                                    det.sadness, det.anger, det.anxiety, det.stress);
+                            setToolTipText(base + detail);
+                        } else {
+                            setToolTipText(base);
+                        }
                     } else {
-                        if (files == null || files.isEmpty()) setToolTipText(d+" avg mood: "+(int)Math.round(raw)+"/100");
-                        else if (files.size()==1) setToolTipText(d+" · "+safeTitle(files.get(0))+" (click)");
-                        else setToolTipText(d+" · "+files.size()+" entries (click)");
+                        String base = d+" avg mood: "+(int)Math.round(raw)+"/100";
+                        if (det != null) {
+                            String detail = String.format(" · J:%d C:%d G:%d En:%d | Sa:%d Ang:%d Anx:%d St:%d",
+                                    det.joy, det.calm, det.gratitude, det.energy,
+                                    det.sadness, det.anger, det.anxiety, det.stress);
+                            base += detail;
+                        }
+                        if (files == null || files.isEmpty()) setToolTipText(base);
+                        else if (files.size()==1) setToolTipText(base+" · "+safeTitle(files.get(0))+" (click)");
+                        else setToolTipText(base+" · "+files.size()+" entries (click)");
                     }
 
                     // Cmd-hover: open after a short delay if Command is held

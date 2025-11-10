@@ -10,16 +10,18 @@ import main.infrastructure.backup.NotebookInfo;
 
 final class MoodChartModel {
     static final class EntryRef { final File file; final LocalDateTime ts; EntryRef(File f, LocalDateTime t){ this.file=f; this.ts=t; } }
+    static final class Details { final LocalDateTime ts; final int joy, calm, gratitude, energy, sadness, anger, anxiety, stress; Details(LocalDateTime ts,int joy,int calm,int gratitude,int energy,int sadness,int anger,int anxiety,int stress){ this.ts=ts; this.joy=joy; this.calm=calm; this.gratitude=gratitude; this.energy=energy; this.sadness=sadness; this.anger=anger; this.anxiety=anxiety; this.stress=stress; } }
 
     private final java.util.List<LocalDate> dayList = new ArrayList<>();
     private final java.util.List<Double> avgMoodList = new ArrayList<>();
     private final java.util.Map<LocalDate, java.util.List<File>> entriesByDate = new java.util.HashMap<>();
     private final java.util.Map<LocalDate, java.util.List<LocalDateTime>> moodTimesByDate = new java.util.HashMap<>();
     private final java.util.Map<LocalDate, java.util.List<EntryRef>> entryTimesByDate = new java.util.HashMap<>();
+    private final java.util.Map<LocalDate, java.util.List<Details>> detailsByDate = new java.util.HashMap<>();
 
     boolean load(int rangeIndex){
         dayList.clear(); avgMoodList.clear();
-        entriesByDate.clear(); moodTimesByDate.clear(); entryTimesByDate.clear();
+        entriesByDate.clear(); moodTimesByDate.clear(); entryTimesByDate.clear(); detailsByDate.clear();
         int daysLimit = switch(rangeIndex){ case 0 -> 7; case 1 -> 30; case 2 -> 90; case 3 -> 365; default -> Integer.MAX_VALUE; };
         LocalDate today = LocalDate.now();
         java.util.Map<LocalDate, java.util.List<Integer>> map = new java.util.HashMap<>();
@@ -48,6 +50,21 @@ final class MoodChartModel {
                         catch (NumberFormatException nfe) { pct = ":)".equals(moodStr) ? 100 : ":/".equals(moodStr) ? 50 : 0; }
                         map.computeIfAbsent(date, d -> new ArrayList<>()).add(pct);
                         if (dateTime != null) moodTimesByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(dateTime);
+
+                        // Parse detailed emotions if present: ts,composite,joy,calm,gratitude,energy,sadness,anger,anxiety,stress
+                        if (parts.length >= 10) {
+                            try {
+                                int joy = Integer.parseInt(parts[2].trim());
+                                int calm = Integer.parseInt(parts[3].trim());
+                                int gratitude = Integer.parseInt(parts[4].trim());
+                                int energy = Integer.parseInt(parts[5].trim());
+                                int sadness = Integer.parseInt(parts[6].trim());
+                                int anger = Integer.parseInt(parts[7].trim());
+                                int anxiety = Integer.parseInt(parts[8].trim());
+                                int stress = Integer.parseInt(parts[9].trim());
+                                detailsByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(new Details(dateTime, joy, calm, gratitude, energy, sadness, anger, anxiety, stress));
+                            } catch (Throwable ignored) {}
+                        }
                     }
                 }
             } catch (IOException ignored) {}
@@ -99,4 +116,16 @@ final class MoodChartModel {
     java.util.Map<LocalDate, java.util.List<File>> getEntriesByDate(){ return entriesByDate; }
     java.util.Map<LocalDate, java.util.List<LocalDateTime>> getMoodTimesByDate(){ return moodTimesByDate; }
     java.util.Map<LocalDate, java.util.List<EntryRef>> getEntryTimesByDate(){ return entryTimesByDate; }
+    java.util.Map<LocalDate, java.util.List<Details>> getDetailsByDate(){ return detailsByDate; }
+
+    Details getLatestDetailsFor(LocalDate d){
+        java.util.List<Details> l = detailsByDate.get(d);
+        if (l == null || l.isEmpty()) return null;
+        Details best = null;
+        for (Details it : l) {
+            if (best == null) best = it;
+            else if (it.ts != null && best.ts != null && it.ts.isAfter(best.ts)) best = it;
+        }
+        return best != null ? best : l.get(l.size()-1);
+    }
 }

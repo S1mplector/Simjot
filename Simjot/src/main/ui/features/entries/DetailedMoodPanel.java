@@ -13,7 +13,7 @@ import java.awt.LinearGradientPaint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -44,7 +44,15 @@ public class DetailedMoodPanel extends JPanel {
     private int animMs = 160;
     private int targetHeight = 0;
 
-    public DetailedMoodPanel(Consumer<Integer> onSave) {
+    public static class DetailedMoodSnapshot {
+        public final int joy, calm, gratitude, energy, sadness, anger, anxiety, stress;
+        public DetailedMoodSnapshot(int joy, int calm, int gratitude, int energy, int sadness, int anger, int anxiety, int stress) {
+            this.joy = joy; this.calm = calm; this.gratitude = gratitude; this.energy = energy;
+            this.sadness = sadness; this.anger = anger; this.anxiety = anxiety; this.stress = stress;
+        }
+    }
+
+    public DetailedMoodPanel(BiConsumer<Integer, DetailedMoodSnapshot> onSave) {
         setOpaque(true);
         setBackground(new Color(0xE7, 0xE7, 0xE7));
         setLayout(new BorderLayout());
@@ -76,7 +84,7 @@ public class DetailedMoodPanel extends JPanel {
         save.setForeground(AeroTheme.TEXT_PRIMARY);
         save.addActionListener(e -> {
             int composite = computeComposite();
-            if (onSave != null) onSave.accept(composite);
+            if (onSave != null) onSave.accept(composite, captureDetails());
             setExpanded(false);
         });
         btnPanel.add(cancel);
@@ -161,10 +169,30 @@ public class DetailedMoodPanel extends JPanel {
         return Math.max(0, Math.min(100, val));
     }
 
+    private DetailedMoodSnapshot captureDetails() {
+        return new DetailedMoodSnapshot(
+                joy.getValue(), calm.getValue(), gratitude.getValue(), energy.getValue(),
+                sadness.getValue(), anger.getValue(), anxiety.getValue(), stress.getValue()
+        );
+    }
+
     private static double avg(MoodSlider... sliders) {
         double sum = 0;
         for (MoodSlider s : sliders) sum += s.getValue();
         return sum / sliders.length;
+    }
+
+    public void applySnapshot(DetailedMoodSnapshot s) {
+        if (s == null) return;
+        joy.setValue(s.joy);
+        calm.setValue(s.calm);
+        gratitude.setValue(s.gratitude);
+        energy.setValue(s.energy);
+        sadness.setValue(s.sadness);
+        anger.setValue(s.anger);
+        anxiety.setValue(s.anxiety);
+        stress.setValue(s.stress);
+        repaint();
     }
 
     // Slider UI: gradient track, plain thumb (no face)
