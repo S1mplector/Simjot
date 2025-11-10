@@ -3,6 +3,7 @@ package main.ui.components.buttons;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import main.core.service.SettingsStore;
@@ -19,6 +20,8 @@ public class MainMenuButton extends FadingButton {
     private float progress = 0f;    // 0 hidden, 1 fully shown
     private boolean hovering = false;
     private Timer animTimer;
+    private BufferedImage bgDefault, bgHover, bgPressed;
+    private int cacheW, cacheH;
 
     public MainMenuButton(String text, String iconId){
         super(text);
@@ -27,15 +30,13 @@ public class MainMenuButton extends FadingButton {
         setHorizontalAlignment(SwingConstants.CENTER);
         // Animation timer using centralized FPS
         animTimer = new Timer(AppPerf.getAnimationDelay(), e->{
-            // Check if main menu animations are disabled - if so, skip animation logic entirely
             if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
-                return; // Don't animate, just return
+                return;
             }
-
             float target = hovering ? 1f : 0f;
-            float speed = 0.08f; // approach rate
-            if(Math.abs(progress-target)>0.01f){
-                progress += (target-progress)*speed;
+            float speed = 0.08f;
+            if (Math.abs(progress - target) > 0.01f) {
+                progress += (target - progress) * speed;
                 repaint();
             } else {
                 progress = target;
@@ -65,36 +66,46 @@ public class MainMenuButton extends FadingButton {
         });
     }
 
+    private void ensureBgCache(){
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) return;
+        if (bgDefault != null && cacheW == w && cacheH == h) return;
+        cacheW = w; cacheH = h;
+        bgDefault = renderBg(AeroTheme.BUTTON_BG_TOP, AeroTheme.BUTTON_BG_BOTTOM, w, h);
+        bgHover   = renderBg(AeroTheme.BUTTON_HOVER_TOP, AeroTheme.BUTTON_HOVER_BOTTOM, w, h);
+        bgPressed = renderBg(AeroTheme.BUTTON_PRESS_TOP, AeroTheme.BUTTON_PRESS_BOTTOM, w, h);
+    }
+
+    private BufferedImage renderBg(Color top, Color bottom, int w, int h){
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Rectangle r = new Rectangle(0, 0, w, h);
+        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 15);
+        AeroPainters.paintGlassOverlay(g2, r, 15);
+        g2.setColor(new Color(180, 180, 180));
+        g2.draw(new RoundRectangle2D.Float(0, 0, w, h, 15, 15));
+        g2.dispose();
+        return img;
+    }
+
     @Override
     protected void paintComponent(Graphics g){
         int extra = (int) (20 * progress);
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        Shape bg = new RoundRectangle2D.Float(-extra, 0, getWidth() + 2 * extra, getHeight(), 15, 15);
-
-        // Determine state colors (Aero-style)
+        Shape bgShape = new RoundRectangle2D.Float(-extra, 0, getWidth() + 2 * extra, getHeight(), 15, 15);
         boolean pressed = getModel().isPressed();
-        Color top;
-        Color bottom;
-        if (pressed) {
-            top = AeroTheme.BUTTON_PRESS_TOP;
-            bottom = AeroTheme.BUTTON_PRESS_BOTTOM;
-        } else if (hovering) {
-            top = AeroTheme.BUTTON_HOVER_TOP;
-            bottom = AeroTheme.BUTTON_HOVER_BOTTOM;
-        } else {
-            top = AeroTheme.BUTTON_BG_TOP;
-            bottom = AeroTheme.BUTTON_BG_BOTTOM;
+        ensureBgCache();
+        BufferedImage bgImg = pressed ? bgPressed : (hovering ? bgHover : bgDefault);
+        if (bgImg != null) {
+            g2.setClip(bgShape);
+            g2.drawImage(bgImg, -extra, 0, getWidth() + 2 * extra, getHeight(), null);
+            g2.setClip(null);
+            g2.setColor(new Color(180, 180, 180));
+            g2.draw(bgShape);
         }
-
-        // Paint gradient background and subtle glass overlay
-        Rectangle r = new Rectangle(-extra, 0, getWidth() + 2 * extra, getHeight());
-        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 15);
-        AeroPainters.paintGlassOverlay(g2, r, 15);
-
-        // Soft border
-        g2.setColor(new Color(180, 180, 180));
-        g2.draw(bg);
         g2.dispose();
 
         // Draw text with fading alpha (but do NOT affect icon color)

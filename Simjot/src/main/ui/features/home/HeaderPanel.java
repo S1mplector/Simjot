@@ -4,6 +4,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
 import java.awt.font.*;
+import java.awt.image.BufferedImage;
 import java.util.Random;
 import javax.swing.*;
 
@@ -32,6 +33,10 @@ public class HeaderPanel extends JPanel {
     private java.util.List<String> quotePool;
     private int quoteIndex = 0;
     private final Color accent;
+    private BufferedImage cachedHeart;
+    private int cachedW;
+    private int cachedH;
+    private Color cachedAccent;
     
     public HeaderPanel() {
         this(AeroTheme.AERO_BLUE);
@@ -218,80 +223,87 @@ public class HeaderPanel extends JPanel {
         
         int width = getWidth();
         int height = getHeight();
-        
-        // Draw heart shape behind text (Aero gradient, shadow, outline, highlight, glow)
-        AffineTransform old = g2.getTransform();
-        g2.translate(width / 2, height / 2 - 10);
-        g2.scale(heartScale, heartScale);
-        Shape heart = createHeartShape();
-        Rectangle bounds = heart.getBounds();
-
-        // Soft glass shadow (faux blur via multiple translucent draws)
-        Graphics2D gShadow = (Graphics2D) g2.create();
-        gShadow.translate(0, 4);
-        Color shadowColor = new Color(0, 0, 0, (int)(40 * textAlpha));
-        for (int i = 0; i < 3; i++) {
-            gShadow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f - i*0.06f));
-            gShadow.translate(0, 1);
-            gShadow.setColor(shadowColor);
-            gShadow.fill(heart);
-        }
-        gShadow.dispose();
-
-        // Gradient fill (derived from accent)
-        float cx = bounds.x + bounds.width * 0.45f;
-        float cy = bounds.y + bounds.height * 0.35f;
-        float radius = Math.max(bounds.width, bounds.height) * 0.75f;
-        Color lightBase = AccentColorUtil.lighten(accent, 0.45f);
-        Color darkBase  = AccentColorUtil.darken(accent, 0.30f);
-        RadialGradientPaint heartPaint = new RadialGradientPaint(
-            new Point2D.Float(cx, cy), radius,
-            new float[]{0f, 1f},
-            new Color[]{
-                new Color(lightBase.getRed(), lightBase.getGreen(), lightBase.getBlue(), (int)(210 * textAlpha)),
-                new Color(darkBase.getRed(),  darkBase.getGreen(),  darkBase.getBlue(),  (int)(190 * textAlpha))
-            }
-        );
-        g2.setPaint(heartPaint);
-        g2.fill(heart);
-
-        // Soft outline
-        g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g2.setColor(new Color(255, 255, 255, (int)(28 * textAlpha)));
-        g2.draw(heart);
-
-        // Inner top highlight (specular)
-        Shape oldClip = g2.getClip();
-        g2.setClip(heart);
-        LinearGradientPaint highlight = new LinearGradientPaint(
-            new Point2D.Float(bounds.x, bounds.y),
-            new Point2D.Float(bounds.x, bounds.y + bounds.height * 0.35f),
-            new float[]{0f, 1f},
-            new Color[]{new Color(255,255,255,(int)(80*textAlpha)), new Color(255,255,255,0)}
-        );
-        g2.setPaint(highlight);
-        g2.fill(new Rectangle2D.Float(bounds.x, bounds.y, bounds.width, (float)(bounds.height * 0.35)));
-        g2.setClip(oldClip);
-
-        // Beat-synced outer glow
-        if (spring > 0f) {
-            Graphics2D gGlow = (Graphics2D) g2.create();
-            float glowAlpha = Math.min(0.35f, spring * 2.5f);
-            gGlow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, glowAlpha));
-            float glowR = Math.max(bounds.width, bounds.height) * 0.95f;
-            RadialGradientPaint glowPaint = new RadialGradientPaint(
-                new Point2D.Float(bounds.x + bounds.width/2f, bounds.y + bounds.height/2f), glowR,
-                new float[]{0f, 1f},
-                new Color[]{
-                    new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 140),
-                    new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 0)
+        if (width > 0 && height > 0) {
+            if (cachedHeart == null || cachedW != width || cachedH != height || cachedAccent == null || !cachedAccent.equals(accent)) {
+                cachedW = width;
+                cachedH = height;
+                cachedAccent = accent;
+                BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D cg = img.createGraphics();
+                cg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                AffineTransform at = cg.getTransform();
+                cg.translate(width / 2, height / 2 - 10);
+                Shape heart0 = createHeartShape();
+                Rectangle b0 = heart0.getBounds();
+                Graphics2D gS = (Graphics2D) cg.create();
+                gS.translate(0, 4);
+                Color sc = new Color(0, 0, 0, 40);
+                for (int i = 0; i < 3; i++) {
+                    gS.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f - i*0.06f));
+                    gS.translate(0, 1);
+                    gS.setColor(sc);
+                    gS.fill(heart0);
                 }
-            );
-            gGlow.setPaint(glowPaint);
-            gGlow.fill(new Ellipse2D.Float(bounds.x - glowR*0.15f, bounds.y - glowR*0.15f, bounds.width + glowR*0.3f, bounds.height + glowR*0.3f));
-            gGlow.dispose();
+                gS.dispose();
+                float cx0 = b0.x + b0.width * 0.45f;
+                float cy0 = b0.y + b0.height * 0.35f;
+                float r0 = Math.max(b0.width, b0.height) * 0.75f;
+                Color light0 = AccentColorUtil.lighten(accent, 0.45f);
+                Color dark0  = AccentColorUtil.darken(accent, 0.30f);
+                RadialGradientPaint hp = new RadialGradientPaint(
+                    new Point2D.Float(cx0, cy0), r0,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                        new Color(light0.getRed(), light0.getGreen(), light0.getBlue(), 210),
+                        new Color(dark0.getRed(),  dark0.getGreen(),  dark0.getBlue(),  190)
+                    }
+                );
+                cg.setPaint(hp);
+                cg.fill(heart0);
+                cg.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                cg.setColor(new Color(255, 255, 255, 28));
+                cg.draw(heart0);
+                Shape oc = cg.getClip();
+                cg.setClip(heart0);
+                LinearGradientPaint hl = new LinearGradientPaint(
+                    new Point2D.Float(b0.x, b0.y),
+                    new Point2D.Float(b0.x, b0.y + b0.height * 0.35f),
+                    new float[]{0f, 1f},
+                    new Color[]{new Color(255,255,255,80), new Color(255,255,255,0)}
+                );
+                cg.setPaint(hl);
+                cg.fill(new Rectangle2D.Float(b0.x, b0.y, b0.width, (float)(b0.height * 0.35)));
+                cg.setClip(oc);
+                cg.setTransform(at);
+                cg.dispose();
+                cachedHeart = img;
+            }
+            AffineTransform old = g2.getTransform();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, textAlpha))));
+            g2.translate(width / 2, height / 2 - 10);
+            g2.scale(heartScale, heartScale);
+            g2.drawImage(cachedHeart, -width/2, -(height/2 - 10), null);
+            Shape heart = createHeartShape();
+            Rectangle bounds = heart.getBounds();
+            if (spring > 0f) {
+                Graphics2D gGlow = (Graphics2D) g2.create();
+                float glowAlpha = Math.min(0.35f, spring * 2.5f);
+                gGlow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, glowAlpha));
+                float glowR = Math.max(bounds.width, bounds.height) * 0.95f;
+                RadialGradientPaint glowPaint = new RadialGradientPaint(
+                    new Point2D.Float(bounds.x + bounds.width/2f, bounds.y + bounds.height/2f), glowR,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                        new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 140),
+                        new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 0)
+                    }
+                );
+                gGlow.setPaint(glowPaint);
+                gGlow.fill(new Ellipse2D.Float(bounds.x - glowR*0.15f, bounds.y - glowR*0.15f, bounds.width + glowR*0.3f, bounds.height + glowR*0.3f));
+                gGlow.dispose();
+            }
+            g2.setTransform(old);
         }
-        g2.setTransform(old);
         
         // Draw ECG pulse line under heart (solid, with slight beat bump)
         if(ecgOpacity > 0f){
