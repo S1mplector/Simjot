@@ -97,6 +97,29 @@ public class NotebookEntriesPanel extends JPanel {
     // Debounced folder watch refresh to coalesce rapid file system events
     private final javax.swing.Timer watchDebounce = new javax.swing.Timer(250, e -> refresh());
 
+    // Lightweight animation when items are reordered (fade highlight)
+    private final java.util.Map<File, Float> reorderAnimProgress = new java.util.HashMap<>();
+    private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(16, e -> {
+        try {
+            java.util.List<File> toRemove = new java.util.ArrayList<>();
+            for (java.util.Map.Entry<File, Float> en : reorderAnimProgress.entrySet()) {
+                Float fv = en.getValue();
+                float v = (fv == null ? 0f : fv.floatValue());
+                v *= 0.88f; // exponential decay
+                if (v < 0.06f) {
+                    toRemove.add(en.getKey());
+                } else {
+                    en.setValue(v);
+                }
+            }
+            for (File f : toRemove) reorderAnimProgress.remove(f);
+            if (reorderAnimProgress.isEmpty()) {
+                ((javax.swing.Timer) e.getSource()).stop();
+            }
+            list.repaint();
+        } catch (Throwable ignored) {}
+    });
+
     // Folder watch
     private WatchService watchService;
     private Thread watchThread;
@@ -118,6 +141,7 @@ public class NotebookEntriesPanel extends JPanel {
         private final Color selectedBg = new Color(235, 240, 255);
         private final Color selectedBorder = new Color(88, 133, 255);
         private boolean selected;
+        private float reorderGlow = 0f;
 
         // Background image cache (scaled+blurred per size)
         private static BufferedImage ENTRY_BG_BASE;
@@ -191,8 +215,11 @@ public class NotebookEntriesPanel extends JPanel {
             // Title will be set externally via putClientProperty on the list for this renderer
             @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
             @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
+            @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
             String t = titles != null ? titles.getOrDefault(value, value.getName()) : value.getName();
             int wc = wordCounts != null ? wordCounts.getOrDefault(value, 0) : 0;
+            Float glow = reorderAnim != null ? reorderAnim.get(value) : null;
+            reorderGlow = glow == null ? 0f : glow;
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
             Date created = new Date(value.lastModified());
@@ -237,6 +264,12 @@ public class NotebookEntriesPanel extends JPanel {
             g2.setComposite(AlphaComposite.SrcOver.derive(selected ? 0.30f : 0.20f));
             g2.setColor(selected ? selectedBg : Color.WHITE);
             g2.fill(shape);
+            if (reorderGlow > 0f) {
+                float a = Math.max(0f, Math.min(0.35f, reorderGlow * 0.35f));
+                g2.setComposite(AlphaComposite.SrcOver.derive(a));
+                g2.setColor(accent);
+                g2.fill(shape);
+            }
             g2.setComposite(AlphaComposite.SrcOver);
             g2.setClip(oldClip);
             g2.setColor(accent);
@@ -291,6 +324,7 @@ public class NotebookEntriesPanel extends JPanel {
         // Attach shared maps for renderer access
         list.putClientProperty("titles", titles);
         list.putClientProperty("wordCounts", wordCounts);
+        list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(84);
         list.setCellRenderer(new EntryCardRenderer());
@@ -311,6 +345,7 @@ public class NotebookEntriesPanel extends JPanel {
         // Configure debouncers
         listUpdateDebounce.setRepeats(false);
         watchDebounce.setRepeats(false);
+        reorderAnimTimer.setRepeats(true);
 
         loadFiles();
         update();
@@ -400,8 +435,8 @@ public class NotebookEntriesPanel extends JPanel {
             }
         }
         if (!sameOrder) {
-            model.clear();
-            filtered.forEach(model::addElement);
+            java.util.Set<File> changed = updateModelWithMinimalChanges(filtered);
+            bumpReorderAnimation(changed);
         }
 
         // Restore selection without forcing scroll
@@ -416,6 +451,52 @@ public class NotebookEntriesPanel extends JPanel {
 
         // After resort/filter, make sure visible items are prioritized for metadata
         ensureMetaForVisibleRange();
+    }
+
+    // Returns set of files that were inserted or moved
+    private java.util.Set<File> updateModelWithMinimalChanges(java.util.List<File> target){
+        java.util.Set<File> changed = new java.util.HashSet<>();
+        int i = 0;
+        while (i < target.size()) {
+            File desired = target.get(i);
+            if (i < model.size() && java.util.Objects.equals(model.get(i), desired)) {
+                i++;
+                continue;
+            }
+            int existingIdx = indexOfInModel(desired, i+1);
+            if (existingIdx >= 0) {
+                // Move existing item to new position
+                model.remove(existingIdx);
+                model.add(i, desired);
+                changed.add(desired);
+            } else {
+                // Insert new item
+                model.add(i, desired);
+                changed.add(desired);
+            }
+            i++;
+        }
+        // Remove trailing extras
+        while (model.size() > target.size()) {
+            model.remove(model.size()-1);
+        }
+        return changed;
+    }
+
+    private int indexOfInModel(File f, int start){
+        for (int i = Math.max(0, start); i < model.size(); i++) {
+            if (java.util.Objects.equals(model.get(i), f)) return i;
+        }
+        return -1;
+    }
+
+    private void bumpReorderAnimation(java.util.Set<File> files){
+        if (files == null || files.isEmpty()) return;
+        for (File f : files) reorderAnimProgress.put(f, 1f);
+        list.repaint();
+        if (!reorderAnimTimer.isRunning()) {
+            try { reorderAnimTimer.start(); } catch (Throwable ignored) {}
+        }
     }
 
     private void createNew(){
