@@ -103,7 +103,7 @@ public class JournalApp extends JFrame {
         super("Simjot");
         // Set the application icon
         setIconImages(AppIcon.generateIconImages());
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         loadOrChooseRootFolder();
         if (rootFolder != null) {
             initUI();
@@ -282,6 +282,19 @@ public class JournalApp extends JFrame {
         setVisible(true);
         try { toFront(); requestFocus(); } catch (Throwable ignored) {}
         switchCard(MAIN_MENU);
+
+        try {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop d = java.awt.Desktop.getDesktop();
+                try { d.setQuitStrategy(java.awt.desktop.QuitStrategy.CLOSE_ALL_WINDOWS); } catch (Throwable ignored) {}
+                if (d.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
+                    d.setQuitHandler((e, response) -> {
+                        try { exitGracefully(); } catch (Throwable ignored2) {}
+                        try { response.cancelQuit(); } catch (Throwable ignored2) {}
+                    });
+                }
+            }
+        } catch (Throwable ignored) {}
 
         // Ensure backup service is watching according to settings
         try { BackupService.get().start(); } catch (Throwable ignored) {}
@@ -532,7 +545,7 @@ public class JournalApp extends JFrame {
                 @Override protected Void doInBackground() {
                     publish("Saving open editors…");
                     try {
-                        javax.swing.SwingUtilities.invokeAndWait(() -> {
+                        javax.swing.SwingUtilities.invokeLater(() -> {
                             for (main.ui.features.entries.NotebookEditor ed : editors) {
                                 try { ed.triggerSave(); } catch (Throwable ignored) {}
                             }
@@ -541,7 +554,7 @@ public class JournalApp extends JFrame {
 
                     publish("Stopping Sim components…");
                     try {
-                        javax.swing.SwingUtilities.invokeAndWait(() -> {
+                        javax.swing.SwingUtilities.invokeLater(() -> {
                             try { if (simOverlay != null) simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
                             try { if (simScheduler != null) simScheduler.stop(); } catch (Throwable ignored) {}
                             try { if (simBrain != null) simBrain.shutdown(); } catch (Throwable ignored) {}
