@@ -160,13 +160,13 @@ public class HeaderPanel extends JPanel {
                     float baseAmp = 0.06f;
                     heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + spring; // around 1.0 with small overshoot
 
-                    // ECG drawing
+                    // ECG drawing progression (left→right draw then fade)
                     if(ecgOpacity > 0f){
                         if(ecgDraw < 1f){
-                            ecgDraw += 0.06f; // speed of drawing left→right
+                            ecgDraw += 0.06f; // draw speed
                             if(ecgDraw > 1f) ecgDraw = 1f;
                         } else {
-                            ecgOpacity -= 0.02f; // fade out after fully drawn
+                            ecgOpacity -= 0.02f; // fade after fully drawn
                             if(ecgOpacity < 0f) ecgOpacity = 0f;
                         }
                     }
@@ -449,6 +449,8 @@ public class HeaderPanel extends JPanel {
         g2.dispose();
     }
     
+    
+
     private Shape createHeartShape() {
         Path2D.Double path = new Path2D.Double();
         path.moveTo(0, -20);
