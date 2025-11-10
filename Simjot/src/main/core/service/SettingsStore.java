@@ -39,6 +39,9 @@ public final class SettingsStore {
     private static final String KEY_UI_SCALE = "uiScale";
     private static final String KEY_UI_SCALING_ENABLED = "uiScalingEnabled";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
+    // Header quotes settings
+    private static final String KEY_HEADER_QUOTES = "header.quotes"; // multi-line string
+    private static final String KEY_HEADER_QUOTE_ROTATE_SEC = "header.quote.rotate.sec"; // integer seconds
     // Visual accents
     private static final String KEY_MAINMENU_ACCENT_RGB = "mainMenuAccentRGB";
     // Widgets
@@ -478,5 +481,51 @@ public final class SettingsStore {
     public void setEntryLocked(String path, boolean locked){
         if (path == null) return;
         props.setProperty(KEY_LOCK_ENTRY_PREFIX + path, String.valueOf(locked));
+    }
+
+    // -------- Header quotes (customization) -------- //
+    public String[] getHeaderCustomQuotes(){
+        String multi = props.getProperty(KEY_HEADER_QUOTES, "").trim();
+        if (multi.isEmpty()) return new String[0];
+        java.util.List<String> list = new java.util.ArrayList<>();
+        for (String line : multi.split("\n")){
+            String t = line.trim();
+            if (!t.isEmpty()) list.add(t);
+        }
+        return list.toArray(new String[0]);
+    }
+
+    public void setHeaderCustomQuotes(String[] quotes){
+        if (quotes == null || quotes.length == 0){
+            props.remove(KEY_HEADER_QUOTES);
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (String q : quotes){
+            if (q == null) continue;
+            String t = q.trim();
+            if (t.isEmpty()) continue;
+            if (!first) sb.append('\n');
+            sb.append(t);
+            first = false;
+        }
+        if (sb.length() == 0) props.remove(KEY_HEADER_QUOTES); else props.setProperty(KEY_HEADER_QUOTES, sb.toString());
+    }
+
+    public int getHeaderQuoteRotationSeconds(){
+        try {
+            String v = props.getProperty(KEY_HEADER_QUOTE_ROTATE_SEC, null);
+            if (v == null || v.isBlank()) return 12; // default 12s
+            int sec = Integer.parseInt(v.trim());
+            return Math.max(5, Math.min(120, sec));
+        } catch (NumberFormatException e){
+            return 12;
+        }
+    }
+
+    public void setHeaderQuoteRotationSeconds(int seconds){
+        int sec = Math.max(5, Math.min(120, seconds));
+        props.setProperty(KEY_HEADER_QUOTE_ROTATE_SEC, String.valueOf(sec));
     }
 }

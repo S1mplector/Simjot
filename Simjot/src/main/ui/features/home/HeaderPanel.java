@@ -19,11 +19,15 @@ public class HeaderPanel extends JPanel {
     private float ecgOpacity = 0f; // current alpha of ECG line
     private boolean beatPeak = false; // tracks heart peak to trigger ECG
     private Timer fadeTimer, pulseTimer;
+    // Quote rotation
+    private Timer rotateTimer, quoteFadeTimer;
     // Animation state for eased pulse
     private double phase = 0;       // continuous time phase
     private double lastBeatValue = 0; // for peak detection on eased curve
     private float spring = 0f;      // small overshoot that decays after peak
     private String quote;
+    private java.util.List<String> quotePool;
+    private int quoteIndex = 0;
     private final Color accent;
     
     public HeaderPanel() {
@@ -33,8 +37,9 @@ public class HeaderPanel extends JPanel {
     public HeaderPanel(Color accent) {
         setPreferredSize(new Dimension(800, 120));
         setOpaque(false);
+        setLayout(new BorderLayout());
         this.accent = (accent != null ? accent : AeroTheme.AERO_BLUE);
-        // Random calming quotes.
+        // Random calming quotes (built-in).
         String[] quotes = {
             "Take a deep breath. You are enough.",
             "Every day is a fresh start.",
@@ -55,9 +60,47 @@ public class HeaderPanel extends JPanel {
             "Return to your breath.",
             "Let go of what you can’t control.",
             "Notice one good thing.",
-            "May your thoughts be light today."
+            "May your thoughts be light today.",
+            "It's okay to pause.",
+            "You can begin again.",
+            "Drink some water.",
+            "Step outside for a moment.",
+            "Loosen your shoulders.",
+            "A gentle day is still a good day.",
+            "Tiny progress is progress.",
+            "Breathe in for 4, out for 6.",
+            "Give yourself some grace.",
+            "Let the hurry fall away.",
+            "Your pace is perfect for you.",
+            "Quiet moments count, too."
         };
-        quote = quotes[new Random().nextInt(quotes.length)];
+        // Merge with custom quotes from settings
+        quotePool = new java.util.ArrayList<>();
+        java.util.Collections.addAll(quotePool, quotes);
+        try {
+            String[] custom = SettingsStore.get().getHeaderCustomQuotes();
+            if (custom != null) {
+                for (String q : custom) if (q != null && !q.trim().isEmpty()) quotePool.add(q.trim());
+            }
+        } catch (Throwable ignored) {}
+        if (quotePool.isEmpty()) quotePool.add("Take a deep breath. You are enough.");
+        quoteIndex = new Random().nextInt(quotePool.size());
+        quote = quotePool.get(quoteIndex);
+
+        // Next quote button (top-right)
+        JPanel topRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        topRight.setOpaque(false);
+        JButton nextBtn = new JButton("Next");
+        nextBtn.setOpaque(false);
+        nextBtn.setContentAreaFilled(false);
+        nextBtn.setBorder(BorderFactory.createEmptyBorder(6,10,6,10));
+        nextBtn.setFocusPainted(false);
+        nextBtn.setForeground(Color.WHITE);
+        nextBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        nextBtn.setToolTipText("Next quote");
+        nextBtn.addActionListener(e -> advanceQuote());
+        topRight.add(nextBtn);
+        add(topRight, BorderLayout.NORTH);
     }
     
     public void startAnimation() {
@@ -119,6 +162,44 @@ public class HeaderPanel extends JPanel {
             });
             pulseTimer.start();
         }
+
+        // Periodic quote rotation with soft fade
+        int periodSec = 12;
+        try { periodSec = SettingsStore.get().getHeaderQuoteRotationSeconds(); } catch (Throwable ignored) {}
+        rotateTimer = new Timer(Math.max(5, periodSec) * 1000, e -> advanceQuote());
+        rotateTimer.start();
+    }
+
+    private void advanceQuote(){
+        if (quotePool == null || quotePool.isEmpty()) return;
+        quoteIndex = (quoteIndex + 1) % quotePool.size();
+        String next = quotePool.get(quoteIndex);
+        startQuoteFadeTo(next);
+    }
+
+    private void startQuoteFadeTo(String next){
+        if (fadeTimer != null && fadeTimer.isRunning()) fadeTimer.stop();
+        if (quoteFadeTimer != null) quoteFadeTimer.stop();
+        final String target = next;
+        final int[] phaseRef = {0}; // 0 = fade out, 1 = fade in
+        quoteFadeTimer = new Timer(40, ev -> {
+            if (phaseRef[0] == 0){
+                textAlpha -= 0.10f;
+                if (textAlpha <= 0f){
+                    textAlpha = 0f;
+                    phaseRef[0] = 1;
+                    quote = target;
+                }
+            } else {
+                textAlpha += 0.10f;
+                if (textAlpha >= 1f){
+                    textAlpha = 1f;
+                    quoteFadeTimer.stop();
+                }
+            }
+            repaint();
+        });
+        quoteFadeTimer.start();
     }
     
     @Override
