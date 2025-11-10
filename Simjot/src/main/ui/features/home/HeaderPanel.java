@@ -21,6 +21,9 @@ public class HeaderPanel extends JPanel {
     private Timer fadeTimer, pulseTimer;
     // Quote rotation
     private Timer rotateTimer, quoteFadeTimer;
+    // Inline Next (chevron) button hit area & hover state
+    private Rectangle nextHit = new Rectangle();
+    private boolean nextHover = false;
     // Animation state for eased pulse
     private double phase = 0;       // continuous time phase
     private double lastBeatValue = 0; // for peak detection on eased curve
@@ -87,20 +90,25 @@ public class HeaderPanel extends JPanel {
         quoteIndex = new Random().nextInt(quotePool.size());
         quote = quotePool.get(quoteIndex);
 
-        // Next quote button (top-right)
-        JPanel topRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        topRight.setOpaque(false);
-        JButton nextBtn = new JButton("Next");
-        nextBtn.setOpaque(false);
-        nextBtn.setContentAreaFilled(false);
-        nextBtn.setBorder(BorderFactory.createEmptyBorder(6,10,6,10));
-        nextBtn.setFocusPainted(false);
-        nextBtn.setForeground(Color.WHITE);
-        nextBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        nextBtn.setToolTipText("Next quote");
-        nextBtn.addActionListener(e -> advanceQuote());
-        topRight.add(nextBtn);
-        add(topRight, BorderLayout.NORTH);
+        // Mouse interactivity for inline chevron button
+        MouseAdapter mx = new MouseAdapter() {
+            @Override public void mouseMoved(MouseEvent e) {
+                boolean h = nextHit != null && nextHit.contains(e.getPoint());
+                if (h != nextHover) {
+                    nextHover = h;
+                    setCursor(h ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+                    repaint();
+                }
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                if (nextHover) { nextHover = false; setCursor(Cursor.getDefaultCursor()); repaint(); }
+            }
+            @Override public void mouseClicked(MouseEvent e) {
+                if (nextHit != null && nextHit.contains(e.getPoint())) advanceQuote();
+            }
+        };
+        addMouseMotionListener(mx);
+        addMouseListener(mx);
     }
     
     public void startAnimation() {
@@ -395,6 +403,37 @@ public class HeaderPanel extends JPanel {
         g2.fill(new Rectangle2D.Double(qb.getX(), qb.getY(), qb.getWidth(), qb.getHeight() * 0.5));
         g2.setClip(oldClip3);
         
+        // ---- Inline vector 'Next' arrow button right of the quote ----
+        int btnSize = 22;
+        int arrowCX = (int) Math.round(qb.getX() + qb.getWidth() + 16);
+        int arrowCY = (int) Math.round(qb.getY() + qb.getHeight() / 2.0);
+        nextHit.setBounds(arrowCX - btnSize/2, arrowCY - btnSize/2, btnSize, btnSize);
+
+        Graphics2D nb = (Graphics2D) g2.create();
+        nb.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        nb.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, textAlpha))));
+        // Shadow
+        nb.setColor(new Color(0,0,0, nextHover ? 120 : 90));
+        nb.fillOval(nextHit.x + 1, nextHit.y + 2, nextHit.width, nextHit.height);
+        // Background circle
+        Color bg = new Color(255,255,255, nextHover ? 110 : 70);
+        nb.setColor(bg);
+        nb.fillOval(nextHit.x, nextHit.y, nextHit.width, nextHit.height);
+        // Border
+        nb.setStroke(new BasicStroke(1.2f));
+        nb.setColor(new Color(255,255,255, 160));
+        nb.drawOval(nextHit.x, nextHit.y, nextHit.width, nextHit.height);
+        // Chevron '>'
+        Path2D chevron = new Path2D.Double();
+        double ax = arrowCX - 3.5, ay = arrowCY - 5.0;
+        chevron.moveTo(ax, ay);
+        chevron.lineTo(arrowCX + 4.5, arrowCY);
+        chevron.lineTo(ax, arrowCY + 5.0);
+        nb.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        nb.setColor(Color.WHITE);
+        nb.draw(chevron);
+        nb.dispose();
+
         g2.dispose();
     }
     
