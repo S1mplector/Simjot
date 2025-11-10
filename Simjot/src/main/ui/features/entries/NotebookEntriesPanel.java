@@ -231,7 +231,8 @@ public class NotebookEntriesPanel extends JPanel {
             } catch (Exception ignored) {}
             Date modified = new Date(value.lastModified());
 
-            title.setText((t==null||t.isBlank())?"Untitled":t);
+            String displayTitle = (t==null||t.isBlank()) ? value.getName() : t;
+            title.setText(displayTitle);
             SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
             String size = NotebookEntriesPanel.humanReadableSize(value.length());
             meta.setText(String.format("%s  •  %s  •  Created %s  •  Last edited %s", size, wc+" words", df.format(created), df.format(modified)));
@@ -377,7 +378,6 @@ public class NotebookEntriesPanel extends JPanel {
             allFiles = Arrays.asList(arr);
             // Seed placeholders fast on EDT
             for(File f: allFiles){
-                titles.put(f, null);
                 wordCounts.put(f, 0);
             }
             // Start prioritized metadata loading (visible first)
