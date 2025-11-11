@@ -216,7 +216,10 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
             @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
-            String t = titles != null ? titles.getOrDefault(value, value.getName()) : value.getName();
+            String fallback = value.getName();
+            int dotIdx = fallback.lastIndexOf('.');
+            if (dotIdx > 0) fallback = fallback.substring(0, dotIdx);
+            String t = titles != null ? titles.get(value) : null;
             int wc = wordCounts != null ? wordCounts.getOrDefault(value, 0) : 0;
             Float glow = reorderAnim != null ? reorderAnim.get(value) : null;
             reorderGlow = glow == null ? 0f : glow;
@@ -231,7 +234,7 @@ public class NotebookEntriesPanel extends JPanel {
             } catch (Exception ignored) {}
             Date modified = new Date(value.lastModified());
 
-            String displayTitle = (t==null||t.isBlank()) ? value.getName() : t;
+            String displayTitle = (t==null||t.isBlank()) ? fallback : t;
             title.setText(displayTitle);
             SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
             String size = NotebookEntriesPanel.humanReadableSize(value.length());
@@ -370,20 +373,32 @@ public class NotebookEntriesPanel extends JPanel {
             String ext = dot>=0 ? s.substring(dot) : "";
             return exts.contains(ext);
         });
-        titles.clear();
-        wordCounts.clear();
-        metaComputed.clear();
-        metaQueued.clear();
-        if(arr!=null){
+        if (arr != null) {
             allFiles = Arrays.asList(arr);
-            // Seed placeholders fast on EDT
-            for(File f: allFiles){
-                wordCounts.put(f, 0);
+            java.util.Set<File> current = new java.util.HashSet<>(allFiles);
+            // Prune caches for removed files but preserve known titles to avoid flicker
+            titles.keySet().retainAll(current);
+            wordCounts.keySet().retainAll(current);
+            metaComputed.retainAll(current);
+            synchronized (metaQueued) { metaQueued.retainAll(current); }
+
+            // Seed provisional values for new files
+            for (File f : allFiles) {
+                if (!titles.containsKey(f)) {
+                    String nm = f.getName();
+                    int dot = nm.lastIndexOf('.');
+                    titles.put(f, (dot > 0 ? nm.substring(0, dot) : nm));
+                }
+                if (!wordCounts.containsKey(f)) wordCounts.put(f, 0);
             }
             // Start prioritized metadata loading (visible first)
             startPrioritizedMetaLoader(java.util.List.copyOf(allFiles));
         } else {
             allFiles = java.util.Collections.emptyList();
+            titles.clear();
+            wordCounts.clear();
+            metaComputed.clear();
+            metaQueued.clear();
         }
     }
 
