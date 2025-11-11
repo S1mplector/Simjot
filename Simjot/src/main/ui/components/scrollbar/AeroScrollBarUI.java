@@ -26,6 +26,16 @@ public class AeroScrollBarUI extends BasicScrollBarUI {
     }
 
     @Override
+    public Dimension getPreferredSize(JComponent c) {
+        Dimension base = super.getPreferredSize(c);
+        if (scrollbar != null && scrollbar.getOrientation() == Adjustable.VERTICAL) {
+            return new Dimension(12, base.height);
+        } else {
+            return new Dimension(base.width, 12);
+        }
+    }
+
+    @Override
     protected void paintThumb(Graphics g, JComponent c, Rectangle tb) {
         if (!c.isEnabled() || tb.width > tb.height && tb.height < 2) return;
         Graphics2D g2 = (Graphics2D) g.create();

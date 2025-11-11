@@ -92,7 +92,7 @@ public final class UIScalingManager {
             scaleInsets("TabbedPane.tabInsets", 4, 4, 4, 1, effectiveScale);
             
             // Scale sizes
-            UIManager.put("ScrollBar.width", Math.round(16 * effectiveScale));
+            UIManager.put("ScrollBar.width", 12);
             UIManager.put("SplitPane.dividerSize", Math.round(10 * effectiveScale));
             UIManager.put("Tree.rowHeight", Math.round(20 * effectiveScale));
             UIManager.put("Table.rowHeight", Math.round(20 * effectiveScale));

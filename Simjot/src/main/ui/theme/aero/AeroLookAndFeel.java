@@ -25,7 +25,7 @@ public final class AeroLookAndFeel {
 
         // Basic spacing tweaks closer to Win7
         UIManager.put("Button.margin", new Insets(4, 12, 4, 12));
-        UIManager.put("ScrollBar.width", 16);
+        UIManager.put("ScrollBar.width", 12);
 
         // Optional: tooltips
         UIManager.put("ToolTip.font", base);
