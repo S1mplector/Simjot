@@ -1,49 +1,98 @@
 package main.ui.features.entries;
 
-import java.awt.*;
-import java.awt.event.*;
+// Java Swing imports
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Insets;
+import java.awt.LinearGradientPaint;
+import java.awt.Paint;
+import java.awt.Point;
+import java.awt.RadialGradientPaint;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import javax.swing.*;
+import java.util.Date;
+
 import javax.imageio.ImageIO;
+import javax.swing.Action;
+import javax.swing.ActionMap;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.InputMap;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.JTextPane;
+import javax.swing.JToggleButton;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import javax.swing.text.StyledEditorKit;
-import javax.swing.text.StyledDocument;
-import javax.swing.text.Style;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.rtf.RTFEditorKit;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
-import main.ui.components.editor.RichTextStyler;
+import javax.swing.text.Style;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.StyledEditorKit;
+import javax.swing.text.rtf.RTFEditorKit;
+
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
+import main.core.sim.api.SimEventBus;
+import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.TranslucentPanel;
+import main.ui.components.editor.ImagePasteManager;
+import main.ui.components.editor.RichTextStyler;
+import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.popup.AnimatedGlassPopup;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.slider.MoodSlider;
+import main.ui.components.util.EditorUIUtils;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.components.util.EditorUIUtils;
-import main.ui.components.editor.ImagePasteManager;
-import main.ui.components.indicators.SaveIndicatorPanel;
-import main.ui.components.scrollbar.ModernScrollBarUI;
-import main.infrastructure.backup.NotebookInfo;
-import main.core.sim.api.SimEventBus;
  
 
 public class EntryPanel extends AbstractEditorPanel {
@@ -88,6 +137,8 @@ public class EntryPanel extends AbstractEditorPanel {
     private java.util.Map<Integer, String> questionResponses = new java.util.HashMap<>();
     private UndoRedoManager titleUndoManager;
     private UndoRedoManager contentUndoManager;
+    // Reusable document listener reference so we can reattach after setDocument()
+    private javax.swing.event.DocumentListener editorDocListener;
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -225,6 +276,8 @@ public class EntryPanel extends AbstractEditorPanel {
             } else {
                 contentArea.setText(r);
             }
+            // After loading content (text or RTF), refresh the word count
+            try { updateWordCount(); } catch (Throwable ignored) {}
         } catch (Exception ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
@@ -556,8 +609,8 @@ public class EntryPanel extends AbstractEditorPanel {
         this.contentUndoManager = new UndoRedoManager(contentArea);
         this.titleUndoManager = new UndoRedoManager(titleField);
 
-        // Add document listener for word count
-        contentArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+        // Add document listener for word count and typing snapshot; keep a reference
+        editorDocListener = new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
@@ -578,6 +631,22 @@ public class EntryPanel extends AbstractEditorPanel {
                 emitTypingSnapshot();
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
             }
+        };
+        contentArea.getDocument().addDocumentListener(editorDocListener);
+        // Reattach listener whenever the document instance is replaced (e.g., opening existing RTF)
+        contentArea.addPropertyChangeListener("document", evt -> {
+            try {
+                if (evt.getOldValue() instanceof javax.swing.text.Document oldDoc && editorDocListener != null) {
+                    oldDoc.removeDocumentListener(editorDocListener);
+                }
+            } catch (Throwable ignored) {}
+            try {
+                if (evt.getNewValue() instanceof javax.swing.text.Document newDoc && editorDocListener != null) {
+                    newDoc.addDocumentListener(editorDocListener);
+                }
+            } catch (Throwable ignored) {}
+            // Ensure label reflects loaded content immediately
+            try { updateWordCount(); } catch (Throwable ignored) {}
         });
         // Autosave on title change too
         titleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
