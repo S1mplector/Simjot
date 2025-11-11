@@ -397,7 +397,10 @@ public class EntryPanel extends AbstractEditorPanel {
                     int cap = 4000;
                     String text = all.length() > cap ? all.substring(all.length() - cap) : all;
                     showGuidanceThinkingPlaceholder();
-                    SimEventBus.get().emitGuidanceRequested(text);
+                    // Run guidance request off the EDT to avoid blocking UI and resetting custom UIs
+                    new Thread(() -> {
+                        try { SimEventBus.get().emitGuidanceRequested(text); } catch (Throwable ignored) {}
+                    }, "Sim-Guidance-Request").start();
                 } catch (BadLocationException ex) { /* no-op */ }
             });
             rightToolbar.add(guidanceBtn);

@@ -85,7 +85,9 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/engine/ReasoningHeuristics.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsController.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/security/LockController.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/MoodChartModel.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsIcons.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/dialog/input/MathFormulaDialog.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/checkbox/ModernCheckBoxUI.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/entries/BackgroundPainter.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/icons/ModernFileIcons.java
@@ -114,8 +116,10 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/settings/AppearanceSettingsPage.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/drawing/DrawingChooserDialog.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/editing/UndoRedoManager.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/MoodChartRenderer.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/drawing/Stroke.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimLLMResponse.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/EcgTraceRenderer.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/theme/aero/AeroTheme.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/icons/AppIcon.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/state/UserState.java
@@ -125,7 +129,9 @@
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/buttons/ToolbarIconButton.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimLLMRequest.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/poetry/SimSuggestionFormatter.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/home/MoodChartSettings.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/DragController.java
+/Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/features/widgets/QuickMoodWidget.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/core/sim/memory/PersistentMemoryStore.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/dialog/config/BreathingConfigDialog.java
 /Users/ilgazmehmetoglu/Desktop/Projects/Simjot/Simjot/src/main/ui/components/scrollbar/ModernScrollBarUI.java

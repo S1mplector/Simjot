@@ -15,6 +15,7 @@ main/core/sim/persona/SimPersonality$Type.class
 main/core/sim/proactive/TriggerStatsStore$Stat.class
 main/ui/features/notebooks/NotebookManagerPanel$2.class
 main/ui/features/entries/NotetakingPanel$EditingMode.class
+main/ui/features/entries/DetailedMoodPanel$DetailedMoodSnapshot.class
 main/ui/features/splash/AeroSplashScreen$1.class
 main/ui/components/checkbox/ModernCheckBoxUI.class
 main/ui/features/entries/AutosaveManager.class
@@ -35,6 +36,7 @@ main/ui/dialog/setup/SetupWizardDialog$1.class
 main/ui/features/widgets/IdeaStickyWidget$9.class
 main/ui/sim/overlay/ChatViewPanel.class
 main/core/service/LastSaveTracker.class
+main/ui/features/widgets/QuickMoodWidget$2.class
 main/ui/components/datepicker/ModernDatePicker.class
 main/ui/features/settings/StorageSettingsPage$1.class
 main/ui/features/home/DayPanel.class
@@ -70,6 +72,7 @@ main/ui/sim/overlay/SimOverlay.class
 main/ui/features/drawing/DrawingPanel$ModernComboBoxUI$1.class
 main/ui/features/settings/StorageSettingsPage$3.class
 main/ui/features/entries/NotebookEntriesPanel$1.class
+main/ui/features/home/MoodChartModel.class
 main/ui/components/checkbox/ModernCheckBoxUI$1.class
 main/ui/components/DragController.class
 main/ui/features/home/BackgroundPanel$2.class
@@ -173,6 +176,7 @@ main/core/security/LockUtil.class
 main/ui/app/JournalApp$2.class
 main/ui/features/drawing/Stroke.class
 main/ui/features/notebooks/NotebookManagerPanel$NotebookOptionsDialog.class
+main/ui/features/home/MoodChartModel$EntryRef.class
 main/ui/features/widgets/WidgetManager.class
 main/ui/app/JournalApp.class
 main/ui/features/entries/EditPoemPanel.class
@@ -199,6 +203,7 @@ main/ui/features/settings/GeneralSettingsPage.class
 main/ui/features/widgets/IdeaStickyWidget$10.class
 main/ui/app/JournalApp$1.class
 main/core/service/SettingsStore.class
+main/ui/dialog/input/MathFormulaDialog$1.class
 main/ui/components/slider/MoodSlider.class
 main/ui/features/entries/EntryTypeSelectionDialog$2.class
 main/ui/features/settings/AboutSettingsPage.class
@@ -220,8 +225,10 @@ main/ui/features/widgets/BreathingWidget$PhaseInfo.class
 main/ui/features/notebooks/NotebookManagerPanel.class
 main/ui/theme/aero/AeroTheme.class
 main/ui/features/entries/NotebookEditorType.class
+main/ui/dialog/input/MathFormulaDialog$2.class
 main/ui/features/settings/StorageSettingsPage$SizeBadgeLabel.class
 main/ui/components/combobox/ModernComboBoxUI$1.class
+main/ui/features/home/MoodChartModel$Details.class
 main/ui/features/drawing/DrawingPanel$BrushPreviewPopup.class
 main/core/security/LockController$1.class
 main/ui/features/entries/NotetakingPanel$4.class
@@ -249,6 +256,7 @@ main/ui/features/editing/UndoRedoManager$CountingUndoManager.class
 main/core/sim/data/SimDataGateway.class
 main/core/sim/critic/CriticPromptDecorator.class
 main/core/sim/memory/MemoryStore.class
+main/ui/features/home/MoodChartPanel$3.class
 main/ui/features/settings/StorageSettingsPage$2.class
 main/ui/dialog/setup/SetupWizardDialog$WallpaperChooser.class
 main/ui/features/drawing/DrawingChooserDialog.class
@@ -265,7 +273,9 @@ main/ui/features/widgets/IdeaStickyWidget$8.class
 main/ui/components/toolbars/PoetryStyleToolbar.class
 main/ui/features/entries/MoodButton$1.class
 main/ui/features/notebooks/NotebookManagerPanel$1.class
+main/ui/features/home/MoodChartSettings.class
 main/ui/features/quicksettings/QuickSettingsCategory.class
+main/ui/features/widgets/QuickMoodWidget$1.class
 main/ui/dialog/utils/EntryBackgroundDialog.class
 main/ui/dialog/utils/BreathingExerciseWindow$1.class
 main/ui/theme/Theme.class
@@ -292,10 +302,12 @@ main/ui/features/entries/NotetakingPanel$DrawStroke.class
 main/ui/features/entries/DetailedMoodDialog$SimpleGradientSliderUI.class
 main/ui/sim/overlay/ChatTranscriptModel$Entry.class
 main/infrastructure/io/DateFormatUtil.class
+main/ui/dialog/input/MathFormulaDialog.class
 main/ui/dialog/setup/DirectoryChooserDialog.class
 main/ui/features/drawing/DrawingPanel$Tool.class
 main/ui/features/settings/StorageSettingsPage$NodeSizeUpdate.class
 main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog$1.class
+main/ui/features/widgets/QuickMoodWidget.class
 main/ui/components/containers/TranslucentPanel.class
 main/ui/features/entries/EntryPanel$5.class
 main/ui/features/quicksettings/QuickSettingsController$HostApi.class
@@ -304,15 +316,18 @@ main/ui/features/widgets/IdeaStickyWidget.class
 main/core/sim/engine/TurnManager.class
 main/ui/features/widgets/IdeaStickyWidget$6.class
 main/ui/features/entries/Mood.class
+main/ui/features/widgets/WidgetManager$4.class
 main/ui/features/quicksettings/QuickSettingsIcons$BaseIcon.class
 main/ui/components/containers/RoundedPanel.class
 main/ui/features/notebooks/NotebookManagerPanel$NotebookTile.class
 main/ui/features/entries/NotetakingPanel$11.class
 main/core/sim/api/SimEventBus$Listener.class
+main/ui/features/home/MoodChartRenderer.class
 main/ui/features/drawing/DrawingPanel$ColorPopup.class
 main/ui/features/settings/StorageSettingsPage$GlassCardPanel.class
 main/core/sim/proactive/ProactiveTriggerEngine.class
 main/ui/components/DragController$1.class
+main/ui/features/home/EcgTraceRenderer.class
 main/ui/features/gallery/WallpaperGalleryPanel$1.class
 main/ui/features/settings/StorageSettingsPage$5.class
 main/ui/features/home/BackgroundPanel.class
@@ -355,6 +370,7 @@ main/core/model/SectionData.class
 main/ui/features/settings/AppearanceSettingsPage.class
 main/ui/dialog/config/BreathingConfigDialog.class
 main/ui/features/poetry/RhymesDockPanel$1.class
+main/ui/features/home/HeaderPanel$3.class
 main/infrastructure/monitoring/AppPerf.class
 main/ui/features/entries/NotebookEntriesPanel$2.class
 main/ui/animations/transitions/FadeTransitionPanel$1.class
@@ -394,6 +410,7 @@ main/ui/features/entries/EditEntryPanel.class
 main/ui/features/entries/NotetakingPanel$DrawingOverlay$1.class
 main/ui/components/editor/ImagePasteManager$4.class
 main/ui/features/widgets/PomodoroWidget.class
+main/ui/dialog/input/MathFormulaDialog$Result.class
 main/ui/components/slider/MoodSlider$MoodSliderUI.class
 main/ui/dialog/input/CustomInputDialog.class
 main/ui/features/gallery/WallpaperGalleryPanel$1Cell.class
