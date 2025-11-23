@@ -125,6 +125,7 @@ public class NotebookEntriesPanel extends JPanel {
     private WatchService watchService;
     private Thread watchThread;
     private volatile boolean watchRunning;
+    private volatile boolean disposed = false;
 
     private static class FileMeta {
         final File file; final int wc; final String title;
@@ -377,6 +378,7 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void loadFiles(){
+        if (disposed) return;
         // Cancel any ongoing metadata load
         if (metaLoader != null && !metaLoader.isDone()) {
             metaLoader.cancel(true);
@@ -437,11 +439,13 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void update(){
+        if (disposed) return;
         // Debounce model rebuilds
         listUpdateDebounce.restart();
     }
 
     private void applyFilterSort(){
+        if (disposed) return;
         // Preserve selection and scroll to minimize visible twitch
         File sel = list.getSelectedValue();
         int scrollVal = 0;
@@ -622,26 +626,47 @@ public class NotebookEntriesPanel extends JPanel {
 
     /** Reload the file list and update the UI */
     public void refresh(){
+        if (disposed) return;
         loadFiles();
         update();
     }
 
+    /** Stop background work so the panel can be disposed without hanging the app. */
+    public void disposeResources(){
+        disposed = true;
+        stopWatching();
+        try { searchDebounce.stop(); } catch (Throwable ignored) {}
+        try { listUpdateDebounce.stop(); } catch (Throwable ignored) {}
+        try { watchDebounce.stop(); } catch (Throwable ignored) {}
+        try { reorderAnimTimer.stop(); } catch (Throwable ignored) {}
+        try {
+            if (metaLoader != null && !metaLoader.isDone()) {
+                metaLoader.cancel(true);
+            }
+        } catch (Throwable ignored) {}
+        metaLoader = null;
+        synchronized (metaQueued) { metaQueued.clear(); }
+        metaComputed.clear();
+        metaCache.clear();
+    }
     
 
     // ensure list refresh when panel becomes visible
     @Override public void addNotify(){
         super.addNotify();
+        if (disposed) return;
         startWatching();
         refresh();
         SwingUtilities.invokeLater(this::ensureMetaForVisibleRange);
     }
 
     @Override public void removeNotify(){
-        stopWatching();
+        disposeResources();
         super.removeNotify();
     }
 
     private void startWatching(){
+        if (disposed) return;
         stopWatching();
         try {
             Path path = nb.getFolder().toPath();
@@ -694,6 +719,7 @@ public class NotebookEntriesPanel extends JPanel {
 
     // Prioritize metadata loading for currently visible items
     private void ensureMetaForVisibleRange(){
+        if (disposed) return;
         try {
             int first = list.getFirstVisibleIndex();
             int last = list.getLastVisibleIndex();
@@ -710,6 +736,7 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void startPrioritizedMetaLoader(java.util.List<File> preferredFirst){
+        if (disposed) return;
         if (preferredFirst == null) preferredFirst = java.util.Collections.emptyList();
         // Cancel ongoing worker to re-prioritize
         if (metaLoader != null && !metaLoader.isDone()) {

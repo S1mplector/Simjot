@@ -543,6 +543,7 @@ public class JournalApp extends JFrame {
      */
     public void exitGracefully() {
         try {
+            disposeNotebookPanelsSafely();
             CustomMessageDialog.setGlobalSuppressed(true);
             final AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Exiting…");
@@ -593,6 +594,19 @@ public class JournalApp extends JFrame {
             }.execute();
         } catch (Throwable t) {
             try { System.exit(0); } catch (Throwable ignored) {}
+        }
+    }
+
+    // Tear down notebook entry panels to avoid lingering watchers/threads on exit
+    private void disposeNotebookPanelsSafely() {
+        try {
+            for (NotebookEntriesPanel panel : notebookPanels.values()) {
+                if (panel != null) {
+                    try { panel.disposeResources(); } catch (Throwable t) { logWarn("NotebookEntriesPanel dispose", t); }
+                }
+            }
+        } catch (Throwable t) {
+            logWarn("NotebookEntriesPanel dispose", t);
         }
     }
 
