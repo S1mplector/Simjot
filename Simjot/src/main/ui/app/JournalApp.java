@@ -275,7 +275,9 @@ public class JournalApp extends JFrame {
             if (SimSettings.get().isEnabled()) {
                 enableSimFeatures();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("enableSimFeatures", t);
+        }
 
         // Start maximized before showing to avoid small initial window
         try { setExtendedState(JFrame.MAXIMIZED_BOTH); } catch (Throwable ignored) {}
@@ -289,15 +291,17 @@ public class JournalApp extends JFrame {
                 try { d.setQuitStrategy(java.awt.desktop.QuitStrategy.CLOSE_ALL_WINDOWS); } catch (Throwable ignored) {}
                 if (d.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
                     d.setQuitHandler((e, response) -> {
-                        try { exitGracefully(); } catch (Throwable ignored2) {}
+                        try { exitGracefully(); } catch (Throwable t) { logWarn("App quit handler", t); }
                         try { response.cancelQuit(); } catch (Throwable ignored2) {}
                     });
                 }
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("Desktop quit handler wiring", t);
+        }
 
         // Ensure backup service is watching according to settings
-        try { BackupService.get().start(); } catch (Throwable ignored) {}
+        try { BackupService.get().start(); } catch (Throwable t) { logWarn("BackupService start", t); }
 
         // After UI visible, optionally show tutorial, then force fullscreen
         SwingUtilities.invokeLater(() -> {
@@ -308,7 +312,9 @@ public class JournalApp extends JFrame {
                     // Show full-screen Aero-styled lock screen on startup
                     new LockScreenDialog(this).blockUntilUnlocked();
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                logWarn("Lock init", t);
+            }
             showTutorialIfFirstTime();
             ensureFullScreen();
             // Force widget panel visible and on top
@@ -333,7 +339,9 @@ public class JournalApp extends JFrame {
                         }
                     }
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                logWarn("Open last on startup", t);
+            }
         });
 
         // On close, attempt a due backup synchronously
@@ -344,7 +352,9 @@ public class JournalApp extends JFrame {
                     exitGracefully();
                 }
             });
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("windowClosing listener", t);
+        }
 
         // JVM shutdown hook: covers cases where windowClosing isn't delivered (e.g., OS-level quit)
         try {
@@ -358,7 +368,8 @@ public class JournalApp extends JFrame {
                 // Run backup in a daemon helper and wait briefly; if it takes too long, let JVM exit
                 try {
                     Thread t = new Thread(() -> {
-                        try { BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+                        try { BackupService.get().triggerOnExit(); } catch (Throwable t1) { logWarn("BackupService triggerOnExit (shutdown hook)", t1); }
+                        try { BackupService.get().shutdown(); } catch (Throwable t2) { logWarn("BackupService shutdown (hook)", t2); }
                     }, "BackupOnShutdown");
                     t.setDaemon(true);
                     t.start();
@@ -562,10 +573,11 @@ public class JournalApp extends JFrame {
                     } catch (Throwable ignored) {}
 
                     publish("Stopping services…");
-                    try { main.infrastructure.backup.BackupService.get().stop(); } catch (Throwable ignored) {}
+                    try { main.infrastructure.backup.BackupService.get().stop(); } catch (Throwable t) { logWarn("BackupService stop", t); }
 
                     publish("Finalizing backup…");
-                    try { main.infrastructure.backup.BackupService.get().triggerOnExit(); } catch (Throwable ignored) {}
+                    try { main.infrastructure.backup.BackupService.get().triggerOnExit(); } catch (Throwable t) { logWarn("BackupService triggerOnExit", t); }
+                    try { main.infrastructure.backup.BackupService.get().shutdown(); } catch (Throwable t) { logWarn("BackupService shutdown", t); }
 
                     try { Thread.sleep(150); } catch (Throwable ignored) {}
                     return null;
@@ -613,6 +625,12 @@ public class JournalApp extends JFrame {
     public void showCardImmediate(String cardName) {
         CardLayout cl = cardLayout;
         cl.show(cardPanel, cardName);
+    }
+
+    private static void logWarn(String action, Throwable t) {
+        if (t == null) return;
+        System.err.println("[JournalApp] " + action + " failed (" + t.getClass().getSimpleName() + "): " + t.getMessage());
+        t.printStackTrace(System.err);
     }
 
     /**

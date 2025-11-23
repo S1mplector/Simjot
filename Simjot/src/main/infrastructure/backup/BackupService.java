@@ -69,7 +69,9 @@ public final class BackupService {
             if (now - last >= interval) {
                 runBackupNow();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("checkAndRunIfDue failed", t);
+        }
     }
 
     /** Force a backup attempt if settings are enabled, typically on exit. */
@@ -92,12 +94,14 @@ public final class BackupService {
             if (now - last >= interval) {
                 runBackupNow();
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("triggerOnExit failed", t);
+        }
     }
 
     /** Manual trigger regardless of frequency setting. Useful for "Backup Now" button. */
     public void triggerNow() {
-        try { runBackupNow(); } catch (Throwable ignored) {}
+        try { runBackupNow(); } catch (Throwable t) { logWarn("triggerNow failed", t); }
     }
 
     private void runBackupNow() {
@@ -129,6 +133,25 @@ public final class BackupService {
 
             store.setLastBackupEpochMillis(System.currentTimeMillis());
             store.save();
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("runBackupNow failed", t);
+        }
+    }
+
+    /**
+     * Shutdown the scheduler thread entirely. Call on application exit to avoid leaks.
+     */
+    public synchronized void shutdown() {
+        stop();
+        try {
+            scheduler.shutdownNow();
+        } catch (Throwable t) {
+            logWarn("shutdown failed", t);
+        }
+    }
+
+    private static void logWarn(String msg, Throwable t){
+        System.err.println("[BackupService] " + msg + (t != null ? " (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ")" : ""));
+        if (t != null) t.printStackTrace(System.err);
     }
 }

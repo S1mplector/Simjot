@@ -190,9 +190,13 @@ public class NotebookManagerPanel extends JPanel {
             String name = dlg.getNotebookName();
             NotebookInfo.Type type = dlg.getNotebookType();
             if(name!=null && !name.isEmpty()){
-                NotebookInfo nb = store.create(name, type, "notebook");
-                // Immediately refresh the gallery to show the new notebook
-                refresh();
+                try {
+                    NotebookInfo nb = store.create(name, type, "notebook");
+                    // Immediately refresh the gallery to show the new notebook
+                    refresh();
+                } catch (IllegalArgumentException ex) {
+                    JOptionPane.showMessageDialog(this, ex.getMessage(), "Could not create notebook", JOptionPane.WARNING_MESSAGE);
+                }
             }
         }
     }

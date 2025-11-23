@@ -81,6 +81,7 @@ public class NotebookEntriesPanel extends JPanel {
 
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
+    private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
 
     // Debounced search and background metadata loader
@@ -128,6 +129,22 @@ public class NotebookEntriesPanel extends JPanel {
     private static class FileMeta {
         final File file; final int wc; final String title;
         FileMeta(File f, int wc, String title){ this.file=f; this.wc=wc; this.title=title; }
+    }
+
+    private static class MetaSnapshot {
+        final long lastModified;
+        final long length;
+        final int wordCount;
+        final String title;
+        MetaSnapshot(long lastModified, long length, int wordCount, String title) {
+            this.lastModified = lastModified;
+            this.length = length;
+            this.wordCount = wordCount;
+            this.title = title;
+        }
+        boolean isFresh(File f) {
+            return f != null && f.lastModified() == lastModified && f.length() == length;
+        }
     }
 
     // Renderer for entry cards inside a notebook
@@ -344,7 +361,9 @@ public class NotebookEntriesPanel extends JPanel {
             listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
                 if (!e.getValueIsAdjusting()) ensureMetaForVisibleRange();
             });
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logWarn("Failed to attach scroll listener", t);
+        }
 
         // Configure debouncers
         listUpdateDebounce.setRepeats(false);
@@ -381,9 +400,21 @@ public class NotebookEntriesPanel extends JPanel {
             wordCounts.keySet().retainAll(current);
             metaComputed.retainAll(current);
             synchronized (metaQueued) { metaQueued.retainAll(current); }
+            metaCache.keySet().retainAll(current);
 
             // Seed provisional values for new files
+            java.util.Map<File, MetaSnapshot> refreshedCache = new java.util.HashMap<>();
             for (File f : allFiles) {
+                MetaSnapshot snap = metaCache.get(f);
+                if (snap != null && snap.isFresh(f)) {
+                    titles.put(f, snap.title);
+                    wordCounts.put(f, snap.wordCount);
+                    metaComputed.add(f);
+                    refreshedCache.put(f, snap);
+                } else {
+                    metaComputed.remove(f);
+                    synchronized (metaQueued) { metaQueued.remove(f); }
+                }
                 if (!titles.containsKey(f)) {
                     String nm = f.getName();
                     int dot = nm.lastIndexOf('.');
@@ -391,6 +422,8 @@ public class NotebookEntriesPanel extends JPanel {
                 }
                 if (!wordCounts.containsKey(f)) wordCounts.put(f, 0);
             }
+            metaCache.clear();
+            metaCache.putAll(refreshedCache);
             // Start prioritized metadata loading (visible first)
             startPrioritizedMetaLoader(java.util.List.copyOf(allFiles));
         } else {
@@ -399,6 +432,7 @@ public class NotebookEntriesPanel extends JPanel {
             wordCounts.clear();
             metaComputed.clear();
             metaQueued.clear();
+            metaCache.clear();
         }
     }
 
@@ -557,12 +591,18 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private int calculateWordCount(File f){
+        // Skip expensive counting for very large files to keep UI responsive
+        if (f.length() > 1_500_000L) {
+            return 0;
+        }
         int count = 0;
         try(Scanner sc=new Scanner(f)){
             while(sc.hasNext()){
                 sc.next(); count++;
             }
-        }catch(Exception ignored){}
+        }catch(Exception ex){
+            logWarn("Word count failed for " + f.getName(), ex);
+        }
         return count;
     }
 
@@ -625,15 +665,18 @@ public class NotebookEntriesPanel extends JPanel {
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
-                    } catch (Exception ignored) {
-                        // ignore and continue
+                    } catch (Exception ex) {
+                        if (watchRunning) {
+                            logWarn("Notebook watch error", ex);
+                        }
                     }
                 }
             }, "NotebookEntriesWatcher");
             watchThread.setDaemon(true);
             watchThread.start();
-        } catch (Exception ignored) {
-            // If watch service fails, we simply won't auto-refresh
+        } catch (Exception ex) {
+            // If watch service fails, log and continue without auto-refresh
+            logWarn("File watch setup failed", ex);
         }
     }
 
@@ -644,7 +687,7 @@ public class NotebookEntriesPanel extends JPanel {
             watchThread = null;
         }
         if (watchService != null) {
-            try { watchService.close(); } catch (Exception ignored) {}
+            try { watchService.close(); } catch (Exception ex) { logWarn("WatchService close failed", ex); }
             watchService = null;
         }
     }
@@ -695,6 +738,12 @@ public class NotebookEntriesPanel extends JPanel {
                     titles.put(m.file, m.title);
                     wordCounts.put(m.file, m.wc);
                     metaComputed.add(m.file);
+                    metaCache.put(m.file, new MetaSnapshot(
+                            m.file.lastModified(),
+                            m.file.length(),
+                            m.wc,
+                            m.title
+                    ));
                 }
                 update();
             }
@@ -708,5 +757,10 @@ public class NotebookEntriesPanel extends JPanel {
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         String pre = ("KMGTPE").charAt(exp - 1) + "";
         return String.format(java.util.Locale.US, "%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+
+    private static void logWarn(String msg, Throwable t){
+        System.err.println("[NotebookEntriesPanel] " + msg + (t != null ? " (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ")" : ""));
+        if (t != null) t.printStackTrace(System.err);
     }
 }

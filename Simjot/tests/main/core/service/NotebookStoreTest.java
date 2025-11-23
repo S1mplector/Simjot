@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,6 +48,30 @@ class NotebookStoreTest {
         NotebookStore reloaded = new NotebookStore();
         List<String> names = reloaded.list().stream().map(NotebookInfo::getName).collect(Collectors.toList());
         assertEquals(Set.of("MyJournal", "Poems"), Set.copyOf(names));
+    }
+
+    @Test
+    void rejectsDuplicateNamesCaseInsensitive() {
+        NotebookStore store = new NotebookStore();
+        store.create("MyNotebook", NotebookInfo.Type.JOURNAL, "iconA");
+        assertThrows(IllegalArgumentException.class, () -> store.create("mynotebook", NotebookInfo.Type.POETRY, "iconB"));
+    }
+
+    @Test
+    void savesAsJsonAndReloadsFromJson() throws Exception {
+        NotebookStore store = new NotebookStore();
+        store.create("JsonOne", NotebookInfo.Type.JOURNAL, "iconA");
+        store.create("JsonTwo", NotebookInfo.Type.POETRY, "iconB");
+
+        File jsonFile = new File(tempRoot, "notebooks.json");
+        assertTrue(jsonFile.exists(), "Store should persist to notebooks.json");
+        String content = Files.readString(jsonFile.toPath());
+        assertTrue(content.trim().startsWith("["), "Store should write JSON array");
+        assertFalse(new File(tempRoot, "notebooks.json.tmp").exists(), "Temp file should be moved atomically");
+
+        NotebookStore reloaded = new NotebookStore();
+        List<String> names = reloaded.list().stream().map(NotebookInfo::getName).collect(Collectors.toList());
+        assertEquals(Set.of("JsonOne", "JsonTwo"), Set.copyOf(names));
     }
 
     @Test
