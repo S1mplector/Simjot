@@ -4,12 +4,14 @@
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
+> Status: Development of Simjot has ended. This project is no longer in active development.
+
 A feature-rich and highly personalizable journaling application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
 
 ## Project Status
 
-- **Development Ended**: Due to scalability and maintenance constraints, Simjot is no longer in active development. The current codebase represents the final version.
-- **Support/PRs**: Issues and pull requests may not be reviewed or merged. Please feel free to fork for personal use.
+- Due to scalability and maintenance constraints, Simjot is no longer in active development. The current codebase represents the final version.
+- Issues and pull requests may not be reviewed or merged. Please feel free to fork for personal use.
 
 ## Features
 
