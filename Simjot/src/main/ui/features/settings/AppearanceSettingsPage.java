@@ -22,7 +22,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox glowChk;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
-    private final JCheckBox uiScalingChk;
     private final JCheckBox lowPowerChk;
 
     AppearanceSettingsPage() {
@@ -66,10 +65,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         disableMainMenuAnimationsChk.setUI(new ModernCheckBoxUI());
         disableMainMenuAnimationsChk.setBackground(new Color(0, 0, 0, 0));
 
-        uiScalingChk = new JCheckBox("Enable UI scaling", store.isUIScalingEnabled());
-        uiScalingChk.setUI(new ModernCheckBoxUI());
-        uiScalingChk.setBackground(new Color(0, 0, 0, 0));
-
         lowPowerChk = new JCheckBox("Low Power Mode (battery saver)", store.isLowPowerMode());
         lowPowerChk.setUI(new ModernCheckBoxUI());
         lowPowerChk.setBackground(new Color(0, 0, 0, 0));
@@ -84,8 +79,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 0; gc.gridy = 3; gc.gridwidth = 2; add(glowChk, gc);
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
         gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
-        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(uiScalingChk, gc);
-        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(lowPowerChk, gc);
+        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(lowPowerChk, gc);
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -104,8 +98,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         store.setAnimationsDisabled(disableAnimationsChk.isSelected());
 
         store.setMainMenuAnimationsDisabled(disableMainMenuAnimationsChk.isSelected());
-
-        store.setUIScalingEnabled(uiScalingChk.isSelected());
 
         boolean lp = lowPowerChk.isSelected();
         store.setLowPowerMode(lp);

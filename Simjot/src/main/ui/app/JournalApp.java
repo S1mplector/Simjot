@@ -38,7 +38,6 @@ import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
-import main.ui.scaling.UIScalingManager;
 import main.core.security.LockController;
 import main.ui.dialog.security.LockScreenDialog;
 
@@ -200,57 +199,11 @@ public class JournalApp extends JFrame {
         }
     }
 
-    private static float readUIScaleFromConfig() {
-        try {
-            String home = System.getProperty("user.home");
-            java.io.File configFile = new java.io.File(home, ".simjournal_config.txt");
-
-            if (!configFile.exists()) return 1.0f;
-
-            // Read the root folder path from config
-            String rootPath = null;
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(configFile))) {
-                rootPath = reader.readLine();
-            }
-
-            if (rootPath == null || rootPath.trim().isEmpty()) return 1.0f;
-
-            // Try to read preferences.properties from the settings folder
-            java.io.File settingsDir = new java.io.File(rootPath, "settings");
-            java.io.File prefsFile = new java.io.File(settingsDir, "preferences.properties");
-
-            if (!prefsFile.exists()) return 1.0f;
-
-            java.util.Properties props = new java.util.Properties();
-            try (java.io.FileInputStream in = new java.io.FileInputStream(prefsFile)) {
-                props.load(in);
-            }
-
-            String scaleStr = props.getProperty("uiScale", "1.0");
-            float scale = Float.parseFloat(scaleStr);
-            System.out.println("[UIScaling] Read user scale from config: " + scale);
-            return Math.max(0.5f, Math.min(3.0f, scale)); // Clamp to valid range
-        } catch (Exception e) {
-            System.err.println("[UIScaling] Could not read user scale from config: " + e.getMessage());
-        }
-        return 1.0f;
-    }
-
     private void initUI() {
         // Apply Windows 7 Aero-inspired look & feel and defaults before building UI
         AeroLookAndFeel.apply();
-        // Re-apply UI scaling AFTER L&F so that any defaults it sets are scaled appropriately
-        try {
-            // Read UI scale from config file directly since SettingsStore isn't available yet
-            float userScale = readUIScaleFromConfig();
-            UIScalingManager.applyToSwing(userScale);
-            // Update global font size based on effective scale
-            float effectiveScale = (userScale > 0 && userScale != 1.0f) ? userScale : UIScalingManager.getDetectedScale();
-            globalJournalFontSize = Math.round(14 * effectiveScale);
-        } catch (Throwable e) {
-            System.err.println("[UIScaling] Error in initUI: " + e.getMessage());
-            UIScalingManager.applyToSwing(1.0f);
-        }
+        // UI scaling disabled for now; use stored journal font size as-is
+        try { globalJournalFontSize = SettingsStore.get().getJournalFontSize(); } catch (Throwable ignored) {}
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
 
@@ -739,14 +692,9 @@ public class JournalApp extends JFrame {
     }
 
     public static void main(String[] args) {
-        // Initialize scaling BEFORE Swing EDT to set JVM properties early
-        UIScalingManager.initializeEarly();
-        
         SwingUtilities.invokeLater(() -> {
-            // Apply LAF and UI scaling before creating the splash to prevent flicker
+            // Apply LAF before creating the splash to prevent flicker
             try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
-            // Apply scaling to Swing components (uses the scale detected in initializeEarly)
-            UIScalingManager.applyToSwing(UIScalingManager.getDetectedScale());
             // Show Aero-themed splashscreen while bootstrapping
             AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Starting…");
@@ -756,10 +704,6 @@ public class JournalApp extends JFrame {
             // Run startup pre-warm tasks off the EDT and update splash status
             new javax.swing.SwingWorker<Void, String>() {
                 @Override protected Void doInBackground() {
-                    publish("Loading settings…");
-                    try { main.core.service.SettingsStore.get().getUIScale(); } catch (Throwable ignored) {}
-                    try { Thread.sleep(120); } catch (InterruptedException ignored) {}
-
                     publish("Preparing icons…");
                     try { main.ui.components.icons.AppIcon.generateIconImages(); } catch (Throwable ignored) {}
                     try { Thread.sleep(120); } catch (InterruptedException ignored) {}
