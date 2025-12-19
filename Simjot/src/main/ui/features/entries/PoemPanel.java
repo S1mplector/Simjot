@@ -389,10 +389,7 @@ public class PoemPanel extends AbstractEditorPanel {
                     this::savePoem,
                     () -> { isAutosaving = true; if (saveIndicator != null) saveIndicator.setSaving(); },
                     () -> { 
-                        if (saveIndicator != null) {
-                            long ts = (currentFile != null && currentFile.exists()) ? currentFile.lastModified() : System.currentTimeMillis();
-                            saveIndicator.setSavedFromTimestamp(ts);
-                        }
+                        updateSaveIndicatorFromCurrentFile();
                         isAutosaving = false; 
                     });
         } else {
@@ -501,7 +498,7 @@ public class PoemPanel extends AbstractEditorPanel {
             } catch (Throwable ignored) {}
 
             // Suppress success popups; rely on status indicator only
-            if (saveIndicator != null) saveIndicator.setSaved(new Date());
+            updateSaveIndicatorFromCurrentFile();
             
             // Don't clear fields - keep content like NewEntryPanel does
             // This allows continuous editing of the same poem
@@ -738,6 +735,12 @@ public class PoemPanel extends AbstractEditorPanel {
         poemTitleField.setText("");
         poemEditor.setText("");
         if (saveIndicator != null) saveIndicator.clear();
+    }
+
+    private void updateSaveIndicatorFromCurrentFile() {
+        if (saveIndicator == null) return;
+        long ts = (currentFile != null && currentFile.exists()) ? currentFile.lastModified() : System.currentTimeMillis();
+        saveIndicator.setSaved(new Date(ts));
     }
 
     @Override

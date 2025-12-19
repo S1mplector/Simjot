@@ -4,10 +4,12 @@ import java.awt.Color;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+
 import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadingButton;
@@ -88,7 +90,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         SettingsStore store = SettingsStore.get();
         String theme = (String) themeBox.getSelectedItem();
         store.setTheme(theme);
-        // TODO: apply theme live
+        // Theme is applied live via SettingsPanel.saveAll() -> AeroLookAndFeel.apply()
 
         boolean glow = glowChk.isSelected();
         store.setGlowEnabled(glow);

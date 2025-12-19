@@ -13,7 +13,7 @@ import java.util.Date;
 public class SaveIndicatorPanel extends JPanel {
     private final JLabel iconLabel = new JLabel("✓");
     private final JLabel textLabel = new JLabel(" ");
-    private final SimpleDateFormat timeFmt = new SimpleDateFormat("h:mm a");
+    private final SimpleDateFormat timeFmt = new SimpleDateFormat("HH:mm");
 
     public SaveIndicatorPanel() {
         setOpaque(false);

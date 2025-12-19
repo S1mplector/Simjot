@@ -44,7 +44,6 @@ import main.ui.dialog.security.LockScreenDialog;
 /**
  * The main application window for Simjot.
  * Manages the UI and handles the lifecycle of the application.
- * 
  * @author S1mplector
  */
 public class JournalApp extends JFrame {
@@ -600,6 +599,53 @@ public class JournalApp extends JFrame {
         t.printStackTrace(System.err);
     }
 
+    private Color deriveAccentColorSafe() {
+        Color fallback = AccentColorUtil.defaultAccent();
+        try {
+            SettingsStore store = SettingsStore.get();
+            int cached = store.getMainMenuAccentRGB();
+            if (cached != Integer.MIN_VALUE) return new Color(cached, true);
+
+            Color accent = fallback;
+            String bgPath = store.getBackgroundImage();
+            Image img = null;
+            if (bgPath != null && !bgPath.isEmpty()) {
+                try {
+                    if (bgPath.startsWith("gen:")) {
+                        img = GeneratedWallpapers.render(bgPath, 1920, 1080);
+                    } else if (bgPath.startsWith("res:")) {
+                        String resPath = bgPath.substring(4);
+                        img = ResourceLoader.createImage("Simjot/" + resPath);
+                    } else {
+                        File f = new File(bgPath);
+                        if (f.exists()) {
+                            img = new javax.swing.ImageIcon(bgPath).getImage();
+                        } else {
+                            System.err.println("[JournalApp] Wallpaper not found, using default accent: " + bgPath);
+                        }
+                    }
+                } catch (Throwable t) {
+                    logWarn("Accent derive (wallpaper)", t);
+                }
+            }
+
+            if (img != null) {
+                try {
+                    Color extracted = AccentColorUtil.extractAccent(img);
+                    if (extracted != null) accent = extracted;
+                } catch (Throwable t) {
+                    logWarn("Accent derive (extract)", t);
+                }
+            }
+
+            try { store.setMainMenuAccentRGB(accent.getRGB()); store.save(); } catch (Throwable ignored) {}
+            return accent;
+        } catch (Throwable t) {
+            logWarn("Accent derive", t);
+            return fallback;
+        }
+    }
+
     /**
      * Launches the appropriate editor panel (journal entry, note, or poem)
      * for creating a new entry inside the given notebook. A unique card ID
@@ -713,29 +759,7 @@ public class JournalApp extends JFrame {
                     // Derive wallpaper accent and configure icon tinting
                     publish("Deriving accent color…");
                     try {
-                        main.core.service.SettingsStore store = main.core.service.SettingsStore.get();
-                        int cached = store.getMainMenuAccentRGB();
-                        java.awt.Color accent;
-                        if (cached != Integer.MIN_VALUE) {
-                            accent = new java.awt.Color(cached, true);
-                        } else {
-                            accent = AccentColorUtil.defaultAccent();
-                            String bgPath = store.getBackgroundImage();
-                            if (bgPath != null && !bgPath.isEmpty()) {
-                                if (bgPath.startsWith("gen:")) {
-                                    java.awt.Image img = GeneratedWallpapers.render(bgPath, 1920, 1080);
-                                    if (img != null) accent = AccentColorUtil.extractAccent(img);
-                                } else if (bgPath.startsWith("res:")) {
-                                    String resPath = bgPath.substring(4);
-                                    java.awt.Image img = ResourceLoader.createImage("Simjot/" + resPath);
-                                    if (img != null) accent = AccentColorUtil.extractAccent(img);
-                                } else {
-                                    java.awt.Image img = new javax.swing.ImageIcon(bgPath).getImage();
-                                    if (img != null) accent = AccentColorUtil.extractAccent(img);
-                                }
-                            }
-                            try { store.setMainMenuAccentRGB(accent.getRGB()); store.save(); } catch (Throwable ignored2) {}
-                        }
+                        java.awt.Color accent = deriveAccentColorSafe();
                         ImageIconRenderer.setAccentTint(accent);
                     } catch (Throwable ignored) {}
 

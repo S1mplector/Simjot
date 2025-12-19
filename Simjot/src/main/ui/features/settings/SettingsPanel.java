@@ -1,18 +1,39 @@
 package main.ui.features.settings;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.util.HashMap;
 import java.util.Map;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
+
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.features.splash.AeroSplashScreen;
+import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.theme.aero.AeroLookAndFeel;
-import main.ui.features.splash.AeroSplashScreen;
 
 public class SettingsPanel extends JPanel {
 
@@ -179,23 +200,36 @@ public class SettingsPanel extends JPanel {
 
     // ---------- Page types ---------- //
 
-    // --- Modern sidebar renderer ----
+    // --- Modern sidebar renderer with icons ----
     private static class SidebarCellRenderer extends JPanel implements ListCellRenderer<String>{
         private final JLabel lbl = new JLabel();
         private boolean selected;
+        private static final Map<String, Icon> SECTION_ICONS = new HashMap<>();
+        
+        static {
+            // Load icons for each settings section
+            SECTION_ICONS.put("General", new ImageIcon(ImageIconRenderer.get("img/icons/general_settings.png", 18, false)));
+            SECTION_ICONS.put("Appearance", new ImageIcon(ImageIconRenderer.get("img/icons/appearance_settings.png", 18, false)));
+            SECTION_ICONS.put("Storage", new ImageIcon(ImageIconRenderer.get("img/icons/storage_settings.png", 18, false)));
+            SECTION_ICONS.put("Security", new ImageIcon(ImageIconRenderer.get("img/icons/settings.png", 18, false)));
+            SECTION_ICONS.put("Sim", new ImageIcon(ImageIconRenderer.get("img/icons/sim_settings.png", 18, false)));
+            SECTION_ICONS.put("About", new ImageIcon(ImageIconRenderer.get("img/icons/about_settings.png", 18, false)));
+        }
+        
         SidebarCellRenderer(){
             setLayout(new FlowLayout(FlowLayout.LEFT,8,8));
             setOpaque(false);
             lbl.setFont(AeroTheme.defaultFont().deriveFont(14f));
+            lbl.setIconTextGap(8);
             add(lbl);
         }
         @Override public Component getListCellRendererComponent(JList<? extends String> list, String value,int idx,boolean sel,boolean focus){
             this.selected = sel;
             lbl.setText(value);
-            // No category icons; render text-only
-            lbl.setIcon(null);
-            lbl.setIconTextGap(0);
-            lbl.setForeground(AeroTheme.TEXT_PRIMARY); // keep text dark even when selected
+            // Set icon for each category
+            Icon icon = SECTION_ICONS.get(value);
+            lbl.setIcon(icon);
+            lbl.setForeground(AeroTheme.TEXT_PRIMARY);
             setPreferredSize(new Dimension(list.getFixedCellWidth(),40));
             return this;
         }

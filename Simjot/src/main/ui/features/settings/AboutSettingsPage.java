@@ -1,8 +1,22 @@
 package main.ui.features.settings;
 
-import java.awt.*;
-import javax.swing.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.border.EmptyBorder;
+
+import main.core.AppInfo;
 import main.ui.theme.aero.AeroTheme;
 
 public class AboutSettingsPage extends JPanel implements SettingsPage {
@@ -25,7 +39,7 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
         titleLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 24f));
         titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
 
-        JLabel versionLabel = new JLabel("v1.0.0");
+        JLabel versionLabel = new JLabel(AppInfo.versionString());
         versionLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 18f));
         versionLabel.setForeground(new Color(100, 100, 100));
 
@@ -39,7 +53,7 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
 
         // Version section
         JPanel versionPanel = createSectionPanel("Version Information");
-        addInfoRow(versionPanel, "Application Version:", "1.0.0");
+        addInfoRow(versionPanel, "Application Version:", AppInfo.VERSION);
         addInfoRow(versionPanel, "Java Version:", System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")");
         addInfoRow(versionPanel, "Java Runtime:", System.getProperty("java.runtime.name") + " " + System.getProperty("java.runtime.version"));
         contentPanel.add(versionPanel);
@@ -63,10 +77,37 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
 
         // Developer section
         JPanel developerPanel = createSectionPanel("Developer Information");
-        addInfoRow(developerPanel, "Created by:", "Ilgaz Mehmetoglu");
+        addInfoRow(developerPanel, "Created by:", AppInfo.AUTHOR);
         addInfoRow(developerPanel, "Development Status:", "Active");
-        addInfoRow(developerPanel, "License:", "MIT License");
+        addInfoRow(developerPanel, "License:", AppInfo.LICENSE);
         contentPanel.add(developerPanel);
+
+        contentPanel.add(Box.createVerticalStrut(25));
+
+        // System info section
+        JPanel systemPanel = createSectionPanel("System Information");
+        addInfoRow(systemPanel, "Operating System:", System.getProperty("os.name") + " " + System.getProperty("os.version"));
+        addInfoRow(systemPanel, "Architecture:", System.getProperty("os.arch"));
+        long maxMem = Runtime.getRuntime().maxMemory() / (1024 * 1024);
+        long totalMem = Runtime.getRuntime().totalMemory() / (1024 * 1024);
+        addInfoRow(systemPanel, "Memory:", totalMem + " MB / " + maxMem + " MB max");
+        addInfoRow(systemPanel, "Available Processors:", String.valueOf(Runtime.getRuntime().availableProcessors()));
+        contentPanel.add(systemPanel);
+
+        contentPanel.add(Box.createVerticalStrut(25));
+
+        // Keyboard shortcuts section
+        JPanel shortcutsPanel = createSectionPanel("Keyboard Shortcuts");
+        JTextArea shortcutsArea = new JTextArea(getKeyboardShortcutsText());
+        shortcutsArea.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        shortcutsArea.setForeground(AeroTheme.TEXT_PRIMARY);
+        shortcutsArea.setOpaque(false);
+        shortcutsArea.setEditable(false);
+        shortcutsArea.setWrapStyleWord(true);
+        shortcutsArea.setLineWrap(true);
+        shortcutsArea.setBorder(new EmptyBorder(10, 10, 10, 10));
+        shortcutsPanel.add(shortcutsArea, BorderLayout.CENTER);
+        contentPanel.add(shortcutsPanel);
 
         contentPanel.add(Box.createVerticalStrut(25));
 
@@ -136,6 +177,29 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
             • Search & Filter - Find entries across all notebooks
             • Auto-save - Automatic saving to prevent data loss
             """;
+    }
+
+    private String getKeyboardShortcutsText() {
+        String modifier = System.getProperty("os.name").toLowerCase().contains("mac") ? "⌘" : "Ctrl";
+        return String.format("""
+            Editor Shortcuts:
+            • %s+S - Save current entry
+            • %s+B - Bold text
+            • %s+I - Italic text
+            • %s+U - Underline text
+            • %s+Z - Undo
+            • %s+Shift+Z - Redo
+            • %s+A - Select all
+            • %s+C / %s+V - Copy / Paste
+            
+            Navigation:
+            • Escape - Return to previous screen / Close dialog
+            • F11 - Toggle fullscreen
+            
+            Formatting:
+            • %s+1 to %s+6 - Heading levels
+            • %s+L - Insert bullet list
+            """, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier);
     }
 
     @Override

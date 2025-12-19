@@ -734,10 +734,7 @@ public class EntryPanel extends AbstractEditorPanel {
                     this::saveEntry,
                     () -> { isAutosaving = true; if (saveIndicator != null) saveIndicator.setSaving(); },
                     () -> { 
-                        if (saveIndicator != null) {
-                            long ts = (currentFile != null && currentFile.exists()) ? currentFile.lastModified() : System.currentTimeMillis();
-                            saveIndicator.setSavedFromTimestamp(ts);
-                        }
+                        updateSaveIndicatorFromCurrentFile();
                         isAutosaving = false; 
                     });
         } else {
@@ -1473,7 +1470,7 @@ public class EntryPanel extends AbstractEditorPanel {
             // Suppress success popups; rely on status indicator only
 
             // Update status to Saved · time
-            if (saveIndicator != null) saveIndicator.setSaved(new Date());
+            updateSaveIndicatorFromCurrentFile();
         } catch (IOException ex) {
             ex.printStackTrace();
             SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog());
@@ -1672,6 +1669,12 @@ public class EntryPanel extends AbstractEditorPanel {
         titleField.setText("");
         contentArea.setText("");
         if (saveIndicator != null) saveIndicator.clear();
+    }
+
+    private void updateSaveIndicatorFromCurrentFile() {
+        if (saveIndicator == null) return;
+        long ts = (currentFile != null && currentFile.exists()) ? currentFile.lastModified() : System.currentTimeMillis();
+        saveIndicator.setSaved(new Date(ts));
     }
 
     @Override
