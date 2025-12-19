@@ -1,10 +1,32 @@
 package main.ui.app;
-import java.awt.*;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.*;
-import javax.swing.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.swing.BoxLayout;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+
 import main.core.AppInfo;
+import main.core.security.LockController;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
 import main.core.sim.data.SimDataGateway;
@@ -15,23 +37,23 @@ import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.BackupService;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
 import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.util.AccentColorUtil;
-import main.ui.features.gallery.GeneratedWallpapers;
-import main.infrastructure.io.ResourceLoader;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.dialog.security.LockScreenDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
-import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.features.drawing.DrawingPanel;
 import main.ui.features.entries.NotebookEditor;
 import main.ui.features.entries.NotebookEditorFactory;
 import main.ui.features.entries.NotebookEditorType;
 import main.ui.features.entries.NotebookEntriesPanel;
 import main.ui.features.gallery.GalleryPanel;
+import main.ui.features.gallery.GeneratedWallpapers;
 import main.ui.features.home.MainMenuPanel;
 import main.ui.features.home.MoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
@@ -39,8 +61,7 @@ import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
-import main.core.security.LockController;
-import main.ui.dialog.security.LockScreenDialog;
+import main.ui.util.AccentColorUtil;
 
 /**
  * The main application window for Simjot.
@@ -600,7 +621,7 @@ public class JournalApp extends JFrame {
         t.printStackTrace(System.err);
     }
 
-    private Color deriveAccentColorSafe() {
+    private static Color deriveAccentColorSafe() {
         Color fallback = AccentColorUtil.defaultAccent();
         try {
             SettingsStore store = SettingsStore.get();

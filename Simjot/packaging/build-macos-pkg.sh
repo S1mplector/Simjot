@@ -56,12 +56,14 @@ check_command() {
 CREATE_DMG=false
 CLEAN_BUILD=false
 SIGN_APP=false
+COPY_TO_DESKTOP=false
 DEVELOPER_ID=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --dmg)      CREATE_DMG=true; shift ;;
         --clean)    CLEAN_BUILD=true; shift ;;
+        --desktop)  COPY_TO_DESKTOP=true; shift ;;
         --sign)     SIGN_APP=true; DEVELOPER_ID="${2:-}"; shift 2 ;;
         -h|--help)
             echo "Usage: $0 [options]"
@@ -69,6 +71,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --dmg          Also create a DMG disk image"
             echo "  --clean        Clean build directories before starting"
+            echo "  --desktop      Copy installer(s) to Desktop"
             echo "  --sign ID      Code sign with Developer ID"
             echo "  -h, --help     Show this help"
             exit 0
@@ -279,12 +282,10 @@ PKG_PATH="$DIST_DIR/$APP_NAME-$VERSION.pkg"
 
 # Create component package
 COMPONENT_PKG="$BUILD_DIR/component.pkg"
-pkgbuild \
-    --root "$BUILD_DIR/$APP_NAME.app" \
-    --identifier "$BUNDLE_ID" \
-    --version "$VERSION" \
-    --install-location "/Applications/$APP_NAME.app" \
-    --component-plist <(cat <<EOF
+COMPONENT_PLIST="$BUILD_DIR/component.plist"
+
+# Write component plist to file (process substitution doesn't work with pkgbuild)
+cat > "$COMPONENT_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -304,7 +305,13 @@ pkgbuild \
 </array>
 </plist>
 EOF
-    ) \
+
+pkgbuild \
+    --root "$BUILD_DIR" \
+    --identifier "$BUNDLE_ID" \
+    --version "$VERSION" \
+    --install-location "/Applications" \
+    --component-plist "$COMPONENT_PLIST" \
     "$COMPONENT_PKG"
 
 # Create distribution XML for customizable installer
@@ -432,6 +439,22 @@ if [[ "$CREATE_DMG" == true ]]; then
 fi
 
 # ============================================================================
+# Step 9: Copy to Desktop (optional)
+# ============================================================================
+if [[ "$COPY_TO_DESKTOP" == true ]]; then
+    log_info "Copying installer(s) to Desktop..."
+    DESKTOP_DIR="$HOME/Desktop"
+    
+    cp "$PKG_PATH" "$DESKTOP_DIR/"
+    log_ok "Copied: $(basename "$PKG_PATH") → Desktop"
+    
+    if [[ "$CREATE_DMG" == true && -f "$DMG_PATH" ]]; then
+        cp "$DMG_PATH" "$DESKTOP_DIR/"
+        log_ok "Copied: $(basename "$DMG_PATH") → Desktop"
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""
@@ -445,6 +468,14 @@ if [[ "$CREATE_DMG" == true ]]; then
     echo "  💿 DMG Image:     $DMG_PATH"
 fi
 echo "  📱 App Bundle:    $BUILD_DIR/$APP_NAME.app"
+if [[ "$COPY_TO_DESKTOP" == true ]]; then
+    echo ""
+    echo "Copied to Desktop:"
+    echo "  🖥️  ~/Desktop/$(basename "$PKG_PATH")"
+    if [[ "$CREATE_DMG" == true ]]; then
+        echo "  🖥️  ~/Desktop/$(basename "$DMG_PATH")"
+    fi
+fi
 echo ""
 echo "To install:"
 echo "  1. Double-click the .pkg file"
