@@ -21,12 +21,37 @@ import javax.imageio.ImageIO;
  * Standalone utility to export Simjot app icons to PNG files.
  * These can then be converted to .icns for macOS.
  * 
- * Usage: java IconExporter.java [output_directory]
+ * Usage: java IconExporter.java [output_directory] [color]
+ * 
+ * Color can be:
+ *   - A preset name: blue (default), green, purple, red, orange, teal, pink, gold
+ *   - A hex color: #FF5500 or FF5500
  */
 public class IconExporter {
     
+    // Preset color schemes (top color, bottom color)
+    private static final int[][] PRESETS = {
+        {0x5AA0E6, 0x1F5FA9},  // blue (default)
+        {0x5AE68A, 0x1FA94F},  // green
+        {0xA05AE6, 0x5F1FA9},  // purple
+        {0xE65A5A, 0xA91F1F},  // red
+        {0xE6A05A, 0xA95F1F},  // orange
+        {0x5AE6E6, 0x1FA9A9},  // teal
+        {0xE65AA0, 0xA91F5F},  // pink
+        {0xE6C85A, 0xA9881F},  // gold
+    };
+    private static final String[] PRESET_NAMES = {"blue", "green", "purple", "red", "orange", "teal", "pink", "gold"};
+    
+    private static int topColor = PRESETS[0][0];
+    private static int bottomColor = PRESETS[0][1];
+    
     public static void main(String[] args) throws Exception {
         String outputDir = args.length > 0 ? args[0] : ".";
+        String colorArg = args.length > 1 ? args[1].toLowerCase() : "blue";
+        
+        // Parse color argument
+        parseColor(colorArg);
+        
         File dir = new File(outputDir);
         dir.mkdirs();
         
@@ -82,11 +107,11 @@ public class IconExporter {
             float inset = s * 0.08f;
             Shape base = new RoundRectangle2D.Float(inset, inset, s - inset * 2, s - inset * 2, arc, arc);
 
-            // Windows 7 style blue gradient
+            // Windows 7 style gradient (uses configured colors)
             GradientPaint gp = new GradientPaint(0, inset,
-                    new Color(0x5A, 0xA0, 0xE6), // light top
+                    new Color(topColor),
                     0, s - inset,
-                    new Color(0x1F, 0x5F, 0xA9)); // deep bottom
+                    new Color(bottomColor));
             g.setPaint(gp);
             g.fill(base);
 
@@ -151,5 +176,62 @@ public class IconExporter {
             g.dispose();
         }
         return img;
+    }
+    
+    /**
+     * Parse the color argument and set topColor/bottomColor.
+     */
+    private static void parseColor(String colorArg) {
+        // Check preset names
+        for (int i = 0; i < PRESET_NAMES.length; i++) {
+            if (PRESET_NAMES[i].equals(colorArg)) {
+                topColor = PRESETS[i][0];
+                bottomColor = PRESETS[i][1];
+                System.out.println("Using color preset: " + colorArg);
+                return;
+            }
+        }
+        
+        // Try parsing as hex color
+        String hex = colorArg.startsWith("#") ? colorArg.substring(1) : colorArg;
+        if (hex.length() == 6) {
+            try {
+                int baseColor = Integer.parseInt(hex, 16);
+                topColor = lighten(baseColor, 0.3f);
+                bottomColor = darken(baseColor, 0.3f);
+                System.out.println("Using custom color: #" + hex);
+                return;
+            } catch (NumberFormatException e) {
+                // Fall through to default
+            }
+        }
+        
+        System.out.println("Unknown color '" + colorArg + "', using default blue");
+    }
+    
+    /**
+     * Lighten a color by a factor (0.0 to 1.0).
+     */
+    private static int lighten(int rgb, float factor) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        r = Math.min(255, (int) (r + (255 - r) * factor));
+        g = Math.min(255, (int) (g + (255 - g) * factor));
+        b = Math.min(255, (int) (b + (255 - b) * factor));
+        return (r << 16) | (g << 8) | b;
+    }
+    
+    /**
+     * Darken a color by a factor (0.0 to 1.0).
+     */
+    private static int darken(int rgb, float factor) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        r = (int) (r * (1 - factor));
+        g = (int) (g * (1 - factor));
+        b = (int) (b * (1 - factor));
+        return (r << 16) | (g << 8) | b;
     }
 }

@@ -57,6 +57,7 @@ CREATE_DMG=false
 CLEAN_BUILD=false
 SIGN_APP=false
 COPY_TO_DESKTOP=false
+ICON_COLOR="blue"
 DEVELOPER_ID=""
 
 while [[ $# -gt 0 ]]; do
@@ -64,6 +65,7 @@ while [[ $# -gt 0 ]]; do
         --dmg)      CREATE_DMG=true; shift ;;
         --clean)    CLEAN_BUILD=true; shift ;;
         --desktop)  COPY_TO_DESKTOP=true; shift ;;
+        --color)    ICON_COLOR="${2:-blue}"; shift 2 ;;
         --sign)     SIGN_APP=true; DEVELOPER_ID="${2:-}"; shift 2 ;;
         -h|--help)
             echo "Usage: $0 [options]"
@@ -72,6 +74,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --dmg          Also create a DMG disk image"
             echo "  --clean        Clean build directories before starting"
             echo "  --desktop      Copy installer(s) to Desktop"
+            echo "  --color COLOR  Icon color: blue, green, purple, red, orange, teal, pink, gold, or #RRGGBB"
             echo "  --sign ID      Code sign with Developer ID"
             echo "  -h, --help     Show this help"
             exit 0
@@ -148,7 +151,7 @@ if [[ -f "$ICON_EXPORTER" ]]; then
     javac -d "$BUILD_DIR" "$ICON_EXPORTER"
     
     log_info "  Generating icon PNGs..."
-    (cd "$BUILD_DIR" && java IconExporter "$ICONSET_DIR")
+    (cd "$BUILD_DIR" && java IconExporter "$ICONSET_DIR" "$ICON_COLOR")
     
     # Rename files to match Apple's iconset naming convention
     log_info "  Preparing iconset..."
