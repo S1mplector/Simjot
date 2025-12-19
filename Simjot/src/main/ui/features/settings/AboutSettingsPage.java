@@ -60,6 +60,21 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
 
         contentPanel.add(Box.createVerticalStrut(25));
 
+        // What's New section
+        JPanel whatsNewPanel = createSectionPanel("What's New in " + AppInfo.versionString());
+        JTextArea whatsNewArea = new JTextArea(getWhatsNewText());
+        whatsNewArea.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        whatsNewArea.setForeground(AeroTheme.TEXT_PRIMARY);
+        whatsNewArea.setOpaque(false);
+        whatsNewArea.setEditable(false);
+        whatsNewArea.setWrapStyleWord(true);
+        whatsNewArea.setLineWrap(true);
+        whatsNewArea.setBorder(new EmptyBorder(10, 10, 10, 10));
+        whatsNewPanel.add(whatsNewArea, BorderLayout.CENTER);
+        contentPanel.add(whatsNewPanel);
+
+        contentPanel.add(Box.createVerticalStrut(25));
+
         // Capabilities section
         JPanel capabilitiesPanel = createSectionPanel("Current Capabilities");
         JTextArea capabilitiesArea = new JTextArea(getCapabilitiesText());
@@ -200,6 +215,22 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
             • %s+1 to %s+6 - Heading levels
             • %s+L - Insert bullet list
             """, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier);
+    }
+
+    private String getWhatsNewText() {
+        return """
+            Recent Features & Improvements:
+            • Enhanced backup system with selective includes and verification
+            • Improved Settings UI with icons and better organization
+            • System information display in About page
+            • Keyboard shortcuts documentation
+            • Main menu animation toggle option
+            • Low Power Mode for battery saving
+            • Improved security with lock screen support
+            • AI companion (Sim) integration with local LLM support
+            • Rich text editing with math formula support
+            • Template system for guided journaling
+            """;
     }
 
     @Override

@@ -1,13 +1,44 @@
 package main.ui.features.home;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.LinearGradientPaint;
+import java.awt.Paint;
+import java.awt.Point;
+import java.awt.RadialGradientPaint;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+
 import main.core.service.LastSaveTracker;
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
@@ -18,11 +49,11 @@ import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.components.DragController;
 import main.ui.components.buttons.MainMenuButton;
+import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
-import main.ui.theme.Theme;
-import main.ui.components.icons.ImageIconRenderer;
 
 public class MainMenuPanel extends JPanel {
 
@@ -352,6 +383,7 @@ public class MainMenuPanel extends JPanel {
 
         FadingButton notebooksButton = createMenuButtonWithIcon("Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
         notebooksButton.setForeground(AeroTheme.TEXT_PRIMARY);
+        notebooksButton.setToolTipText("Create and manage your journals and notebooks");
         buttonPanel.add(notebooksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
@@ -393,6 +425,7 @@ public class MainMenuPanel extends JPanel {
         insightsHeader.setFont(insightsHeader.getFont().deriveFont(Font.BOLD, 22f));
 
         FadingButton moodChartButton = createMenuButtonWithIcon("Mood Chart", JournalApp.MOOD_CHART, "smile");
+        moodChartButton.setToolTipText("View your mood trends and emotional patterns over time");
 
         buttonPanel.add(insightsHeader);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
@@ -403,6 +436,7 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
         FadingButton settingsButton = createMenuButtonWithIcon("Settings", JournalApp.SETTINGS, "wrench");
+        settingsButton.setToolTipText("Customize appearance, storage, security, and more");
         settingsButton.setAlpha(1f);
         settingsButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         buttonPanel.add(settingsButton);
@@ -412,6 +446,7 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 16)));
         FadingButton exitButton = new MainMenuButton("Exit", "close");
         exitButton.setForeground(AeroTheme.TEXT_PRIMARY);
+        exitButton.setToolTipText("Save all work and close Simjot");
         exitButton.setFont(exitButton.getFont().deriveFont(Font.BOLD, 20f));
         exitButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
         exitButton.setAlignmentX(Component.CENTER_ALIGNMENT);

@@ -4,6 +4,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
 import javax.swing.*;
+import main.core.AppInfo;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
 import main.core.sim.data.SimDataGateway;
@@ -98,7 +99,7 @@ public class JournalApp extends JFrame {
     private SimScheduler simScheduler;
 
     public JournalApp() {
-        super("Simjot");
+        super(AppInfo.fullTitle());
         // Set the application icon
         setIconImages(AppIcon.generateIconImages());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
