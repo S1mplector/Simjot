@@ -17,6 +17,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
@@ -80,6 +81,7 @@ public class JournalApp extends JFrame {
     // Config file to store the journal folder path
     private File configFile;
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
+    private static final long EXIT_WATCHDOG_TIMEOUT_MS = 12_000L;
 
     // Card identifiers
     public static final String MAIN_MENU = "Main Menu";
@@ -118,6 +120,7 @@ public class JournalApp extends JFrame {
     private SimOverlay simOverlay;
     private SimBrain simBrain;
     private SimScheduler simScheduler;
+    private final AtomicBoolean exitInProgress = new AtomicBoolean(false);
 
     public JournalApp() {
         super(AppInfo.fullTitle());
@@ -510,12 +513,33 @@ public class JournalApp extends JFrame {
         }
     }
 
+    // Fail-safe to guarantee termination even if cleanup threads stall
+    private void startExitWatchdog() {
+        try {
+            Thread watchdog = new Thread(() -> {
+                try { Thread.sleep(EXIT_WATCHDOG_TIMEOUT_MS); } catch (InterruptedException ignored) {}
+                if (exitInProgress.get()) {
+                    System.err.println("[JournalApp] Exit watchdog forcing halt after timeout");
+                    try { Runtime.getRuntime().halt(0); } catch (Throwable ignored) {}
+                }
+            }, "SimjotExitWatchdog");
+            watchdog.setDaemon(true);
+            watchdog.start();
+        } catch (Throwable t) {
+            logWarn("exit watchdog", t);
+        }
+    }
+
     /**
      * Shows an exiting splash and performs a graceful shutdown:
      * saves open editors, stops Sim components, stops services, triggers a final backup,
      * then exits the JVM.
      */
     public void exitGracefully() {
+        if (!exitInProgress.compareAndSet(false, true)) {
+            return; // Already exiting; avoid re-entrant shutdown work
+        }
+        startExitWatchdog();
         try {
             disposeNotebookPanelsSafely();
             CustomMessageDialog.setGlobalSuppressed(true);
