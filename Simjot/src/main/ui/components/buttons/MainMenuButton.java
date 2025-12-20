@@ -376,6 +376,57 @@ public class MainMenuButton extends FadingButton {
                 g2.drawLine(checkStart, checkMiddle, checkMid, checkBottom);
                 g2.drawLine(checkMid, checkBottom, checkEnd, checkTop);
                 break;
+            case "calendar": {
+                int r = Math.max(6, s/8);
+                // Shadow
+                Graphics2D sh = (Graphics2D) g2.create();
+                sh.setComposite(AlphaComposite.SrcOver.derive(0.18f));
+                sh.setPaint(new RadialGradientPaint(new Point(x + s/2, y + s), s/1.6f,
+                        new float[]{0f,1f}, new Color[]{new Color(0,0,0,80), new Color(0,0,0,0)}));
+                sh.fillOval(x-3, y+s-8, s+6, 12);
+                sh.dispose();
+
+                // Body
+                Paint body = new LinearGradientPaint(x, y, x, y+s,
+                        new float[]{0f, 0.6f, 1f},
+                        new Color[]{new Color(248,248,248), new Color(234,238,244), new Color(220,224,230)});
+                g2.setPaint(body);
+                g2.fillRoundRect(x, y + r/2, s, s, r, r);
+
+                // Header bar
+                Paint head = new LinearGradientPaint(x, y, x, y + r + r/2,
+                        new float[]{0f,1f}, new Color[]{new Color(120,160,230), new Color(70,120,210)});
+                g2.setPaint(head);
+                g2.fillRoundRect(x, y, s, r + r/2, r, r);
+
+                // Binding rings
+                g2.setStroke(new BasicStroke(Math.max(2f, s/18f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(255,255,255,200));
+                int ringY = y + r/3;
+                g2.drawLine(x + s/4, ringY, x + s/4, ringY + r/2);
+                g2.drawLine(x + s*3/4, ringY, x + s*3/4, ringY + r/2);
+
+                // Grid dots
+                g2.setColor(new Color(80, 100, 140));
+                g2.setStroke(new BasicStroke(Math.max(1f, s/28f)));
+                int cols = 3, rows = 3;
+                int padX = s/6;
+                int padY = r + r/2;
+                int cellW = (s - padX*2) / (cols - 1 == 0 ? 1 : cols - 1);
+                int cellH = (s - padY - padX) / (rows - 1 == 0 ? 1 : rows - 1);
+                for (int row = 0; row < rows; row++) {
+                    for (int col = 0; col < cols; col++) {
+                        int cx = x + padX + col * cellW;
+                        int cy = y + padY + row * cellH;
+                        g2.fillOval(cx - 2, cy - 2, 4, 4);
+                    }
+                }
+
+                // Border
+                g2.setColor(new Color(140, 150, 170));
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.drawRoundRect(x, y + r/2, s, s, r, r);
+                break; }
             case "breath": {
                 // Calming breathing circle with glassy Win7 look
                 int cx = x + s/2; int cy = y + s/2;

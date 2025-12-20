@@ -38,6 +38,11 @@ public class WidgetManager {
             @Override public String getName() { return "Quick Mood Log"; }
             @Override public String getIconId() { return "smile"; }
         });
+
+        widgets.put("Looking Forward", new LookingForwardCalendarWidget(app) {
+            @Override public String getName() { return "Looking Forward"; }
+            @Override public String getIconId() { return "calendar"; }
+        });
     }
 
     public Map<String, Widget> getAll() { return widgets; }

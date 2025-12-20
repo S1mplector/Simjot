@@ -29,7 +29,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			NDtjSALpYtlWr2Kr2pel5OM31TK5R/h1aPxlRVDxS78=
+			GN7lNEriSmn36QT/OLmCOGzUdPc57Y1UvLRfvvIaI1g=
 			</data>
 		</dict>
 		<key>app/Simjot.cfg</key>
@@ -274,210 +274,224 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			SPEM6sQgEuoPkyjgV+D2eCe08/5lYiwiEbEuaf9oDyo=
+			GKdEqGReQ1hsIqDSQi9b0hPcDWHtw7WnxqnqTMnqkig=
 			</data>
 		</dict>
 		<key>app/classes/main/core/export/PoemExporter$Format.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ISXXleapYkcWg+ifYooWLlaGoVyPS/2UVgsxXKozpJo=
+			H1D3itxdo7zsJ/OqbAPDoJCl3/HClNG/T5nPkFkgJ1k=
 			</data>
 		</dict>
 		<key>app/classes/main/core/export/PoemExporter$Options.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			2pM4LpJ2zuTpREVM7McXE9uBt501zZO4O6H7ziZv+ts=
+			f8i8mJbCDgxrXtmA7qiYUe7LrpQqdGtMMzgy7wS2SPs=
 			</data>
 		</dict>
 		<key>app/classes/main/core/export/PoemExporter.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+5hJ6rdR5izA3wkoczRuEjeW/FIbyX76GDQL5ytCuEg=
+			dzrW7ilJPu5t58bxZ4VRgWkrFZQ81F/ho2PWxblxlzs=
 			</data>
 		</dict>
 		<key>app/classes/main/core/model/SectionData.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ipj0Jb902XLJZObwEYMF5grzifZDwB/Cb+Sf4PB5BQ4=
+			QkQKDPDvsSn9XIu1ZycyaQyaSI4F3t+pSU8aZhm/ZM8=
 			</data>
 		</dict>
 		<key>app/classes/main/core/poetry/MeterAnalysis$Builder.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bNK0RxRpw4A9SuJMF44l4N+812G1IpGgjDZ1PmfgysU=
+			LliPjsu1+nOYnabETDzspwMMl2NjGdME6U9rytlh0GU=
 			</data>
 		</dict>
 		<key>app/classes/main/core/poetry/MeterAnalysis.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			QnupIb8g3RQXeXZyQJrDoe5xJtCFRAt5ZzbAEl2QZtw=
+			+oRW2tMgrs0gGlL8I/Zj/2QJy/kAxJ+kLTYDTVoUAsw=
 			</data>
 		</dict>
 		<key>app/classes/main/core/poetry/MeterScanner.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			JOZ5PE8UZSZYDyWe/vYxaKNlFiKZ+8XPAwyo0GJlq34=
+			2xysbIyer1r0yiK7YK46n/6BcCpxv7L/qylkxzvlIF4=
 			</data>
 		</dict>
 		<key>app/classes/main/core/poetry/PoetryUtils.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7smUyIy37h6KYfxzPll8b+lpREeKU+ISzYkLmM5Rxzk=
+			YiE28Egff3SWpi8kh+riDMD5UxjxpBJZBmnT5DrxDcs=
 			</data>
 		</dict>
 		<key>app/classes/main/core/security/LockController$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			W6u7S7zjKNsJcBxykAZ1munMIqUbwdd7toHv+GJSEnw=
+			oM+qbqKzrZD8i/jJKmF3W18kXDhhDLyw1PCjk/XsaN4=
 			</data>
 		</dict>
 		<key>app/classes/main/core/security/LockController$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YMp+XFeXtMolxuC+gIyCxdVrj/cW8AveSAP/IotffQc=
+			jWSnNoWOdnOu5WHGlxBveJi4U71XFmdCWbw/a45PH7c=
 			</data>
 		</dict>
 		<key>app/classes/main/core/security/LockController.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9SL6CwW+WhFNKy2EoUmZCJ9Ns6ARBZ6ca8pR56Xvm7g=
+			mC6EjFsRnMkQVtBwtD3WILIrgqNkie9bLV1h8Sfxr+k=
 			</data>
 		</dict>
 		<key>app/classes/main/core/security/LockUtil.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6Qg6IbxSwNok3gAFug5Y/mzbvumyC2CX8Dd4kTVu6Rg=
+			jxEpBZMrkQSRwgHNJsyImXrLrPyOQu+Z1AowqypyH3k=
 			</data>
 		</dict>
 		<key>app/classes/main/core/service/LastSaveTracker.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Rlmb0GIxI5aGcLarvJ1YqSB5Jj7BKKqYp59JjtXtr7o=
+			fLN2/0Jgass6qjOHT1kQ9xw71c36E0ibMZfoKC68fMg=
 			</data>
 		</dict>
 		<key>app/classes/main/core/service/NotebookStore.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8+AQzHsz+YPE+ku7d8FZ7MMq/PXmj3bFAdYECP14AxM=
+			VK1BtNqheWgIYjOz3mxYR9UFRxwmTvfNsfxknKx3C8c=
 			</data>
 		</dict>
 		<key>app/classes/main/core/service/SettingsStore.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			R3f2k7IsC795dWC+uZ93zteF8J04CtKUVl42foS2Bn0=
+			QicpP7nxYNvJEI1ztnPViiJjtlF0IShGNy5sSpEWFL8=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/api/SimEventBus$InvocationSource.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			HtbGJ4u6IjAZdS83fAKz3c8IyhxsAF3sP6fBRzsJBg0=
+			2JIny4cVb9nrwBs3OoW78vNW0GlZLsqJSuMu3DEkc5Q=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/api/SimEventBus$Listener.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MQo/HFrefqvge+6CPF3vPz3y7LqK9LKKewJylezjBU4=
+			19DRla7zdEsZGa39pr/nmDyVXPbbG6v1GEWX7d6JJpM=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/api/SimEventBus.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gu6xHaxX9U+qBU1GBp/25Hy2drCVHrvZKYsyaqn3BZI=
+			uKuI6htMlqHIZzT2uAj7j2PYNk/nJgU7P01W+wusR14=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/critic/CriticPromptDecorator.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+yykkNym2ITgnOMkKkvisSUDDacQOoJgWO9nS1HQHhk=
+			PvT9G6CFBzhpJ0G/OP+ZyCEloLrUamh638btn1vnC9Y=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/data/SimDataGateway$MoodSample.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			B7w3my16uvcJtGfP96l/Don0Cd/kKlF4FWsE6UP0gMA=
+			h4u+8PnJnCqVu8RpIOtrJLO4TRISzrjjHnup7wpWCXs=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/data/SimDataGateway.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			BQY3RyYIvYA0/O6bsTq/jTa1yCV30nzKb8MAP6yj44E=
+			ocObjH+qoiyX9eZsIcK1gAIiAaYVQ9H7+aac+BYHSqM=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/engine/NudgePrefaceBuilder.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			maCzniveJ/QNy30AtK8HLAiPsA2cPCkn56DjVfRegFw=
+			Z+mH8o0/S3ri10qsPWY6dyv7VglIe5f5ZKsHVrpI5lA=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/engine/ReasoningHeuristics.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			eBqHO542twXsJ08MeTLv72w6YM1XIIUIpPUir77ktkU=
+			WlyrcmzttmkfLvDCj32/f4GJ+Dn6ydOy53LvwKtDMgU=
+			</data>
+		</dict>
+		<key>app/classes/main/core/sim/engine/SimBrain$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			DyzG+KqtgHJcFYEfB+OwT4x3v2K4ZfOsXbaZDPWtxkI=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/engine/SimBrain$EmotionTag.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GxOmyTu+IxmlGSr7NDLQjz14kNiG8rQfBNS9wNXgr3s=
+			gLG6D0nabKpK3GoJUsAG7gvNREIH9xW3euq4We61qxQ=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/engine/SimBrain.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			czz1N2AtAjCagiWc5Uas2JaYAzy3+vw1vT2o1eZXTfA=
+			nm7qrJYoNbqXMTeAmPpeXbRokQczPlPZgGF5lcJ+GA0=
+			</data>
+		</dict>
+		<key>app/classes/main/core/sim/engine/SimScheduler$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			m3GUuraLM6kcAvKImn4vr8fV5xR5028j8uxCaMBhsAA=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/engine/SimScheduler.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gZRCjSjceYATwui0/79QoKsmLbw+RXxabCvKZpu5LDg=
+			0FIRdQzsxlCKG8Q0ayjoxVYLDxRxJv0BOKNE0AQbRkw=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/engine/TurnManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bHQrWMfHfOwUjYRbjbtS5nTAxeyyuqASA1bgfwF9uw0=
+			69kARFZa54Cnvbn9vP1tEP2A3MarkuNTELwLtc7Bu/Y=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/api/DefaultSimSuggestionService$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GZl9yOAlu/LOp1aBTLkXdcRI7Sd/MjhzFbgMq6hYKLY=
+			nt6hkhXH8gE10t0nJUp/3LRyvuI1RG+ewITrehs1asY=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/api/DefaultSimSuggestionService.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8+9Q1kDbxQnHhvtXzvOg1E+uT17qRAcF2plD1G4v6s0=
+			hsh9kOnAuSCutvUG/qPKSN/3ji50O6mypgpTfx9yKcI=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/api/SimLLMClient.class</key>
@@ -491,14 +505,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			yLyX89hUT3Utv+GvHijMv4i2HQcd3AyLkQ/d9HMjsuo=
+			42GZeQiDHFasDlHatxff1ji11Q07x4MmU7KCwZe9SIg=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/api/SimLLMResponse.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6j1ah80RcS9C/0m0n9O8UoYqAo0q6pRZBD6JyMuZY0k=
+			aV3tPcPuCSBaPwpPj+pudJ84aWisZkn1IFFK71i2uRo=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/api/SimSuggestionService.class</key>
@@ -512,1379 +526,1407 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			StrJy9faczaTZ1cj54CET2tb9+mwyfFnMFdV4W0sca8=
+			1kxZ1L/8+wB9NbQXIMFNUDUkwfkch+FlmxqqGcIuUN0=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/openai/OpenAIClient.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Nu6lBp2v67/JS5QE/tbMf0O+CXKGjeOcU8AXUYaZP4w=
+			7310jWAL+6WcNesyrpuhGIKutPmZhmuKGyd5XwyehRA=
+			</data>
+		</dict>
+		<key>app/classes/main/core/sim/llm/prompt/PromptBuilder$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			f6jEoy2QQ7i/dhsdsGkbH7sCHeqVYcHwg+fivphwhf0=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/llm/prompt/PromptBuilder.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Oc+Td86va1MhSk/9mTx0sYcmsfSnP0rUOZR9fbo9N0s=
+			mQZsoQLFhU0U9Ug/BXKYZG4E4JbwpDVXOkbZC/1A05g=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/memory/MemoryStore.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			3xfzkH7U8gBvoodzHMmKo2jPKRd7JhM7wdXZjXTBg7E=
+			NidpHUs6WPxQbO43bxRcSvkZw/hPoIRGByxw+kemIIM=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/memory/PersistentMemoryStore.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			S4peknqL1KmqEGwWM5nsgzGXFTo9/Gc9aaDNWpIjhkA=
+			b3+ztNK2N4MuRTbv7/kLX7qUPPKkuESU2Tjh+pULGn0=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/persona/SimPersonality$Type.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WU5OO+KYV/YYyr9FWqWF+vNxIsNkzd6ALyRz7xyzyz4=
+			nPQaMGyWLUlZ+MKOUStiPViEZUu0b/2SvznAXwTiTGU=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/persona/SimPersonality.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZXekCv05+kimWtReKCL5NoJFHfkAvrvTy9M2Czt9m2k=
+			9YyFUPchxxLSK4YWy85ET5o/WdYYh6MDzMZyI69FSzg=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/prefs/SimSettings$EngagementMode.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			U+83eZ0L1AMbUqmaSKo2Jx/RVaztjKcb52GIjWXcOQo=
+			NEFyvH5B2euVuUhaXAJ2+JhPA5FwHwQnR/6e7ddYa58=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/prefs/SimSettings.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			hxuPKtpOfnJu0x/V8k/tuAP4Lfox2+WGyUFTOurlUl0=
+			WWwdg0+Kn4Ek+u7Hj6e0aquUpNN1GNZ3yQS3UW9yHZ4=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/proactive/ProactiveTriggerEngine$Input.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			kHM1wuCMRemEzMvfNCP7SuRytuvs6acQhJoofKBc99M=
+			vcrP6ZrSM/3O/x7OkFg4BwmLb7DhiVjRNyM6ppFF/j0=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/proactive/ProactiveTriggerEngine$Output.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dJeHVLF5BeTlhRvDwgPB7JueM8CGXlbTfenVESLl7gA=
+			Y5vsQ4LXo5vHys610rwIBHBflu8o0vVXojiKenxZTiQ=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/proactive/ProactiveTriggerEngine.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			AjxAblrR2R8i0kG70B9AqGH6oeaGgH0LddwmPX/qGmk=
+			Jkesw/EUSZFcx0kgq2sEulE1acmvyYVS+jXSWpZdAzw=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/proactive/TriggerStatsStore$Stat.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XAolY/ggKZM+VLSabdh35aIy4B35UU0fWLuYdz20FQc=
+			fSO0+ohbmUBgf97/NbB4Z6EvS8mE8c/xsB9nqDEqVBo=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/proactive/TriggerStatsStore.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			u8xgEo9TMJKrQtXQuY7k1+bcTsz69iuWXbcMBf5hr10=
+			M5ZuoXOL51KAK1FHJzebITqS2fXX/aCPMiGEw49FFi0=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/retrieval/RecencyBuffer$Item.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			VCV2WtHBAz0Nhq1uFIlIvrHUkUHq3VCJAvj4WfNrR5w=
+			zKH7br1FABbL6WOiApy9tIM4T0VfHwx+UMgsf8Lr9cE=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/retrieval/RecencyBuffer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XqJbB54aa5tx3T7TK8uQaTsJeKex5B8n1xP+Azq/veM=
+			i5An9ECdRyvp3aEflqLce09C9EGKIwVzE+pHz5RYLZg=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/retrieval/RetrievalRanker.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			FBVO5WVEyD2xJshxhlI8eNUgNJQybTP3/QCByAfeClY=
+			+auZa57vnmE9+mmLq8veKJbEjoZIT5wCmwlo3ag2HNw=
 			</data>
 		</dict>
 		<key>app/classes/main/core/sim/state/UserState.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fForBypLmZlZqWUC2z+eCdbAECTbqO1L7MDaPOu1GcE=
+			VGHXJGiu3G1ERjEigV4/hzrqE1ctD7yWt/UfzEv5sx0=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/backup/BackupManager$Frequency.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			jHnEq/Dxm25jwKfbD0bLLhmOPw4f5Yku94lQQiZUin8=
+			V3xdjcKoM+JfBGjbUpiRuCmrSAwb3mAP8xMdZC07XSI=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/backup/BackupManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ojgr+LZj22afkcAjQVNsXb5ZqoiFPUqaCyCPM3B03To=
+			Jk/BRAkboA/IY4yRARIi1l5Zrt0/xdc5DRVx9uCDYpc=
+			</data>
+		</dict>
+		<key>app/classes/main/infrastructure/backup/BackupService$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			NsM7yN/gGsDz70wyeeYBoQMeLqXMVVM6e9q9KC+sVuQ=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/backup/BackupService.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			wtRfSGfQ4lOTmlmkJPBd9d5CYgQcCec2zKqPhWSgfQg=
+			iV62EkkkRLLrt4249IOn5YVCUMSM/Rd5/AjdwSBX6vI=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/backup/NotebookInfo$Type.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			JOrUEAqd9uyEr/wuiPobHxW9IMbuCn2zUDUvdu4x4CU=
+			6v9n026YtgkQiTBh7H+o2Dx454dySjAAXmkvnyVAJUk=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/backup/NotebookInfo.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bYyf+ggmNL6nOsaWYP+/+3LgEeKYROXoVOxsoLzMLT4=
+			kRNIqFsSZs37JZzxlX7F/H3icoTa8egSRRNeBmDk7wc=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/io/AppDirectories$Type.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			N/ZvNQD+1YskwQeB9/aYlPgzAUQEVj9ezSdxkCE/rJ8=
+			uhe7X0C7wkAvNa/mGXhJC5tivc0WSRr0lm9gr0sxy04=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/io/AppDirectories.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			yizYfmq0tv9AbSsoLKgoaY0H5niAACc/Gfk7cujZZ9Y=
+			4Y+dp5hvKEVk+5r2tAWtQBaS+uOEvoRlrRof565ZBwA=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/io/DateFormatUtil.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			3UUn4Tuv8oZGJnsnTa1tiSKRqtkeK7JniQSn7OREajo=
+			+YV7haKxxQyG0JHSFpJ7Rj//gv0Asrmnd3QoqXPAVYk=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/io/ResourceLoader.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GoH7E5pxUovb6jlRvGgPTEWBFDhnRXuZh2CfDO0Fqkg=
+			LCH0Tvgi8GwYIV/F3AAZwqhcFHRYZEPkrfOVl8E5NRU=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/monitoring/AppPerf.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fLqwiZSwI5OWuoKlO9ISieHYKTET1qCPY/W0h80fCFc=
+			awYNKssaf7/eheRs34KPRCGiYdnHQdoVDWeZqKuUrVk=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/monitoring/RamMonitor$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			I/mfhImEIi5Gjj/mwrB516AKu7QQBvjjv/lJizaa/v8=
+			RUiyqOGmH1DUjZ93sEQwnUZoKYzffOt7J619pGh8vyY=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/monitoring/RamMonitor$RamGraph.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7uA6lxfvKgmo5zxAZvr5CdsASGEVCStI5qDS2KP1K7w=
+			q/MkpYjsbvmNWMK7KQjy8cNPF2FS+lMBQx6lPs+UyEA=
 			</data>
 		</dict>
 		<key>app/classes/main/infrastructure/monitoring/RamMonitor.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			EBEf+LjSw2FD7DlpVEFb9Dl8UiCZQzSpPFQQ4kBN/N8=
+			kPz2n1GEuclHqKzE0s7SByTVO2gpYpGkk7krlFVcmIw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/animations/transitions/FadeTransitionPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RHtWsKYvdC/wvQ7JAz84vhCFCgTlUbT0e/6Jutoqfso=
+			MgKPuVbP/C922YgH1JirOuTjSBayE1OmuxlwYE4ANsE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/animations/transitions/FadeTransitionPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qrbp7BrwOW8HvkwBsp9b8HE6qDnEUdvnuasvcfz4ebw=
+			2DpOQHEJE3iJuJuwPdTbmStOziFAM+OKyGOc8YxBWcQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/animations/transitions/FadeTransitionPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mDwnvXUmhsVgcpga/dplqRocR4oHSlUrCeDVDlj/Ero=
+			zQAxOhr2iZu82nNe1PMNz67gucD95l3qKKfPJczL9MA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/animations/transitions/FadingButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			73fFb5KCq4V0sDo2+Da8m+9ZuCQcQtwrd5RFtafPDyk=
+			1JL4rnoBdkHiwXs6rUm5J4654sJUUjtlUeKbhwNctrA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/app/JournalApp$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ep5hvzFiqhUNMsvEqVMAoexOxj46tjc3Xvm6gkX5BiI=
+			1QxHHVNpwCsecZaj0lLXZHIkMmRsKREJ/fNjTNtWXSU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/app/JournalApp$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			030C9+XpnyutEL0rieLIOHRVXMoLOTszeFgburaCOjw=
+			hPQZYJAdEVo9t8rGNGK6ZkDjwyHVCSQ1wPHU2ECh8tE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/app/JournalApp$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			cI3zAMEGuH2BN/JGfiCk9W+WFKIfOqx6ZHHJZ1ckiq4=
+			05YFEud2WpmtfNlAtYrWYefbZR8AWupg1EFbiiqBwwE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/app/JournalApp$CorkIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			JVLWEImtIq5Gti1SsXhSDu+4HZ/bEjw6t0uJW5+XgGg=
+			+8hVPP2J9kVzwmFFxp1ClHyV1n1zSOldgMPD9wDsQM0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/app/JournalApp$TimeInfoPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dLe6qb4+AFDWxHDIftHQwX397Piu4BdlIW1eXQoCqFs=
+			qdIUEd0+QUn9j07GvOtIzVFtV1sJ/3eAzKsA8bUJrHc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/app/JournalApp.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			eHgEhW23mgZWieOnGodNmMg03JGie6edzLWfjRHNoh0=
+			28tZTCTMryRcVXTtlc4dMqYxDshVTogjss577G+aYfY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/DragController$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			UKpfRk3fFwAq2jkvT0GPI/cAUa+31Ac5s5ovq0iwkAg=
+			ta0fR/n+4DwOLEq7dFwJQNGsXy3d8Dz7GCtNin5p/TE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/DragController.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			CEPvBxoKH/IjUyTMU95BI6TdeMd9IEYRoDIJHcdk/2Y=
+			kwEGIjSaWRkeKKxcuuDVdwFgKpGzl8qBCJWOUYitCc4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/buttons/MainMenuButton$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+RTb2HFavXhYRtjBYhzGYDywv0GuGw7gyw04u+1m3kg=
+			4vsMIqOCbLylhscTgajBSbsGUSopcfPSM7Wsg0Paq/w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/buttons/MainMenuButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			OdTdE0+gvjNEkfbeuAeDnvJah5wJO2Ssqfljpu5ocnA=
+			kokqhewVzxMNUiwzBJKBFx/rq1z7TN66F5oFxBj22v4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/buttons/RoundedButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			iwQmmN3ZAGqN3Ek6+Dl8wPtBNrBscMfh6BVNwsCUbsE=
+			wubmu0uOIg8oHGOrKlLOLiRZhvDOpKC+pcuv4hV6PF8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/buttons/RoundedToggleButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			HCqsaPH6EOElXWSG5a3RwN0NscVoBUGb9zidJ2IQM1E=
+			meHMxd2J7+JvYJ/viFVgU67Ry0mbAsXLXOC50XAaE04=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/buttons/ToolbarIconButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			vdOBCDunoaMroD0CQP5/S9glqH3juvkYRm6d3ZaEqKg=
+			IsEnm5JWKNmPhA2wJqKF/i5g/OUXTJY8z/QAxWC/HCY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/checkbox/AeroCheckBoxUI$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			5mCkI4BcPrW1kfb4N91Ia2v4w3uBjIoeeyjRMB6blm4=
+			Dfc4uay4amD13BgAbJUOj469fqeytBZ5XVwrcp893Qo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/checkbox/AeroCheckBoxUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LmNgL18/bNT1M9Lm3hIsAlEhQKDJqwJlvqTW4tPp8Ug=
+			LxnaGN7nJBBkYXI82XpDR8iYqsaqJc/sx5pndZYjNxc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/checkbox/ModernCheckBoxUI$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			syGH+D9yhIUW8WbykKpmAal7A+Zl+WSQOFKlGZMdhUA=
+			IoOgrgMNOhZ6ucQnXWxLeJE38ICZMnk/DCWyjRCAtg8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/checkbox/ModernCheckBoxUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fFzNeAKkbkPz220jg10tYWr4In7am6RZ8Dj4+s9xTcU=
+			e0CQEwNXtIpNjEaoFHJ+jshbmKQNEnCeovT/EEeBnoc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/combobox/ModernComboBoxRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			caQhjk61hey3wqRO2si99Y54S2aIERaraXDDJsBpItw=
+			GrqqEd0VUxVcaYRFQPpCG58BUjZoNOWM9o2OCxhpW+U=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/combobox/ModernComboBoxUI$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			c805BB2Yeux2V60kfs/uWLLU/pmLSUKEK9iK/ZFbOv0=
+			Ev3RPoQRFkhjSfFIC9ErxYKByIPDax52iwgeJKJj5ak=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/combobox/ModernComboBoxUI$ModernComboBoxRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			g2HoZz2dUrMG9e0dUYRAaHVhf+EIlhOey7mO5gsPn4o=
+			Nhi1+hbQLj40/77ef5vWB21jrBB4LE00sxXS3LjZDIU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/combobox/ModernComboBoxUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qT5P48FCtnC7A9tqqRovYRRZ6esZuT97EmlFeuG5sm0=
+			MiDdOCPPTY4TAdUFfMUyzUkDpkuHF3NIw8qMuqzXK+c=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/containers/AeroPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			PQWIune4tA3fzSQBgF3ric9uly8cFhLGWYxR/KCg1CU=
+			tD7Lijafcy54OM48MPGKsChw2z9l/oGlBtmZuBCSIzo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/containers/RoundedPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			S7oQsdhlgC1lNa+e8HXuCan2rLy8AAVPaZfIAiP3Fcs=
+			KBQqNe8soIEQamwN3c869sh+b5LH+3zFrk7W3YnfPdU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/containers/TranslucentPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			OHwtebYTCRRyKr5jMXonv2kcaS7Ruzky/VHc0X1oYfE=
+			Nf6ojA1j7legQNoKkq3Bh/Js0dJ+qEwCWdutnyXUQXA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			P9Qx9umMmwPeKOKnfdYdKRPKmq48Jdn6KhreKmVkWaY=
+			paG5MyRXdHgT37uCgBlfR8rA9c6I3ccQ959OmUClo+g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$CalendarPanel$DayButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MpY4cOlSJeTWz5+qvj/hr/5qz+NK9F8lWJoR9a1miCM=
+			d+DqLnChsMJ9DoMP3OoEjOx/rKA0x4MZex7yEYWm7aQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$CalendarPanel$ModernNavigationButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			n5QGI4XkF/6teu2kIlKCiiRP2Vd4k975RVkIy0mnBJw=
+			OsCSPeMkDRYor/4Afsq4g+K0rrol+4AWOwu6JahvuOE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$CalendarPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			COgby5/51KqfgcgjnH/IeQGCUOrY4alWfRs548yetmE=
+			p++C7VSI6+RqLJsa5q/RkyXgz7+Ac8tZocMnT5Wf7qg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$ModernCalendarButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1rDFglbbjaDmXjU8SWraF2nJnnZ/RjyOvJyRiLopPfs=
+			vBOsbjG/yiCpaQiTcHaqmNOZtNB6lb6who60FvBVfLI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$ModernTextField.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RG0G3qc1M4Pkl6KdTO+vNuPpf2ipWC4WPOm3D8jgiUQ=
+			8WELYy5cam/7TzJ0f47a2XF2LFYBMivQjhvaRvhlBX8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker$PresetButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1y53V4+NJNYSWCgHmva57PSHkYFCnk1RNu1ScMoJ6iU=
+			pJ0XlVmTntCgHctXkFVlaPwEOgV+MlakasoKHeQ0VsU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/datepicker/ModernDatePicker.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GH/bbX80EZp+Xnhv4OA9IOj8DYx2bztHmFjp1sH8vMc=
+			8Ngh/sktfXcmI11cBsMEDyVF0v8LPWQ1c43s/zv7Ub4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			afyOEkhgJjlTxBJjjSfa5YT+r6pST6pJ5P3YoVyjn0M=
+			lNompVzwMP0aYDDvy6Ct3EdwCUEEhmfH0bJStHgEQao=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			B9bThy0H2+zX4H6lTeXgaqQ36BTzHELe+wpXSrJ5g3g=
+			8pLtZb55ZkrMWTLOayPhnAdQE8smFxOtdDaZex/NUic=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1qcicMNsN4pnAphbz8NH6XPR/Fry+jUIa28IlfJKrTY=
+			Lffit6aeyWwBGAjsDRD2MnvKAUv6wF0e+8VJYQBAmJQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			j4XBo4d9TcVfffFifDMFPTRWL1hTUaxD3TgtvqZqW78=
+			d5KvtoB5RMnreX77Agx6+iaDjynMVpljg/Wmd/OZVr4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YcFzktp8r1wkMjYU63v0viNOqSg/wvR5L+sofF6DJNY=
+			Lv9FRq2pu+8Ryf0Be2Pkos0ZMhhW7T1xpIBhVEatX2Y=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager$ImageFileTransferHandler.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			J9XYfOuSSKUcSMHLeZJx0mHvgaitStePEPMQy4RkHb0=
+			Xpcdo0uJP+G1mPVSEVphLDPuI68uuBfkz4OL63PZN1Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/ImagePasteManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			v8L3Vm2doOga6+jkgexKZ4e1Wcr4Qh7jo3bzu9YUEAc=
+			V4cLotUhvKb+XETQsOHl4t2VPhUGCadDmZ/7Z7EhD/Y=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/RichTextStyler$StyleState.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9Nv9bTVZJdIDK+i7GgOJ8/e9u3XQssRzppzsv5xjK18=
+			kmbmcnejItdS1htQw4XZoA0RKtvRjO2k9M3C8q/+8hU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/editor/RichTextStyler.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			eDIiYD63hSPSqhBQN9RsxfhsRcGT7xaxRQCh5/vaJWY=
+			uwAp7u+ZYxZiVAloGTzKj3FyUCxC/Hw8XoyD8dqzH1E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/fields/ModernTextField.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qvYRXcYb91d9e9KPBDUJX49sRbnQJJ3GoNf3wT8QivQ=
+			fU5zC2iDdXLMwce+0Ee+/wX5UaiXOwegWv/ptIZyDYA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/icons/AppIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Q0oKQ1RsHcmu7z3XdroqX+n+TtFHW+SOgoXMPffeTns=
+			L0MQM+lnCi4IIfwQNQftBkTde5UbwE0fZ3hk8KJIfQw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/icons/ImageIconRenderer$Key.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8jUkAu0PdSHwg3lcwnv0kg2VdCGfeq8Pl1t22Z9SCuQ=
+			BFW/4Zm+OINU1BxrXLDs7d7GdVN49TRo0P3qtZeIxF8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/icons/ImageIconRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1mOx0sin9/G+ssAPG4Qk/tIMxdt3wUm5D2g3YSk8l7w=
+			f0f7nFZjMXYpOAg9hnGeWFz9ZedbSdnRqbRnvXihZiU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/icons/ModernFileIcons.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WFbGj7zPniftORxhBKXZ5tD/bUDGfj+8IIWeSDupTkA=
+			RsoQtA6yhVwb+JqLBuT18Pm4WLlBucd9R6vWZuI0d40=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/icons/VectorIconPainter$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			w0K9nKwjamT+z3dBWK+BexFv7pfP7SgUYvWdrbOQtWc=
+			ijKOKWcXJPmGG9KMjL/cZyztTeAHC9T5GINdm9A7dqY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/icons/VectorIconPainter.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WUrnZweGzuXFzyVqzyqUU43n2Uf4HMOmLUrptxgL9FM=
+			9JJ141yjfhcQhRt+fIaPzFtoLDT43BKIRDzNCGv8+e4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/indicators/SaveIndicatorPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RnqFZtwcQZe6+oy0fRFNgEFv8U2pbe8c470iiupD0n0=
+			5UhxiXGwJfX9VpZeg7PvWW4DfKNCv64iftsQIzUVa3w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/input/AeroPasswordField.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			r7cXBscjGXNHskMXqZ/i8PgMIfT0jIZCO342lSA+tsI=
+			2bVFQuDdmSLEryUVqm7s+8TssSJHuT5MImNqiQFq2Uw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/input/AeroTextField.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4e/mAginB1nyVguKQcq6fixjUG9+yNNo7QOo7sHMSNg=
+			z7y4RuLsMgOk+bCIfdaz0XRdOp1Lt4nTIcQ78ZOIt8Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/popup/AnimatedGlassPopup$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			3OrbU0slSiMbFbqEfKRrMUI44H5Zxe09gpnXtDrBSaI=
+			SxEzPmGCGEp4xB7kEu2kDZ7VWs8dJD9DsuONLfxlUzA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/popup/AnimatedGlassPopup.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bs2O5hoDNCU/nf/vRBTXSP1jNxdMuHDkIjJUH6rxBtA=
+			V0BFn5J8MDTkP5N91Ah3iDGLXVCuF7y+J9tJk0uTAkY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/scrollbar/AeroScrollBarUI$ArrowButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mbF7xJQn56SQHAmx1SadTTbt6HFnk+EKGTB38kzre3E=
+			atQ0S4En46jTJQLyUHo74mpzULxvfxtv/a/Ccc24HkU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/scrollbar/AeroScrollBarUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			sch0tDDSiApuNh04A1KpNfoN+6LseG23xRh9P5Hzg6E=
+			D9MKSWDMSNYJDh5zxsMLlsYjjNx+xEWfoj+hfjhTw1g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/scrollbar/ModernScrollBarUI$ArrowButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WBWWP8utK5YTnN7w0K9c8ITf8wAhQmU9sly4hA8rjwI=
+			emc1+cJhlZK9zsWHU5nEa5ghLOmO4HORsjy7iz4skFA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/scrollbar/ModernScrollBarUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0ZkfVvjrI00VHDQb2jhtE3CVEHz8jsCoxfYugJ0O8fc=
+			F6UwPBEkbs+RvCBru25YT4mQSHlO7K44gYW1ddLLOFo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/slider/MoodSlider$MoodSliderUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qp5OfJ5ncSoTpA3Zqbyf2DRZzlPfJ+QXSLFLB+vLRoo=
+			43QE4MffMNi8jsaRTedxh8Qu+ccHoPupA9yu3JgPZqM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/slider/MoodSlider.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dl8rrHvx3Z1I5Z0D7ytfTryCveS+KRJ10o3pKcivwnw=
+			kMfUWyN15q3R2nR7JKpfYM+2YHZyO7Dt7Dv/q5/NRJY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/spinner/ModernSpinner$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			TWozeIUgpf+9jcUEeytHK12/C/hxluqKQ/LCoHoV1Wg=
+			tu5o99BE8Us62tpOu/081NYP4wVOOU+/EJZLPP0QvaA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/spinner/ModernSpinner.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GT+w8FRVkk6/b9Ct7+s/iod/vdtALRTRdVHtqGxgMF0=
+			mdWOf9PBHzFGh3ZYAAw2k5lFFB8NExK1qTt2Uzkb0qQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/spinner/ModernSpinnerUI$ArrowIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			e56nVNiGHj8MhyGRkTkivoUUYcMHD9FO8bEBWnV9GHk=
+			ViZIlJzZhX3zW2VtAJMBHf6wPggwEgnfQxgg0ptr32U=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/spinner/ModernSpinnerUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			5fKhi8RS9oXz0O24DEAS0PpyKiX9PNiJCpLR1xfSwqU=
+			IYo5x1jGPVtrgmmqrFP54YCNWooA0LEg5vyaan2oShc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/toolbars/PoetryStyleToolbar.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mjryIltGiJjUKoxMqoJ1OZyBeMXfHlL8+vAoK4iWz3E=
+			LmWQWhLzAblInq0dlUJYGb4k2jdvUg1gTLlFMrOmTgM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/components/util/EditorUIUtils.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			nnIsxPXffOSgEoGfjnHkv20ws1Y1SXTJUsHkz9eGXgY=
+			Eo1R2wwywODcoOuct817JpC3ghPyMXoa+22ktGGaJd0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/config/BreathingConfigDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			JXMVmKIrFiHhcipqLw/jF+AOJrneQcvUb/0Ak2oY+mE=
+			nUMOOu8+pwypGvCC6GOwGmIfB9OWAL8OBGBscr/3NP0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/config/BreathingConfigDialog$BreathingPattern.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0E8W2pt5PjkF79OdR8W/cfhTIkkjKlV6ZkxI6w4CqVo=
+			uMZqMeaeGSDO0dbvFPCUvWtAix/rLoohMZwc9JW7g78=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/config/BreathingConfigDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9TxcjUdyIgnwxainJgQC4+GRbZkaXixXBhKj1B58ye0=
+			qrq8+/dVrPHwpU9LfVFbcWs3jM8BFiWhi38srqb6YwU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/confirmation/CustomChoiceDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			BR9ubjzsJDwfgi0vpe7CUxsnPg7JQzQh0c37oeqaKjU=
+			n/foyVmJUMqYjbGUN5r71dxv2Elbp2lLHYQwc0JTv14=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/confirmation/CustomConfirmDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			e/z9Lr6dj9wB8yWRNKmhcFyHZeUwi473ZNKMIi4/a1M=
+			nD3zJM55AIBib4wXHdND4HO95H3UHw80CGlcO1ggltA=
+			</data>
+		</dict>
+		<key>app/classes/main/ui/dialog/export/PoemExportDialog$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			UKqBMWJ178rsl/BIZsqayy6P/4PSDLyGtmKG0UV6mDY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/export/PoemExportDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mdRN2+Mwa/MMVCo2jAnON5nkiW3QGs96V9RQARX2VLs=
+			1e78NqZdtFiMzS2huqX7VrCOWfIKxUDiGQpwOjdZY88=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/input/CustomInputDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ooFVOcZpzZPTGYvh7KjxQgBuUkF5OyPJx1p0IvqFCy8=
+			R5K2Y/T4fsEs/W/dvBUHLz4BqnL13reVn6dhTuPTXT0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/input/MathFormulaDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RtWnK5BsE7Gy7IOxTAydweWzT6NQIRwtasS9p+vXtVQ=
+			xGn9UoruIS0yhKQMfSvjpkHaNaCA6jw5tP7RzxyQmuE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/input/MathFormulaDialog$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XSxTq4sEiikJoW+ZfTkQjlBOsHNdMaAF4b5p5Gv8/PU=
+			B9KjfIRDcW0WnFz4HgMZo1x8cz1ZhImtIxqFg+WOx3k=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/input/MathFormulaDialog$Result.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			NLtc63F+1fSwHokCuXtevqV/SUjBAs2TV8mf7GUibpU=
+			44JGV29nOSb6hxPYbCluLxabPlpEKK2R5mp01St6A+0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/input/MathFormulaDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6b5oCjtrOl5uotom/HK9+Dhp1EPWibbdKmOtdrSrtJM=
+			GEPnOXB///HBWHmvmKdFxo8q7vSXYH4Vkux5p7pMLCc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/message/CustomMessageDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			uUp2S1GT9904XQAOCseKS6zbmS8wPNGBN+DNqTE/Wao=
+			1mIHaFtvpn/6a5F240Jp0Hkzp4B2sJrIHY1VHWFFRFk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/message/CustomMessageDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ne5c5brTzcd1xzD5Uv9g04PRU1/kNSJh8PlmkesganE=
+			5oIYaNrKu8z0gvFGQROkeNoy4SIxQzQWInkuZJ/rJwc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/message/UIMessage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1p2rY0VoePqy5XbWSP4x34gK9JFWW6jghDpEYMPbE/U=
+			002MF5LXmxmf5bsHy2qhtGBT2glP3+MGRTEigQsQ7T4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/security/LockDialog$Mode.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0JJGjQWrcjDR073T06bhZj1HtpxwsR4G4N/fyfrox90=
+			x0dYoqOx1TiQ7kCcai+ekIFgS/6GOOk1pxOuzLSlRSc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/security/LockDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			CvH0vayZgTamJmlFug+mvu3JqY5k9e3qc6K0rChtAuE=
+			+Zoe1bGSglTo6pkqwGwHvjegkFzxaMDnqf2d+vvMoZo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/security/LockScreenDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			PXOLFbS4j08Q6e8v2MoeY8twu31g4S5rE5eoyLljYPw=
+			WPcZ5GHd0U1UzlfiB8nvR+j9/YO0+T6JgjDRMj0EHGQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/security/SetPasswordDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZmrGE/H76BjuFJkyagF+YZy6CspNC4QjV1bEYfmufLc=
+			RoWYGaW7AWO9E/mAp68P+PQGUyyB/X2a9sCsbAqQOyw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/setup/DirectoryChooserDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			42PWGFNVoD6E0yoNDMreWTrnqYGyMoZStTjJzVeMDqg=
+			zRPnIPaOHcKgBK2YQCXYXwbRYZ7Ime01QlnS4dRCm2E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/setup/SetupWizardDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qI4MMAlaETMwprGvirV07SKnUC0dq4eGVHUsOQ61fG4=
+			NdXNmn3siCWFEfG0dshnXHUjYn7tFchOi1rMkR7QPoE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/setup/SetupWizardDialog$WallpaperChooser.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bv6Z8kXtmgDm+A/gWXUIrBGi78zf6EqPygCMDiEOdZ0=
+			uS2rE0WiF5m5pKfggsDeVWIA6rC9FyWq5DPdczTiYps=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/setup/SetupWizardDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			jGVrmSCOw19NDLRTEeofkZIBRlNmaccpNhUH2WUmasg=
+			momkfC1prjeCFnYJYraAErypHwB5eozFHqU57TL54ww=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/setup/TutorialDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ulGZHUQ6a2WzT6Nxx1X1r6zuIY2WAqPKgWyxareoYLU=
+			fbn4K4I+xp/nb48Z6oW/Fz7M8V+fo50eWZqklrJKX3g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/utils/BreathingExerciseWindow$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XBoEj7/SxniWNRgWFV802Y9i1baYk5+qG6oObBJ+wMU=
+			7VnaX0VlSh96YDf4kv0hCwxjEsNDx6othiQa5D/JLYg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/utils/BreathingExerciseWindow$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MeLslvUJE1hK4y7jHZqyGo/+Fg4FawnaQqhcDQhMGJ8=
+			o9xFq4Fist8zqeJ23StRoFTqoKGcGTgJUTKLyWRXxzE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/utils/BreathingExerciseWindow.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Zy7u4mNgNN19TEWUGq0oK8D44l0lL+bk/4VpYh68xYo=
+			i2MNlQ/H3UmMiFWRIRDB08itw8VyjwuAiMz0ozzrC4k=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/utils/EntryBackgroundDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0vG3XbN03+72qIwzr8T0qPgIVkMhq7g9/zQrPvatjJI=
+			832mp+yGU3LUmo+Wo6IGPiUi6FZ0bdXiMCw4JDTmRQs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/dialog/utils/PoemBackgroundDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ka7sTWZCLNKzUvGEi3fQ5x9PFQUPrfvi9xHoLzIPT4E=
+			m/v/ShS5ZvoiWQUqE4vaY7ynffmT5yl22Z13uIwm2+k=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingCanvas$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			chzQbcrBnYZJu/otV83rd9maTou4uu6rnAjCxxQ0tZU=
+			D1M4fqF7wquUGjaHpcPNgwgF6bk2bEFil8oREyHD4bQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingCanvas$Stroke.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RmFiEoog/AW7BzfiIyqmtktlbpukINgty4HUb5awvq0=
+			2iqhEXR+aRQdLIx4EZL2RPti49yg3V1mF1UKC/K9Pc8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingCanvas$Tool.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fO35yIaA+EewcNXa7ShtpCtGtBUTcKYuo8+/I+x6NZI=
+			PtBJgynqF5ODjxi9TIkp5ZgOtalSHWIQFm1AJFiY7F0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingCanvas.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gvGu5Ex2SFfhtbKtFEkGkQdbcb0rlyubu3XGR6Ds54c=
+			8lOWyjZTolNLiVtFOjvkFLmjdXjkLIOtbTAGitQP3O0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingChooserDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MHFkx9728qqAW9x/xchZzbUHLkxY1Ai7tsyJlY56xtE=
+			EzDOcXt50vp3+H4BtG29ONGsGCsSzddTzMwi/wbyBxE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingChooserDialog$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			vqYQ7mISpA1JrO49FglcZp5gAUt30xVKzLiO5qlqMp0=
+			aascLy7lmeV2MOdMGunGz1jwwqlRPSCUlDNxszB5b2k=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingChooserDialog$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			z584Jyd9UGZlkjOyrKT2h5fAueOGv7OdXhe19chEiwY=
+			5W94krUHqje7uPn2uVaoEWiZCc0nGQv9ZDt2+3SrdCc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingChooserDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			O98JBmEJoIZnPBP32iAWUeKHn2jtjm8xdKYlemTeTQc=
+			voHrso0fEaZpL4F1SSAcnxqeBYG49Kia92kgIC6AY9A=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+TIDY0vnALzOgAQ1trnQZZGQl/NmjkHBbHY/uTUhKPE=
+			diGUmWT5k6BtdQQUZIShyWFKJCD2lif1Et8mjqwV4HY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ojedzd8PuuU10kWZGTXg0TwToE6EN+F+fEcYtFNySao=
+			n7gupfcTyRERUUYy6z6W5H3Z0W7LQY/mBDLDpuhtJ1Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1/QQZGUHpcz+rZ3x3cHpTSclp2LQmgaGy884X28NYqM=
+			k427yZTwdSREYtk7cUtv4PkJ8hNJ4tt9YZl7I3eEF0g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$BrushPreviewPopup.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			VxHn4UkfswLej46NmHL8J/tNL7p7XhCo0716ZsBiuMg=
+			sx0HnnTXNodgdHBtr2M0A4HXEKX2fT9u7ZqnWioelSw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$ColorPopup.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MlrxKCd8GvWAR28xHcQYTUlRA3WNk9rA6u4e+cvzwZ4=
+			kN2JGn1XYA7rRqV1+ZAoiW+LrhC6HAAsfgUE/yCceR4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$DrawingLayer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GRe5vhseUndWvl5zNFY46b663ae61ZI8/aRNfXSyWxU=
+			wpPxhLgVTko7wptIVyOL/wvtd81H+cGRoCtj0y05Ms4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$DrawingMouseAdapter.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			U3+oHb+gWUtehfVaMxNxVsHv6nh3hChQJX53r9knmws=
+			tmd4x2OmXLlruH9sCbpiaHaBtmqFBfveNAkjvgtXofQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$IconButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fAfjSaM1Fl33bTQESrIXfvEaIopfRpdCRq6Wv5dspiI=
+			iSyKq8e1AxnZl3ylAxLlgptOph6ci24+xsNNjgTicnc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$LayerCellRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RSvDusSlujfClngHQgKt0pQ3XKTx+2W0krpfUCc0tfU=
+			VxdKefkXB9B5Lx9UYUSJ1VZNogs2hBsTZnThQTLu/LE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$ModernComboBoxRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			PZVrvF3K9wUQgundg/B+Ob/5fx8bys6WavoavjnraSM=
+			/D1s84hJH7i2M7QQu8d0S4naLRITneOWbOPOLK0gNP4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$ModernComboBoxUI$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			jye2sGPgMXoteTBMy13weVEBo4lf6ZaYJTP/VuZRUow=
+			vwVZo+SkCzp2RNaYm7+s4Nb5d709gh5Mpj3zDZpwuj8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$ModernComboBoxUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ac9yWDe4mOCMYpDuiuc47wzCT9Ci1Jw1cNQV+dZBrMU=
+			/SmohYYUs6HjNSJfHjJinFMigDu/cgZSlfiJXU0PO8s=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$ModernSliderUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MuNC85ljwSEt+wCEUPPrNzQc52+enbtNjMnh3GVo6oE=
+			r2W3t3JVVTCZs4B0oqL9ZMBFrAB2WdY1ZmqQ09m8dsY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$ModernTextButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xOg8eD7J9PWabn+53OfbIHe7tVy+mVybdVWmmXrTqdY=
+			mMg16agFEHL2x/HJ1mPTAvYzG2PzCtZG7tAVP3yGG9g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$Stroke.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Y5lrfqlXdsyRpJnh9Czc0B2IOBCfW4ERakyIZPXtupY=
+			dYk24kacaFlkim5v3Osm6P6mYVZyBuLb1Iy8bpgNjDw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel$Tool.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6X+uDriaT8CUxj250HuFrQL+Y0LL4pB+1hvQNf7ZZ6s=
+			hxeJiIRwWWG7xMRA21EuMyVTjMsEnn0X45jsmauK+Zg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/DrawingPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			97GyspFwTl+sWIQHq8PKfW+u2WR6PWbfuSdBPqjkRj0=
+			tBAG7zlFXHC08ZsvwCqvrvXGOKeMUSyOPTmJIH1lEWc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/InkOverlay$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1QCvfrrvWgM/K2WYZmADEXDCDnnanS1mJPpZqRxA+Ko=
+			WfSott67HYYUWDVyyrNPhBRx0Zf/UqIQ9wUofevkE14=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/InkOverlay$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6H2BBYINOaiPYpQM0zaNVqxycNPZVqo0cXANbO6fqrE=
+			Lbx8hhv/exRy/+tw+ew1vSn8iTXpWhnWqNTpfp7CQkM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/InkOverlay$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0Ys/yaZp2SRF4K2z0aWhycr5ZGctOHw0YeKV4MS/4JA=
+			K9kJSLR7/lgyeaqNd7PUvlCU5FZQ/r6J9eOapSvKizM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/InkOverlay$Stroke.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			HQWA/gZU9vyQN19pseDh7wPsnbbBzrqO15wXeBJ0gi4=
+			VaiO5nYyX7T9XGt01KEZ+4kW+eE9Ox+3QKA5y5TaBLM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/InkOverlay$Tool.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+vFjJj1b+o4/MKzR+cNwDtGVb8wZdebV289MCcm5B/k=
+			EHl+f67vXD2qfOwoGOLKJ0ud0imDA3E47Y1OHtSIowg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/InkOverlay.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			hE3w+fCqJQXiNh7uz0xMfMgWIoLhxGENzE+oAwFMGMQ=
+			lcCVv6hIifV0ci8usne3zBDn9Q2o2lJWeryBWzhhp9g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/Stroke.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			O+J06Q7tJNuVmQeoqWqXApnx0w3xJ0QdsXhLepMs0lE=
+			bW0FdxGl2SegBoqw/XtxujUi6cUPEnPk9XpEfxu4mnc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/drawing/Tool.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			tSJfVhLoVpV7IvYpNvoKKOFoziYWBx3SrIqjTQ6fQNI=
+			3nG8vuFtQQcfFMTX2zVLFDY8wsRuAc4khfvIc0G3Gi4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/editing/UndoRedoManager$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			V82TGZoIrxfO2z/JeFxTZbIZ0QYymVky0GpRWEauHhg=
+			DE4ESvpQWivz+dhdPII1MQ+1miP2+OmO7s8fe0SJUQY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/editing/UndoRedoManager$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7YlrYaTdIIiSVL+X126FJa7VCHBYYhPl7BNK7g5mqEM=
+			EQ6/na+CAccGe6YhOZKzvdWTjqG2Cz0TcTagrILAYNY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/editing/UndoRedoManager$CountingUndoManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			KaxCnkjVdvThnyajzS1S0nenHR2hO1T2QOK0P9n62GE=
+			b1R827/zL7PPvEdWeKrkSavyN8TgrAngEczKY/nBypc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/editing/UndoRedoManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			zQYskqymQElY90WBUbE2SU+nGVikM2CCpp2wHM0S8W4=
+			kNwxBixKfA6tLE9C68TVeECPn5VUDYFc2maKnh7BCAg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/AbstractEditorPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ut8RddbAkp1GQceNHn8dHQ8Z6BKQ8nXIWgE9FuZNSpY=
+			PbZlnO+w2RdoofNGypUCZhjGw3FnlkkhaLzqfKExkXs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/AutosaveManager$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			uxdOF6f4+zp7Be+sjXzNqZwUhCycySemxTzucu/0X6Q=
+			hr0U4EOSX8fL6pTzWW0wXc2mkI8Q1GlJ97xKaUx85vU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/AutosaveManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bo+X3QSVvfOiDJVDoLcXZXUAD3XAc9ov+NaqFBEJwcQ=
+			kxnVIGYt6bgoKAJobjTY91x/3atshRA61YbbZtK4Lw0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/BackgroundPainter.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			N9KJZC2NzljN6ukm4XmanvSF8UuzrjF8ZL2RhAPnFIY=
+			gMCsbORSyPsCAENThqQxXRIFzRywTD26x2GX31w6b6s=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/CustomInspirationDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dGwi90jIRy21HyWgGgcxYhcDXfApI9cNANIE7zr/pxc=
+			/5fAPsE1BAplWQk4CfauM9LqeC/3zyjQc5xOlu55C1Y=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/CustomInspirationDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			nkyfD40H+6E7VkVkA45NrCQKcy3Bo6WhYvKFMNOt/5U=
+			VGqn/zWo7lTKMv7vjr8TzydBWLhWRiz9YURHxVttajg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/DetailedMoodDialog$SimpleGradientSliderUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			926tAlL8vrgwWOwHnvbZ/UfXJy9TTrtjRB+gHBgSmts=
+			9aOC1K+0qLSrZAgI7u4kMG09sGwizrcun6jyqxcmdVQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/DetailedMoodDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4voP+khdeZD4YS1IPwcxYGnb5iHay5MtPQVGvweuH8o=
+			ekWv0w3rynYUs5UP0S3BiLu9u1sFfnFDZIuvJB45NJw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/DetailedMoodPanel$DetailedMoodSnapshot.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			BnwH2KvEaMwN3Njhq43Mn8eZNOsJfiiIJX493JcFvJI=
+			Gy6YCT1kVPF36t453nZUryJcCLjgVk9bdUk8DQGT4hA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/DetailedMoodPanel$SimpleGradientSliderUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8LhFFvtIMyzbP/SuWT9hFcR2z+gynSb1duymmfhxCys=
+			CvbXldKZRENllBjLnCAQz4HBjX88rQj+SaA/JqKSJXU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/DetailedMoodPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			wN3Hwr617WGq/u2DrAhgM2kKmfKvRIV1LMhELKStOaY=
+			ROKhxMPTvA98sUCp4Qet8SRNuEPG2nxQk10j9xWFLiY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EditEntryPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4I/kdvLRhwzPhUt3M/0pE84bw+GV1hSuySPyMfODQcE=
+			iB0M2/oq3vKjGJxrwu30u71ZKXLuPlf0eLqyc/vI5rQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EditPoemPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			2xubrH7bYWfsJV59D+S3IriegdxGE4TFhHR31qcZYKM=
+			9CeXdVBGAVmFV3FYme5SYM4ScqV4Erpo6XhFJD5ZlGQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			zgYXz2oB27qfS6czUVw88cMlUyryro1griQXdDAb6Jk=
+			m4E2sU2bOrK2ifndBs3zHHrLYYIQJGpwh1j5K+oa61Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			KOUJDfrcoXUW8c5F8cdoXe2GZhAq3IpsZO37ql1LGro=
+			gKC711ewV6iWPqCKuAcgKNABp1kSe5uHJtKmwYVKlcs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1hR9l8uZJuMcCfc9s6wOc6zoLKPvNBSkwMmS0TyTWbg=
+			bv4yWKHwQNb2cabpPZ8zFA4uaBNflTAuIhESeG1dB6g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qjasZFS8JTh4C2ldUopxw9ICz50jJ1PTJ4oOC2v3w7E=
+			nIMpepK9MWkgGip5q8jgUkphi+sU26h/sNfE3dzOAK8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZUmdf5RbRNkDHr8RWWCipIeBptT0i0flsY+Ir9UI7DU=
+			Be6zKGn7gs6p/MoUj1QrdonG3DLvGjZwWlVXRhR3ulY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$6.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LE5fa9PfVcPS/a/AEq34HXbOP+MXGffozgkhGIh+MXY=
+			+hxQbu66CxBPbTmiB5c4c9YESbTIGfYGmstYoutDdis=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel$ClockToolbarButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fKS1EwY++hoxFeKq7dHPYnE97XB2TmYtfgAY+Fjckgc=
+			CX8TMfdZY6UWDCc6V8UVwLEXY+dw00Ar7fZGmzF+SgI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			hfogrOvlbyM+rm6Zm48bHkqg2+Ld2X8HygnNg9N1KzY=
+			Sch7ARCh4v5IllQ6ta2dxb6KSEPLaW76G1Nui/PTbLM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryTypeSelectionDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			FLD19h1qVhA+fEsA8dWncjFOP/DQgzvyf+LL5CflbC0=
+			COOaGSbG2YxNaKhrVZ4Y9Tqvzv6PNY3uV29ScqqhQxs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryTypeSelectionDialog$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			vDSa14SrVnvCuEMFJD8zc+oEo8hZUyVSUfqy3XvCNq4=
+			5RFmBn8T7X4BPMAGe6efYgB2EoJcxE3/h+cCDTuWylU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryTypeSelectionDialog$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YcDvakjQMLyaMjQjIBX9KK3ZcKkdsU/dzczLYyY+sts=
+			7PqLL6UpR92+ab9VFWnqfLPdc5R+Eqc+Ng+pBj3xD/Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryTypeSelectionDialog$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LfbuN3/1QIjBYompyiHitN9OyjrONGyNvacZryswzsI=
+			MW69UFV1nM1zl7NlVCmPchQEi4u5i8oxq9iXON1ZVEA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryTypeSelectionDialog$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			hA7SL/zopvsvh2+o4xXiIQ4IwUw2Zf+QXzFLboIp5Tc=
+			AY8i/wPYyGjIldbW9bT+50Fg922R4GVX3ZyCtbVOlLk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/EntryTypeSelectionDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			NP66H3aClctjHybNdWozquVOXMHV2Pgd0V+l+lQE238=
+			W6cctlTFoE+qJ0VU9zE+yjC/epqZrm910qS4Ek+FQ6M=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/JournalTemplateManager$JournalTemplate.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			l4WOF2o4cLdJ+f4y6PWAnCX/rCExrY+RJcom+ZOa+QM=
+			bSqqhwT2a+5vH0Ge03LL8hrPWgR/EQ0pAStLANT1tJ8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/JournalTemplateManager$Scope.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			SpXyb5fnQqKq3/e2WlUvFwJEURspuHFWOGIkcLl9WSY=
+			RqiVTEtUEQcXOiAia7vq2GSo0VyW2eA821gFy6hGtX4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/JournalTemplateManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WdkwAQ5dLGahj404ENWv69Fx6SVHsGVQ5qseN7ngmQw=
+			d23quT/fEuq8askgz3FTUrHc7VDLUuXq2RxPXqEVZMQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/Mood.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LeyfJ4V8hAwcnbp/VSVIZLMDCUO3HInt+EfvzU/8MBI=
+			lQYNPyExAT/G3Ps51tLjmghVKqoz9P1Juunjyl1zBEQ=
+			</data>
+		</dict>
+		<key>app/classes/main/ui/features/entries/MoodButton$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			7qBAAytjsyaziG8j4kX41OTmFi4j3QXNoucnhi0zOk0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/MoodButton.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9JxKXvpSGZts7+1+7/arzzMHUPI/agIqKfXflVtCONI=
+			th/0ZyGzelG0dvdBioiU6bK2p1jXim4Zg3ingd8kSNs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEditor.class</key>
@@ -1894,844 +1936,865 @@
 			CrwYxEcJRmXXREoBckoUkQn8pVA5bV8QUmibTGQQXQ8=
 			</data>
 		</dict>
+		<key>app/classes/main/ui/features/entries/NotebookEditorFactory$1.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			9n4XE5JMP/TUJwcnxoKrQ9Lqi64uerGV1QrpF56DfWM=
+			</data>
+		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEditorFactory.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			KTc/Du/UpbhXUW3rOQzKlowgc7FOogxL54AXiQkQn9c=
+			NDZopz0y12AzsBGMzmc2D1rV7jzzC9b3BYVwNh/El9E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEditorType.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ay0P3pHT4xd4kV/S2l1Wnq9JkzjgRuc/GjO8FvGzS7Q=
+			56lYxS4CZe/UfGruCxR/nkAqyj4mIPdqtvoU+6xTWiA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZyQd74hiL8n81h+wegoySROmc2hziOjPqMdHoeeN738=
+			EULEXBeKqB1ebmmAvFAXhQ1UzfcPe+hOk6aLdzbGG3s=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			onOTNjWTNEpnjBe4M3hU0L/C3MdQAeJL0Lc1WyvNjso=
+			5XCDDO6i8GnjiMhHAQ19atqZtOIl+JWUarkIlKMH5fI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			unqiMBF1AbMK5OmZTXY2ElRBP+BAhi5GnMHeRse9E0M=
+			BrvoK5rw59oVveT76yvZDUpeYMHNABsl20S8vAAncJI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel$EntryCardRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mG+NbDC51Dz0GQD1d8vxcCJWxWvIA1W0s54wYA11BtE=
+			JVGUiew9Sx0k6/qFJA/X0Bh+ynt0SyH9dwYHpxZuZiw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel$FileMeta.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			5bU2gApN23VF4s5aoa9xGdmSqOsW8PI01UZGaAmjUWU=
+			WbVopDLLtCzoGZFyClxjM9OMzoRQGkABUIb+d+sUPr8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel$MetaSnapshot.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			SSb/dME3q4Zk8IUpd2Hca5cUt/UWRRf8L159RvCsE4s=
+			XFKpOLVPecQUYN9aFwxO9Pb9EzssrDOE2ESfqtvVa+0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotebookEntriesPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			jOmhXR4cuhTMlPTjHNRvu6pDUXGIGDeqolMnJ3YJ5VM=
+			EZnWFMXMQ8y5IJ2sMh0UZ0zfTNpaOT6BYcuSYdI/BHk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			2QnUbWs2O2qUx8QuyWQnrdbITq9M1TBQH8S85Dw3gRc=
+			MHw+AqKvMxPHvxcn4Ik5i8Xfdj6ZWfsKveDlbvWxwNQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$10.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			3EMNech85Ykp2TigL0yfc8WvQcjlxhl7w+Ae/oy3YJY=
+			XK1UhxhAhQq3H84Bhv95phl2TLgTEmPygHnEuAwKnjc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$11.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RYUnTAeym/W20pqMTSkT1Dzhs/C661IWLK5+0+51xfo=
+			2kYu190hWuQhOcxSVJLZXH5jlLJJQlCPmhTeI5gswb4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			r/pR2e1OcZwIFEokqLWuyWstAsPxH1IWHlL9xybUKDQ=
+			ofUSIG0HD3JExDnox9NFoNDGxegPJSv+dZ+Ofwn2q5A=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			IDBAI6fffg7AvP09ElUdR8YzGEVEcjNAUU6YWPZtF/o=
+			7zbXCdsJ824lJFLRQfhBKd7ajI0AbGufpdSEqkZqELc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			/OP6WNwmzRItRFQPh0WfO/toQuMzLwAoM0OJ8veS59w=
+			sRcU4LpbDS6GOU/Ua+Rtz32P6UNemO4jOeagaNCtW7E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			T8BTnaqEhFWPYsoD8whYg6jMAEmq67e446ZMbnNrzuM=
+			3/zNIy36u0f/UTBB0/jFS8TnQuglsfV86IEemfdRl2w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$6.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			UL5wIlr1pkVLPsG0EYVkkQfhgRnUq77jke++uSUcYnA=
+			UFWmqCxYzj8t2JQZQXReUmWo/kC9a9d7EYQxRIBhXPs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$7.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7q5oewfczR0p3PNILYnUeKnDqxj3zV5rr1DvsAEX4e8=
+			okwxmvSZ8bjGSR2QztjKQiN6hYA5VY1AkE0SYxYFh2U=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$8.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ULYCmEEgavpDAZVbzbUz+u0kTKB01WeVUzUsIVO8uE4=
+			9QZrrYccHnhVkjX1K3SNqbZi2eMAGC8jBlCTHD+JP7A=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$9.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			cpjzzqgLFKc5C9Adk+pOP68rUKMZNjTCab76mHrO1+U=
+			yrSgXYzbZBdiyy7RloFe1JJRr/2gJ0SNiltubjw4+Uk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$DrawStroke.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			16AIDe4OduSP6w3RPsBaC++ji4Eb2aSaM0g0HOHXDH4=
+			E8v9NkRHIOsdPpQNn94xZYUf4S2yMA3btkTnAevwVIs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$DrawTool.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4buuN/CT2dHoX8/h+DwKc+qEdoCMjF4RfFibylPgc9k=
+			yER15YmCqnEVBtye1qlW2zJH63c4XfH5okGa++kEcZo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$DrawingOverlay$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			B6RU5c6DrUmGC22VtS/O8wAs95bHs73hC3btPSrPSeQ=
+			zgD+zIgtQCre8zcM47jela556i6UvikLgdDzNa9MdJw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$DrawingOverlay$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WMMe0jwTUqx/DLygsT2iBZNNK0OGR1EGjDi08o5SLjY=
+			+qqcfwSykT+E6dUze1Fv4PnBjoVezKrp30H5o7ogjWU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$DrawingOverlay.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ubHwHZ9jKv+JOWw3oUt3QYQ0AqCAoInr7wfge/WyiwY=
+			7AO0yxNK15Ams3TzhC8OpBqSkHcvUnvJZVsCOv6ezHI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel$EditingMode.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WTdlffhIiF7ck/4SpizYm+/YfqY3xyd2ZO5Xid4AOro=
+			ibuQu/0b1R3mF1puTzo+c7bNI0oLMXMwUP/DfcVpxDE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/NotetakingPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Q1gdbmiLhn+Pi9npHYBGA7d40Np5+x2CyIK7jGUo4Vg=
+			yQiA2mzNZmkZX6ugImMyf2U0Cq8f3h/FgdZVmLL5fq0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/PoemPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			FR9OiQ3DyNw6Rl0kOlljQGsssyd2fgaXhj36hHkXDXY=
+			fR8bOuBXS7cxRRFuLk71itBa48auGF9eBl/bZxpdMSs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/PoemPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			oREU/czZo6eufgr/V+Zi0025IxztYrlAo9B9677nmBk=
+			gLe1/QCYxpuIKYNX18VF35gHy9NN8CbxgUswE81hg8c=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/PoemPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			zkNBMLpcIJjlnrheYuwsm1j9fJ3n97R74qYbfxFyCmE=
+			4nuUOVGxqMBX4mEWsIeuN/AwicLbPCk1I+Ge3MbA9U8=
+			</data>
+		</dict>
+		<key>app/classes/main/ui/features/entries/PoemPanel$4.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			c760q7VhBiOq9NUNmINousyOahHbQm4hSB0ndjN97V0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/PoemPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			J6a/0NtjZvyArkV6DD4UqjjIREmT+YywKstHJL6dJYg=
+			aGpxrJXHuKx8gPM4+w2xoGXt9Q8mpwvvij/tpFZqDvs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/TemplateManagerDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			hqRGkwHp7hG7AmI8v5W9RoRmSUsS6t0sRZkALPzIXQ8=
+			B86hqgBF6RWbeNKLqIBF/NRjJZfAdFIFlbqPmowRXIE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/TemplateManagerDialog$TemplateEditorPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			oyJ5SKmcRz6nxRz/qw6qAONLam4vGe3Kn2pPZZC81Qw=
+			Cm47l7eq4RknWS4Nx1C8PVZbWWiJYhaS0Jk4ixkVrk0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/TemplateManagerDialog$TemplateEditorPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			CdHVqpd4KN8W8rX3Dt6h19Uc92auZ6bsUv0Koy7KSPc=
+			KN29NWZapOP3FdBNrDa3nx2KZfulvqHEUMsRh05JiOQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/TemplateManagerDialog$TemplateListRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			okEwXjiGQLvisla2SSpghNsOK05nW1/eVaS+nyyi2Zs=
+			qkSH9iJvOxqjLNc8p8BgQEZZkLFMlNgZJAsguc3Hlyo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/entries/TemplateManagerDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dah8SRHKRvr8BtdJpomiFuzzrwy0L2UuicUACgeBuhk=
+			pCG+ofW7xcFZxc4NXdU3y3Pnp5VC15oJR6WUbqfof0Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/GalleryPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			d4u09wYA31BU4HBjpPstp6B2OXCdPenUGCwmelCZs4s=
+			5dCVNIL3kqcTwwVAOtwSyU74QRVnC5UNx5DNL+0lcYU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/GalleryPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dydwxn3DrCqvpoZwJ3hNTQ0DRBlvoQYliH6CBXd+Ceo=
+			DKTPV7G3Q/3zZWndPe20BBeBgfOT0NhjL5/BMJCbAks=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/GeneratedWallpapers.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ssuPz4TfO/2tz/DVfjGyzTIMevf/Q6emEWCE62RIdm8=
+			3uBSGS4QKR6mf3TOw0wgADswk5HFwnNhkuSWvnIKmQk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/WallpaperGalleryPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZC9eczTZaDVnGDzmuebI1cAhVQ3VcUTJVLErLoJkE3w=
+			JsMn7C0/7P/DYNXkJqE2RDbZvNBgNzjqkQAuqo0LK1c=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/WallpaperGalleryPanel$1Cell.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			tgm+zqAwOdDSunA4Zv3eGorbeGFP7AUBsvPtMJEnIkM=
+			3qU1jCasZB8u7JPCXn2fnONHqHqokb9Tt977rJz37k0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/WallpaperGalleryPanel$WallpaperItem.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			NpnTrg/MH5L5//UbaAINaDAKfPzgutSR8Wcd4ZS974M=
+			LOQ3VPuKJHD+KwYRUKt0IcYBURmrLaQ/0im3Unt/mwg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/gallery/WallpaperGalleryPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			iZjXMhM6a/Juwvii/I9x4PNgUyhxGEGWyp/VudVBZ0g=
+			7XhiZfbSkkJLY5a66xIo1CFZ/qjE17jXOxjSamEZkNM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/AnalogClockPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LS2DrFIz8FuGNEpjU2+xud3PrjtVBBzG+lXlTcDYae4=
+			66R6Tn1vyo6vILm3gQE7fOkhS/vwqrjKghFG1BSBag0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/BackgroundPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			/c5/xneTY8XV1cxNNwTS198g7vJuDYe8I8OmIfAJu2k=
+			PlSiq3SzAzNKagHrw9Tiq6FOF2+TYwIGknfIxYAY5Go=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/BackgroundPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			K53W3Y0CGsvo06qNQpM2PDUSsPxdS/dV8AIIpVaNVOw=
+			a34Ny69W+TiwpwBVNUrwWMcM9vglEqP3KuQ/BvYSwto=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/BackgroundPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			SunfTrm2hCa3ga/dmNENMdJdEkQaDIxBTA1IT3ofVWw=
+			VJDc9WqqrWGKV19O61rhhvLtQFOP2uRXZd/UFHHIjSM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/BackgroundPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8NsBJsVROTlWuAQSmDV6VSchOt9TOJr9geGw8C9Zzgg=
+			yQqT4lTDuEQ6pP0yZ2W3NSX7DorWDVXepVU2YEOUi9M=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/DayPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YZb3ykpl7jr+BqOsUmYBqXU+gqKvEB83fUkrl77fGuI=
+			LRcv3VDLuOnXrk7pd3QwSUnkmQvjrXyYhQAKi3fL5Ho=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/EcgTraceRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			R5Jhb3iIdU8+4WUBTEAHfWGoV2anub7IQxx6TOmjxOo=
+			VKDGdRj9jrMO47GOF5cDUtgylhNMCTyaUhga3QHRLUA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/HeaderPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Af/evnjbeyPJUZf8oos//J8FtLb/qi5j5ruEVQkgngo=
+			r3HcGjW1jmCm5m0TSgTcr21mwf8Gi2EEgmjDsuWpSVU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/HeaderPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XkXtYGqJwVwseXbpWJ4CmOj7FnJv9+jl/9hwgdvZnho=
+			XE+elcw7gbLRWvsnV8u+lo056dEDUB7llH/D24f8hxU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/HeaderPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ee7iEwobjSngB3A568C4zscYRaKjqnT+qJOrJGzR8bw=
+			kBPaEY77QjwVF8Nq+9owOXyzgGKd6XEaO/5nPPBaFpQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/HeaderPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+j1Sv+d30SJkbt9GKifRGx2nlgsZxXvyOfF06NICH58=
+			4gf7BULZHQmYWSRQtAUxdV64VRFZWZPbMHyRGc+pL9k=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			V1s/hT4+603OqNGAd3lMGWWDsc/BDY6C9Zk1ZkkSCqw=
+			QSnDs9YjWP79wtAmOs2JYUROIRlF9w0Svak4Tf4RgTE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			CcAwxemoP0J/mc1KD6+wL6wcT5FUdip4oMTd8FPCuRk=
+			hdllzCmVFWxh55TkV6YliGJ23r3bjm80lf62Cj3Efo8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			TGansGXyJ3ArwTWw+4zjO1kK+Pc14kY1Rafma08gPnQ=
+			pIQuHlfMPFMXaR7XAbFzy1vvM4EN7wXcQeQX6PGnR2Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			IOFR9X+3q8VE1SgA1R7A12wYhfOM4t9jgsFhRdeAdR8=
+			uK0x0ZzjkUjE8L9CofbrFZLJT9ksSbcvo+RNNUtirdo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			SVKF/DmP4Zs7p5xgxfDbS2zN7SXCKv7shZCf/LJWBq0=
+			W1HEGTRKy6mxYktulj557sNyKzpe8MG8Th0y1qnFdso=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$AppContextIndicators.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Kq69rnF9jyD1PWVPy14YKtR7D2QcAlvwOKRrxedYQX0=
+			FrkFOEcqc7PRwxRM6g3qSeGqhgZis4vpacdX6Ohs4K8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$DraggableWidgetPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			yzJ3bPsy0PDAZM4Uu9eeN6e9L7lnkVs03odGyEPO2FY=
+			sL3Nto+OxNULwX/6qum1lb9x8440JVYr1iaf/BnVch4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$DraggableWidgetPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			E//DoosZESQf2WGYaNqjPVhlu+tFvwJqnZ/TSl81n6E=
+			nM/8UOOJK21pDcx1HJKPuUrLBypTKgY9gJ8NRFZ5tGI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$DraggableWidgetPanel$3$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xUXMybZ2Cducrn8W3i4OrpoZiBAak1hM7yLdhapIWDA=
+			sGINo1Yy5EhmZhytfNuhL0ACJF4Pj9Mqr8fmqqubZXQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$DraggableWidgetPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8NfRkt7c6u19qh5PLOMy/CITbgCjH1RW96nbcNxRyLQ=
+			Idwg1ZnrjrNO2hM1NklU03r89eMOb32vBg8KrbRS9yc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$DraggableWidgetPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gt+GqZ3ZYaMg5Ltn2A9htvcN20pbqOqqTZV/n2zH+Zc=
+			Z5pM+jD8RGKehfxITjlD5Xe9rkmK+Vn54mSUbJ8UgEk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel$TimeInfoPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			UxhjdEYxbavCStStwSNVgKtJKZ5YuTBuOFqozP76dWk=
+			MkB23o+faSsXKKorcWNL3olIHVLcqmQRiXS/FWWsMlQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MainMenuPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Yn5fPj5NnRLjOeStUuYZJ/OjGsPKvyjjJp/UoyHs7g0=
+			Wy8DdcB4D7txNKIQpul7b9xH7Qfp338jFSSkusLrRII=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartModel$Details.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RYsP0+PTD5YxuujRAOZ6sSAKYqFhH45Sp2Wno3bcEwY=
+			WMohgrHgwz5yRig9gEbi4Lklh5Afe+CPjbOE8uUvHNc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartModel$EntryRef.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Om1BWQG5Qerfh1KUueUqlEvIaKCWO0LQID2tT/r58no=
+			iavuPruHkFMQzmPIHCnopDTRlHPRMiYQJRShCREI1rI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartModel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			wFUxQFNmoIE+8SNxUXg+uLBZ6RiKbGS7SSC8wwbS3wY=
+			WzBr/Ajg/Xm2bI+cxBzAIssKnswOZw9+WQypvHhNG4A=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			lPiA6FtelXxBqKWyLrimpmg86Fc3+/9mLx+wq4laicI=
+			+F3fsuq9kYYu7vWoRQnwQ+sqTgEBXGk3UoSKODa22vc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			z45Hf68FFjtvR5DPY/1StEAJyAfsFyeNtl9LSthb80w=
+			DWwrMolbN/w3BQ7ipc09mUr106emWoQRRHXAyf3YJDQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Y8sHc4o4xD6ECRc+GDJdxrp4VIbIkCYPYQ/Q1qSW8e0=
+			FGhFXPQm0zkQonBZ+lrM/3lYBQU7YPOcFsS8ewZC97c=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6O/eA9mCK2NKwlbtWmLbrIyFkd7bdm3GiRXFPB2eQc0=
+			hTWqsvVgqVLxlJP6EeyRv9gsJcdurhp+oeYf70ma8RE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			/TLWP008IQlXr3sw2hDUNFd7hxRFcyrWGFJ2ih4/sIw=
+			XOj+OMPzsSgydnbi7gqsshyLMywvoj6wuIlsfMGfzUQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/MoodChartSettings.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GEnHKDAJyE01uHCbv8oGuCe0KzL8sUyW6HhzTCrbPng=
+			4ymTkTIcwFShFSjjpYAXQ65i17kQNYb1516TQ2ITMNI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/home/TodayCalendarPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			KkzWETkJ6K28oWLtlA/MDSRsc5QC1un+c/LR4boQh4o=
+			ZQp3ixWMHYcQs2UgO/BnjIgdj7iCodd7+yKJUquKgIk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			W7z5ooYzLbjJY87ybQc+EX6Br1XYJiJUjdnGZVkVx04=
+			/t4WWlZI8U9oPA94cyzIFspDp2plaPFWXWmLmUjwx0E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			SOLh5i9483Kb9M7QdgA8n5yCxdqVs1wyEvnfWaT3IAU=
+			pJgddsrR9i/UqnVRXZMMdMbthXhy9cD2Ci4Tggm8H9E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mS6TQxaDOw/sVQXUZ4nA7lcgnFO6UJDG6qtud/GAVYc=
+			z+ZytqXV1SZtfQ4tgemXhJkoLpfjYiIkWauInvbE6uE=
+			</data>
+		</dict>
+		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$4.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zk8UE8Rf/ETV5VJMfGu8UZaJXYIUTvoq5G3IOcWuuVs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			3oKX8npLp82xlggWaJfWaMETHej32qDU+zbdVmQeBBg=
+			EO1z73NbXlPZqRd6xlnarT0x3VoMcQ6s6jw9mmu3hgY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			rd9M8ZAwfduYJxRC3w1kVZhyr9poUuY4D5J6R9iLlVs=
+			rvsqwJJ9XfNqH6BVX4H7jVxYDZSEbypuW81RTvNQIHA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			aDrGXmf0qq4FETqhmkI+oYWSlB9m1YYRO7TpPmJnoh0=
+			zejRa1lmPXPB3NT0XzEJ1khi6KTjb7Cz1re3KJvkeOQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$ModernTextField.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			s7C11j2JHWv9yeV75k+Gzv6DMhFseTO5EEpICKRrVsY=
+			ExV8+Jv4O8KUihAwfD9hlUTvnq/8brE1Rm7MLG1/ES8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$NotebookOptionsDialog.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dnmdrpf3Il3e4DJrhLyzQLEHL+D3m/onRyzEf/MOsuw=
+			W9zk5XXDLBs6YLQMvI91DxvTL4kiCM5Yi/orr+ByMOE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$NotebookTile$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7qNHWNlzTzCqv/uG4+yLgowRYD5MCwrUqy/fVQZz9Wg=
+			rIKrG41/+92ETSXx/Wp62DjK5TGMBZKW/HaxzTHZorA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel$NotebookTile.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			8CX0pSuondH9nhLX9qENrJzPSx21NReyb3/4VqMgqpk=
+			z9Oy3Z3M6tfgf2rxx4q+aBnmiv6CT64j3uIpw5EjC2w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/notebooks/NotebookManagerPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GiEW6Ew51+AA7eT22vPxmezkB9br+uCX0x8S1mqEQQo=
+			1V1grmpCojGrVrRxLqj9nU9rRAAvhQKGE8N6vLxAFFQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/RhymesDockPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			i5005lTL9m2Yi05KK3aMIfQ3O/WF6+PBCNXIrd9Estc=
+			bnvnwwJ+KP+JpclXQ1MwtSTfvAR+uxPxBYVoMXwL4zA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/RhymesDockPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			mBr8MSiP1JEWawgCzlsL0MBOb64aYbBd1cNqvfHEr/Q=
+			Yp4+RmVVnJmgv1LoViFpRIzNL3rTbP+5RpJgdjewJRI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/SimSuggestionFormatter.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			hcsfHwCbOZKnS6K6QGpRre98d3z+GdOBc24yF6ymh7c=
+			ChRYoJm2MwrMSehT5fsKy2iWkkRVgwNTD5cOH6PCyNw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/StatsSidebarPanel$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qAHnoFYyzyEiMXiab+bE/yNnqeuJZ+S2TR9NGNSoslg=
+			IhZcthGowxAwRbEf9Eey8b31Zwn+4bISPUSmmL4zAgE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/StatsSidebarPanel$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			OFHMH67puk7rHPdTg+H1qtjyTVxLFguVZ83am0/Mluo=
+			CFl9DStJHAeYCJVNGbE9kNupx/jB/kt7S1PdUKVBj90=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/StatsSidebarPanel$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			FDundB1594dLCxvIq5nI0PVjAdVo9Ed+RklSFmOPuRI=
+			Ew/FMjsLwIVLBSZsE/az/Q0FhAS2Rpif0HyFHIIXEwY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/StatsSidebarPanel$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Jv1d//+zJxgmLdeqkfQ+8m8CT/+C4Z82F9hqbrLxFo0=
+			12DAJPZWS0ilu2gwa45V2bz0Nr/zFfWgkAehrgEqYOU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/StatsSidebarPanel$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4pb/AnsvaeoCkXq/z2TotzuHxm5ZGxt3+0GbzCgTi50=
+			yE47NLxb2Jn20/O6jPI1LRXUMbguyfR8/58r9+iRm80=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/poetry/StatsSidebarPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			lcPRTp4DqJVaA9nK1tc030cR+qLcIf6zivLtgDdNbe4=
+			3s7rqBbvVlsVN5Cyt2iLt1iQhnqvv232U/CT57hQH8g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/GlyphIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			IOYhhw7JhnXApIjGr+Z8k46tq7Y6AgtFu/Tvw8IBVaw=
+			zN4VQObQh3bruRjLRbTXk1sXr6oHn7zuQULEbtVsBxY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsCategory.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			b9FhhPeKYlNec7b2YpYVyho3DMObRkwHP33PKWDslhM=
+			i5KdS20CuKEd9fbF9IvFN9D6UuyO6bfedCRim6K24P0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsController$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			IehVjffrB5Y9yrwioXeGDC0YE7f/CGXdoH1CQy0sauY=
+			CzQ92lgPL/3ctzbYrhwZ7DVAaKFVXmRpipYEzUd0M74=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsController$HostApi.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			wf5VgHTttDCOsPBScWWc4FMo2JL0SSiUg98Bdkz1or0=
+			irOa+fmekB9zJDc9vtvLftLY9eO7c4orHP1u9Qp9R80=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsController.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			iXl8nBD+f3ZNv8xjmviyThvwKH7M7L4ae0pLRVx2qME=
+			UhUa0Lb1w4c5jO18y+dMSeUVhZZIhpN0a/LE7fkkyk0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsIcons$BaseIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fNdcks87zIU8UrC+onnfFRgN9PNd70Iv72kMhQcI1Ek=
+			HFjyc/fWdIsoVLXrZhcmuRiHk6JxdzXnRpNWXufiC9Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsIcons$PaletteIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			sZMwrNOhcYOObEhkLX/lpToRSuQBPdYd4OuAR4leLZc=
+			oDKkV7HSKoTuv/17+kkr1i0pbyQPzfpsQ8mEGaM/wgA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsIcons$PenIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YFNHH1ZSzQD4fvxLYXhV5vMIMJzC3OOlpDOXWyOe2ls=
+			Z55Xy2JCjsqDftnIRPJp/TdsACX6wcF5i1jpKROLKzw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsIcons$PuzzleIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Adoszq4YOlD26Xsd/o+esxvhwkOF0tFUfXQwbH6Htbw=
+			3j7fZXXgoZGrLiPNvmcx0f7qmbXH/iQu/hun2Mr3v0Q=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsIcons$SaveIcon.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZRm0iOkpcaGDiyO9VVhiuPlHAk+cEBXqmobu4/vOxSA=
+			dcOT6DttdNhOxozAu99o05XMiWlHcdzfK1PahXk5M4c=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsIcons.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qYynXbbVL/cR5kNl32hd85UCb4PuSmdowriO9KAvAwA=
+			nNJhgY9ngKayJfWi9UiA5xUd1Z4/n79tUmvnrIxt0RU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsOverlay$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WIRZ8uHcby5+GhlGkscEqbyJA7AIikgJkWvDoWAGWzk=
+			nx0vFebBxI/C/XxMpQuLo+cK5dsuO3mfIUahEMsQ5fs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsOverlay$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			VIKh0OBZjvno87sb21KtWybqCyBzk0HtLpnbfgzO/No=
+			DCxxjLG62Ap3FqqWI4udRZbsGW/47rTEtkXfOBEXusA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsOverlay$FadePanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			lG1RQFvADmt13A+zs8T59tLd35vMKlJAznaMAqFZCfI=
+			1z9KM7O7vphu6dDDoVtonbEGT0Umgl4FIOzPaAcqDPo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsOverlay$Orb.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9D+coWc8zyUBsS0yhOTSGHywMqctwV91IV1Pm/mIL9Q=
+			7Jo7XbQhjurJf5wyUc3HuTvdd3pxWg3Gb2H2pnU5XzY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsOverlay.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			E5E9vrjpjwr/nhh+eU6RCfmGaNfkk7VmjWbvviY31CA=
+			HUrgBos+xqh8rkvQIXRKALKJqk3r6El41c2eybAOuC0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/quicksettings/QuickSettingsPresets.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			haq5kAWw+v/m6r+My7SClwgmX5hQZ/4ShgkQsmGmVu8=
+			ZGkHOGTgagVNZ3HgrvvblkcF2TxDjvCkC2Lbs1EAFHQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/AboutSettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			b0ZzHZKluOEI/WbLIU1UeFToH7SIHB9n5tbE31v7QXo=
+			/zUcmjX32TLPxvgFgN2gm2oR0qnCR3Bnnjxe+QKrggw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/AppearanceSettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			DE8wbT86DSYyYOQ+VbF8orosSDncUJxLnP3UwHapsvc=
+			U+jNQxLbMUfw34j9voqyyezw93OOnICDyGntXJkMDMo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/DrawingSettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			HCjJB4DU/y+a9BYiyk4ag/rgtBgaEEjxsm1NXI7oIVM=
+			Uvj3JLUPrcV1BYUoPvnHO/Q46HCshICNi8P7YkizqXk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/GeneralSettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			id7B3k57s/oNdhaLuNIFY6Nyat0GDrcHnYYZgP3jY74=
+			OorYE6YTdTq6w5I8CwNO6iu+NPno6RGk9iXCrUpxfRo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/PlaceholderPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			idCBJ+YqQZJwvCkJqjr03w8CxPEUOMLc0pq+MECPBr4=
+			FaSLSfFKlsKoLCLtGXx3YKm294STUtGuyLwvhKFkF0w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/SecuritySettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XMS3W3Qog5MJ8cBhetJgVqcLZI5D0rgScHFPO4C2lOs=
+			Lje+zcTqUmCdjGRoqsKtIFfbbPKpY/fO5x3HLaUk7OM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/SettingsPage.class</key>
@@ -2745,504 +2808,511 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			J/UdM5WYcwdCPCUVaewvvUw8VvXF+qUJ516Qu9LayqE=
+			7TB+D3FjPYTcSUs2x8DuBNMIOUk+1kO4fMKdqwMTAS8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/SettingsPanel$SidebarCellRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YQrousbkkO/48QVPUT84w+kSrR4z2uFhgICuXLAVCkc=
+			lQ2cn3kj6x+ChZ9ZJtq8XVpeHnwsg4uCUssnWbk+wtA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/SettingsPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			THqQus7PEiSFleewDjtVCB4bWtiT1yMp3mvHQcehX+0=
+			M3G84MEeQ0f335PBK72eUQ5Y7KkGCml64SfMTRIikBM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/SettingsUi.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fAcp5kATcPZTJqNEBnRc9tVZPFTgWHzJZTZaT8qEP84=
+			x1+0fH4zPODtrVLnFnBdPrr/gwoagV9UMH/fVlR8rKE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/SimSettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WDn9HXJBKBUNxHDFzyvZQReZF9NPPeJITSK0jvBlt/s=
+			jkUiAO4F+yNN0+KZGv9ab4Hkkxfi5QrHmyWVmsN2FSE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9RHXLYCKLSKt9GOYeI/CSfMUSmdz8uRWdOBBJ9SVnlQ=
+			htH8D1n014yCGx4HEFkExPyJHn1bz1YVXXgNwgRfE8w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			eN5mfASdg74uiY6pLAMRqcLR+R7SpdOmtYbIEsHDBUc=
+			LFL8imiNCli8s8LU1fPOWV42zTk9rXzBRpOedt8rWcM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LQw0Tb8guPhZPTVxqeZoS0E3U8uE1vBdw3ZsUeAeRUo=
+			0J7Up3FzXmdWOlsIFTnJFTtUpRu4Wxhpo0Tl9W1gzNs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			h6C4Clj4M97SNTOvRltEUyiUAYKXtswGDrUPItnvrO0=
+			qgkjJeryoZQ7CaiBkkNp2KjHLwVfmV1Qi9hIhdI24g8=
+			</data>
+		</dict>
+		<key>app/classes/main/ui/features/settings/StorageSettingsPage$5.class</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			1B8QNyia1Ew6pgH9OUGe7aby/xPKQ07T3/62BIDBcgA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$GlassCardPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gJBsp+1egtBeQldIei1mSLYLqm3DmwRJBNV5iP2UcOQ=
+			Pj/uNE1Z/Rtcr0cOQeMOeBW21d+1g9CMrJDBklbJePw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$NodeSizeUpdate.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0xJoKm4HJmHzZLer8vOfh/vcymm+vYPyP9f/aNCwdAo=
+			GRA4Ql5ioe0e8rzPCdm4zcoo/bQbd9gHuTCbCmlhwWI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$SizeBadgeLabel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gAse8Ep/+/ifMUiB/9lghxd91I8tDbJX7GcHz0hEH2k=
+			QK/dg1zNnis2vA5dh9urUodQZCwPSHSNhOR+o0UtTsw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$StorageNode.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			pw9C5hVfpUA3slWlQNl2o+lcR7khqhyVrYb3qPIln5E=
+			n58IvpJn6FSQqeu74NMlfdHq/eqvAT42D1DVwNggWmE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$StorageTreeCellRenderer$IconCanvas.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xFUVCEYtwtrMNRCc9XpREVxlJZGqphiHoJDVN5rvmb8=
+			d5WFcF+SCA/PPA4z69asUEPKjiQwAyW1/lYFiyahE+o=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$StorageTreeCellRenderer$SpinnerCanvas.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			wGeb178rw9iouN28K+0bfwU7WwWmGB7W6dvqf9vXHpk=
+			KtPQXR4zVBwN1UrUgTlVRn/6RVSHseHcuPeQZxkLOZE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage$StorageTreeCellRenderer.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			zSofWSZh5dXyfVxl8F8Hm+N8owokAIRBKAiCRjauZ+k=
+			vD1nmu+jgndjIFDgtc5EljGbAiWI54SI8hytQsus23o=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/settings/StorageSettingsPage.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			NfoLiNBU48tJQ2w8B9Ga6ZH7XZtYrcPW/CSM4UfdREs=
+			Rg5cCA7F0IovzvSjERj4+5S4CsTyZwYsK/VUnSZOQko=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/splash/AeroSplashScreen$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			lmf9vBjlv7XlmgplCdtyi/0+/QOYQW0n4RvXOwRD4JQ=
+			pRTu6En+p3sRYI+ZLV0LsxyWyaUg/+kct3OxVtbyIx0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/splash/AeroSplashScreen$Spinner.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xuNRhgN6vw36XHj1QiCxNQGs1+5kqis84PKeT8dDvKI=
+			+3eo0IyWagDUkZ5cBIbTOhiGPKdZDj0erCHxiF8xH5E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/splash/AeroSplashScreen.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Fwe9+VTqQJK+I5m9/h8gSjfgv0p7HrbfrVc7Thsbk4k=
+			UNbIPxza0Y4K7kUXkgYonT0QRmmpS0mffHz8gIJuhTU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/BreathingWidget$Phase.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			S28qGy+73dtBzo1/klSFb2O62PfVQyCEmVn7OWrJszU=
+			MU3eiJtvXpD3Vv2JI8tdOnxrszm87EQuScexIzRwaVg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/BreathingWidget$PhaseInfo.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			rGk+Cx8nyFLvs3wotMfbnfnZRgTCmZjc7Zp3PX7a5o0=
+			SwUKNi8enRSIhl8y+saZ6A/cqRa7/XnUamhvIj3sSfA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/BreathingWidget.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xN+FVTjBlysMRW4EklxsXDw7jbFlt76UqZkDIakLqGI=
+			WtfQ+sXgHihQCZdUxOYvAytpP0S9uJkS15IBVKoRZnc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WENWmrXvoUIe3++7oRO/IgpqC8IkLN57ZtV4JCaRxkE=
+			te3zimsEo15E5bFXypAlMfchhFJNx3NgG7Pymx7r7h0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$10.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			1Y9eyBcWBsaTY4YCEc+WiSBYe20Oj8F1BtgnQM6WNJ8=
+			zhudn1vNjY6CnaD04Hw1M0Wmz82bZANRIu9lYnkIY7M=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$11.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Qe4m8JLkBQvsR5Ed3ImC4QYrXd8+qiJWsGmccutZCX8=
+			Cpot8RrzovcEA5+A5MmTWFDtoaAKoo5k0LwVFRhSq3E=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			iQs+x4AutasqWppJ3QbvmBAd6bNhN4mJxfhzH1oeBL4=
+			2ezsKryYSACNnUb3Fvj6IwJfOcO93QO4EZTVeiAoKcs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gggj6qUWezm3GfJUHD+FN1U+QKHUySEbkI3y4BwQqUM=
+			K6C92mJVDMYY+NY+5no+zzTKPRLi7dqOC0gi/DDd7IQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			PzZ2uNAyFAkYwCmnz1LCTvVG/qztr3y5zxhLqkl8nxo=
+			mRqwDjhRTfQW/E4T/eL4eSVe2NYoXJ3agYr0/7CdYiE=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MgW8lLSmpOh4eXWYk3prB0LPOh2VFgdzFl6AxR8NmnY=
+			8GauzX4R2OUgQwJp9T0XOzJ2EcykEDYKbDu/gew9gq0=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$6.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			oaAwDAD0GN3FwpMK2UN50EIvWW0E0TVQ91YeRhTE/m8=
+			Q3UPOiBnLxWtseX+Ho0Zip74Xqd9Panucz/8GuYzOHM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$7.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			PCfZgKoxgZVH+VzNEuBSqXzdVmi67JpTdrTkIAuArHo=
+			+i05GUWMbOJ9bGjxqH9nHSeIwk0QJJDfwvF0ODLioaI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$8.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Nqro79mxj/jhTwez/SWdQGlrYOhV/o157aZmnae1ZLY=
+			Jn2pad4dzck163PG3QVzbHpIiKwZOj1/7XfaUNXHMpY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$9.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+5jpmEnWV03BghxK4oeTXsam74Ly56Jq1jbDWSIAtBQ=
+			bNm1dYoimQWM+VPaJy/39bZpZi6JPS+Rw5SKpxOH3aY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget$Note.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			D32yAgoqlRF/NxZNtOOLVsY3j3mOoQqape7pV/spV0U=
+			9pUDkAE7JHzgyLQ0qSUz/e4tRvUJUT9mJfgfG/O3mGA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/IdeaStickyWidget.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			TPMhDKxHtvNdXv7jaCy+My4zUr/+MLv6x+fzVcvAwoM=
+			WCdXgONgwO4p3kHLmW9KL74esjpdRi34ydTeOHUhElU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/PomodoroWidget$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			POQWBbiNTtOibYN15PVZjLxLIjtt5W2z4bXOJsI7Cvw=
+			ZoY1Fv30kQ1yUEY5FsKSEyspv44jJ/ixSLo2+7OvUMU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/PomodoroWidget$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ICHvS/n38QmCnO747Co2NkUA1eHjc94qpnkD+Dr5RCA=
+			17Ko+FkcomiAU+aoGP3Ur1syOpauVVmUH5cebQ7l/Pw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/PomodoroWidget$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			jAzzbgtUDfxm6DVXTI/OjA1fL0gyUCXuvvFXWLHRRAc=
+			n4Jz5xayZbU8bF5n4lSpDubAFOHxyNVaYz+qaudUaf4=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/PomodoroWidget$Phase.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			NrA5nb0Ri/G9Ttmtl4bLv9Q0YzLyjBdvr2JsBJO/A64=
+			Fi4luV2Mxo5nsSOfQ18dnoSXD8pccpLYL3oi+NYiLPk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/PomodoroWidget.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			RRNaw4SQni/7qpVB5fu66fI/oqPjfMGTXEi/2Kk9XNQ=
+			ov4HEkcFcBFMnknuCS4XAiIQzLL7k3CgIXrq6Iavs54=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/QuickMoodWidget$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			LPGPSENxHNBaLxO19OKMw7lyJzzv85ggqkzL2HUdm0k=
+			lsLLni1h1BjX8veF45xwPkUnWyXwS5IunBfdzCryIis=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/QuickMoodWidget$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			AjQnSjOzMOHLI/qlKoNSKqRfb5MHlvw8+VNjqBCtfhM=
+			TaGMdmddT8L7TdrB+67WC/mJPL3vzWPW//LrfER2UXc=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/QuickMoodWidget.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0mr06dup8Vdg16D7O7VHuZpMVFP1S+XhIFWVuG+LcqU=
+			gC77o9YI1tokY6hCIzCRKEYJyBmiNvBbVRUzAovAcxo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/Widget.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			OXKHCEPyygIis0bNIuDxPwuTXUMtjUVd3p8rx5vGoYw=
+			PEi+ZE+MGhVZsGNJUhlMgqS7LpkhJZ0f+IiTf6xkpFk=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/WidgetManager$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+z2LP5P0qFVhaOOg50zXMxpaAtV3hN/gq5fIov/lQTU=
+			4hS1/zL3wNrN17xzcvL5+eAOqEfRSp0bKsSGGkQZZlU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/WidgetManager$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZNi1l9zdoP4sL+8mM/Ho+PwjQ/ZjatGEcG7vTyGkNUg=
+			5cSKM6Xorv4BsXSiMv8nAzUKEN4o2PIwiRvp5zsbRxg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/WidgetManager$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			MV6nN+QCF+9y02EdXq7Hn4Wb/IApRG64usihSkn8OaU=
+			WECkCQ5wPlt5+Pfg14ZG2seaF3RPYwAW86h6AlUAhvw=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/WidgetManager$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4zKQ/FGHRj5Q3UtOViPC0oB0I0EyXnFi+qqIcU5ErVs=
+			XKnrbbR9NlGxzmX7YIPW0CS/+TTDyBslmcwiwjeBnew=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/features/widgets/WidgetManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			QL9xs1wlyBCa0edDY7E8BoTM7r4fxkM+Lvjfhj+Lacc=
+			Yxvv7m5QBo6AYhIF/MLgh/MKYv2APaBEd55skBfky0s=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/scaling/UIScalingManager.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			V+oZm9XeShvGD2iTmJuGFY/No7DTXvXBtF8O+NVWeyA=
+			hOYuDjnOwFmlZ6WaALdWTHSTmP4e35wNUsRSB0ENBAI=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatTranscriptModel$Entry.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			HgW7zx5ct0gSaXhdycIKKf+jOTlkkEPBY2s7SkPAYOo=
+			yqWCgDJtj+9vobgf2TW6Dd670bOaPH3yl3mJbT1GZzU=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatTranscriptModel$Listener.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			YNomRuN5jtS9YFu3BWuSs8+tepaeGCafyZTa0tGwsu4=
+			aEnXEN8/lJnjaI1do9GP99T4/DPt2qnfHGNIJtKjb2A=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatTranscriptModel$Role.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			S85qEAVkoDVqJyWGMblR8x2AZpDpaq5pP8ARFWhLm/8=
+			Npmt7mIrPWFrHtgnBYJzxl/9Bk6JNF0BbSLU7lt8PWo=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatTranscriptModel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fzyfP3vvQl8PfCYs+JYSkCdXCsIOsToh25FNhxNMpro=
+			lnlVKeXHyY2Y9I1p+Tj8ugLEnu12h1oVF7RnFln4WgA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatViewPanel$BubbleCanvas.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ki7Ojkr0RjB0kSMQCr1A5ODsUKfqCbh7Vq5Cv3vlaC0=
+			k+lEwqQI3YsEaGwtrqY4bDJMVpRpctWP8RCUd6RmRfY=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatViewPanel$InvisibleScrollBarUI.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4nuaFUUK4xvGoemOEaRrfcTLs1rbqYQev+hIMnZy75o=
+			VEy8jw7WO/N8eBKV+/r411jSAdAxeJjPkZcvzSidY3U=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/ChatViewPanel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			wPdF1zRph2Tb+y9zYLvbnSIChELi7veZlW1Sx3Pggrc=
+			pvXKS4piGdIMB+zZzWDe26HYkbVistxNmFyVA2VodZM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$1.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			AQIM+LR2mqu25K6ugSdRf8Tqoa9ha3RW7Ap3Njy+bO4=
+			ROuGJ5q7hKVrPIe7W/LV0bfqJMFO1hQT965DmUJnU+w=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$2.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7lPMs8Rd12TB+eRSFmfBmBSFCCWBQZijIKjmDJNg6zo=
+			KI1Jwqrww9oYymYlZX8HogtXeTufjoJnReKAYTsOl3g=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$3.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			CqHtlhh/pz8iflKMVYcautZrlbBfjcExhfTgqr++EmE=
+			hnBaRfcyZtD4T9j8aEMlXPdoN1o9806oEh5u01t+LjM=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$4.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fnFYOcwG+qehMNCeBdxbwMelC0Lj60n5fwrLHH96aok=
+			DeWi8PA9UBnNzxD5Cx0XA0lzWuZrSXG6H6KaEP/kCEs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$5.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			rLRRaXqo030qUKmDvBhbySCi9sqVnhzaiKv5Jj/4B44=
+			sxgMQShMA6Jc16uy+K8S0oTAZqFJHl8wfsbN/hYkOac=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$ChatLine.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xhtD8XVRf0XJjXfuOJXXW/4WylxQq56xhTpcSfi036Y=
+			XGoUdviN9DQWwWgq+ftjeRTkwQZ3zJ7SKpWdRw3gdCQ=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay$Role.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			kdq5sh1Z9m/Ux9AoBLqbLgAdaNCpi0pc5vKXP8srm8s=
+			GGZhVWvMCgwFYzCiIOoliyA1QyJ6//+4pxotKAeXV3c=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/sim/overlay/SimOverlay.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6bZT1Nc/QB9jePsx/YXPgHeJJbCyw16hzq0MIHEtY4M=
+			Z2jM31KxUfmX8wEGsr6eyWXC+M19tOTW+Lg2l5dHa7Y=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/theme/Theme.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ilW5h56392IzhnLygZVwDq71s+gqNKVOkRfGMcynhOY=
+			kx0J4l3SOArdOnvHdQikcGoSqGZdeBce+tTHpoQZ2QA=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/theme/aero/AeroLookAndFeel.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			kdfegho468pcFv21lnlyCZUvhQgOwm4qME80O0bKFcY=
+			v1o2pjFyHk9/S0GPuKsq5NNhsw6u+k070cUyukc2Beg=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/theme/aero/AeroPainters.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ixkRvXRnqCcwjerYbyvVBoa2LlMq0QzLqbyBZYGaRr8=
+			IjgZe2WgjR1cKG/1BLXLQj9IkpfTaaJN+YJk961xxOs=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/theme/aero/AeroTheme.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			4S39lzKWX99tUPAgossBgYGkHEbdZ+UbN0L+hySfKZo=
+			Mk8fK7L/mamII3PO6GRR+mlYUhKpXIN51/Qt49VS1T8=
 			</data>
 		</dict>
 		<key>app/classes/main/ui/util/AccentColorUtil.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Gj9aYiRH5Qzj06lhU6t1OCbiPm4/UAGPNlBNEcZARPc=
+			bD8zIMl/BXsvftATt1WBXjxmRZ1iwXZWBEkKopftMxU=
 			</data>
 		</dict>
 		<key>app/classes/module-info.class</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			WNWEdNOqE47DWIB1khUrPBnaFENVkurhTpRicVmH4c0=
+			rnVDrK/6D32AedeESqeePJPojeO+YKUQFUKqNan/16M=
 			</data>
 		</dict>
 		<key>app/classes/prompts/sim_system_prompt.txt</key>
@@ -3291,7 +3361,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			GmN6mbvxlMBmjc2Jnv3wirY9daEdlJawybv8iHqFbhE=
+			zHhURtduOf6rSfZrtcFRgsxPVzR0Gmc1qYporNIljaY=
 			</data>
 		</dict>
 		<key>app/test-classes/META-INF/jpms.args</key>

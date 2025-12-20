@@ -1103,7 +1103,11 @@ public class MainMenuPanel extends JPanel {
         @Override
         public Dimension getPreferredSize() {
             if (isExpanded) {
-                return new Dimension(160, 220);
+                int w = 170;
+                int baseH = 80; // header + padding
+                int contentH = (expandedContent != null) ? expandedContent.getPreferredSize().height : 0;
+                int h = baseH + contentH;
+                return new Dimension(w, Math.max(220, h));
             } else {
                 return new Dimension(50, 50);
             }
