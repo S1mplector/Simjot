@@ -319,6 +319,19 @@ pkgbuild \
 
 # Create distribution XML for customizable installer
 DIST_XML="$BUILD_DIR/distribution.xml"
+
+# Check for optional background image
+BG_IMAGE_TAG=""
+if [[ -f "$SCRIPT_DIR/installer-background.png" ]]; then
+    cp "$SCRIPT_DIR/installer-background.png" "$RESOURCES_DIR/"
+    BG_IMAGE_TAG='<background file="installer-background.png" alignment="bottomleft" scaling="proportional"/>'
+    log_info "Using custom installer background"
+elif [[ -f "$SCRIPT_DIR/installer-background.jpg" ]]; then
+    cp "$SCRIPT_DIR/installer-background.jpg" "$RESOURCES_DIR/"
+    BG_IMAGE_TAG='<background file="installer-background.jpg" alignment="bottomleft" scaling="proportional"/>'
+    log_info "Using custom installer background"
+fi
+
 cat > "$DIST_XML" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
@@ -326,6 +339,8 @@ cat > "$DIST_XML" <<EOF
     <organization>$BUNDLE_ID</organization>
     <domains enable_localSystem="true"/>
     <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+    
+    $BG_IMAGE_TAG
     
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion.html" mime-type="text/html"/>

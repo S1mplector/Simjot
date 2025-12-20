@@ -1,15 +1,37 @@
 package main.ui.features.entries;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+
+import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
-import main.ui.components.containers.RoundedPanel;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
-import main.ui.components.input.AeroTextField;
 import main.ui.components.containers.AeroPanel;
+import main.ui.components.containers.RoundedPanel;
+import main.ui.components.input.AeroTextField;
 
 /**
  * Dialog that presents different journal entry types/templates to choose from
@@ -20,6 +42,7 @@ public class EntryTypeSelectionDialog extends JDialog {
     private boolean accepted = false;
     private final JPanel grid;
     private final NotebookInfo notebook;
+    private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private java.util.List<JournalTemplateManager.JournalTemplate> allTemplates;
     private JTextField searchField;
     private RoundedButton useBtn;
@@ -77,10 +100,21 @@ public class EntryTypeSelectionDialog extends JDialog {
         
         mainPanel.add(topBar, BorderLayout.NORTH);
 
-        // Grid of template cards
-        grid = new JPanel(new GridLayout(0, 2, 16, 16));
+        // Grid of template cards - use custom panel for background painting
+        grid = new JPanel(new GridLayout(0, 2, 16, 16)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                String bgPath = SettingsStore.get().getEntryBackgroundImage();
+                float opacity = SettingsStore.get().getEntryBackgroundOpacity();
+                if (bgPath != null && !bgPath.isEmpty()) {
+                    backgroundPainter.paint(g, this, bgPath, opacity, true);
+                } else {
+                    super.paintComponent(g);
+                }
+            }
+        };
         grid.setOpaque(true);
-        grid.setBackground(Color.WHITE);
+        grid.setBackground(new Color(255, 255, 255, 200));
         grid.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         refreshTemplates();
