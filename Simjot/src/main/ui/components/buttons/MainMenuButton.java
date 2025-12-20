@@ -92,7 +92,11 @@ public class MainMenuButton extends FadingButton {
 
     @Override
     protected void paintComponent(Graphics g){
-        int extra = (int) (20 * progress);
+        boolean disableHoverFade = Boolean.TRUE.equals(getClientProperty("disableHoverFade"));
+        boolean hideIcon = Boolean.TRUE.equals(getClientProperty("hideIcon"));
+        float p = disableHoverFade ? 0f : progress;
+        float iconProgress = hideIcon ? 0f : (disableHoverFade ? 1f : p);
+        int extra = (int) (20 * p);
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         Shape bgShape = new RoundRectangle2D.Float(-extra, 0, getWidth() + 2 * extra, getHeight(), 15, 15);
@@ -111,7 +115,7 @@ public class MainMenuButton extends FadingButton {
         // Draw text with fading alpha (but do NOT affect icon color)
         Color fgBase = getForeground();
         Color fgOpaque = new Color(fgBase.getRed(), fgBase.getGreen(), fgBase.getBlue());
-        Color fgFaded = new Color(fgOpaque.getRed(), fgOpaque.getGreen(), fgOpaque.getBlue(), (int) (255 * (1 - progress)));
+        Color fgFaded = new Color(fgOpaque.getRed(), fgOpaque.getGreen(), fgOpaque.getBlue(), (int) (255 * (1 - p)));
 
         // Avoid double background paint from FadingButton by making its background transparent during super call
         Color oldBg = getBackground();
@@ -123,10 +127,10 @@ public class MainMenuButton extends FadingButton {
         setBackground(oldBg);
 
         // Draw sliding icon
-        if(progress>0f){
+        if(iconProgress>0f){
             Graphics2D g2Icon = (Graphics2D) g.create();
             g2Icon.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2Icon.setComposite(AlphaComposite.SrcOver.derive(progress));
+            g2Icon.setComposite(AlphaComposite.SrcOver.derive(iconProgress));
 
             int size = getHeight() - 14; // icon slightly smaller than button height
 
@@ -134,7 +138,7 @@ public class MainMenuButton extends FadingButton {
             int xCenter = (getWidth() - size) / 2;
             // Start from outside right edge when hidden
             int xStart = getWidth() + size;
-            int x = xStart + (int)((xCenter - xStart) * progress);
+            int x = xStart + (int)((xCenter - xStart) * iconProgress);
 
             int y = (getHeight() - size) / 2;
             // Prefer centralized PNG renderer (with caching & shadow); fallback to vector

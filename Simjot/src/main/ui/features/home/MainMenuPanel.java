@@ -472,12 +472,9 @@ public class MainMenuPanel extends JPanel {
             setBackground(Color.WHITE);
         }
 
-        // Always create the widget panel
-        widgetPanel = new DraggableWidgetPanel();
-        // Initial on-screen position to ensure visibility before layout sizes are known
-        widgetPanel.setBounds(20, 50, 150, 200);
-
-        // Use a layered pane to allow dragging over other components
+        // Widgets panel is disabled for now; keep the layeredPane for future use
+        widgetPanel = null;
+        // Use a layered pane to allow dragging over other components (even though widget panel is omitted)
         layeredPane = new JLayeredPane() {
             @Override
             public Dimension getPreferredSize() {
@@ -491,8 +488,6 @@ public class MainMenuPanel extends JPanel {
                 if (content.getParent() == this) {
                     content.setBounds(0, 0, getWidth(), getHeight());
                 }
-                // Keep widgetPanel at its current bounds (it is draggable),
-                // so do not touch its size/position here.
             }
         };
         layeredPane.setLayout(null); // Absolute positioning for draggable widget; content is stretched in doLayout.
@@ -500,45 +495,7 @@ public class MainMenuPanel extends JPanel {
         // Add the main content panel (bounds will be set by doLayout before first paint)
         layeredPane.add(content, Integer.valueOf(JLayeredPane.DEFAULT_LAYER));
 
-        // Add the widget panel
-        Dimension widgetSize = widgetPanel.getPreferredSize();
-        widgetPanel.setBounds(20, 50, widgetSize.width, widgetSize.height);
-        layeredPane.add(widgetPanel, Integer.valueOf(JLayeredPane.PALETTE_LAYER));
-        // Ensure it renders above everything and is visible immediately
-        layeredPane.setLayer(widgetPanel, JLayeredPane.DRAG_LAYER);
-        layeredPane.moveToFront(widgetPanel);
-        updateWidgetPanelVisibility();
-        System.out.println("[MainMenuPanel] Widget panel added: bounds=" + widgetPanel.getBounds() + 
-                ", visible=" + widgetPanel.isVisible() + 
-                ", layer=" + JLayeredPane.getLayer(widgetPanel));
-        widgetPanel.repaint();
-        layeredPane.repaint();
-
-        // Add component listener to keep the widget panel clamped inside bounds on resize (debounced)
-        layeredPane.addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentResized(ComponentEvent e) {
-                scheduleResizeClamp();
-            }
-        });
-
-        // Also debounce direct resizes on the main panel
-        this.addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentResized(ComponentEvent e) {
-                scheduleResizeClamp();
-            }
-        });
-
-        // Initialize widget panel position when component becomes visible
-        SwingUtilities.invokeLater(() -> {
-            if (widgetPanel != null && layeredPane.getWidth() > 0) {
-                Dimension wSize = widgetPanel.getPreferredSize();
-                int x = Math.max(0, layeredPane.getWidth() - wSize.width - 20);
-                widgetPanel.setBounds(x, 50, wSize.width, wSize.height);
-                System.out.println("[MainMenuPanel] Widget panel repositioned after layout: bounds=" + widgetPanel.getBounds());
-            }
-        });
+        // Widget panel intentionally not added
 
         // Prime the debounce so first layout settles quickly
         scheduleResizeClamp();
@@ -873,16 +830,27 @@ public class MainMenuPanel extends JPanel {
 
             // Add widget buttons
             for (java.util.Map.Entry<String, main.ui.features.widgets.Widget> entry : widgetManager.getAll().entrySet()) {
-                main.ui.features.widgets.Widget widget = entry.getValue();
-                String name = widget.getName();
-                String iconId = widget.getIconId();
-                FadingButton btn = new MainMenuButton(name, iconId);
+                final String widgetKey = entry.getKey();
+                final main.ui.features.widgets.Widget widget = entry.getValue();
+                final String displayName = (widget != null && widget.getName() != null && !widget.getName().trim().isEmpty())
+                        ? widget.getName().trim()
+                        : (widgetKey == null || widgetKey.trim().isEmpty() ? "Widget" : widgetKey.trim());
+                String iconId = (widget != null && widget.getIconId() != null && !widget.getIconId().trim().isEmpty())
+                        ? widget.getIconId().trim()
+                        : "lines";
+                FadingButton btn = new MainMenuButton(displayName, iconId);
+                btn.setText(displayName);
+                btn.setToolTipText(displayName);
+                // Keep widget labels visible (no hover-fade)
+                btn.putClientProperty("disableHoverFade", Boolean.TRUE);
+                // Hide sliding icons for widgets to avoid overlapping graphics
+                btn.putClientProperty("hideIcon", Boolean.TRUE);
                 btn.setForeground(AeroTheme.TEXT_PRIMARY);
                 btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 16f));
                 btn.setAlpha(1f);
                 btn.setAlignmentX(Component.CENTER_ALIGNMENT);
                 btn.addActionListener(e -> {
-                    if (name.equals("Breathing")) {
+                    if ("Breathing".equalsIgnoreCase(displayName)) {
                         // First show our custom confirmation dialog
                         boolean startBreathing = main.ui.dialog.confirmation.CustomConfirmDialog.confirm(
                                 MainMenuPanel.this,
@@ -913,8 +881,10 @@ public class MainMenuPanel extends JPanel {
                         }
                     } else {
                         // For other widgets, just toggle
-                        boolean enable = !widget.isEnabled();
-                        widget.setEnabled(enable);
+                        boolean enable = widget == null || !widget.isEnabled();
+                        if (widget != null) widget.setEnabled(enable);
+                        SettingsStore.get().setWidgetEnabled(widgetKey, enable);
+                        SettingsStore.get().save();
                     }
                 });
                 expandedContent.add(btn);
@@ -1115,43 +1085,12 @@ public class MainMenuPanel extends JPanel {
     }
 
     public void updateWidgetPanelVisibility() {
-        if (widgetPanel != null) {
-            boolean visible = SettingsStore.get().isWidgetPanelVisible();
-            widgetPanel.setVisible(visible);
-        }
+        // Widget panel disabled
     }
 
     // Force widget panel to the top-most layer and visible; useful after the UI is shown
     public void ensureWidgetPanelOnTopAndVisible() {
-        if (widgetPanel != null && layeredPane != null) {
-            layeredPane.setLayer(widgetPanel, JLayeredPane.DRAG_LAYER);
-            layeredPane.moveToFront(widgetPanel);
-            // Respect persisted visibility
-            boolean visible = SettingsStore.get().isWidgetPanelVisible();
-            widgetPanel.setVisible(visible);
-
-            // Clamp position to be on-screen
-            Dimension parentSize = layeredPane.getSize();
-            Dimension wSize = widgetPanel.getPreferredSize();
-            int x = widgetPanel.getX();
-            int y = widgetPanel.getY();
-            if (parentSize.width <= 0 || parentSize.height <= 0) {
-                // Parent not laid out yet: place at a safe default
-                x = 20; y = 50;
-            } else {
-                if (x < 0) x = 20;
-                if (y < 0) y = 50;
-                if (x + wSize.width > parentSize.width) x = Math.max(0, parentSize.width - wSize.width - 20);
-                if (y + wSize.height > parentSize.height) y = Math.max(0, parentSize.height - wSize.height - 20);
-            }
-            widgetPanel.setBounds(x, y, wSize.width, wSize.height);
-
-            widgetPanel.revalidate();
-            widgetPanel.repaint();
-            layeredPane.revalidate();
-            layeredPane.repaint();
-            System.out.println("[MainMenuPanel] ensureWidgetPanelOnTopAndVisible() applied: bounds=" + widgetPanel.getBounds());
-        }
+        // Widget panel disabled
     }
 
     private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon) {
