@@ -1,14 +1,21 @@
 package main.ui.features.settings;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Graphics2D;
 
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.ImageIcon;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JList;
+import java.awt.image.BufferedImage;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
@@ -21,6 +28,8 @@ import main.ui.features.gallery.WallpaperGalleryPanel;
 class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final RoundedButton backgroundOptionsBtn;
     private final JComboBox<String> themeBox;
+    private final JComboBox<String> densityBox;
+    private final JComboBox<AccentOption> accentBox;
     private final JCheckBox glowChk;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
@@ -39,7 +48,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridwidth = 1;
 
         SettingsStore store = SettingsStore.get();
-        String[] themes = {"Plain White", "Aero"};
+        String[] themes = {"Aero", "Light", "Sepia"};
         themeBox = new JComboBox<>(themes);
         themeBox.setUI(new ModernComboBoxUI());
         themeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
@@ -48,11 +57,38 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             String sel = "Aero";
             if (saved != null) {
                 String s = saved.trim();
-                if (s.equalsIgnoreCase("Plain White") || s.equalsIgnoreCase("Plain") || s.equalsIgnoreCase("White")) sel = "Plain White";
+                if (s.equalsIgnoreCase("Plain White") || s.equalsIgnoreCase("Plain") || s.equalsIgnoreCase("White") || s.equalsIgnoreCase("Light")) sel = "Light";
+                else if (s.equalsIgnoreCase("Sepia")) sel = "Sepia";
+                else if (s.equalsIgnoreCase("Dark")) sel = "Light"; // legacy mapping
                 else if (s.equalsIgnoreCase("Aero")) sel = "Aero";
-                else sel = "Aero"; // map legacy Light/Dark to Aero
+                else sel = "Aero";
             }
             themeBox.setSelectedItem(sel);
+        }
+
+        densityBox = new JComboBox<>(new String[]{"Minimal", "Balanced", "Information-dense"});
+        densityBox.setUI(new ModernComboBoxUI());
+        densityBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        {
+            String saved = store.getLayoutDensity();
+            String sel = "Balanced";
+            if (saved != null) {
+                String s = saved.trim();
+                if (s.equalsIgnoreCase("Minimal")) sel = "Minimal";
+                else if (s.toLowerCase().startsWith("dense") || s.toLowerCase().startsWith("information")) sel = "Information-dense";
+            }
+            densityBox.setSelectedItem(sel);
+        }
+
+        accentBox = new JComboBox<>(AccentOption.presets());
+        accentBox.setUI(new ModernComboBoxUI());
+        accentBox.setRenderer(new AccentRenderer());
+        {
+            int saved = store.getWidgetAccentRGB();
+            if (saved != Integer.MIN_VALUE) {
+                Color c = new Color(saved, false);
+                accentBox.setSelectedItem(AccentOption.fromCustom(c));
+            }
         }
 
         glowChk = new JCheckBox("Enable button glow", store.isGlowEnabled());
@@ -78,10 +114,14 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 1; add(backgroundOptionsBtn, gc);
         gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Theme:"), gc);
         gc.gridx = 1; add(themeBox, gc);
-        gc.gridx = 0; gc.gridy = 3; gc.gridwidth = 2; add(glowChk, gc);
-        gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
-        gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
-        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(lowPowerChk, gc);
+        gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("Layout density:"), gc);
+        gc.gridx = 1; add(densityBox, gc);
+        gc.gridx = 0; gc.gridy = 4; add(SettingsUi.label("Widget accent:"), gc);
+        gc.gridx = 1; add(accentBox, gc);
+        gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(glowChk, gc);
+        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(disableAnimationsChk, gc);
+        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
+        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(lowPowerChk, gc);
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -91,6 +131,18 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         String theme = (String) themeBox.getSelectedItem();
         store.setTheme(theme);
         // Theme is applied live via SettingsPanel.saveAll() -> AeroLookAndFeel.apply()
+
+        String density = (String) densityBox.getSelectedItem();
+        store.setLayoutDensity(density == null ? "Balanced" : density);
+
+        AccentOption ao = (AccentOption) accentBox.getSelectedItem();
+        if (ao != null && ao.color != null) {
+            store.setWidgetAccentRGB(ao.color.getRGB());
+            store.setMainMenuAccentRGB(ao.color.getRGB());
+        } else {
+            store.clearWidgetAccent();
+            store.clearMainMenuAccent();
+        }
 
         boolean glow = glowChk.isSelected();
         store.setGlowEnabled(glow);
@@ -108,5 +160,50 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
 
     private void openBackgroundOptions() {
         WallpaperGalleryPanel.showWallpaperGallery(this);
+    }
+
+    private record AccentOption(String name, Color color) {
+        @Override public String toString() { return name; }
+
+        static AccentOption[] presets() {
+            return new AccentOption[]{
+                new AccentOption("Theme default", null),
+                new AccentOption("Default Blue", new Color(0, 120, 215)),
+                new AccentOption("Mint", new Color(46, 204, 113)),
+                new AccentOption("Amber", new Color(236, 151, 31)),
+                new AccentOption("Rose", new Color(230, 93, 129)),
+                new AccentOption("Grape", new Color(121, 86, 190))
+            };
+        }
+
+        static AccentOption fromCustom(Color c) {
+            return new AccentOption("Custom", c);
+        }
+    }
+
+    private static class AccentRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (value instanceof AccentOption ao && c instanceof JLabel lbl) {
+                lbl.setText(ao.name());
+                lbl.setIcon(buildSwatch(ao.color));
+            }
+            return c;
+        }
+
+        private static ImageIcon buildSwatch(Color c) {
+            if (c == null) return null;
+            int s = 14;
+            BufferedImage img = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(0,0,0,40));
+            g.fillRoundRect(1, 3, s-2, s-2, 6, 6);
+            g.setColor(c);
+            g.fillRoundRect(0, 0, s-2, s-2, 6, 6);
+            g.dispose();
+            return new ImageIcon(img);
+        }
     }
 }

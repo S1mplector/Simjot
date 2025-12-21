@@ -38,12 +38,14 @@ public final class SettingsStore {
     private static final String KEY_SHOW_WIDGET_OPTIONS = "showWidgetOptions";
     private static final String KEY_UI_SCALE = "uiScale";
     private static final String KEY_UI_SCALING_ENABLED = "uiScalingEnabled";
+    private static final String KEY_LAYOUT_DENSITY = "layoutDensity";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
     // Header quotes settings
     private static final String KEY_HEADER_QUOTES = "header.quotes"; // multi-line string
     private static final String KEY_HEADER_QUOTE_ROTATE_SEC = "header.quote.rotate.sec"; // integer seconds
     // Visual accents
     private static final String KEY_MAINMENU_ACCENT_RGB = "mainMenuAccentRGB";
+    private static final String KEY_WIDGET_ACCENT_RGB = "widgetAccentRGB";
     // Widgets
     private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
     private static final String KEY_WIDGET_ENABLED_PREFIX = "widget.enabled.";
@@ -80,7 +82,7 @@ public final class SettingsStore {
     private static final int    DEF_JOURNAL_FONT = 14;
     private static final int    DEF_POEM_FONT    = 16;
     private static final String DEF_ANIMATION    = "Snow";
-    private static final String DEF_THEME        = "Light";
+    private static final String DEF_THEME        = "Aero";
     private static final boolean DEF_GLOW        = false;
     private static final String  DEF_BG_IMAGE    = "";
     private static final float   DEF_BG_OPACITY  = 0.5f; // Default to 50% opacity
@@ -95,6 +97,7 @@ public final class SettingsStore {
     private static final boolean DEF_BREATHING_OVERLAY = true;
     private static final boolean DEF_SHOW_WIDGET_OPTIONS = true;
     private static final float DEF_UI_SCALE = 1.0f;
+    private static final String DEF_LAYOUT_DENSITY = "Balanced";
     private static final boolean DEF_UI_SCALING_ENABLED = true;
     private static final boolean DEF_LOW_POWER_MODE = false;
     private static final boolean DEF_WIDGET_PANEL_VISIBLE = true;
@@ -132,7 +135,57 @@ public final class SettingsStore {
         if(storeFile.exists()){
             try(FileInputStream in = new FileInputStream(storeFile)){
                 props.load(in);
+                migrateLegacyPrefs();
             }catch(IOException ignored){}
+        }
+    }
+
+    /**
+     * Clean up legacy/invalid settings values when loading from disk.
+     */
+    private void migrateLegacyPrefs() {
+        // Theme: map legacy Dark/Plain to Light; unknown -> Aero
+        try {
+            String t = props.getProperty(KEY_THEME);
+            if (t != null) {
+                String v = t.trim();
+                if (v.equalsIgnoreCase("Dark") || v.equalsIgnoreCase("Plain") || v.equalsIgnoreCase("Plain White") || v.equalsIgnoreCase("White")) {
+                    props.setProperty(KEY_THEME, "Light");
+                } else if (!(v.equalsIgnoreCase("Aero") || v.equalsIgnoreCase("Light") || v.equalsIgnoreCase("Sepia"))) {
+                    props.setProperty(KEY_THEME, "Aero");
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // Remove deprecated UI font scale key if present
+        props.remove("uiFontScale");
+
+        // Layout density: enforce known values
+        try {
+            String d = props.getProperty(KEY_LAYOUT_DENSITY);
+            if (d != null) {
+                String dv = d.trim().toLowerCase();
+                if (!(dv.startsWith("minimal") || dv.startsWith("dense") || dv.startsWith("information") || dv.startsWith("balanced"))) {
+                    props.setProperty(KEY_LAYOUT_DENSITY, DEF_LAYOUT_DENSITY);
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // Accent values: drop invalid
+        sanitizeIntProperty(KEY_MAINMENU_ACCENT_RGB);
+        sanitizeIntProperty(KEY_WIDGET_ACCENT_RGB);
+    }
+
+    private void sanitizeIntProperty(String key) {
+        try {
+            String v = props.getProperty(key);
+            if (v == null || v.isBlank()) {
+                props.remove(key);
+                return;
+            }
+            Integer.parseInt(v.trim()); // validate
+        } catch (NumberFormatException e) {
+            props.remove(key);
         }
     }
 
@@ -233,6 +286,25 @@ public final class SettingsStore {
 
     public boolean isThumbnailGeneration(){ return Boolean.parseBoolean(props.getProperty(KEY_THUMBNAILS, String.valueOf(DEF_THUMBNAILS))); }
     public void setThumbnailGeneration(boolean b){ props.setProperty(KEY_THUMBNAILS, String.valueOf(b)); }
+
+    public String getLayoutDensity(){
+        String d = props.getProperty(KEY_LAYOUT_DENSITY, DEF_LAYOUT_DENSITY);
+        if (d == null) return DEF_LAYOUT_DENSITY;
+        d = d.trim();
+        if (d.equalsIgnoreCase("Minimal") || d.equalsIgnoreCase("Balanced") ||
+            d.equalsIgnoreCase("Dense") || d.equalsIgnoreCase("Information-dense") ||
+            d.equalsIgnoreCase("Information Dense")) {
+            return d;
+        }
+        return DEF_LAYOUT_DENSITY;
+    }
+    public void setLayoutDensity(String density){
+        if (density == null || density.trim().isEmpty()) {
+            props.setProperty(KEY_LAYOUT_DENSITY, DEF_LAYOUT_DENSITY);
+        } else {
+            props.setProperty(KEY_LAYOUT_DENSITY, density.trim());
+        }
+    }
 
     public int getAutosaveMinutes(){ return Integer.parseInt(props.getProperty(KEY_AUTOSAVE, String.valueOf(DEF_AUTOSAVE))); }
     public void setAutosaveMinutes(int min){ props.setProperty(KEY_AUTOSAVE, String.valueOf(min)); }
@@ -369,6 +441,25 @@ public final class SettingsStore {
     }
     public void setMainMenuAccentRGB(int rgb){
         props.setProperty(KEY_MAINMENU_ACCENT_RGB, String.valueOf(rgb));
+    }
+    public void clearMainMenuAccent(){
+        props.remove(KEY_MAINMENU_ACCENT_RGB);
+    }
+
+    public int getWidgetAccentRGB(){
+        try {
+            String v = props.getProperty(KEY_WIDGET_ACCENT_RGB, null);
+            if (v == null || v.isEmpty()) return Integer.MIN_VALUE;
+            return Integer.parseInt(v);
+        } catch (NumberFormatException e){
+            return Integer.MIN_VALUE;
+        }
+    }
+    public void setWidgetAccentRGB(int rgb){
+        props.setProperty(KEY_WIDGET_ACCENT_RGB, String.valueOf(rgb));
+    }
+    public void clearWidgetAccent(){
+        props.remove(KEY_WIDGET_ACCENT_RGB);
     }
 
     // --- Widgets persistence ---
@@ -528,4 +619,5 @@ public final class SettingsStore {
         int sec = Math.max(5, Math.min(120, seconds));
         props.setProperty(KEY_HEADER_QUOTE_ROTATE_SEC, String.valueOf(sec));
     }
+
 }

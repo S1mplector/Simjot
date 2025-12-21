@@ -110,7 +110,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private AutosaveManager autosaveManager;
     private volatile boolean isAutosaving = false;
-    // Track temporary placeholder range for Sim guidance
+    // Track temporary placeholder range for Sim guidance (disabled; retained for compatibility)
     private int pendingGuidanceStart = -1;
     private int pendingGuidanceLen = 0;
     // Spinner removed — relying on inline "Thinking…" text only
@@ -145,15 +145,7 @@ public class EntryPanel extends AbstractEditorPanel {
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
-        // Subscribe to guidance produced to insert into editor
-        try {
-            SimEventBus.get().addListener(new SimEventBus.Listener(){
-                @Override public void onGuidanceProduced(String text){
-                    if (text == null || text.isBlank()) return;
-                    SwingUtilities.invokeLater(() -> insertGuidanceStyled(text));
-                }
-            });
-        } catch (Throwable ignored) {}
+        // Sim guidance disabled visually; listener intentionally not registered
     }
 
     private void prefillDetailedMoodFromLogToday() {
@@ -211,7 +203,7 @@ public class EntryPanel extends AbstractEditorPanel {
     /**
      * Whether to show the Sim guidance button in the right toolbar.
      */
-    protected boolean supportsGuidanceButton() { return true; }
+    protected boolean supportsGuidanceButton() { return false; }
 
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) { }
     protected void installContentOverlay(JComponent textWrapper, JScrollPane scrollPane) { }
@@ -440,25 +432,7 @@ public class EntryPanel extends AbstractEditorPanel {
             rightToolbar.add(clockBtn);
             rightToolbar.add(Box.createHorizontalStrut(6));
         }
-        if (supportsGuidanceButton()) {
-            ToolbarIconButton guidanceBtn = new ToolbarIconButton("simguidance");
-            guidanceBtn.setToolTipText("Ask Sim for guidance on this entry");
-            guidanceBtn.addActionListener(e -> {
-                try {
-                    Document doc = contentArea.getDocument();
-                    String all = doc.getText(0, doc.getLength());
-                    int cap = 4000;
-                    String text = all.length() > cap ? all.substring(all.length() - cap) : all;
-                    showGuidanceThinkingPlaceholder();
-                    // Run guidance request off the EDT to avoid blocking UI and resetting custom UIs
-                    new Thread(() -> {
-                        try { SimEventBus.get().emitGuidanceRequested(text); } catch (Throwable ignored) {}
-                    }, "Sim-Guidance-Request").start();
-                } catch (BadLocationException ex) { /* no-op */ }
-            });
-            rightToolbar.add(guidanceBtn);
-            rightToolbar.add(Box.createHorizontalStrut(6));
-        }
+        // Guidance button disabled
         rightToolbar.add(dfBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(settingsBtn);

@@ -36,6 +36,11 @@ public final class ImageIconRenderer {
             CACHE.clear();
         }
     }
+
+    public static void clearCaches() {
+        sAccentTint = null;
+        CACHE.clear();
+    }
     private static int tintSignature() { Color c = sAccentTint; return c == null ? 0 : c.getRGB(); }
 
     public static BufferedImage get(String resourcePath, int size, boolean shadow){
@@ -157,6 +162,12 @@ public final class ImageIconRenderer {
         if (sAccentTint != null) return;
         try {
             Color accent = AccentColorUtil.defaultAccent();
+            try {
+                int saved = SettingsStore.get().getWidgetAccentRGB();
+                if (saved != Integer.MIN_VALUE) {
+                    accent = new Color(saved, false);
+                }
+            } catch (Throwable ignored) {}
             String bgPath = SettingsStore.get().getBackgroundImage();
             if (bgPath != null && !bgPath.isEmpty()) {
                 Image img = null;

@@ -6,6 +6,7 @@ import java.awt.geom.*;
 import java.time.*;
 import java.time.format.TextStyle;
 import java.util.Locale;
+import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
 
@@ -21,7 +22,7 @@ public class TodayCalendarPanel extends JPanel {
     private Color accent = AeroTheme.AERO_BLUE;
 
     public TodayCalendarPanel() {
-        this(AeroTheme.AERO_BLUE);
+        this(Theme.getWidgetAccent());
     }
 
     public TodayCalendarPanel(Color accent) {

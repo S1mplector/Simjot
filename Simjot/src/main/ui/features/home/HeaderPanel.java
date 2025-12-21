@@ -10,6 +10,7 @@ import javax.swing.*;
 
 import main.infrastructure.monitoring.AppPerf;
 import main.core.service.SettingsStore;
+import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
 
@@ -39,7 +40,7 @@ public class HeaderPanel extends JPanel {
     private Color cachedAccent;
     
     public HeaderPanel() {
-        this(AeroTheme.AERO_BLUE);
+        this(Theme.getWidgetAccent());
     }
 
     public HeaderPanel(Color accent) {

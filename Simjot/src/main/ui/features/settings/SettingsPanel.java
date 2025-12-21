@@ -31,9 +31,11 @@ import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.features.splash.AeroSplashScreen;
-import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.Theme;
+import main.ui.theme.ThemePalette;
+import main.ui.scaling.UIScalingManager;
 
 public class SettingsPanel extends JPanel {
 
@@ -66,7 +68,6 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
         sectionModel.addElement("Security");
-        sectionModel.addElement("Sim");
         sectionModel.addElement("About");
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -109,10 +110,6 @@ public class SettingsPanel extends JPanel {
         SecuritySettingsPage security = new SecuritySettingsPage();
         addPage("Security", security);
 
-        // Sim (AI companion)
-        SimSettingsPage simPage = new SimSettingsPage();
-        addPage("Sim", simPage);
-
         // About (comprehensive information page)
         AboutSettingsPage aboutPage = new AboutSettingsPage();
         addPage("About", aboutPage);
@@ -150,11 +147,7 @@ public class SettingsPanel extends JPanel {
         splash.setStatus("Saving settings…");
         splash.setVisible(true);
 
-        final boolean wasSimEnabled;
-        try { wasSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable t) { throw new RuntimeException(t); }
-
         new javax.swing.SwingWorker<Void, String>() {
-            private boolean nowSimEnabled = false;
             @Override protected Void doInBackground() {
                 publish("Saving preferences…");
                 try { pages.values().forEach(SettingsPage::apply); } catch (Throwable ignored) {}
@@ -163,20 +156,11 @@ public class SettingsPanel extends JPanel {
                 publish("Updating look & feel…");
                 try {
                     javax.swing.SwingUtilities.invokeAndWait(() -> {
-                        try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}
+                        try { ThemePalette.refresh(); } catch (Throwable ignored) {}
+                        try { UIScalingManager.updateScale(Theme.densityToScale(SettingsStore.get().getLayoutDensity())); } catch (Throwable ignored) {}
                         try { javax.swing.SwingUtilities.updateComponentTreeUI(app); } catch (Throwable ignored) {}
                     });
                 } catch (Throwable ignored) {}
-
-                publish("Applying features…");
-                try { nowSimEnabled = main.core.sim.prefs.SimSettings.get().isEnabled(); } catch (Throwable ignored) {}
-                if (wasSimEnabled != nowSimEnabled) {
-                    try {
-                        javax.swing.SwingUtilities.invokeAndWait(() -> {
-                            try { if (nowSimEnabled) app.enableSimFeatures(); else app.disableSimFeatures(); } catch (Throwable ignored) {}
-                        });
-                    } catch (Throwable ignored) {}
-                }
 
                 publish("Refreshing UI…");
                 try {
@@ -212,7 +196,6 @@ public class SettingsPanel extends JPanel {
             SECTION_ICONS.put("Appearance", new ImageIcon(ImageIconRenderer.get("img/icons/appearance_settings.png", 18, false)));
             SECTION_ICONS.put("Storage", new ImageIcon(ImageIconRenderer.get("img/icons/storage_settings.png", 18, false)));
             SECTION_ICONS.put("Security", new ImageIcon(ImageIconRenderer.get("img/icons/settings.png", 18, false)));
-            SECTION_ICONS.put("Sim", new ImageIcon(ImageIconRenderer.get("img/icons/sim_settings.png", 18, false)));
             SECTION_ICONS.put("About", new ImageIcon(ImageIconRenderer.get("img/icons/about_settings.png", 18, false)));
         }
         
