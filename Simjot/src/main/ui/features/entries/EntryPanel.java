@@ -28,12 +28,15 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.channels.FileLock;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -89,10 +92,14 @@ import main.ui.components.popup.AnimatedGlassPopup;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.slider.MoodSlider;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
+import main.infrastructure.backup.EntryHistoryManager;
+import main.infrastructure.io.FileIO;
+import main.infrastructure.io.IoLog;
  
 
 public class EntryPanel extends AbstractEditorPanel {
@@ -123,7 +130,10 @@ public class EntryPanel extends AbstractEditorPanel {
     // UI refs for toggling (distraction-free / zen mode)
     private JPanel toolbarContainer;
     private JPanel bottomPanel;
+    private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
+    private boolean readOnlyMode = false;
+    private FileLock entryLock;
     private JPanel dfHeader;
     // Guided question mode
     private String[] guidedQuestions;
@@ -210,15 +220,40 @@ public class EntryPanel extends AbstractEditorPanel {
 
     // Load an existing entry file into the editor fields
     private void loadExistingEntry(File fileToEdit) {
+        if (!acquireEntryLock(fileToEdit)) {
+            setReadOnlyMode(true);
+            CustomMessageDialog.display(this, "Read-only", "This entry is open in another Simjot instance. Opened read-only.", true);
+        } else {
+            setReadOnlyMode(false);
+        }
+        if (!verifyIntegrityAndOfferRestore(fileToEdit)) {
+            return;
+        }
         try (BufferedReader reader = new BufferedReader(new FileReader(fileToEdit))) {
-            String title = reader.readLine();
-            if (title == null) title = "";
+            String firstLine = reader.readLine();
+            EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
+            String title = "";
+            String firstContentLine;
+            if (meta != null) {
+                title = meta.title == null ? "" : meta.title;
+                // Skip optional blank separator
+                firstContentLine = reader.readLine();
+                if (firstContentLine != null && firstContentLine.isBlank()) {
+                    firstContentLine = reader.readLine();
+                }
+                if (meta.mood >= 0 && moodSlider != null) {
+                    try { moodSlider.setValue(meta.mood); } catch (Throwable ignored) {}
+                }
+            } else {
+                title = (firstLine == null ? "" : firstLine);
+                // Expect a blank separator line
+                reader.readLine();
+                firstContentLine = reader.readLine();
+            }
+
             titleField.setText(title);
-            // Expect a blank separator line
-            reader.readLine();
-            
+
             // Check for guided mode metadata
-            String firstContentLine = reader.readLine();
             if (firstContentLine != null && firstContentLine.startsWith("[GUIDED_MODE:")) {
                 // Parse guided mode metadata: [GUIDED_MODE:template_name]
                 int endIdx = firstContentLine.indexOf(']');
@@ -273,6 +308,66 @@ public class EntryPanel extends AbstractEditorPanel {
         } catch (Exception ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
+        }
+    }
+
+    private boolean verifyIntegrityAndOfferRestore(File entryFile) {
+        try {
+            String expected = EntryHistoryManager.getLastChecksum(entryFile);
+            if (expected == null || expected.isBlank()) return true;
+            String actual = FileIO.sha256(entryFile.toPath());
+            if (expected.equals(actual)) return true;
+            EntryHistoryManager.Snapshot latest = EntryHistoryManager.getLatestSnapshot(entryFile);
+            if (latest == null) return true;
+            String[] options = {"Restore latest backup", "Open anyway", "Cancel"};
+            int choice = CustomChoiceDialog.choose(this, "Integrity Check",
+                    "This entry looks corrupted or incomplete. Restore the latest backup?", options);
+            if (choice == 0) {
+                boolean ok = EntryHistoryManager.restoreSnapshot(entryFile, latest);
+                if (!ok) return true;
+            } else if (choice == 2) {
+                return false;
+            }
+        } catch (Throwable ignored) {}
+        return true;
+    }
+
+    private void showRestoreDialog() {
+        if (currentFile == null || !currentFile.exists()) {
+            CustomMessageDialog.display(this, "Restore", "No saved versions yet.", true);
+            return;
+        }
+        java.util.List<EntryHistoryManager.Snapshot> snaps = EntryHistoryManager.listSnapshots(currentFile);
+        if (snaps.isEmpty()) {
+            CustomMessageDialog.display(this, "Restore", "No saved versions yet.", true);
+            return;
+        }
+        int max = Math.min(5, snaps.size());
+        String[] options = new String[max + 1];
+        for (int i = 0; i < max; i++) {
+            EntryHistoryManager.Snapshot s = snaps.get(snaps.size() - 1 - i);
+            options[i] = formatSnapshotLabel(s);
+        }
+        options[max] = "Cancel";
+        int choice = CustomChoiceDialog.choose(this, "Restore Entry", "Select a previous version to restore:", options);
+        if (choice < 0 || choice >= max) return;
+        EntryHistoryManager.Snapshot selected = snaps.get(snaps.size() - 1 - choice);
+        if (EntryHistoryManager.restoreSnapshot(currentFile, selected)) {
+            loadExistingEntry(currentFile);
+        } else {
+            CustomMessageDialog.display(this, "Restore", "Failed to restore selected version.", true);
+        }
+    }
+
+    private String formatSnapshotLabel(EntryHistoryManager.Snapshot snap) {
+        String ts = snap.timestamp;
+        try {
+            java.text.SimpleDateFormat in = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS");
+            java.text.SimpleDateFormat out = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            java.util.Date d = in.parse(ts);
+            return out.format(d);
+        } catch (Exception e) {
+            return ts;
         }
     }
 
@@ -432,6 +527,11 @@ public class EntryPanel extends AbstractEditorPanel {
             rightToolbar.add(clockBtn);
             rightToolbar.add(Box.createHorizontalStrut(6));
         }
+        ToolbarIconButton restoreBtn = new ToolbarIconButton("load");
+        restoreBtn.setToolTipText("Restore previous version");
+        restoreBtn.addActionListener(e -> showRestoreDialog());
+        rightToolbar.add(restoreBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
         // Guidance button disabled
         rightToolbar.add(dfBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
@@ -685,7 +785,7 @@ public class EntryPanel extends AbstractEditorPanel {
         bottomPanel.setOpaque(false);
 
         // Save button (via EditorUIUtils)
-        ToolbarIconButton saveButton = EditorUIUtils.createSaveButton("Save Entry", this::saveEntry);
+        saveButton = EditorUIUtils.createSaveButton("Save Entry", this::saveEntry);
 
         // Word count label
         JLabel wordCountLabel = new JLabel("Words: 0");
@@ -1312,6 +1412,10 @@ public class EntryPanel extends AbstractEditorPanel {
     // Called by the "Save Entry" button.
     // This is overridden in EditEntryPanel to update an existing file.
     protected void saveEntry() {
+        if (readOnlyMode) {
+            CustomMessageDialog.display(this, "Read-only", "This entry is locked by another instance and cannot be saved.", true);
+            return;
+        }
         if (autosaveManager != null) {
             try { autosaveManager.stop(); } catch (Throwable ignored) {}
         }
@@ -1342,6 +1446,8 @@ public class EntryPanel extends AbstractEditorPanel {
             recordMood(moodValue);
         }
 
+        String manifestForRestore = null;
+        boolean tokensApplied = false;
         try {
             // Update status to Saving…
             if (saveIndicator != null) saveIndicator.setSaving();
@@ -1365,59 +1471,81 @@ public class EntryPanel extends AbstractEditorPanel {
                 file = currentFile;
             }
 
-            // Save title + a blank line + content (with guided mode metadata if applicable)
-            String manifestForRestore = null;
-            try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
-                writer.println(title);
-                writer.println(); // separator
-                
-                // Save guided mode if active
-                if (guidedQuestions != null && guidedQuestions.length > 0) {
-                    // Save current question's response first (tokenize images)
-                    try {
-                        String tok = stringifyWithImageTokens((StyledDocument) contentArea.getDocument());
-                        questionResponses.put(currentQuestionIndex, tok);
-                    } catch (Throwable t) {
-                        questionResponses.put(currentQuestionIndex, contentArea.getText());
-                    }
-                    
-                    // Write guided mode metadata
-                    writer.println("[GUIDED_MODE:" + getGuidedModeTemplateName() + "]");
-                    writer.println();
-                    
-                    // Write all question-response pairs
-                    for (int i = 0; i < guidedQuestions.length; i++) {
-                        writer.println("[Q" + (i+1) + ": " + guidedQuestions[i] + "]");
-                        String response = questionResponses.getOrDefault(i, "");
-                        if (!response.trim().isEmpty()) {
-                            writer.println(response);
-                        }
-                        writer.println();
-                    }
-                } else {
-                    // Regular mode: write image manifest header, then RTF appended below
-                    manifestForRestore = buildImageManifest((StyledDocument) contentArea.getDocument());
-                    if (manifestForRestore == null) manifestForRestore = "";
-                    writer.println("IMGMAP:" + manifestForRestore);
-                    writer.println();
-                    writer.flush();
+            // Acquire lock for the entry file (first save or restore)
+            if (entryLock == null) {
+                if (!acquireEntryLock(file)) {
+                    setReadOnlyMode(true);
+                    CustomMessageDialog.display(this, "Read-only", "This entry is locked by another instance.", true);
+                    if (currentFile == file) currentFile = null;
+                    return;
                 }
             }
-            
-            // For non-guided mode, append RTF styling
-            if (guidedQuestions == null || guidedQuestions.length == 0) {
-                try (FileOutputStream fos = new FileOutputStream(file, true)) {
-                    RTFEditorKit kit = new RTFEditorKit();
-                    StyledDocument sd = (StyledDocument) contentArea.getDocument();
-                    try {
-                        // Document already tokenized by buildImageManifest for header; just write it.
-                        kit.write(fos, sd, 0, sd.getLength());
-                    } catch (BadLocationException ble) {
-                        // fallback to plain text if unexpected
-                        fos.write(content.getBytes());
-                    }
+
+            EntryFileFormat.EntryMeta meta = new EntryFileFormat.EntryMeta();
+            meta.title = title;
+            meta.mood = moodValue;
+            meta.guided = guidedQuestions != null && guidedQuestions.length > 0;
+            meta.template = meta.guided ? getGuidedModeTemplateName() : null;
+            meta.savedAt = System.currentTimeMillis();
+
+            manifestForRestore = null;
+            tokensApplied = false;
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PrintWriter writer = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8));
+            writer.println(EntryFileFormat.buildHeader(meta));
+            writer.println(); // separator
+
+            // Save guided mode if active
+            if (meta.guided) {
+                // Save current question's response first (tokenize images)
+                try {
+                    String tok = stringifyWithImageTokens((StyledDocument) contentArea.getDocument());
+                    questionResponses.put(currentQuestionIndex, tok);
+                } catch (Throwable t) {
+                    questionResponses.put(currentQuestionIndex, contentArea.getText());
                 }
-                // Restore icons back into the live document so the UI remains unchanged
+
+                // Write guided mode metadata
+                writer.println("[GUIDED_MODE:" + getGuidedModeTemplateName() + "]");
+                writer.println();
+
+                // Write all question-response pairs
+                for (int i = 0; i < guidedQuestions.length; i++) {
+                    writer.println("[Q" + (i+1) + ": " + guidedQuestions[i] + "]");
+                    String response = questionResponses.getOrDefault(i, "");
+                    if (!response.trim().isEmpty()) {
+                        writer.println(response);
+                    }
+                    writer.println();
+                }
+                writer.flush();
+            } else {
+                // Regular mode: write image manifest header, then RTF appended below
+                manifestForRestore = buildImageManifest((StyledDocument) contentArea.getDocument());
+                if (manifestForRestore == null) manifestForRestore = "";
+                tokensApplied = true;
+                writer.println("IMGMAP:" + manifestForRestore);
+                writer.println();
+                writer.flush();
+
+                // Append RTF styling
+                RTFEditorKit kit = new RTFEditorKit();
+                StyledDocument sd = (StyledDocument) contentArea.getDocument();
+                try {
+                    // Document already tokenized by buildImageManifest for header; just write it.
+                    kit.write(baos, sd, 0, sd.getLength());
+                } catch (BadLocationException ble) {
+                    // fallback to plain text if unexpected
+                    baos.write(content.getBytes(StandardCharsets.UTF_8));
+                }
+            }
+
+            byte[] data = baos.toByteArray();
+            FileIO.ensureSpace(file.toPath(), data.length + 4096L, "entry save");
+            FileIO.atomicWrite(file.toPath(), data, true, true);
+
+            // Restore icons back into the live document so the UI remains unchanged
+            if (!meta.guided && tokensApplied) {
                 try {
                     StyledDocument sd = (StyledDocument) contentArea.getDocument();
                     if (manifestForRestore != null && !manifestForRestore.isBlank()) {
@@ -1425,6 +1553,12 @@ public class EntryPanel extends AbstractEditorPanel {
                     }
                 } catch (Throwable ignored) {}
             }
+
+            // Record versioned snapshot
+            try {
+                int keep = SettingsStore.get().getBackupKeepCount();
+                EntryHistoryManager.recordSnapshot(file, keep);
+            } catch (Throwable ignored) {}
 
             // Mark last successful save for status bar
             LastSaveTracker.markSaved();
@@ -1447,9 +1581,55 @@ public class EntryPanel extends AbstractEditorPanel {
             updateSaveIndicatorFromCurrentFile();
         } catch (IOException ex) {
             ex.printStackTrace();
+            if (tokensApplied) {
+                try {
+                    StyledDocument sd = (StyledDocument) contentArea.getDocument();
+                    if (manifestForRestore != null && !manifestForRestore.isBlank()) {
+                        restoreIconsFromTokens(sd, manifestForRestore);
+                    }
+                } catch (Throwable ignored) {}
+            }
             SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog());
             if (saveIndicator != null) saveIndicator.setError("Error saving");
         }
+    }
+
+    private boolean acquireEntryLock(File file) {
+        if (entryLock != null) return true;
+        try {
+            entryLock = FileIO.tryLock(file.toPath());
+            if (entryLock == null) {
+                return false;
+            }
+            return true;
+        } catch (IOException e) {
+            IoLog.warn("entry-lock", "Failed to lock entry file: " + file, e);
+            return false;
+        }
+    }
+
+    private void releaseEntryLock() {
+        if (entryLock != null) {
+            FileIO.releaseQuietly(entryLock);
+            entryLock = null;
+        }
+    }
+
+    private void setReadOnlyMode(boolean readOnly) {
+        this.readOnlyMode = readOnly;
+        try { if (titleField != null) titleField.setEditable(!readOnly); } catch (Throwable ignored) {}
+        try { if (contentArea != null) contentArea.setEditable(!readOnly); } catch (Throwable ignored) {}
+        try { if (moodSlider != null) moodSlider.setEnabled(!readOnly); } catch (Throwable ignored) {}
+        try { if (saveButton != null) saveButton.setEnabled(!readOnly); } catch (Throwable ignored) {}
+        if (readOnly && autosaveManager != null) {
+            try { autosaveManager.stop(); } catch (Throwable ignored) {}
+        }
+    }
+
+    @Override
+    public void removeNotify() {
+        releaseEntryLock();
+        super.removeNotify();
     }
 
     // --- Image persistence helpers (tokenize -> write -> restore) ---

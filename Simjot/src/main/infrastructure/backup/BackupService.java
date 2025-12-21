@@ -7,6 +7,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.FileIO;
 
 /**
  * Background service that decides when to run backups based on user settings.
@@ -120,6 +121,8 @@ public final class BackupService {
             boolean verify = store.isBackupVerify();
 
             if (!backupRoot.exists()) backupRoot.mkdirs();
+            long estimated = BackupManager.estimateBackupSize(src, includeMood, includeSettings, includeWallpapers);
+            FileIO.ensureSpace(backupRoot.toPath(), estimated + (20L * 1024L * 1024L), "backup");
             BackupManager.performBackup(
                     src,
                     backupRoot,

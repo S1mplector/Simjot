@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import main.ui.components.containers.AeroPanel;
 import main.ui.components.buttons.RoundedButton;
+import main.infrastructure.io.FileIO;
 
 /**
  * ImagePasteManager adds crisp, reusable support for pasting and dropping images into a JTextPane.
@@ -153,6 +154,12 @@ public final class ImagePasteManager {
         BufferedImage scaled = scaleToMaxWidth(bi, maxWidthPx);
         // Save to disk
         File out = new File(attachmentsDir, timestampName()+".png");
+        try {
+            long approxBytes = (long) scaled.getWidth() * (long) scaled.getHeight() * 4L;
+            FileIO.ensureSpace(out.toPath(), approxBytes + 4096L, "image attachment");
+        } catch (IOException e) {
+            return false;
+        }
         try { ImageIO.write(scaled, "PNG", out); } catch (IOException e) { /* ignore, still insert */ }
 
         // Insert as icon at caret

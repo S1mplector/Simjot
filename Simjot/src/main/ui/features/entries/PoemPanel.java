@@ -32,6 +32,8 @@ import main.core.export.PoemExporter;
 import main.ui.dialog.export.PoemExportDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.core.service.LastSaveTracker;
+import main.infrastructure.backup.EntryHistoryManager;
+import main.infrastructure.io.FileIO;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -478,11 +480,20 @@ public class PoemPanel extends AbstractEditorPanel {
                 poemFile = currentFile;
             }
             
-            try (PrintWriter writer = new PrintWriter(new FileWriter(poemFile))) {
-                writer.println(title);
-                writer.println();
-                writer.println(content);
-            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PrintWriter writer = new PrintWriter(new OutputStreamWriter(baos, java.nio.charset.StandardCharsets.UTF_8));
+            writer.println(title);
+            writer.println();
+            writer.println(content);
+            writer.flush();
+            byte[] data = baos.toByteArray();
+            FileIO.ensureSpace(poemFile.toPath(), data.length + 4096L, "poem save");
+            FileIO.atomicWrite(poemFile.toPath(), data, true, true);
+
+            try {
+                int keep = SettingsStore.get().getBackupKeepCount();
+                EntryHistoryManager.recordSnapshot(poemFile, keep);
+            } catch (Throwable ignored) {}
             
             // Remember as last opened file for startup restore
             try {

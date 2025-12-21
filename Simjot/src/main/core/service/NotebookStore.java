@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -19,13 +17,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.FileIO;
+import main.infrastructure.io.IoLog;
 
 /**
  * Persists list of notebooks under Simjot/notebooks.json and provides helpers.
  */
 public final class NotebookStore {
     private static final String FILE_NAME = "notebooks.json";
-    private static final String TEMP_SUFFIX = ".tmp";
 
     private final File jsonFile;
     private final List<NotebookInfo> notebooks = new ArrayList<>();
@@ -103,14 +102,8 @@ public final class NotebookStore {
             String json = toJson(notebooks);
             File parent = jsonFile.getParentFile();
             if (parent != null && !parent.exists()) parent.mkdirs();
-            Path tmp = jsonFile.toPath().resolveSibling(FILE_NAME + TEMP_SUFFIX);
-            Files.writeString(tmp, json, StandardCharsets.UTF_8);
-            try {
-                Files.move(tmp, jsonFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException atomicFail) {
-                // Fallback without atomic move if filesystem does not support it
-                Files.move(tmp, jsonFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
+            FileIO.ensureSpace(jsonFile.toPath(), json.getBytes(StandardCharsets.UTF_8).length + 4096L, "notebook store save");
+            FileIO.atomicWrite(jsonFile.toPath(), json, StandardCharsets.UTF_8, true, true);
         } catch(IOException ex){
             logWarn("Failed to save notebook store", ex);
         }
@@ -334,8 +327,7 @@ public final class NotebookStore {
     }
 
     private static void logWarn(String msg, Throwable t){
-        System.err.println("[NotebookStore] " + msg + (t != null ? " (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ")" : ""));
-        if (t != null) t.printStackTrace(System.err);
+        IoLog.warn("notebook-store", msg, t);
     }
 
     private static boolean isNewName(Set<String> seenNames, String name){

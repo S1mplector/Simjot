@@ -40,17 +40,6 @@ public final class AeroLookAndFeel {
 
         // Colors for common elements (used where L&F reads UIManager)
         switch (variant) {
-            case DARK -> {
-                UIManager.put("Panel.background", new Color(30, 30, 34));
-                UIManager.put("Button.foreground", AeroTheme.TEXT_PRIMARY);
-                UIManager.put("Label.foreground", AeroTheme.TEXT_PRIMARY);
-                UIManager.put("CheckBox.background", new Color(30, 30, 34));
-                UIManager.put("CheckBox.foreground", AeroTheme.TEXT_PRIMARY);
-                UIManager.put("ComboBox.background", new Color(46, 46, 52));
-                UIManager.put("ComboBox.foreground", AeroTheme.TEXT_PRIMARY);
-                UIManager.put("TextField.background", new Color(46, 46, 52));
-                UIManager.put("TextField.foreground", AeroTheme.TEXT_PRIMARY);
-            }
             case SEPIA -> {
                 UIManager.put("Panel.background", new Color(245, 236, 223));
                 UIManager.put("Button.foreground", AeroTheme.TEXT_PRIMARY);

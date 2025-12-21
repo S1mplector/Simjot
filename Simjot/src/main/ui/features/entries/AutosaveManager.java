@@ -1,9 +1,10 @@
 package main.ui.features.entries;
 
-import javax.swing.Timer;
 import javax.swing.SwingUtilities;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Simple debounce-based autosave manager. Call markDirty() on edits; when
@@ -15,7 +16,8 @@ public class AutosaveManager {
     private final Runnable onStart;
     private final Runnable onEnd;
 
-    private final Timer timer;
+    private final ScheduledExecutorService scheduler;
+    private ScheduledFuture<?> pending;
     private volatile boolean saving = false;
 
     public AutosaveManager(int delayMs, Runnable onSave, Runnable onStart, Runnable onEnd) {
@@ -23,41 +25,40 @@ public class AutosaveManager {
         this.onSave = onSave;
         this.onStart = onStart != null ? onStart : () -> {};
         this.onEnd = onEnd != null ? onEnd : () -> {};
-        this.timer = new Timer(delayMs, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                timer.stop();
-                if (saving) return; // avoid overlapping saves
-                saving = true;
-                // Signal UI that an autosave is actually starting now (after debounce)
-                SwingUtilities.invokeLater(onStart);
-                // Run save off the EDT to avoid UI stalls (especially with short delays)
-                Thread t = new Thread(() -> {
-                    try {
-                        onSave.run();
-                    } finally {
-                        SwingUtilities.invokeLater(() -> {
-                            try {
-                                onEnd.run();
-                            } finally {
-                                saving = false;
-                            }
-                        });
-                    }
-                }, "AutosaveWorker");
-                t.setDaemon(true);
-                t.start();
-            }
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "AutosaveWorker");
+            t.setDaemon(true);
+            return t;
         });
-        this.timer.setRepeats(false);
     }
 
     public void markDirty() {
-        // Just (re)start the debounce timer. We will call onStart when the save actually begins.
-        timer.restart();
+        if (pending != null) {
+            pending.cancel(false);
+            pending = null;
+        }
+        pending = scheduler.schedule(() -> {
+            if (saving) return; // avoid overlapping saves
+            saving = true;
+            SwingUtilities.invokeLater(onStart);
+            try {
+                onSave.run();
+            } finally {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        onEnd.run();
+                    } finally {
+                        saving = false;
+                    }
+                });
+            }
+        }, delayMs, TimeUnit.MILLISECONDS);
     }
 
     public void stop() {
-        timer.stop();
+        if (pending != null) {
+            pending.cancel(false);
+            pending = null;
+        }
     }
 }

@@ -3,6 +3,7 @@ package main.core.service;
 import java.io.*;
 import java.util.Properties;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.FileIO;
 
 /**
  * Singleton-like helper that persists user preferences under Simjot/settings/preferences.properties.
@@ -189,17 +190,22 @@ public final class SettingsStore {
         }
     }
 
-    public void save(){
-        try(FileOutputStream out = new FileOutputStream(storeFile)){
-            props.store(out, "Simjot preferences");
-        }catch(IOException ex){ ex.printStackTrace(); }
+    public synchronized void save(){
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            synchronized (props) {
+                props.store(baos, "Simjot preferences");
+            }
+            FileIO.ensureSpace(storeFile.toPath(), baos.size() + 4096L, "settings save");
+            FileIO.atomicWrite(storeFile.toPath(), baos.toByteArray(), true, true);
+        } catch(IOException ex){ ex.printStackTrace(); }
     }
 
     // ---- getters / setters ---- //
-    public int getJournalFontSize(){ return Integer.parseInt(props.getProperty(KEY_JOURNAL_FONT, String.valueOf(DEF_JOURNAL_FONT))); }
+    public int getJournalFontSize(){ return safeInt(KEY_JOURNAL_FONT, DEF_JOURNAL_FONT); }
     public void setJournalFontSize(int v){ props.setProperty(KEY_JOURNAL_FONT, String.valueOf(v)); }
 
-    public int getPoemFontSize(){ return Integer.parseInt(props.getProperty(KEY_POEM_FONT, String.valueOf(DEF_POEM_FONT))); }
+    public int getPoemFontSize(){ return safeInt(KEY_POEM_FONT, DEF_POEM_FONT); }
     public void setPoemFontSize(int v){ props.setProperty(KEY_POEM_FONT, String.valueOf(v)); }
 
     public String getAnimation(){ return props.getProperty(KEY_ANIMATION, DEF_ANIMATION); }
@@ -278,7 +284,7 @@ public final class SettingsStore {
     
     public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); props.remove(KEY_MAINMENU_ACCENT_RGB); }
 
-    public int getDefaultBrushSize(){ return Integer.parseInt(props.getProperty(KEY_BRUSH_SIZE, String.valueOf(DEF_BRUSH_SIZE))); }
+    public int getDefaultBrushSize(){ return safeInt(KEY_BRUSH_SIZE, DEF_BRUSH_SIZE); }
     public void setDefaultBrushSize(int v){ props.setProperty(KEY_BRUSH_SIZE, String.valueOf(v)); }
 
     public boolean isSmoothingEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_SMOOTHING, String.valueOf(DEF_SMOOTHING))); }
@@ -306,7 +312,7 @@ public final class SettingsStore {
         }
     }
 
-    public int getAutosaveMinutes(){ return Integer.parseInt(props.getProperty(KEY_AUTOSAVE, String.valueOf(DEF_AUTOSAVE))); }
+    public int getAutosaveMinutes(){ return safeInt(KEY_AUTOSAVE, DEF_AUTOSAVE); }
     public void setAutosaveMinutes(int min){ props.setProperty(KEY_AUTOSAVE, String.valueOf(min)); }
 
     // New debounce-based autosave delay in milliseconds. If not set, migrate from legacy minutes value.
@@ -390,7 +396,7 @@ public final class SettingsStore {
     public String getBackupFrequency(){ return props.getProperty(KEY_BACKUP_FREQ, DEF_BACKUP_FREQ); }
     public void setBackupFrequency(String v){ if(v!=null) props.setProperty(KEY_BACKUP_FREQ, v); }
 
-    public int getBackupKeepCount(){ return Integer.parseInt(props.getProperty(KEY_BACKUP_KEEP, String.valueOf(DEF_BACKUP_KEEP))); }
+    public int getBackupKeepCount(){ return safeInt(KEY_BACKUP_KEEP, DEF_BACKUP_KEEP); }
     public void setBackupKeepCount(int n){ props.setProperty(KEY_BACKUP_KEEP, String.valueOf(Math.max(1, n))); }
 
     // Backup bookkeeping
@@ -423,10 +429,7 @@ public final class SettingsStore {
     public boolean isBackupVerify(){ return Boolean.parseBoolean(props.getProperty(KEY_BACKUP_VERIFY, String.valueOf(DEF_BACKUP_VERIFY))); }
     public void setBackupVerify(boolean b){ props.setProperty(KEY_BACKUP_VERIFY, String.valueOf(b)); }
 
-    public int getBackupPruneDays(){
-        try { return Integer.parseInt(props.getProperty(KEY_BACKUP_PRUNE_DAYS, String.valueOf(DEF_BACKUP_PRUNE_DAYS))); }
-        catch (NumberFormatException e){ return DEF_BACKUP_PRUNE_DAYS; }
-    }
+    public int getBackupPruneDays(){ return safeInt(KEY_BACKUP_PRUNE_DAYS, DEF_BACKUP_PRUNE_DAYS); }
     public void setBackupPruneDays(int days){ props.setProperty(KEY_BACKUP_PRUNE_DAYS, String.valueOf(Math.max(0, days))); }
 
     // --- Accent color persistence ---
@@ -540,10 +543,7 @@ public final class SettingsStore {
     }
     public void setLockEnabled(boolean enabled){ props.setProperty(KEY_LOCK_ENABLED, String.valueOf(enabled)); }
 
-    public int getLockTimeoutSec(){
-        try { return Integer.parseInt(props.getProperty(KEY_LOCK_TIMEOUT_SEC, String.valueOf(DEF_LOCK_TIMEOUT_SEC))); }
-        catch (NumberFormatException e){ return DEF_LOCK_TIMEOUT_SEC; }
-    }
+    public int getLockTimeoutSec(){ return safeInt(KEY_LOCK_TIMEOUT_SEC, DEF_LOCK_TIMEOUT_SEC); }
     public void setLockTimeoutSec(int seconds){ props.setProperty(KEY_LOCK_TIMEOUT_SEC, String.valueOf(Math.max(0, seconds))); }
 
     public boolean isLockRequireOnStart(){
@@ -605,19 +605,18 @@ public final class SettingsStore {
     }
 
     public int getHeaderQuoteRotationSeconds(){
-        try {
-            String v = props.getProperty(KEY_HEADER_QUOTE_ROTATE_SEC, null);
-            if (v == null || v.isBlank()) return 12; // default 12s
-            int sec = Integer.parseInt(v.trim());
-            return Math.max(5, Math.min(120, sec));
-        } catch (NumberFormatException e){
-            return 12;
-        }
+        int sec = safeInt(KEY_HEADER_QUOTE_ROTATE_SEC, 12);
+        return Math.max(5, Math.min(120, sec));
     }
 
     public void setHeaderQuoteRotationSeconds(int seconds){
         int sec = Math.max(5, Math.min(120, seconds));
         props.setProperty(KEY_HEADER_QUOTE_ROTATE_SEC, String.valueOf(sec));
+    }
+
+    private int safeInt(String key, int def){
+        try { return Integer.parseInt(props.getProperty(key, String.valueOf(def)).trim()); }
+        catch (NumberFormatException e){ return def; }
     }
 
 }

@@ -2,12 +2,16 @@ package main.ui.features.entries;
 
 import java.awt.*;
 import java.io.*;
+import java.nio.channels.FileLock;
 import javax.swing.*;
 import main.ui.app.JournalApp;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.infrastructure.io.FileIO;
 
 public class EditPoemPanel extends PoemPanel {
     private final File poemFile;
+    private FileLock poemLock;
+    private boolean readOnly = false;
 
     public EditPoemPanel(JournalApp app, File poemFile, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -16,6 +20,12 @@ public class EditPoemPanel extends PoemPanel {
     }
 
     private void loadPoemFile() {
+        if (!acquirePoemLock()) {
+            setReadOnlyMode(true);
+            CustomMessageDialog.display(this, "Read-only", "This poem is open in another Simjot instance. Opened read-only.", true);
+        } else {
+            setReadOnlyMode(false);
+        }
         try (BufferedReader reader = new BufferedReader(new FileReader(poemFile))) {
             String title = reader.readLine();
             if (title == null) title = "";
@@ -36,16 +46,33 @@ public class EditPoemPanel extends PoemPanel {
 
     @Override
     protected void savePoem() {
-        String title = poemTitleField.getText().trim();
-        String content = poemEditor.getText().trim();
-        try (PrintWriter writer = new PrintWriter(new FileWriter(poemFile))) {
-            writer.println(title);
-            writer.println();
-            writer.println(content);
-            // Stay in the current panel - don't navigate away
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving poem.", true).showDialog();
+        if (readOnly) {
+            CustomMessageDialog.display(this, "Read-only", "This poem is locked by another instance and cannot be saved.", true);
+            return;
         }
+        this.currentFile = poemFile;
+        super.savePoem();
+    }
+
+    private boolean acquirePoemLock() {
+        try {
+            poemLock = FileIO.tryLock(poemFile.toPath());
+            return poemLock != null;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private void setReadOnlyMode(boolean ro) {
+        this.readOnly = ro;
+        try { if (poemTitleField != null) poemTitleField.setEditable(!ro); } catch (Throwable ignored) {}
+        try { if (poemEditor != null) poemEditor.setEditable(!ro); } catch (Throwable ignored) {}
+    }
+
+    @Override
+    public void removeNotify() {
+        FileIO.releaseQuietly(poemLock);
+        poemLock = null;
+        super.removeNotify();
     }
 }

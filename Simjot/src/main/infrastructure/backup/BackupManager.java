@@ -63,17 +63,7 @@ public final class BackupManager {
 
         if (verify) {
             // Simple verification: ensure target exists and has at least the same total size for included parts
-            long srcSize = 0L;
-            srcSize += sizeIfExists(new File(srcRoot, "notebooks"));
-            srcSize += sizeIfExists(new File(srcRoot, "entries"));
-            srcSize += sizeIfExists(new File(srcRoot, "poems"));
-            srcSize += sizeIfExists(new File(srcRoot, "drawings"));
-            srcSize += sizeIfExists(new File(srcRoot, "tasks"));
-            srcSize += sizeIfExists(new File(srcRoot, "notebooks.json"));
-            if (includeMood) srcSize += sizeIfExists(new File(srcRoot, "mood"));
-            if (includeSettings) srcSize += sizeIfExists(new File(srcRoot, "settings"));
-            if (includeWallpapers) srcSize += sizeIfExists(new File(srcRoot, "wallpapers"));
-
+            long srcSize = estimateBackupSize(srcRoot, includeMood, includeSettings, includeWallpapers);
             long dstSize = 0L;
             dstSize += sizeIfExists(new File(target, "notebooks"));
             dstSize += sizeIfExists(new File(target, "entries"));
@@ -125,6 +115,23 @@ public final class BackupManager {
         long sum = 0L;
         if (kids != null) for (File k : kids) sum += sizeIfExists(k);
         return sum;
+    }
+
+    public static long estimateBackupSize(File srcRoot,
+                                          boolean includeMood,
+                                          boolean includeSettings,
+                                          boolean includeWallpapers) {
+        long srcSize = 0L;
+        srcSize += sizeIfExists(new File(srcRoot, "notebooks"));
+        srcSize += sizeIfExists(new File(srcRoot, "entries"));
+        srcSize += sizeIfExists(new File(srcRoot, "poems"));
+        srcSize += sizeIfExists(new File(srcRoot, "drawings"));
+        srcSize += sizeIfExists(new File(srcRoot, "tasks"));
+        srcSize += sizeIfExists(new File(srcRoot, "notebooks.json"));
+        if (includeMood) srcSize += sizeIfExists(new File(srcRoot, "mood"));
+        if (includeSettings) srcSize += sizeIfExists(new File(srcRoot, "settings"));
+        if (includeWallpapers) srcSize += sizeIfExists(new File(srcRoot, "wallpapers"));
+        return srcSize;
     }
 
     private static void pruneOldBackups(File backupRoot, int keepCount, int pruneDays) {

@@ -78,6 +78,16 @@ public final class SimDataGateway {
         if (entryFile == null || !entryFile.isFile()) return "";
         try {
             String content = Files.readString(entryFile.toPath(), StandardCharsets.UTF_8);
+            if (content.startsWith("SJMETA:")) {
+                int nl = content.indexOf('\n');
+                if (nl >= 0) {
+                    content = content.substring(nl + 1).stripLeading();
+                }
+            }
+            if (content.startsWith("IMGMAP:")) {
+                int nl = content.indexOf('\n');
+                if (nl >= 0) content = content.substring(nl + 1).stripLeading();
+            }
             if (maxChars > 0 && content.length() > maxChars) {
                 return content.substring(content.length() - maxChars);
             }

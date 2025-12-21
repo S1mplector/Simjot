@@ -59,6 +59,7 @@ import main.ui.features.home.MainMenuPanel;
 import main.ui.features.home.MoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
 import main.ui.features.settings.SettingsPanel;
+import main.infrastructure.io.FileIO;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
@@ -200,6 +201,7 @@ public class JournalApp extends JFrame {
                         AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
                         AppDirectories.folder(AppDirectories.Type.SETTINGS);
                         AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+                        FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
                         return;
                     }
                 }
