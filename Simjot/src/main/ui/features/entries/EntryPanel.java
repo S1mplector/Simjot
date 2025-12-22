@@ -1628,6 +1628,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     @Override
     public void removeNotify() {
+        try { if (autosaveManager != null) autosaveManager.stop(); } catch (Throwable ignored) {}
         releaseEntryLock();
         super.removeNotify();
     }
@@ -1867,12 +1868,6 @@ public class EntryPanel extends AbstractEditorPanel {
         if (questions != null && questions.length > 0) {
             showQuestion(0);
         }
-    }
-
-    @Override
-    public void removeNotify() {
-        try { if (autosaveManager != null) autosaveManager.stop(); } catch (Throwable ignored) {}
-        super.removeNotify();
     }
 
     private void createQuestionBubble() {

@@ -19,7 +19,8 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -614,9 +615,19 @@ public class NotebookEntriesPanel extends JPanel {
         String nm = f.getName();
         String lower = nm.toLowerCase();
         if(lower.endsWith(".note")||lower.endsWith(".poem")||lower.endsWith(".txt")||lower.endsWith(".rtf")){
-            try(BufferedReader br = new BufferedReader(new FileReader(f))){
+            try(BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)){
                 String first = br.readLine();
-                if(first!=null && !first.isBlank()) return first.trim();
+                if (first == null) return "";
+                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
+                if (meta != null) {
+                    if (meta.title != null && !meta.title.isBlank()) return meta.title.trim();
+                    // Skip optional blank separator
+                    String next = br.readLine();
+                    if (next != null && next.isBlank()) next = br.readLine();
+                    if (next != null && !next.isBlank()) return next.trim();
+                    return "";
+                }
+                if(!first.isBlank()) return first.trim();
             }catch(Exception ignore){}
         }
         // fallback: strip extension
