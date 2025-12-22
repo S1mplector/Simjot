@@ -662,16 +662,8 @@ public class EntryPanel extends AbstractEditorPanel {
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Content Area: Rich text editor (StyledDocument) with flicker-free rendering
-        contentArea = new JTextPane() {
-            @Override
-            public void repaint(long tm, int x, int y, int width, int height) {
-                // Coalesce repaint requests to reduce flickering
-                super.repaint(50, x, y, width, height);
-            }
-        };
-        
-        // Enable double buffering for flicker-free rendering
+        // Content Area: Rich text editor (StyledDocument)
+        contentArea = new JTextPane();
         contentArea.setDoubleBuffered(true);
 
         // Load font size directly from settings to ensure persistence

@@ -568,17 +568,10 @@ public final class ImagePasteManager {
             StyleConstants.setIcon(attrs, newIcon);
             attrs.addAttribute("imageSourceFile", source);
             
-            // Disable repainting during document modification to prevent flicker
-            editor.setIgnoreRepaint(true);
             try {
                 doc.remove(startOffset, 1);
                 doc.insertString(startOffset, " ", attrs);
-            } catch (BadLocationException ignored) {
-            } finally {
-                editor.setIgnoreRepaint(false);
-                // Single repaint after both operations complete
-                editor.repaint();
-            }
+            } catch (BadLocationException ignored) {}
             
         } catch (IOException ignored) {}
     }
