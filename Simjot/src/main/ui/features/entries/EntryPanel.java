@@ -35,8 +35,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
@@ -79,8 +79,11 @@ import javax.swing.text.rtf.RTFEditorKit;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
+import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.FileIO;
+import main.infrastructure.io.IoLog;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
@@ -98,9 +101,6 @@ import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
-import main.infrastructure.backup.EntryHistoryManager;
-import main.infrastructure.io.FileIO;
-import main.infrastructure.io.IoLog;
  
 
 public class EntryPanel extends AbstractEditorPanel {
@@ -662,8 +662,17 @@ public class EntryPanel extends AbstractEditorPanel {
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Content Area: Rich text editor (StyledDocument)
-        contentArea = new JTextPane();
+        // Content Area: Rich text editor (StyledDocument) with flicker-free rendering
+        contentArea = new JTextPane() {
+            @Override
+            public void repaint(long tm, int x, int y, int width, int height) {
+                // Coalesce repaint requests to reduce flickering
+                super.repaint(50, x, y, width, height);
+            }
+        };
+        
+        // Enable double buffering for flicker-free rendering
+        contentArea.setDoubleBuffered(true);
 
         // Load font size directly from settings to ensure persistence
         int savedFontSize = SettingsStore.get().getJournalFontSize();
@@ -759,6 +768,11 @@ public class EntryPanel extends AbstractEditorPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        // Enable double buffering on viewport to prevent image flickering
+        scrollPane.getViewport().setDoubleBuffered(true);
+        scrollPane.setDoubleBuffered(true);
+        // Optimize scroll mode to prevent tearing/flickering during repaints
+        scrollPane.getViewport().setScrollMode(javax.swing.JViewport.BACKINGSTORE_SCROLL_MODE);
         // Apply modern, slim scrollbars (match PoemPanel)
         JScrollBar vbar = scrollPane.getVerticalScrollBar();
         vbar.setUI(new ModernScrollBarUI());
