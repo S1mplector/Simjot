@@ -210,11 +210,12 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
             Navigation:
             • Escape - Return to previous screen / Close dialog
             • F11 - Toggle fullscreen
+            • %s+Shift+J - Quick capture (global)
             
             Formatting:
             • %s+1 to %s+6 - Heading levels
             • %s+L - Insert bullet list
-            """, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier);
+            """, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier, modifier);
     }
 
     private String getWhatsNewText() {

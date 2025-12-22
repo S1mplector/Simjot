@@ -1,15 +1,26 @@
 package main.ui.components.editor;
 
-import javax.imageio.ImageIO;
-import javax.swing.*;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultEditorKit;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
-import java.awt.*;
-import java.awt.datatransfer.*;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.KeyboardFocusManager;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.Window;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -19,89 +30,123 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
-import main.ui.components.containers.AeroPanel;
-import main.ui.components.buttons.RoundedButton;
+
+import javax.imageio.ImageIO;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextPane;
+import javax.swing.JWindow;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.TransferHandler;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultEditorKit;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
+
 import main.infrastructure.io.FileIO;
 
 /**
- * ImagePasteManager adds crisp, reusable support for pasting and dropping images into a JTextPane.
- *
+ * ImagePasteManager - Overhauled for simplicity and stability.
+ * 
  * Features:
- * - Ctrl/Cmd+V: if clipboard has an image, it is saved under attachmentsDir and inserted at caret.
- * - Paste image file path or URL (http/https) – downloads and inserts.
- * - Drag & drop image files directly into the editor.
- * - Optional maxWidth scaling to keep images neat in the flow.
- *
- * Persistence:
- * - Images are saved to disk as PNGs under the supplied attachments directory.
- * - The editor receives an ImageIcon inserted as a component; with RTFEditorKit-based saving,
- *   icons are serialized into the RTF. The source image is still kept on disk for reuse/exports.
+ * - Ctrl/Cmd+V: paste images from clipboard
+ * - Drag & drop image files
+ * - URL image pasting
+ * - Clean, minimal adjustment UI on click
+ * - Double-buffered rendering to prevent flickering
  */
 public final class ImagePasteManager {
 
     private ImagePasteManager() {}
+    
+    // Track active overlay to prevent duplicates
+    private static JWindow activeOverlay = null;
 
     public static void install(JTextPane editor, Supplier<File> attachmentsDirSupplier, int maxWidthPx) {
         Objects.requireNonNull(editor, "editor");
         Objects.requireNonNull(attachmentsDirSupplier, "attachmentsDirSupplier");
+
+        // Enable double buffering for flicker-free rendering
+        editor.setDoubleBuffered(true);
 
         // Wrap default paste action to handle images
         Action defaultPaste = editor.getActionMap().get(DefaultEditorKit.pasteAction);
         editor.getActionMap().put("imageAwarePaste", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) {
                 if (!tryPasteFromClipboard(editor, attachmentsDirSupplier, maxWidthPx)) {
-                    // Fallback to default behavior
                     if (defaultPaste != null) defaultPaste.actionPerformed(e);
                 }
             }
         });
-        // Bind Ctrl/Cmd+V to our action
+        
         int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
         editor.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke('V', mask), "imageAwarePaste");
 
-        // Install a transfer handler for drag & drop
+        // Install transfer handler for drag & drop
         editor.setTransferHandler(new ImageFileTransferHandler(editor, attachmentsDirSupplier, maxWidthPx, editor.getTransferHandler()));
 
-        // Click-to-adjust overlay for images inside the editor
-        editor.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mousePressed(java.awt.event.MouseEvent e) {
-                try {
-                    int pos = editor.viewToModel2D(e.getPoint());
-                    if (pos < 0) pos = 0;
-                    StyledDocument doc = editor.getStyledDocument();
-                    int len = doc.getLength();
-                    // Search a small window around the click for an icon element
-                    javax.swing.text.Element found = null;
-                    ImageIcon foundIcon = null;
-                    File srcFile = null;
-                    Rectangle bounds = null;
-                    for (int d = 0; d <= 10 && found == null; d++) {
-                        for (int sign : new int[]{-1, 1, 0}) {
-                            int idx = Math.max(0, Math.min(len, pos + sign * d));
-                            javax.swing.text.Element el = doc.getCharacterElement(idx);
-                            if (el == null) continue;
-                            javax.swing.text.AttributeSet as = el.getAttributes();
-                            Object ico = StyleConstants.getIcon(as);
-                            if (ico instanceof ImageIcon) {
-                                try {
-                                    java.awt.geom.Rectangle2D r2 = editor.modelToView2D(el.getStartOffset());
-                                    bounds = (r2 != null) ? r2.getBounds() : null;
-                                } catch (Throwable ignored2) {}
-                                found = el;
-                                foundIcon = (ImageIcon) ico;
-                                Object src = as.getAttribute("imageSourceFile");
-                                if (src instanceof File) srcFile = (File) src;
-                                break;
-                            }
-                        }
-                    }
-                    if (found != null) {
-                        if (bounds == null) bounds = new Rectangle(e.getX(), e.getY(), foundIcon.getIconWidth(), foundIcon.getIconHeight());
-                        showResizeOverlay(editor, found.getStartOffset(), srcFile, foundIcon, bounds, attachmentsDirSupplier, maxWidthPx);
-                    }
-                } catch (Throwable ignored) {}
+        // Click handler for image adjustment
+        editor.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) {
+                    handleImageClick(editor, e, attachmentsDirSupplier, maxWidthPx);
+                }
             }
         });
+    }
+    
+    private static void handleImageClick(JTextPane editor, MouseEvent e, 
+                                         Supplier<File> attachmentsDirSupplier, int maxWidthPx) {
+        try {
+            int pos = editor.viewToModel2D(e.getPoint());
+            if (pos < 0) pos = 0;
+            StyledDocument doc = editor.getStyledDocument();
+            int len = doc.getLength();
+            
+            // Search for icon element near click
+            for (int d = 0; d <= 5; d++) {
+                for (int sign : new int[]{0, -1, 1}) {
+                    int idx = Math.max(0, Math.min(len, pos + sign * d));
+                    javax.swing.text.Element el = doc.getCharacterElement(idx);
+                    if (el == null) continue;
+                    
+                    javax.swing.text.AttributeSet as = el.getAttributes();
+                    Object ico = StyleConstants.getIcon(as);
+                    if (ico instanceof ImageIcon icon) {
+                        Rectangle bounds = null;
+                        try {
+                            java.awt.geom.Rectangle2D r2 = editor.modelToView2D(el.getStartOffset());
+                            if (r2 != null) {
+                                bounds = r2.getBounds();
+                                bounds.width = icon.getIconWidth();
+                                bounds.height = icon.getIconHeight();
+                            }
+                        } catch (Throwable ignored) {}
+                        
+                        if (bounds == null) {
+                            bounds = new Rectangle(e.getX(), e.getY(), icon.getIconWidth(), icon.getIconHeight());
+                        }
+                        
+                        File srcFile = null;
+                        Object src = as.getAttribute("imageSourceFile");
+                        if (src instanceof File) srcFile = (File) src;
+                        
+                        showMinimalToolbar(editor, el.getStartOffset(), srcFile, icon, bounds, 
+                                          attachmentsDirSupplier, maxWidthPx);
+                        return;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
     }
 
     private static boolean tryPasteFromClipboard(JTextPane editor, Supplier<File> dirSupplier, int maxWidthPx) {
@@ -273,406 +318,281 @@ public final class ImagePasteManager {
         }
     }
 
-    // ---- Overlay UI for resizing ----
-    private static void showResizeOverlay(JTextPane editor,
-                                          int startOffset,
-                                          File sourceFile,
-                                          ImageIcon currentIcon,
-                                          Rectangle imageBounds,
-                                          Supplier<File> attachmentsDirSupplier,
-                                          int defaultMaxWidth) {
+    // ---- Minimal Floating Toolbar for Image Adjustment ----
+    private static void showMinimalToolbar(JTextPane editor,
+                                           int startOffset,
+                                           File sourceFile,
+                                           ImageIcon currentIcon,
+                                           Rectangle imageBounds,
+                                           Supplier<File> attachmentsDirSupplier,
+                                           int defaultMaxWidth) {
+        // Dismiss any existing overlay
+        dismissActiveOverlay();
+        
         int currentW = currentIcon.getIconWidth();
-        int minW = 120;
+        int minW = 80;
         int maxW = Math.max(defaultMaxWidth * 2, Math.max(currentW, editor.getWidth()));
-
-        JSlider slider = new JSlider(JSlider.HORIZONTAL, minW, maxW, currentW);
-        slider.setMajorTickSpacing(Math.max(100, (maxW - minW) / 4));
-        slider.setPaintTicks(true);
-        JLabel widthLbl = new JLabel(currentW + " px");
-
-        JButton fitBtn = new RoundedButton("Fit");
-        JButton minusBtn = new RoundedButton("-100");
-        JButton plusBtn = new RoundedButton("+100");
-        JButton rotateLBtn = new RoundedButton("⟲");
-        JButton rotateRBtn = new RoundedButton("⟳");
-        JButton alignLeftBtn = new RoundedButton("L");
-        JButton alignCenterBtn = new RoundedButton("C");
-        JButton alignRightBtn = new RoundedButton("R");
-        JButton captionBtn = new RoundedButton("Caption");
-        JButton replaceBtn = new RoundedButton("Replace…");
-        JButton openBtn = new RoundedButton("Open");
-        JButton copyBtn = new RoundedButton("Copy");
-        JButton removeBtn = new RoundedButton("Remove");
-
-        // Compact margins
-        for (JButton b : new JButton[]{fitBtn, minusBtn, plusBtn, rotateLBtn, rotateRBtn, alignLeftBtn, alignCenterBtn, alignRightBtn, captionBtn, replaceBtn, openBtn, copyBtn, removeBtn}) {
-            b.setMargin(new Insets(2,6,2,6));
-        }
-
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(4,4,2,4);
-        gc.gridy = 0; gc.gridx = 0; gc.anchor = GridBagConstraints.WEST;
-        panel.add(new JLabel("Width:"), gc);
-        gc.gridx = 1; gc.weightx = 1; gc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(slider, gc);
-        gc.gridx = 2; gc.weightx = 0; gc.fill = GridBagConstraints.NONE;
-        panel.add(widthLbl, gc);
-        gc.gridx = 3; panel.add(minusBtn, gc);
-        gc.gridx = 4; panel.add(plusBtn, gc);
-        gc.gridx = 5; panel.add(fitBtn, gc);
-
-        // Row 2: actions
-        gc.insets = new Insets(2,4,4,4);
-        gc.gridy = 1; gc.gridx = 0; gc.gridwidth = 1;
-        panel.add(rotateLBtn, gc);
-        gc.gridx = 1; panel.add(rotateRBtn, gc);
-        gc.gridx = 2; panel.add(alignLeftBtn, gc);
-        gc.gridx = 3; panel.add(alignCenterBtn, gc);
-        gc.gridx = 4; panel.add(alignRightBtn, gc);
-        gc.gridx = 5; panel.add(captionBtn, gc);
-        gc.gridx = 6; panel.add(replaceBtn, gc);
-        gc.gridx = 7; panel.add(copyBtn, gc);
-        gc.gridx = 8; panel.add(openBtn, gc);
-        gc.gridx = 9; panel.add(removeBtn, gc);
-
-        JPopupMenu popup = new JPopupMenu();
-        popup.setBorder(BorderFactory.createEmptyBorder());
-        AeroPanel aero = new AeroPanel(14);
-        aero.setLayout(new BorderLayout());
-        aero.setBorder(BorderFactory.createEmptyBorder(6,8,6,8));
-        aero.add(panel, BorderLayout.CENTER);
-        popup.add(aero);
-
-        // Mutable holder for the source file so lambdas can update it
+        
+        // Mutable holder for the source file
         final File[] srcRef = new File[]{ sourceFile };
-
-        Runnable applyResize = () -> {
-            int tw = Math.max(minW, Math.min(maxW, slider.getValue()));
-            resizeImageAt(editor, startOffset, srcRef, currentIcon, tw, attachmentsDirSupplier);
-            try {
-                int fitW = Math.max(minW, editor.getVisibleRect().width - 64);
-                int pct = Math.max(1, Math.round((tw * 100f) / Math.max(1, fitW)));
-                widthLbl.setText(tw + " px  " + pct + "% of editor");
-            } catch (Throwable ignored3) { widthLbl.setText(tw + " px"); }
-        };
-
-        minusBtn.addActionListener(e -> { slider.setValue(Math.max(minW, slider.getValue() - 100)); applyResize.run(); });
-        plusBtn.addActionListener(e -> { slider.setValue(Math.min(maxW, slider.getValue() + 100)); applyResize.run(); });
-        fitBtn.addActionListener(e -> { int fitW = fitWidth(editor, minW); slider.setValue(fitW); applyResize.run(); });
-        slider.addChangeListener(e -> applyResize.run());
-        removeBtn.addActionListener(e -> {
-            try {
-                StyledDocument doc = editor.getStyledDocument();
-                doc.remove(startOffset, 1);
-                popup.setVisible(false);
-            } catch (BadLocationException ignored) {}
-        });
-
-        // Rotate (rewrites the source image and updates the icon keeping current width)
-        rotateLBtn.addActionListener(e -> rotateImageAt(editor, startOffset, srcRef, currentIcon, -90, attachmentsDirSupplier));
-        rotateRBtn.addActionListener(e -> rotateImageAt(editor, startOffset, srcRef, currentIcon, 90, attachmentsDirSupplier));
-
-        // Alignment for the paragraph hosting the icon
-        alignLeftBtn.addActionListener(e -> alignParagraphAt(editor, startOffset, StyleConstants.ALIGN_LEFT));
-        alignCenterBtn.addActionListener(e -> alignParagraphAt(editor, startOffset, StyleConstants.ALIGN_CENTER));
-        alignRightBtn.addActionListener(e -> alignParagraphAt(editor, startOffset, StyleConstants.ALIGN_RIGHT));
-
-        // Add caption line under the image (italic)
-        captionBtn.addActionListener(e -> addCaptionUnder(editor, startOffset));
-
-        // Replace with another image; maintain current slider width
-        replaceBtn.addActionListener(e -> replaceImageFromChooser(editor, startOffset, srcRef, slider.getValue(), attachmentsDirSupplier));
-
-        // Utilities: open file and copy to clipboard
-        openBtn.addActionListener(e -> { if (srcRef[0] != null) try { java.awt.Desktop.getDesktop().open(srcRef[0]); } catch (Throwable ignored) {} });
-        copyBtn.addActionListener(e -> copyImageToClipboard(currentIcon.getImage()));
-
-        int px = (imageBounds != null) ? imageBounds.x : 10;
-        int py = (imageBounds != null) ? imageBounds.y + imageBounds.height : 10;
-        // Clamp popup location within the editor visible viewport
-        Dimension pref = popup.getPreferredSize();
-        Rectangle vr = editor.getVisibleRect();
-        int xClamped = Math.max(vr.x + 6, Math.min(px, vr.x + vr.width - pref.width - 6));
-        int yBelow = py;
-        int yAbove = (imageBounds != null) ? imageBounds.y - pref.height - 8 : py - pref.height - 8;
-        int yClamped = (yBelow + pref.height <= vr.y + vr.height - 4) ? yBelow : Math.max(vr.y + 4, yAbove);
-        popup.show(editor, xClamped, yClamped);
-
-        // Add a robust overlay that follows the image and supports drag resize
-        addResizeHandle(editor, startOffset, imageBounds, (newW) -> resizeImageAt(editor, startOffset, srcRef, currentIcon, Math.max(minW, Math.min(maxW, newW)), attachmentsDirSupplier));
-    }
-
-    private static int fitWidth(JTextPane editor, int minW) {
-        int inset = 64;
-        return Math.max(minW, editor.getVisibleRect().width - inset);
-    }
-
-    private static Rectangle resizeImageAt(JTextPane editor,
-                                      int startOffset,
-                                      File[] srcRef,
-                                      ImageIcon currentIcon,
-                                      int targetW,
-                                      Supplier<File> attachmentsDirSupplier) {
-        try {
-            File ensuredSource = srcRef[0];
-            if (ensuredSource == null) {
-                File dir = attachmentsDirSupplier != null ? attachmentsDirSupplier.get() : null;
-                if (dir != null && !dir.exists()) dir.mkdirs();
-                ensuredSource = new File(dir != null ? dir : new File("."), timestampName()+".png");
-                Image img = currentIcon.getImage();
-                BufferedImage buf = toBufferedImage(img);
-                try { ImageIO.write(buf, "PNG", ensuredSource); } catch (IOException ignored) {}
-                srcRef[0] = ensuredSource;
-            }
-            BufferedImage orig = ImageIO.read(ensuredSource);
-            if (orig == null) return null;
-            BufferedImage scaled = scaleToMaxWidth(orig, targetW);
-            ImageIcon icon = new ImageIcon(scaled);
-            StyledDocument doc = editor.getStyledDocument();
-            javax.swing.text.Element el = doc.getCharacterElement(startOffset);
-            if (el == null) return null;
-            SimpleAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setIcon(attrs, icon);
-            if (srcRef[0] != null) attrs.addAttribute("imageSourceFile", srcRef[0]);
-            try {
-                doc.remove(startOffset, 1);
-                doc.insertString(startOffset, " ", attrs);
-            } catch (BadLocationException ignored) {}
-            editor.revalidate(); editor.repaint();
-            try {
-                java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
-                if (r2 != null) {
-                    Rectangle r = r2.getBounds();
-                    r.width = icon.getIconWidth();
-                    r.height = icon.getIconHeight();
-                    return r;
-                }
-            } catch (Throwable ignored) {}
-        } catch (IOException ignored) {}
-        return null;
-    }
-
-    private static void rotateImageAt(JTextPane editor,
-                                      int startOffset,
-                                      File[] srcRef,
-                                      ImageIcon currentIcon,
-                                      int degrees,
-                                      Supplier<File> attachmentsDirSupplier) {
-        try {
-            if (srcRef[0] == null) return;
-            BufferedImage orig = ImageIO.read(srcRef[0]);
-            if (orig == null) return;
-            BufferedImage rotated = rotate(orig, degrees);
-            if (rotated == null) return;
-            int targetW = currentIcon.getIconWidth();
-            BufferedImage scaled = scaleToMaxWidth(rotated, targetW);
-            try { ImageIO.write(scaled, "PNG", srcRef[0]); } catch (IOException ignored) {}
-            // Replace icon in document with the rotated one
-            ImageIcon newIcon = new ImageIcon(scaled);
-            StyledDocument doc = editor.getStyledDocument();
-            SimpleAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setIcon(attrs, newIcon);
-            attrs.addAttribute("imageSourceFile", srcRef[0]);
-            try {
-                doc.remove(startOffset, 1);
-                doc.insertString(startOffset, " ", attrs);
-            } catch (BadLocationException ignored) {}
-            editor.revalidate(); editor.repaint();
-        } catch (IOException ignored) {}
-    }
-
-    private static BufferedImage rotate(BufferedImage src, int degrees) {
-        int d = ((degrees % 360) + 360) % 360;
-        if (d == 0) return src;
-        int w = src.getWidth();
-        int h = src.getHeight();
-        BufferedImage dst = (d == 90 || d == 270)
-                ? new BufferedImage(h, w, BufferedImage.TYPE_INT_ARGB)
-                : new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = dst.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
-        switch (d) {
-            case 90 -> { at.translate(h, 0); at.rotate(Math.toRadians(90)); }
-            case 180 -> { at.translate(w, h); at.rotate(Math.toRadians(180)); }
-            case 270 -> { at.translate(0, w); at.rotate(Math.toRadians(270)); }
-        }
-        g2.drawImage(src, at, null);
-        g2.dispose();
-        return dst;
-    }
-
-    private static void alignParagraphAt(JTextPane editor, int startOffset, int alignment) {
-        try {
-            StyledDocument doc = editor.getStyledDocument();
-            javax.swing.text.Element para = doc.getParagraphElement(startOffset);
-            if (para != null) {
-                SimpleAttributeSet attrs = new SimpleAttributeSet();
-                StyleConstants.setAlignment(attrs, alignment);
-                doc.setParagraphAttributes(para.getStartOffset(), para.getEndOffset() - para.getStartOffset(), attrs, false);
-            }
-        } catch (Throwable ignored) {}
-    }
-
-    private static void addCaptionUnder(JTextPane editor, int startOffset) {
-        try {
-            StyledDocument doc = editor.getStyledDocument();
-            // Insert right after the icon + newline that follows it
-            int pos = Math.min(doc.getLength(), startOffset + 2);
-            SimpleAttributeSet italic = new SimpleAttributeSet();
-            StyleConstants.setItalic(italic, true);
-            StyleConstants.setForeground(italic, new java.awt.Color(90, 90, 90));
-            doc.insertString(pos, "Caption...\n", italic);
-            editor.requestFocusInWindow();
-            editor.setCaretPosition(Math.min(doc.getLength(), pos + 8));
-        } catch (BadLocationException ignored) {}
-    }
-
-    private static void replaceImageFromChooser(JTextPane editor,
-                                                int startOffset,
-                                                File[] srcRef,
-                                                int targetW,
-                                                Supplier<File> attachmentsDirSupplier) {
-        try {
-            javax.swing.JFileChooser ch = new javax.swing.JFileChooser();
-            int res = ch.showOpenDialog(editor);
-            if (res == javax.swing.JFileChooser.APPROVE_OPTION) {
-                File sel = ch.getSelectedFile();
-                BufferedImage bi = ImageIO.read(sel);
-                if (bi != null) {
-                    if (srcRef[0] == null) {
-                        File dir = attachmentsDirSupplier != null ? attachmentsDirSupplier.get() : null;
-                        if (dir != null && !dir.exists()) dir.mkdirs();
-                        srcRef[0] = new File(dir != null ? dir : new File("."), timestampName()+".png");
-                    }
-                    BufferedImage scaled = scaleToMaxWidth(bi, targetW);
-                    try { ImageIO.write(scaled, "PNG", srcRef[0]); } catch (IOException ignored) {}
-                    ImageIcon icon = new ImageIcon(scaled);
-                    StyledDocument doc = editor.getStyledDocument();
-                    SimpleAttributeSet attrs = new SimpleAttributeSet();
-                    StyleConstants.setIcon(attrs, icon);
-                    attrs.addAttribute("imageSourceFile", srcRef[0]);
-                    try { doc.remove(startOffset, 1); doc.insertString(startOffset, " ", attrs); } catch (BadLocationException ignored) {}
-                    editor.revalidate(); editor.repaint();
-                }
-            }
-        } catch (IOException ignored) {}
-    }
-
-    private static void copyImageToClipboard(Image img) {
-        try {
-            if (img == null) return;
-            java.awt.image.BufferedImage bi = toBufferedImage(img);
-            java.awt.datatransfer.Transferable t = new java.awt.datatransfer.Transferable() {
-                @Override public java.awt.datatransfer.DataFlavor[] getTransferDataFlavors() { return new java.awt.datatransfer.DataFlavor[]{ java.awt.datatransfer.DataFlavor.imageFlavor }; }
-                @Override public boolean isDataFlavorSupported(java.awt.datatransfer.DataFlavor flavor) { return java.awt.datatransfer.DataFlavor.imageFlavor.equals(flavor); }
-                @Override public Object getTransferData(java.awt.datatransfer.DataFlavor flavor) { return bi; }
-            };
-            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(t, null);
-        } catch (Throwable ignored) {}
-    }
-
-    private static void addResizeHandle(JTextPane editor, int startOffset, Rectangle imageBounds, java.util.function.IntFunction<Rectangle> onResize) {
-        if (imageBounds == null) return;
-        JRootPane root = SwingUtilities.getRootPane(editor);
-        if (root == null) return;
-        JLayeredPane lp = root.getLayeredPane();
-
-        final int HANDLE = 12;
-        final int BORDER = 2;
-
-        JComponent overlay = new JComponent(){
-            @Override protected void paintComponent(Graphics g){
-                Graphics2D g2=(Graphics2D)g.create();
+        final int[] currentWidth = new int[]{ currentW };
+        
+        // Create a sleek floating toolbar
+        JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
+        toolbar.setAlwaysOnTop(true);
+        activeOverlay = toolbar;
+        
+        JPanel content = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w=getWidth(), h=getHeight();
-                // Border
-                g2.setColor(new Color(0,120,215,160));
-                g2.setStroke(new BasicStroke(BORDER));
-                g2.drawRect(0,0,w-1,h-1);
-                // Corner handle (bottom-right)
-                g2.setColor(new Color(255,255,255,230));
-                g2.fillRoundRect(w-HANDLE, h-HANDLE, HANDLE-2, HANDLE-2, 6, 6);
-                g2.setColor(new Color(0,0,0,160));
-                g2.drawRoundRect(w-HANDLE, h-HANDLE, HANDLE-2, HANDLE-2, 6, 6);
-                // Right edge indicator
-                g2.setColor(new Color(0,120,215,120));
-                g2.fillRect(w-3, 2, 2, h-4);
+                // Rounded rectangle background with shadow effect
+                g2.setColor(new Color(0, 0, 0, 30));
+                g2.fillRoundRect(2, 2, getWidth() - 2, getHeight() - 2, 12, 12);
+                g2.setColor(new Color(250, 250, 250, 245));
+                g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 2, 12, 12);
+                g2.setColor(new Color(200, 200, 200));
+                g2.drawRoundRect(0, 0, getWidth() - 3, getHeight() - 3, 12, 12);
                 g2.dispose();
             }
         };
-        overlay.setCursor(Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR));
-
-        // Initial bounds
-        Point tl = new Point(imageBounds.x, imageBounds.y);
-        SwingUtilities.convertPointToScreen(tl, editor);
-        SwingUtilities.convertPointFromScreen(tl, lp);
-        overlay.setBounds(tl.x, tl.y, imageBounds.width, imageBounds.height);
-        lp.add(overlay, JLayeredPane.POPUP_LAYER);
-        lp.repaint();
-
-        final int[] startX = new int[1];
-        final int[] startWidth = new int[1];
-        final boolean[] dragging = new boolean[1];
-
-        java.awt.event.MouseAdapter ma = new java.awt.event.MouseAdapter(){
-            @Override public void mousePressed(java.awt.event.MouseEvent e){
-                int w = overlay.getWidth(), h = overlay.getHeight();
-                int x=e.getX(), y=e.getY();
-                boolean inCorner = (x >= w-HANDLE && y >= h-HANDLE);
-                boolean onRightEdge = (x >= w-8);
-                if (inCorner || onRightEdge) {
-                    dragging[0]=true;
-                    startX[0]=e.getXOnScreen();
-                    startWidth[0]=w;
+        content.setOpaque(false);
+        content.setLayout(new FlowLayout(FlowLayout.CENTER, 4, 6));
+        content.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
+        
+        // Size label
+        JLabel sizeLabel = new JLabel(currentW + "px");
+        sizeLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        sizeLabel.setForeground(new Color(80, 80, 80));
+        
+        // Create icon buttons using simple Unicode symbols
+        JButton smallerBtn = createToolbarButton("−", "Make smaller");
+        JButton largerBtn = createToolbarButton("+", "Make larger");
+        JButton fitBtn = createToolbarButton("⤢", "Fit to width");
+        JButton copyBtn = createToolbarButton("⎘", "Copy image");
+        JButton deleteBtn = createToolbarButton("✕", "Remove image");
+        
+        // Size adjustment actions
+        smallerBtn.addActionListener(e -> {
+            int newW = Math.max(minW, currentWidth[0] - 100);
+            currentWidth[0] = newW;
+            resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
+            sizeLabel.setText(newW + "px");
+            repositionToolbar(toolbar, editor, startOffset);
+        });
+        
+        largerBtn.addActionListener(e -> {
+            int newW = Math.min(maxW, currentWidth[0] + 100);
+            currentWidth[0] = newW;
+            resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
+            sizeLabel.setText(newW + "px");
+            repositionToolbar(toolbar, editor, startOffset);
+        });
+        
+        fitBtn.addActionListener(e -> {
+            int fitW = Math.max(minW, editor.getVisibleRect().width - 48);
+            currentWidth[0] = fitW;
+            resizeImage(editor, startOffset, srcRef, fitW, attachmentsDirSupplier);
+            sizeLabel.setText(fitW + "px");
+            repositionToolbar(toolbar, editor, startOffset);
+        });
+        
+        copyBtn.addActionListener(e -> {
+            copyToClipboard(currentIcon.getImage());
+        });
+        
+        deleteBtn.addActionListener(e -> {
+            try {
+                StyledDocument doc = editor.getStyledDocument();
+                doc.remove(startOffset, 1);
+            } catch (BadLocationException ignored) {}
+            dismissActiveOverlay();
+        });
+        
+        // Add components
+        content.add(smallerBtn);
+        content.add(sizeLabel);
+        content.add(largerBtn);
+        content.add(createSeparator());
+        content.add(fitBtn);
+        content.add(copyBtn);
+        content.add(deleteBtn);
+        
+        toolbar.setContentPane(content);
+        toolbar.pack();
+        
+        // Position below the image
+        positionToolbar(toolbar, editor, imageBounds);
+        toolbar.setVisible(true);
+        
+        // Auto-dismiss when clicking elsewhere
+        editor.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) {
+                // Check if click is outside toolbar area
+                Point screenPoint = e.getLocationOnScreen();
+                Rectangle toolbarBounds = toolbar.getBounds();
+                if (!toolbarBounds.contains(screenPoint)) {
+                    dismissActiveOverlay();
+                    editor.removeMouseListener(this);
                 }
             }
-            @Override public void mouseReleased(java.awt.event.MouseEvent e){
-                dragging[0]=false;
-                lp.remove(overlay);
-                lp.repaint();
+        });
+        
+        // Dismiss on focus loss
+        editor.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusLost(java.awt.event.FocusEvent e) {
+                // Delay to allow toolbar button clicks
+                Timer timer = new Timer(200, ev -> {
+                    Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+                    if (focused != toolbar) {
+                        dismissActiveOverlay();
+                    }
+                });
+                timer.setRepeats(false);
+                timer.start();
+                editor.removeFocusListener(this);
             }
-            @Override public void mouseDragged(java.awt.event.MouseEvent e){
-                if(!dragging[0]) return;
-                int dx = e.getXOnScreen() - startX[0];
-                int newW = Math.max(60, startWidth[0] + dx);
-                Rectangle updated = onResize.apply(newW);
-                if (updated != null) {
-                    Point tl2 = new Point(updated.x, updated.y);
-                    SwingUtilities.convertPointToScreen(tl2, editor);
-                    SwingUtilities.convertPointFromScreen(tl2, lp);
-                    overlay.setBounds(tl2.x, tl2.y, updated.width, updated.height);
+        });
+    }
+    
+    private static JButton createToolbarButton(String text, String tooltip) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (getModel().isPressed()) {
+                    g2.setColor(new Color(220, 220, 220));
+                } else if (getModel().isRollover()) {
+                    g2.setColor(new Color(235, 235, 235));
                 } else {
-                    overlay.setSize(newW, overlay.getHeight());
+                    g2.setColor(new Color(245, 245, 245));
                 }
-                lp.repaint();
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.dispose();
+                super.paintComponent(g);
             }
         };
-        overlay.addMouseListener(ma);
-        overlay.addMouseMotionListener(ma);
-
-        // Keep overlay following the image as the view scrolls/resizes
-        javax.swing.Timer follow = new javax.swing.Timer(120, ev -> {
-            try {
-                java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
-                if (r2 != null) {
-                    Rectangle r = r2.getBounds();
-                    Point tl3 = new Point(r.x, r.y);
-                    SwingUtilities.convertPointToScreen(tl3, editor);
-                    SwingUtilities.convertPointFromScreen(tl3, lp);
-                    overlay.setBounds(tl3.x, tl3.y, r.width, r.height);
-                    overlay.revalidate(); overlay.repaint();
-                }
-            } catch (Throwable ignored) {}
-        });
-        follow.setRepeats(true); follow.start();
-
-        overlay.addHierarchyListener(e -> {
-            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.DISPLAYABILITY_CHANGED) != 0 && !overlay.isDisplayable()) {
-                follow.stop();
+        btn.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        btn.setForeground(new Color(60, 60, 60));
+        btn.setPreferredSize(new Dimension(28, 24));
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setFocusPainted(false);
+        btn.setToolTipText(tooltip);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+    
+    private static JComponent createSeparator() {
+        JPanel sep = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                g.setColor(new Color(200, 200, 200));
+                g.fillRect(getWidth() / 2, 2, 1, getHeight() - 4);
             }
-        });
+        };
+        sep.setOpaque(false);
+        sep.setPreferredSize(new Dimension(8, 20));
+        return sep;
+    }
+    
+    private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds) {
+        try {
+            Point editorLoc = editor.getLocationOnScreen();
+            int x = editorLoc.x + imageBounds.x + (imageBounds.width - toolbar.getWidth()) / 2;
+            int y = editorLoc.y + imageBounds.y + imageBounds.height + 4;
+            
+            // Keep within screen bounds
+            Rectangle screenBounds = editor.getGraphicsConfiguration().getBounds();
+            x = Math.max(screenBounds.x, Math.min(x, screenBounds.x + screenBounds.width - toolbar.getWidth()));
+            y = Math.max(screenBounds.y, Math.min(y, screenBounds.y + screenBounds.height - toolbar.getHeight()));
+            
+            toolbar.setLocation(x, y);
+        } catch (Throwable ignored) {}
+    }
+    
+    private static void repositionToolbar(JWindow toolbar, JTextPane editor, int startOffset) {
+        try {
+            java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
+            if (r2 != null) {
+                Rectangle bounds = r2.getBounds();
+                // Get current icon dimensions
+                StyledDocument doc = editor.getStyledDocument();
+                javax.swing.text.Element el = doc.getCharacterElement(startOffset);
+                if (el != null) {
+                    Object ico = StyleConstants.getIcon(el.getAttributes());
+                    if (ico instanceof ImageIcon icon) {
+                        bounds.width = icon.getIconWidth();
+                        bounds.height = icon.getIconHeight();
+                    }
+                }
+                positionToolbar(toolbar, editor, bounds);
+            }
+        } catch (Throwable ignored) {}
+    }
+    
+    private static void dismissActiveOverlay() {
+        if (activeOverlay != null) {
+            activeOverlay.dispose();
+            activeOverlay = null;
+        }
+    }
+    
+    private static void resizeImage(JTextPane editor, int startOffset, File[] srcRef, 
+                                    int targetW, Supplier<File> attachmentsDirSupplier) {
+        try {
+            File source = srcRef[0];
+            if (source == null) {
+                // Create source file from current icon
+                StyledDocument doc = editor.getStyledDocument();
+                javax.swing.text.Element el = doc.getCharacterElement(startOffset);
+                if (el == null) return;
+                Object ico = StyleConstants.getIcon(el.getAttributes());
+                if (!(ico instanceof ImageIcon icon)) return;
+                
+                File dir = attachmentsDirSupplier != null ? attachmentsDirSupplier.get() : null;
+                if (dir != null && !dir.exists()) dir.mkdirs();
+                source = new File(dir != null ? dir : new File("."), timestampName() + ".png");
+                BufferedImage buf = toBufferedImage(icon.getImage());
+                try { ImageIO.write(buf, "PNG", source); } catch (IOException ignored) {}
+                srcRef[0] = source;
+            }
+            
+            BufferedImage orig = ImageIO.read(source);
+            if (orig == null) return;
+            
+            BufferedImage scaled = scaleToMaxWidth(orig, targetW);
+            ImageIcon newIcon = new ImageIcon(scaled);
+            
+            StyledDocument doc = editor.getStyledDocument();
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setIcon(attrs, newIcon);
+            attrs.addAttribute("imageSourceFile", source);
+            
+            // Use batch update to prevent flickering
+            try {
+                doc.remove(startOffset, 1);
+                doc.insertString(startOffset, " ", attrs);
+            } catch (BadLocationException ignored) {}
+            
+        } catch (IOException ignored) {}
+    }
+    
+    private static void copyToClipboard(Image img) {
+        if (img == null) return;
+        BufferedImage bi = toBufferedImage(img);
+        Transferable t = new Transferable() {
+            @Override public DataFlavor[] getTransferDataFlavors() { 
+                return new DataFlavor[]{ DataFlavor.imageFlavor }; 
+            }
+            @Override public boolean isDataFlavorSupported(DataFlavor flavor) { 
+                return DataFlavor.imageFlavor.equals(flavor); 
+            }
+            @Override public Object getTransferData(DataFlavor flavor) { 
+                return bi; 
+            }
+        };
+        try {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(t, null);
+        } catch (Throwable ignored) {}
     }
 }

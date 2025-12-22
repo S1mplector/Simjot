@@ -37,6 +37,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileLock;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -134,6 +135,11 @@ public class EntryPanel extends AbstractEditorPanel {
     private boolean distractionFree = false;
     private boolean readOnlyMode = false;
     private FileLock entryLock;
+    private JPanel recoveryBanner;
+    private JLabel recoveryLabel;
+    private JButton recoveryButton;
+    private JButton recoveryDismissButton;
+    private File recoveryCandidate;
     private JPanel dfHeader;
     // Guided question mode
     private String[] guidedQuestions;
@@ -229,86 +235,92 @@ public class EntryPanel extends AbstractEditorPanel {
         if (!verifyIntegrityAndOfferRestore(fileToEdit)) {
             return;
         }
+        hideRecoveryBanner();
         try (BufferedReader reader = new BufferedReader(new FileReader(fileToEdit))) {
             String firstLine = reader.readLine();
-            EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
-            String title = "";
-            String firstContentLine;
-            if (meta != null) {
-                title = meta.title == null ? "" : meta.title;
-                // Skip optional blank separator
-                firstContentLine = reader.readLine();
-                if (firstContentLine != null && firstContentLine.isBlank()) {
-                    firstContentLine = reader.readLine();
-                }
-                if (meta.mood >= 0 && moodSlider != null) {
-                    try { moodSlider.setValue(meta.mood); } catch (Throwable ignored) {}
-                }
-            } else {
-                title = (firstLine == null ? "" : firstLine);
-                // Expect a blank separator line
-                reader.readLine();
-                firstContentLine = reader.readLine();
-            }
-
-            titleField.setText(title);
-
-            // Check for guided mode metadata
-            if (firstContentLine != null && firstContentLine.startsWith("[GUIDED_MODE:")) {
-                // Parse guided mode metadata: [GUIDED_MODE:template_name]
-                int endIdx = firstContentLine.indexOf(']');
-                if (endIdx > 0) {
-                    String templateName = firstContentLine.substring(13, endIdx).trim();
-                    // Find matching template and restore guided mode
-                    restoreGuidedMode(templateName, reader);
-                    return;
-                }
-            }
-            
-            // Regular mode: Read the remainder into a string
-            StringBuilder rest = new StringBuilder();
-            if (firstContentLine != null) {
-                rest.append(firstContentLine).append("\n");
-            }
-            String line;
-            while ((line = reader.readLine()) != null) {
-                rest.append(line).append("\n");
-            }
-            String remainder = rest.toString();
-            // Extract optional image manifest header before RTF
-            String manifest = null;
-            String r = remainder;
-            int nl = r.indexOf('\n');
-            if (nl >= 0) {
-                String head = r.substring(0, nl).trim();
-                if (head.startsWith("IMGMAP:")) {
-                    manifest = head.length() > 7 ? head.substring(7).trim() : "";
-                    // Advance past header and an optional extra blank line
-                    r = r.substring(nl + 1);
-                    r = r.stripLeading();
-                }
-            }
-            if (r.stripLeading().startsWith("{\\rtf")) {
-                RTFEditorKit kit = new RTFEditorKit();
-                StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
-                try (ByteArrayInputStream bin = new ByteArrayInputStream(r.getBytes())) {
-                    kit.read(bin, doc, 0);
-                }
-                contentArea.setDocument(doc);
-                ensureSimStyles();
-                // Reinsert icons from manifest using saved offsets and filenames
-                if (manifest != null && !manifest.isBlank()) {
-                    try { applyImageManifest(doc, manifest); } catch (Throwable ignored) {}
-                }
-            } else {
-                contentArea.setText(r);
-            }
-            // After loading content (text or RTF), refresh the word count
-            try { updateWordCount(); } catch (Throwable ignored) {}
+            applyEntryContent(reader, firstLine);
         } catch (Exception ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
         }
+        checkRecoveryCandidates(fileToEdit);
+    }
+
+    private void applyEntryContent(BufferedReader reader, String firstLine) throws Exception {
+        EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
+        String title = "";
+        String firstContentLine;
+        if (meta != null) {
+            title = meta.title == null ? "" : meta.title;
+            // Skip optional blank separator
+            firstContentLine = reader.readLine();
+            if (firstContentLine != null && firstContentLine.isBlank()) {
+                firstContentLine = reader.readLine();
+            }
+            if (meta.mood >= 0 && moodSlider != null) {
+                try { moodSlider.setValue(meta.mood); } catch (Throwable ignored) {}
+            }
+        } else {
+            title = (firstLine == null ? "" : firstLine);
+            // Expect a blank separator line
+            reader.readLine();
+            firstContentLine = reader.readLine();
+        }
+
+        titleField.setText(title);
+
+        // Check for guided mode metadata
+        if (firstContentLine != null && firstContentLine.startsWith("[GUIDED_MODE:")) {
+            // Parse guided mode metadata: [GUIDED_MODE:template_name]
+            int endIdx = firstContentLine.indexOf(']');
+            if (endIdx > 0) {
+                String templateName = firstContentLine.substring(13, endIdx).trim();
+                // Find matching template and restore guided mode
+                restoreGuidedMode(templateName, reader);
+                return;
+            }
+        }
+        
+        // Regular mode: Read the remainder into a string
+        StringBuilder rest = new StringBuilder();
+        if (firstContentLine != null) {
+            rest.append(firstContentLine).append("\n");
+        }
+        String line;
+        while ((line = reader.readLine()) != null) {
+            rest.append(line).append("\n");
+        }
+        String remainder = rest.toString();
+        // Extract optional image manifest header before RTF
+        String manifest = null;
+        String r = remainder;
+        int nl = r.indexOf('\n');
+        if (nl >= 0) {
+            String head = r.substring(0, nl).trim();
+            if (head.startsWith("IMGMAP:")) {
+                manifest = head.length() > 7 ? head.substring(7).trim() : "";
+                // Advance past header and an optional extra blank line
+                r = r.substring(nl + 1);
+                r = r.stripLeading();
+            }
+        }
+        if (r.stripLeading().startsWith("{\\rtf")) {
+            RTFEditorKit kit = new RTFEditorKit();
+            StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
+            try (ByteArrayInputStream bin = new ByteArrayInputStream(r.getBytes())) {
+                kit.read(bin, doc, 0);
+            }
+            contentArea.setDocument(doc);
+            ensureSimStyles();
+            // Reinsert icons from manifest using saved offsets and filenames
+            if (manifest != null && !manifest.isBlank()) {
+                try { applyImageManifest(doc, manifest); } catch (Throwable ignored) {}
+            }
+        } else {
+            contentArea.setText(r);
+        }
+        // After loading content (text or RTF), refresh the word count
+        try { updateWordCount(); } catch (Throwable ignored) {}
     }
 
     private boolean verifyIntegrityAndOfferRestore(File entryFile) {
@@ -770,10 +782,14 @@ public class EntryPanel extends AbstractEditorPanel {
         
         // Create guided question bubble (hidden by default)
         createQuestionBubble();
-        JPanel topArea = new JPanel(new BorderLayout());
+        createRecoveryBanner();
+        JPanel topArea = new JPanel();
         topArea.setOpaque(false);
-        topArea.add(Box.createRigidArea(new Dimension(0, 15)), BorderLayout.NORTH);
-        topArea.add(questionBubble, BorderLayout.CENTER);
+        topArea.setLayout(new BoxLayout(topArea, BoxLayout.Y_AXIS));
+        topArea.add(Box.createRigidArea(new Dimension(0, 15)));
+        topArea.add(recoveryBanner);
+        topArea.add(Box.createRigidArea(new Dimension(0, 8)));
+        topArea.add(questionBubble);
         centerContainer.add(topArea, BorderLayout.NORTH);
         centerContainer.add(textWrapper, BorderLayout.CENTER);
 
@@ -1541,8 +1557,23 @@ public class EntryPanel extends AbstractEditorPanel {
             }
 
             byte[] data = baos.toByteArray();
-            FileIO.ensureSpace(file.toPath(), data.length + 4096L, "entry save");
-            FileIO.atomicWrite(file.toPath(), data, true, true);
+            try {
+                FileIO.ensureSpace(file.toPath(), data.length + 4096L, "entry save");
+                FileIO.atomicWrite(file.toPath(), data, true, true);
+                clearRecoverySnapshot(file);
+                hideRecoveryBanner();
+            } catch (IOException io) {
+                File candidate = writeRecoverySnapshot(file, data);
+                if (candidate == null) candidate = findLatestTempForTarget(file);
+                if (candidate != null) {
+                    String msg = isAutosaving
+                            ? "Autosave failed. Recover unsaved changes?"
+                            : "Save failed. Recover unsaved changes?";
+                    File finalCandidate = candidate;
+                    SwingUtilities.invokeLater(() -> showRecoveryBanner(msg, finalCandidate));
+                }
+                throw io;
+            }
 
             // Restore icons back into the live document so the UI remains unchanged
             if (!meta.guided && tokensApplied) {
@@ -1823,6 +1854,7 @@ public class EntryPanel extends AbstractEditorPanel {
     protected void clearEditor() {
         titleField.setText("");
         contentArea.setText("");
+        hideRecoveryBanner();
         if (saveIndicator != null) saveIndicator.clear();
     }
 
@@ -1867,6 +1899,143 @@ public class EntryPanel extends AbstractEditorPanel {
         this.questionResponses.clear();
         if (questions != null && questions.length > 0) {
             showQuestion(0);
+        }
+    }
+
+    private void createRecoveryBanner() {
+        recoveryBanner = new JPanel(new BorderLayout(10, 0));
+        recoveryBanner.setOpaque(true);
+        recoveryBanner.setBackground(new Color(255, 244, 204));
+        recoveryBanner.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(210, 190, 130)),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+
+        recoveryLabel = new JLabel("Recovered changes are available.");
+        recoveryLabel.setForeground(new Color(80, 60, 20));
+        recoveryLabel.setFont(recoveryLabel.getFont().deriveFont(Font.PLAIN, 13f));
+
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        btns.setOpaque(false);
+        recoveryButton = new RoundedButton("Recover");
+        recoveryButton.setPreferredSize(new Dimension(90, 28));
+        recoveryButton.addActionListener(e -> recoverFromCandidate(recoveryCandidate));
+        recoveryDismissButton = new RoundedButton("Dismiss");
+        recoveryDismissButton.setPreferredSize(new Dimension(90, 28));
+        recoveryDismissButton.addActionListener(e -> {
+            try { if (recoveryCandidate != null) recoveryCandidate.delete(); } catch (Throwable ignored) {}
+            clearRecoverySnapshot(currentFile);
+            hideRecoveryBanner();
+        });
+        btns.add(recoveryButton);
+        btns.add(recoveryDismissButton);
+
+        recoveryBanner.add(recoveryLabel, BorderLayout.CENTER);
+        recoveryBanner.add(btns, BorderLayout.EAST);
+        recoveryBanner.setVisible(false);
+        recoveryBanner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+    }
+
+    private void showRecoveryBanner(String message, File candidate) {
+        if (recoveryBanner == null || recoveryLabel == null) return;
+        recoveryCandidate = candidate;
+        recoveryLabel.setText(message == null ? "Recovered changes are available." : message);
+        SwingUtilities.invokeLater(() -> {
+            recoveryBanner.setVisible(true);
+            revalidate();
+            repaint();
+        });
+    }
+
+    private void hideRecoveryBanner() {
+        if (recoveryBanner == null) return;
+        recoveryCandidate = null;
+        SwingUtilities.invokeLater(() -> {
+            recoveryBanner.setVisible(false);
+            revalidate();
+            repaint();
+        });
+    }
+
+    private void checkRecoveryCandidates(File entryFile) {
+        if (entryFile == null || !entryFile.exists()) return;
+        File temp = findLatestTempForTarget(entryFile);
+        File recovery = getRecoveryFile(entryFile);
+        long baseline = entryFile.lastModified();
+        File candidate = null;
+        if (temp != null && temp.length() > 0 && temp.lastModified() > baseline) {
+            candidate = temp;
+        }
+        if (recovery != null && recovery.exists() && recovery.length() > 0 && recovery.lastModified() > baseline) {
+            if (candidate == null || recovery.lastModified() > candidate.lastModified()) {
+                candidate = recovery;
+            }
+        }
+        if (candidate != null) {
+            String msg = candidate.getName().contains(".tmp")
+                    ? "Unsaved changes were found after a crash. Recover them?"
+                    : "Autosave recovery is available. Recover unsaved changes?";
+            showRecoveryBanner(msg, candidate);
+        }
+    }
+
+    private File findLatestTempForTarget(File target) {
+        if (target == null) return null;
+        File dir = target.getParentFile();
+        if (dir == null || !dir.exists()) return null;
+        String prefix = target.getName() + ".tmp";
+        File[] matches = dir.listFiles((d, name) -> name.startsWith(prefix));
+        if (matches == null || matches.length == 0) return null;
+        File latest = matches[0];
+        for (File f : matches) {
+            if (f != null && f.lastModified() > latest.lastModified()) latest = f;
+        }
+        return latest;
+    }
+
+    private File getRecoveryFile(File target) {
+        if (target == null || journalFolder == null) return null;
+        File dir = new File(journalFolder, ".recovery");
+        return new File(dir, target.getName() + ".recover");
+    }
+
+    private File writeRecoverySnapshot(File target, byte[] data) {
+        if (target == null || data == null) return null;
+        try {
+            File rec = getRecoveryFile(target);
+            if (rec == null) return null;
+            File dir = rec.getParentFile();
+            if (dir != null && !dir.exists()) dir.mkdirs();
+            FileIO.atomicWrite(rec.toPath(), data, true, true);
+            return rec;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private void clearRecoverySnapshot(File target) {
+        if (target == null) return;
+        try {
+            File rec = getRecoveryFile(target);
+            if (rec != null && rec.exists()) rec.delete();
+        } catch (Throwable ignored) {}
+    }
+
+    private void recoverFromCandidate(File candidate) {
+        if (candidate == null || !candidate.exists()) {
+            hideRecoveryBanner();
+            return;
+        }
+        try (BufferedReader reader = Files.newBufferedReader(candidate.toPath(), StandardCharsets.UTF_8)) {
+            String firstLine = reader.readLine();
+            applyEntryContent(reader, firstLine);
+            if (saveIndicator != null) saveIndicator.setError("Recovered copy loaded — save to keep");
+        } catch (Exception ex) {
+            new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Recovery Failed", "Could not load recovery file.", true).showDialog();
+        } finally {
+            try { candidate.delete(); } catch (Throwable ignored) {}
+            clearRecoverySnapshot(currentFile);
+            hideRecoveryBanner();
         }
     }
 

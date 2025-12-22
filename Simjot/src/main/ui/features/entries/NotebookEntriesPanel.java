@@ -614,7 +614,7 @@ public class NotebookEntriesPanel extends JPanel {
     private String extractTitle(File f){
         String nm = f.getName();
         String lower = nm.toLowerCase();
-        if(lower.endsWith(".note")||lower.endsWith(".poem")||lower.endsWith(".txt")||lower.endsWith(".rtf")){
+        if(lower.endsWith(".note")||lower.endsWith(".poem")||lower.endsWith(".txt")||lower.endsWith(".rtf")||lower.endsWith(".ntk")){
             try(BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)){
                 String first = br.readLine();
                 if (first == null) return "";

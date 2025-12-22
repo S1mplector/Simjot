@@ -1,14 +1,23 @@
 package main.ui.features.poetry;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
+
 import main.core.poetry.PoetryUtils;
-import main.core.sim.llm.api.SimSuggestionService;
 import main.core.sim.llm.api.DefaultSimSuggestionService;
+import main.core.sim.llm.api.SimSuggestionService;
 
 /**
  * Simple dock showing rhyme key and lightweight rhyme/synonym suggestions
@@ -106,16 +115,22 @@ public class RhymesDockPanel extends JPanel {
         });
     }
 
-    // Extremely small heuristic sets to avoid dependencies. You can later plug in a service.
+    // Use the comprehensive RhymeDatabase for rhyme suggestions
     private List<String> naiveRhymes(String word){
         String key = PoetryUtils.rhymeKey(word);
         if (key == null) return List.of();
+        
+        // Try the new database first
+        List<String> dbRhymes = main.core.poetry.RhymeDatabase.getRhymesFor(word);
+        if (!dbRhymes.isEmpty()) return dbRhymes;
+        
+        // Fallback to simple heuristics
         String[][] tiny = new String[][]{
-                {"ight","light","night","flight","sight","bright"},
-                {"ow","glow","slow","snow","flow","grow"},
-                {"ay","day","play","say","away","delay"},
-                {"ing","sing","ring","wing","spring","thing"},
-                {"ove","love","dove","glove","above"}
+                {"ight","light","night","flight","sight","bright","might","right"},
+                {"ow","glow","slow","snow","flow","grow","show","know"},
+                {"ay","day","play","say","away","delay","stay","way"},
+                {"ing","sing","ring","wing","spring","thing","bring","king"},
+                {"ove","love","dove","glove","above","shove"}
         };
         List<String> out = new ArrayList<>();
         for (String[] row : tiny){
@@ -126,13 +141,22 @@ public class RhymesDockPanel extends JPanel {
         return out;
     }
 
+    // Use the comprehensive RhymeDatabase for synonym suggestions
     private List<String> naiveSynonyms(String word){
         String w = word.toLowerCase(Locale.ROOT);
+        
+        // Try the new database first
+        List<String> dbSyns = main.core.poetry.RhymeDatabase.getSynonymsFor(w);
+        if (!dbSyns.isEmpty()) return dbSyns;
+        
+        // Fallback for common words
         return switch (w) {
-            case "love" -> List.of("affection","ardor","devotion","fondness");
-            case "dark" -> List.of("dim","murky","dusky","tenebrous");
-            case "light" -> List.of("glow","gleam","radiance","luster");
-            case "river" -> List.of("stream","brook","current","run");
+            case "love" -> List.of("affection","ardor","devotion","fondness","passion");
+            case "dark" -> List.of("dim","murky","dusky","tenebrous","shadowy");
+            case "light" -> List.of("glow","gleam","radiance","luster","brilliance");
+            case "river" -> List.of("stream","brook","current","waters","flow");
+            case "heart" -> List.of("soul","spirit","core","essence");
+            case "dream" -> List.of("vision","fantasy","reverie","aspiration");
             default -> List.of();
         };
     }

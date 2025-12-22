@@ -387,6 +387,16 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(notebooksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
+        FadingButton searchButton = new MainMenuButton("Search", "explorer");
+        searchButton.setForeground(AeroTheme.TEXT_PRIMARY);
+        searchButton.setToolTipText("Search across all notebooks");
+        searchButton.setFont(searchButton.getFont().deriveFont(Font.BOLD, 20f));
+        searchButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        searchButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        searchButton.addActionListener(e -> app.showGlobalSearch());
+        buttonPanel.add(searchButton);
+        buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
+
         // Planning section has been removed
         // ---------- ARTS section (hidden unless there are visible items) ----------
 

@@ -9,8 +9,11 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.awt.KeyboardFocusManager;
+import java.awt.KeyEventDispatcher;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -23,11 +26,13 @@ import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import main.core.AppInfo;
 import main.core.security.LockController;
+import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
 import main.core.sim.data.SimDataGateway;
@@ -37,6 +42,7 @@ import main.core.sim.persona.SimPersonality;
 import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.BackupService;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.hotkeys.GlobalHotkeyManager;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
@@ -53,6 +59,8 @@ import main.ui.features.entries.NotebookEditor;
 import main.ui.features.entries.NotebookEditorFactory;
 import main.ui.features.entries.NotebookEditorType;
 import main.ui.features.entries.NotebookEntriesPanel;
+import main.ui.features.entries.GlobalSearchDialog;
+import main.ui.features.entries.QuickCaptureDialog;
 import main.ui.features.gallery.GalleryPanel;
 import main.ui.features.gallery.GeneratedWallpapers;
 import main.ui.features.home.MainMenuPanel;
@@ -113,6 +121,10 @@ public class JournalApp extends JFrame {
 
     // Factory/DI for editors
     private NotebookEditorFactory editorFactory;
+
+    // Quick capture tracking
+    private NotebookInfo lastActiveNotebook;
+    private KeyEventDispatcher quickCaptureDispatcher;
 
     // Track which static cards have been created lazily
     private final java.util.Set<String> createdStaticCards = new java.util.HashSet<>();
@@ -296,6 +308,7 @@ public class JournalApp extends JFrame {
             }
             showTutorialIfFirstTime();
             ensureFullScreen();
+            installQuickCaptureHotkey();
             // Force widget panel visible and on top
             if (mainMenuPanel instanceof MainMenuPanel mmp) {
                 mmp.ensureWidgetPanelOnTopAndVisible();
@@ -544,6 +557,13 @@ public class JournalApp extends JFrame {
         startExitWatchdog();
         try {
             disposeNotebookPanelsSafely();
+            try {
+                GlobalHotkeyManager.unregister();
+                if (quickCaptureDispatcher != null) {
+                    KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(quickCaptureDispatcher);
+                    quickCaptureDispatcher = null;
+                }
+            } catch (Throwable ignored) {}
             CustomMessageDialog.setGlobalSuppressed(true);
             final AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Exiting…");
@@ -621,6 +641,7 @@ public class JournalApp extends JFrame {
                 return;
             }
         } catch (Throwable ignored) {}
+        lastActiveNotebook = nb;
         String cardId = "NotebookEntries_" + nb.getName();
         if (!notebookPanels.containsKey(cardId)) {
             NotebookEntriesPanel panel = new NotebookEntriesPanel(this, nb);
@@ -708,6 +729,7 @@ public class JournalApp extends JFrame {
                 return;
             }
         } catch (Throwable ignored) {}
+        lastActiveNotebook = nb;
         String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
         java.io.File targetFolder = nb.getFolder();
         
@@ -756,6 +778,7 @@ public class JournalApp extends JFrame {
                 return;
             }
         } catch (Throwable ignored) {}
+        lastActiveNotebook = nb;
         String cardId = "Edit_" + file.getName();
         if (cardMap.containsKey(cardId)) {
             showCardImmediate(cardId);
@@ -767,6 +790,84 @@ public class JournalApp extends JFrame {
         showCardImmediate(cardId);
         cardMap.put(cardId, (JPanel) editor.getMainComponent());
         openEditors.add(editor);
+    }
+
+    private void installQuickCaptureHotkey() {
+        boolean ok = GlobalHotkeyManager.registerQuickCapture(() -> SwingUtilities.invokeLater(this::showQuickCapture));
+        if (!ok) {
+            installInAppQuickCaptureHotkey();
+        }
+    }
+
+    private void installInAppQuickCaptureHotkey() {
+        if (quickCaptureDispatcher != null) return;
+        quickCaptureDispatcher = e -> {
+            if (e.getID() == KeyEvent.KEY_PRESSED && matchesQuickCaptureShortcut(e)) {
+                showQuickCapture();
+                return true;
+            }
+            return false;
+        };
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(quickCaptureDispatcher);
+    }
+
+    private boolean matchesQuickCaptureShortcut(KeyEvent e) {
+        boolean isMac = System.getProperty("os.name", "").toLowerCase().contains("mac");
+        int mod = isMac ? KeyEvent.META_DOWN_MASK : KeyEvent.CTRL_DOWN_MASK;
+        int mask = e.getModifiersEx();
+        return e.getKeyCode() == KeyEvent.VK_J
+                && (mask & mod) != 0
+                && (mask & KeyEvent.SHIFT_DOWN_MASK) != 0;
+    }
+
+    public void showQuickCapture() {
+        NotebookInfo nb = resolveQuickCaptureNotebook();
+        if (nb == null) {
+            CustomMessageDialog.display(this, "Quick Capture", "No notebook available. Create one first.", true);
+            return;
+        }
+        QuickCaptureDialog dialog = new QuickCaptureDialog(this, nb, () -> {
+            String cardId = "NotebookEntries_" + nb.getName();
+            NotebookEntriesPanel panel = notebookPanels.get(cardId);
+            if (panel != null) panel.refresh();
+        });
+        dialog.setVisible(true);
+    }
+
+    public void showGlobalSearch() {
+        GlobalSearchDialog dialog = new GlobalSearchDialog(this, this);
+        dialog.setVisible(true);
+    }
+
+    private NotebookInfo resolveQuickCaptureNotebook() {
+        if (lastActiveNotebook != null) return lastActiveNotebook;
+        try {
+            java.util.List<NotebookInfo> all = new NotebookStore().list();
+            if (all == null || all.isEmpty()) return null;
+            if (all.size() == 1) {
+                lastActiveNotebook = all.get(0);
+                return lastActiveNotebook;
+            }
+            String[] names = all.stream().map(NotebookInfo::getName).toArray(String[]::new);
+            Object choice = JOptionPane.showInputDialog(
+                    this,
+                    "Choose a notebook for Quick Capture:",
+                    "Quick Capture",
+                    JOptionPane.PLAIN_MESSAGE,
+                    null,
+                    names,
+                    names[0]
+            );
+            if (choice instanceof String) {
+                for (NotebookInfo nb : all) {
+                    if (nb.getName().equals(choice)) {
+                        lastActiveNotebook = nb;
+                        return nb;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     public JPanel getCardPanel() {
