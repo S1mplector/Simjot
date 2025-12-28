@@ -19,12 +19,8 @@ import java.awt.Point;
 import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -47,8 +43,8 @@ import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
 import main.ui.app.JournalApp;
 import main.ui.components.DragController;
-import main.ui.components.buttons.MainMenuButton;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.buttons.MainMenuButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
@@ -386,7 +382,7 @@ public class MainMenuPanel extends JPanel {
         JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         iconRow.setOpaque(false);
 
-        IconMenuButton notebooksButton = createIconButton("Poetry Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        IconMenuButton notebooksButton = createIconButton("Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
         notebooksButton.setToolTipText("Collect, draft, and manage your poetry notebooks");
         iconRow.add(notebooksButton);
 

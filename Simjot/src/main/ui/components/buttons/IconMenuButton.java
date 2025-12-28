@@ -53,11 +53,11 @@ public class IconMenuButton extends JButton {
         // Background plate (subtle only on hover/press)
         boolean pressed = getModel().isArmed() && getModel().isPressed();
         if (hovering || pressed) {
-            Color overlay = pressed ? new Color(220, 230, 240, 200) : new Color(235, 241, 249, 200);
+            Color overlay = pressed ? new Color(240, 244, 249, 120) : new Color(248, 251, 255, 110);
             Shape plate = new RoundRectangle2D.Float(6, 6, w - 12, h - 26, 16, 16);
             g2.setColor(overlay);
             g2.fill(plate);
-            g2.setColor(new Color(170, 180, 195));
+            g2.setColor(new Color(180, 190, 205, 160));
             g2.draw(plate);
         }
 
