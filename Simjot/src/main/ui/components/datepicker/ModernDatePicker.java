@@ -32,6 +32,7 @@ import java.time.format.TextStyle;
 import java.util.Locale;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -283,6 +284,8 @@ public class ModernDatePicker extends JPanel {
         private JComboBox<Integer> yearCombo;
         private JPanel daysGrid;
         private JButton todayButton;
+        private JLabel monthYearLabel;
+        private JLabel fullDateLabel;
         
         public ModernCalendarPanel(java.util.function.Consumer<LocalDate> onDateSelected) {
             this.onDateSelected = onDateSelected;
@@ -300,53 +303,50 @@ public class ModernDatePicker extends JPanel {
         }
         
         private void initHeader() {
+            // Box container for full-date label and header controls
+            JPanel northBox = new JPanel();
+            northBox.setOpaque(false);
+            northBox.setLayout(new BoxLayout(northBox, BoxLayout.Y_AXIS));
+
+            // Top line: full date like "Friday, February 10, 2012"
+            fullDateLabel = new JLabel(" ", SwingConstants.CENTER);
+            fullDateLabel.setForeground(new Color(0, 102, 204));
+            fullDateLabel.setFont(AeroTheme.defaultBoldFont(13f));
+            fullDateLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            northBox.add(fullDateLabel);
+            northBox.add(new JLabel(" ") {{ setPreferredSize(new Dimension(1,4)); setOpaque(false); }});
+
+            // Header with arrows + centered Month Year label
             JPanel header = new JPanel(new BorderLayout(8, 0));
             header.setOpaque(false);
-            
-            // Navigation buttons
+
             JButton prevMonth = createNavButton("◀", -1);
             JButton nextMonth = createNavButton("▶", 1);
-            
-            // Month/Year selectors
-            JPanel selectors = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
-            selectors.setOpaque(false);
-            
-            monthCombo = new JComboBox<>();
-            for (Month m : Month.values()) {
-                monthCombo.addItem(m.getDisplayName(TextStyle.FULL, Locale.getDefault()));
-            }
-            monthCombo.setFont(AeroTheme.defaultBoldFont(12f));
-            monthCombo.setPreferredSize(new Dimension(110, 28));
-            monthCombo.addActionListener(e -> {
-                if (monthCombo.getSelectedIndex() >= 0) {
-                    displayedMonth = displayedMonth.withMonth(monthCombo.getSelectedIndex() + 1);
-                    updateCalendar();
-                }
+
+            monthYearLabel = new JLabel(" ", SwingConstants.CENTER);
+            monthYearLabel.setFont(AeroTheme.defaultBoldFont(14f));
+            monthYearLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+            monthYearLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            monthYearLabel.addMouseListener(new MouseAdapter(){
+                @Override public void mouseClicked(MouseEvent e){ showMonthYearPopup(monthYearLabel); }
             });
-            
+
+            header.add(prevMonth, BorderLayout.WEST);
+            header.add(monthYearLabel, BorderLayout.CENTER);
+            header.add(nextMonth, BorderLayout.EAST);
+
+            // Hidden combos used for popup selection (kept for convenience)
+            monthCombo = new JComboBox<>();
+            for (Month m : Month.values()) monthCombo.addItem(m.getDisplayName(TextStyle.FULL, Locale.getDefault()));
             yearCombo = new JComboBox<>();
             int currentYear = Year.now().getValue();
-            for (int y = currentYear - 50; y <= currentYear + 20; y++) {
-                yearCombo.addItem(y);
-            }
-            yearCombo.setSelectedItem(currentYear);
-            yearCombo.setFont(AeroTheme.defaultBoldFont(12f));
-            yearCombo.setPreferredSize(new Dimension(75, 28));
-            yearCombo.addActionListener(e -> {
-                if (yearCombo.getSelectedItem() != null) {
-                    displayedMonth = displayedMonth.withYear((Integer) yearCombo.getSelectedItem());
-                    updateCalendar();
-                }
-            });
-            
-            selectors.add(monthCombo);
-            selectors.add(yearCombo);
-            
-            header.add(prevMonth, BorderLayout.WEST);
-            header.add(selectors, BorderLayout.CENTER);
-            header.add(nextMonth, BorderLayout.EAST);
-            
-            add(header, BorderLayout.NORTH);
+            for (int y = currentYear - 50; y <= currentYear + 20; y++) yearCombo.addItem(y);
+
+            northBox.add(header);
+            add(northBox, BorderLayout.NORTH);
+
+            // Mouse wheel month navigation on the whole panel
+            addMouseWheelListener(e -> { displayedMonth = displayedMonth.plusMonths(e.getWheelRotation() > 0 ? 1 : -1); updateCalendar(); });
         }
         
         private JButton createNavButton(String text, int monthDelta) {
@@ -408,6 +408,28 @@ public class ModernDatePicker extends JPanel {
             add(footer, BorderLayout.SOUTH);
         }
         
+        private void showMonthYearPopup(Component invoker) {
+            JPopupMenu pop = new JPopupMenu();
+            pop.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
+            JPanel p = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+            p.setOpaque(false);
+            p.add(new JLabel("Month:"));
+            p.add(monthCombo);
+            p.add(new JLabel("Year:"));
+            p.add(yearCombo);
+            JButton apply = new JButton("Apply");
+            apply.addActionListener(e->{
+                int m = Math.max(0, monthCombo.getSelectedIndex()) + 1;
+                Integer y = (Integer) yearCombo.getSelectedItem();
+                if (y != null) displayedMonth = displayedMonth.withYear(y).withMonth(m);
+                updateCalendar();
+                pop.setVisible(false);
+            });
+            p.add(apply);
+            pop.add(p);
+            pop.show(invoker, 0, invoker.getHeight()+4);
+        }
+        
         private JButton createFooterButton(String text, Runnable action) {
             JButton btn = new JButton(text) {
                 @Override protected void paintComponent(Graphics g) {
@@ -441,23 +463,24 @@ public class ModernDatePicker extends JPanel {
         }
         
         private void updateCalendar() {
-            // Update combo boxes without triggering listeners
-            monthCombo.removeActionListener(monthCombo.getActionListeners()[0]);
-            yearCombo.removeActionListener(yearCombo.getActionListeners()[0]);
-            monthCombo.setSelectedIndex(displayedMonth.getMonthValue() - 1);
+            // Sync hidden combos (guard if no listeners yet)
+            try {
+                if (monthCombo.getActionListeners().length > 0)
+                    monthCombo.removeActionListener(monthCombo.getActionListeners()[0]);
+                if (yearCombo.getActionListeners().length > 0)
+                    yearCombo.removeActionListener(yearCombo.getActionListeners()[0]);
+            } catch (Throwable ignored) {}
+            monthCombo.setSelectedIndex(Math.max(0, displayedMonth.getMonthValue() - 1));
             yearCombo.setSelectedItem(displayedMonth.getYear());
-            monthCombo.addActionListener(e -> {
-                if (monthCombo.getSelectedIndex() >= 0) {
-                    displayedMonth = displayedMonth.withMonth(monthCombo.getSelectedIndex() + 1);
-                    updateCalendar();
-                }
-            });
-            yearCombo.addActionListener(e -> {
-                if (yearCombo.getSelectedItem() != null) {
-                    displayedMonth = displayedMonth.withYear((Integer) yearCombo.getSelectedItem());
-                    updateCalendar();
-                }
-            });
+            monthCombo.addActionListener(e -> { if (monthCombo.getSelectedIndex() >= 0) { displayedMonth = displayedMonth.withMonth(monthCombo.getSelectedIndex() + 1); updateCalendar(); }});
+            yearCombo.addActionListener(e -> { if (yearCombo.getSelectedItem() != null) { displayedMonth = displayedMonth.withYear((Integer) yearCombo.getSelectedItem()); updateCalendar(); }});
+            
+            // Update header labels like Windows 7
+            java.time.format.DateTimeFormatter mfmt = java.time.format.DateTimeFormatter.ofPattern("MMMM, yyyy");
+            monthYearLabel.setText(displayedMonth.format(mfmt));
+            LocalDate ref = (selectedDate != null) ? selectedDate : LocalDate.now();
+            java.time.format.DateTimeFormatter dfmt = java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy");
+            fullDateLabel.setText(ref.format(dfmt));
             
             daysGrid.removeAll();
             
@@ -552,11 +575,18 @@ public class ModernDatePicker extends JPanel {
             
             // Background
             if (isSelected) {
-                g2.setColor(ACCENT_COLOR);
-                g2.fill(new RoundRectangle2D.Float(inset, inset, w - inset*2, h - inset*2, 8, 8));
+                // Win7 selection: light fill + strong border
+                Color selFill = new Color(199, 224, 255);
+                Color selBorder = new Color(51, 153, 255);
+                g2.setColor(selFill);
+                g2.fill(new RoundRectangle2D.Float(inset, inset, w - inset*2, h - inset*2, 6, 6));
+                g2.setStroke(new BasicStroke(1.6f));
+                g2.setColor(selBorder);
+                g2.draw(new RoundRectangle2D.Float(inset + 0.5f, inset + 0.5f, w - inset*2 - 1f, h - inset*2 - 1f, 6, 6));
             } else if (hover) {
-                g2.setColor(ACCENT_LIGHT);
-                g2.fill(new RoundRectangle2D.Float(inset, inset, w - inset*2, h - inset*2, 8, 8));
+                Color hov = new Color(222, 235, 255);
+                g2.setColor(hov);
+                g2.fill(new RoundRectangle2D.Float(inset, inset, w - inset*2, h - inset*2, 6, 6));
             }
             
             // Today indicator (ring)
