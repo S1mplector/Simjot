@@ -20,6 +20,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.BoxLayout;
@@ -91,6 +94,7 @@ public class JournalApp extends JFrame {
     private File configFile;
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
     private static final long EXIT_WATCHDOG_TIMEOUT_MS = 12_000L;
+    private static String[] launchArgs = new String[0];
 
     // Card identifiers
     public static final String MAIN_MENU = "Main Menu";
@@ -509,6 +513,11 @@ public class JournalApp extends JFrame {
             galleryPanel.refresh();
     }
 
+    public void restartAfterSettingsChange() {
+        relaunchCurrentProcess();
+        exitGracefully();
+    }
+
     // Rebuilds the main menu panel (e.g., when wallpaper or theme changes)
     public void recreateMainMenuPanel() {
         if (mainMenuPanel != null) {
@@ -543,6 +552,52 @@ public class JournalApp extends JFrame {
         } catch (Throwable t) {
             logWarn("exit watchdog", t);
         }
+    }
+
+    private void relaunchCurrentProcess() {
+        try {
+            String javaHome = System.getProperty("java.home");
+            String javaBin = javaHome == null ? "java"
+                    : new File(new File(javaHome, "bin"), isWindows() ? "javaw" : "java").getAbsolutePath();
+            String sunCmd = System.getProperty("sun.java.command", "");
+            String classPath = System.getProperty("java.class.path", "");
+
+            List<String> cmd = new ArrayList<>();
+            cmd.add(javaBin);
+
+            if (sunCmd.endsWith(".jar") || sunCmd.contains(".jar ")) {
+                // Recreate a -jar launch preserving any extra args
+                String[] parts = sunCmd.split(" ");
+                if (parts.length > 0) {
+                    cmd.add("-jar");
+                    cmd.add(parts[0]);
+                    for (int i = 1; i < parts.length; i++) {
+                        if (!parts[i].isBlank()) cmd.add(parts[i]);
+                    }
+                }
+            } else {
+                if (!classPath.isBlank()) {
+                    cmd.add("-cp");
+                    cmd.add(classPath);
+                }
+                if (!sunCmd.isBlank()) {
+                    for (String part : sunCmd.split(" ")) {
+                        if (!part.isBlank()) cmd.add(part);
+                    }
+                } else {
+                    cmd.add(JournalApp.class.getName());
+                    cmd.addAll(Arrays.asList(launchArgs));
+                }
+            }
+            new ProcessBuilder(cmd).start();
+        } catch (Throwable t) {
+            logWarn("relaunch", t);
+        }
+    }
+
+    private static boolean isWindows() {
+        String os = System.getProperty("os.name");
+        return os != null && os.toLowerCase().contains("win");
     }
 
     /**
@@ -887,6 +942,7 @@ public class JournalApp extends JFrame {
     }
 
     public static void main(String[] args) {
+        launchArgs = (args == null) ? new String[0] : args.clone();
         SwingUtilities.invokeLater(() -> {
             // Apply LAF before creating the splash to prevent flicker
             try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}

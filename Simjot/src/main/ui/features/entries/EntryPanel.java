@@ -662,8 +662,14 @@ public class EntryPanel extends AbstractEditorPanel {
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Content Area: Rich text editor (StyledDocument)
-        contentArea = new JTextPane();
+        // Content Area: Rich text editor (StyledDocument) with coalesced repaints to avoid caret trails on translucent backgrounds
+        contentArea = new JTextPane() {
+            @Override
+            public void repaint(long tm, int x, int y, int width, int height) {
+                // Slight delay coalesces rapid repaints and ensures stale caret pixels get cleared
+                super.repaint(50, x, y, width, height);
+            }
+        };
         contentArea.setDoubleBuffered(true);
 
         // Load font size directly from settings to ensure persistence

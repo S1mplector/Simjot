@@ -175,9 +175,7 @@ public class SettingsPanel extends JPanel {
                 if (!chunks.isEmpty()) splash.setStatus(chunks.get(chunks.size()-1));
             }
             @Override protected void done() {
-                splash.fadeOutAndDispose(() -> {
-                    try { CustomMessageDialog.display(SettingsPanel.this, "Success", "Settings saved.", false); } catch (Throwable ignored) {}
-                });
+                splash.fadeOutAndDispose(() -> app.restartAfterSettingsChange());
             }
         }.execute();
     }
