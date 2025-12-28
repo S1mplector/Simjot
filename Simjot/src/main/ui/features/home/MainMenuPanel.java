@@ -382,7 +382,7 @@ public class MainMenuPanel extends JPanel {
         JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         iconRow.setOpaque(false);
 
-        IconMenuButton notebooksButton = createIconButton("Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        IconMenuButton notebooksButton = createIconButton("Poetry", JournalApp.NOTEBOOK_MANAGER, "notebook");
         notebooksButton.setToolTipText("Collect, draft, and manage your poetry notebooks");
         iconRow.add(notebooksButton);
 
