@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import main.infrastructure.io.ResourceLoader;
 
 /**
  * RhymeDatabase - Comprehensive rhyme and synonym database for poetry.
@@ -16,6 +17,9 @@ public final class RhymeDatabase {
     
     private static Map<String, List<String>> rhymeGroups;
     private static Map<String, List<String>> synonymGroups;
+    private static Map<String, List<String>> dictSynonyms;
+    private static Map<String, List<String>> dictRhymesByKey;
+    private static boolean dictionaryLoaded = false;
     
     public static List<String> getRhymesFor(String word) {
         if (word == null) return Collections.emptyList();
@@ -35,6 +39,17 @@ public final class RhymeDatabase {
                 }
             }
         }
+        
+        // Augment with dictionary-based rhymes (built from the provided JSON word list)
+        ensureDictionaryLoaded();
+        List<String> dict = dictRhymesByKey.get(key);
+        if (dict != null) {
+            for (String w : dict) {
+                if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
+                    result.add(w);
+                }
+            }
+        }
         return result.size() > 10 ? result.subList(0, 10) : result;
     }
     
@@ -43,9 +58,18 @@ public final class RhymeDatabase {
         String lower = word.toLowerCase(Locale.ROOT);
         
         initSynonyms();
+        ensureDictionaryLoaded();
+        
+        List<String> merged = new ArrayList<>();
+        List<String> dict = dictSynonyms.get(lower);
+        if (dict != null) merged.addAll(dict);
         List<String> direct = synonymGroups.get(lower);
-        if (direct != null) return new ArrayList<>(direct);
-        return Collections.emptyList();
+        if (direct != null) {
+            for (String s : direct) {
+                if (!merged.contains(s)) merged.add(s);
+            }
+        }
+        return merged;
     }
     
     private static synchronized void initRhymes() {
@@ -147,5 +171,92 @@ public final class RhymeDatabase {
         synonymGroups.put("false", Arrays.asList("untrue","fake","deceptive","dishonest","hollow"));
         synonymGroups.put("good", Arrays.asList("kind","noble","virtuous","worthy","pure","righteous"));
         synonymGroups.put("evil", Arrays.asList("wicked","dark","sinister","malevolent","vile","corrupt"));
+    }
+
+    private static synchronized void ensureDictionaryLoaded() {
+        if (dictionaryLoaded) return;
+        dictSynonyms = new HashMap<>();
+        dictRhymesByKey = new HashMap<>();
+
+        // Load lightweight word list from the simple dictionary JSON files (a.json ... z.json)
+        for (char c = 'a'; c <= 'z'; c++) {
+            String path = "simple-english-dictionary/data/" + c + ".json";
+            try (java.io.InputStream in = ResourceLoader.getResourceAsStream(path)) {
+                if (in == null) continue;
+                String json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                parseDictionaryChunk(json);
+            } catch (Throwable ignored) {
+                // fail-safe: skip malformed file but keep others
+            }
+        }
+        dictionaryLoaded = true;
+    }
+
+    // Very small, tolerant parser that extracts the top-level word keys and their SYNONYMS arrays.
+    private static void parseDictionaryChunk(String json) {
+        if (json == null || json.isEmpty()) return;
+        int idx = 0;
+        final int len = json.length();
+        while (idx < len) {
+            int keyStart = json.indexOf('"', idx);
+            if (keyStart < 0 || keyStart + 1 >= len) break;
+            int keyEnd = json.indexOf('"', keyStart + 1);
+            if (keyEnd < 0) break;
+            String word = json.substring(keyStart + 1, keyEnd);
+            idx = keyEnd + 1;
+            int objStart = json.indexOf('{', idx);
+            if (objStart < 0) break;
+            int depth = 1;
+            int cursor = objStart + 1;
+            while (cursor < len && depth > 0) {
+                char ch = json.charAt(cursor);
+                if (ch == '{') depth++;
+                else if (ch == '}') depth--;
+                cursor++;
+            }
+            int objEnd = cursor;
+            if (depth != 0 || objEnd <= objStart) {
+                idx = objStart + 1;
+                continue;
+            }
+            String obj = json.substring(objStart + 1, objEnd - 1);
+            idx = objEnd;
+
+            List<String> syns = extractSynonyms(obj);
+            if (word != null && !word.isEmpty()) {
+                String lower = word.toLowerCase(Locale.ROOT);
+                if (!syns.isEmpty()) {
+                    dictSynonyms.put(lower, syns);
+                }
+                String key = PoetryUtils.rhymeKey(lower);
+                if (key != null && !key.isBlank()) {
+                    List<String> bucket = dictRhymesByKey.computeIfAbsent(key, k -> new ArrayList<>());
+                    if (!bucket.contains(lower)) {
+                        bucket.add(lower);
+                    }
+                }
+            }
+        }
+    }
+
+    private static List<String> extractSynonyms(String objSection) {
+        int pos = objSection.indexOf("\"SYNONYMS\"");
+        if (pos < 0) return Collections.emptyList();
+        int bracketStart = objSection.indexOf('[', pos);
+        int bracketEnd = (bracketStart >= 0) ? objSection.indexOf(']', bracketStart) : -1;
+        if (bracketStart < 0 || bracketEnd < 0 || bracketEnd <= bracketStart) return Collections.emptyList();
+        String array = objSection.substring(bracketStart + 1, bracketEnd);
+        List<String> syns = new ArrayList<>();
+        int idx = 0;
+        while (idx < array.length()) {
+            int q1 = array.indexOf('"', idx);
+            if (q1 < 0 || q1 + 1 >= array.length()) break;
+            int q2 = array.indexOf('"', q1 + 1);
+            if (q2 < 0) break;
+            String s = array.substring(q1 + 1, q2).trim();
+            if (!s.isEmpty()) syns.add(s);
+            idx = q2 + 1;
+        }
+        return syns;
     }
 }

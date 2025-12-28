@@ -209,7 +209,8 @@ public class NotebookManagerPanel extends JPanel {
     private static class CreateNotebookDialog extends JDialog{
         private boolean accepted=false;
         private final ModernTextField nameField = new ModernTextField(20);
-        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.JOURNAL, NotebookInfo.Type.POETRY, NotebookInfo.Type.NOTETAKING });
+        // Simjot is now poetry-focused: only allow creating poetry notebooks (keep types for legacy notebooks elsewhere)
+        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.POETRY });
 
         CreateNotebookDialog(Frame parent){
             super(parent, "Create Notebook", true);
@@ -258,12 +259,12 @@ public class NotebookManagerPanel extends JPanel {
                 @Override public Component getListCellRendererComponent(JList<? extends NotebookInfo.Type> list, NotebookInfo.Type value, int index, boolean isSelected, boolean cellHasFocus){
                     String friendly = switch (value) {
                         case JOURNAL -> "Journaling";
-                        case POETRY -> "Poetry";
+                        case POETRY -> "Poetry Notebook";
                         case NOTETAKING -> "Notetaking";
                     };
                     String desc = switch (value) {
                         case JOURNAL -> "Daily notes, moods, reflections";
-                        case POETRY -> "Write and organize poems";
+                        case POETRY -> "Focused drafts, revision, rhyme helpers";
                         case NOTETAKING -> "Rich notes with images & formatting";
                     };
                     t.setText(friendly);
@@ -277,7 +278,7 @@ public class NotebookManagerPanel extends JPanel {
 
             // Description label under combo (updates on selection)
             gc.gridy++;
-            JLabel descLabel = new JLabel("Daily notes, moods, reflections");
+            JLabel descLabel = new JLabel("Focused drafts, revision, rhyme helpers");
             descLabel.setForeground(new Color(120,120,120));
             center.add(descLabel, gc);
 

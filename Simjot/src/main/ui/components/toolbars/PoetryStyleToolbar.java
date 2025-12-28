@@ -103,7 +103,11 @@ public class PoetryStyleToolbar extends JPanel {
         fontLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
         bottomToolbar.add(fontLabel);
 
-        String[] fonts = {"Serif", "Georgia", "Verdana", "Garamond", "Baskerville", "Cursive"};
+        // Include a few handwriting-style faces so poetry can feel more personal.
+        String[] fonts = {
+                "Serif", "Georgia", "Garamond", "Baskerville",
+                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand", "Apple Chancery", "Cursive"
+        };
         JComboBox<String> fontSelector = new JComboBox<>(fonts);
         fontSelector.setUI(new ModernComboBoxUI());
         fontSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());

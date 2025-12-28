@@ -374,22 +374,22 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // ---------- WRITING section ----------
-        JLabel writingHeader = new JLabel("Writing");
+        JLabel writingHeader = new JLabel("Poetry Studio");
         writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
         writingHeader.setForeground(Color.WHITE);
         writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));
         buttonPanel.add(writingHeader);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
 
-        FadingButton notebooksButton = createMenuButtonWithIcon("Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        FadingButton notebooksButton = createMenuButtonWithIcon("Poetry Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
         notebooksButton.setForeground(AeroTheme.TEXT_PRIMARY);
-        notebooksButton.setToolTipText("Create and manage your journals and notebooks");
+        notebooksButton.setToolTipText("Collect, draft, and manage your poetry notebooks");
         buttonPanel.add(notebooksButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
         FadingButton searchButton = new MainMenuButton("Search", "explorer");
         searchButton.setForeground(AeroTheme.TEXT_PRIMARY);
-        searchButton.setToolTipText("Search across all notebooks");
+        searchButton.setToolTipText("Search across all poems and notebooks");
         searchButton.setFont(searchButton.getFont().deriveFont(Font.BOLD, 20f));
         searchButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
         searchButton.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -427,23 +427,6 @@ public class MainMenuPanel extends JPanel {
             }
             buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
         }
-
-        // ---------- INSIGHTS section ----------
-        JLabel insightsHeader = new JLabel("Insights");
-        insightsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        insightsHeader.setForeground(Color.WHITE);
-        insightsHeader.setFont(insightsHeader.getFont().deriveFont(Font.BOLD, 22f));
-
-        FadingButton moodChartButton = createMenuButtonWithIcon("Mood Chart", JournalApp.MOOD_CHART, "smile");
-        moodChartButton.setToolTipText("View your mood trends and emotional patterns over time");
-
-        buttonPanel.add(insightsHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-        moodChartButton.setAlpha(1f);
-        moodChartButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        buttonPanel.add(moodChartButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
 
         FadingButton settingsButton = createMenuButtonWithIcon("Settings", JournalApp.SETTINGS, "wrench");
         settingsButton.setToolTipText("Customize appearance, storage, security, and more");

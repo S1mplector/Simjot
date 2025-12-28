@@ -70,10 +70,12 @@ public class MeterScanner {
                 tip = meterHint.isEmpty() ? " " : meterHint;
             }
 
-            b.addLineRow(lbl, syl, tip);
+            b.addLineRow(lbl, syl, tip, label != null ? label.toString() : "");
             b.mapTextLineToCurrentRow(i);
         }
-        
+
+        String form = detectPoeticForm(syllableCounts, rhymeLabels);
+        b.setDetectedForm(form);
         return b.build();
     }
     

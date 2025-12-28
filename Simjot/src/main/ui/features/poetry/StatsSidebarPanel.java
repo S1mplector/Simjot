@@ -22,6 +22,7 @@ public class StatsSidebarPanel extends JPanel {
     private final java.util.List<String> tooltipsByIndex = new ArrayList<>();
     private final java.util.List<Integer> modelIndexByTextLine = new ArrayList<>(); // maps text line -> model index
     private final java.util.List<Integer> textLineByModelIndex = new ArrayList<>(); // reverse: model index -> text line
+    private final java.util.List<Integer> contentLineByModelIndex = new ArrayList<>(); // reverse: model index -> content line (skip stanza separators)
     private final MeterScanner meterScanner = new MeterScanner();
 
     // Async/debounce state
@@ -29,9 +30,11 @@ public class StatsSidebarPanel extends JPanel {
     private volatile SwingWorker<MeterAnalysis, Void> analysisWorker;
     private String pendingText = "";
     private String lastText = ""; // cache last non-null text for recomputation
+    private String lastDetectedForm = "";
 
     // Optional callback to notify editor to move caret to a given text line index
     private IntConsumer onRowClick;
+    private Runnable onAnalysisFinished;
 
     private final JList<String> list = new JList<>(model) {
         @Override
@@ -51,6 +54,10 @@ public class StatsSidebarPanel extends JPanel {
     // Cached state
     private int targetSyllables = 0; // 0 disables coloring
     private boolean perStanza = true;
+    private int[] targetPattern = new int[0];
+    private String targetPatternLabel = null;
+    private Integer patternExpectedLines = null;
+    private boolean suppressSpinnerEvents = false;
 
     public StatsSidebarPanel(){
         super(new BorderLayout());
@@ -91,8 +98,13 @@ public class StatsSidebarPanel extends JPanel {
         targetSpinner.setToolTipText("Target syllables per line (0 = off)");
         ((JSpinner.DefaultEditor)targetSpinner.getEditor()).getTextField().setColumns(2);
         targetSpinner.addChangeListener(e -> {
+            if (suppressSpinnerEvents) return;
             Object v = targetSpinner.getValue();
             targetSyllables = (v instanceof Integer) ? (Integer) v : 0;
+            // Manual meter changes override any active form pattern
+            targetPattern = new int[0];
+            targetPatternLabel = null;
+            patternExpectedLines = null;
             list.repaint();
             if (lastText != null) runAnalysisAsync(lastText);
         });
@@ -171,6 +183,22 @@ public class StatsSidebarPanel extends JPanel {
                 if (index >= 0 && index < stanzaBreakByIndex.size() && Boolean.TRUE.equals(stanzaBreakByIndex.get(index))) {
                     c.setForeground(new Color(120,120,120));
                     c.setFont(c.getFont().deriveFont(Font.ITALIC));
+                } else if (targetPattern != null && targetPattern.length > 0
+                        && index >= 0 && index < contentLineByModelIndex.size()
+                        && index < syllablesByIndex.size()) {
+                    int ord = contentLineByModelIndex.get(index);
+                    int expected = (ord >= 0 && targetPattern.length > 0) ? targetPattern[ord % targetPattern.length] : 0;
+                    if (expected > 0) {
+                        int syl = Math.max(0, syllablesByIndex.get(index));
+                        int diff = syl - expected;
+                        Color col = switch (Math.abs(diff)) {
+                            case 0 -> new Color(20, 120, 20);
+                            case 1 -> new Color(30, 150, 30);
+                            case 2, 3 -> new Color(180, 110, 0);
+                            default -> new Color(160, 30, 30);
+                        };
+                        c.setForeground(col);
+                    }
                 } else if (targetSyllables > 0 && index >= 0 && index < syllablesByIndex.size()) {
                     int syl = Math.max(0, syllablesByIndex.get(index));
                     int diff = syl - targetSyllables;
@@ -246,7 +274,16 @@ public class StatsSidebarPanel extends JPanel {
                 try {
                     return meterScanner.analyze(text, perStanza);
                 } catch (Throwable t) {
-                    return new MeterAnalysis(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0,0,0,0.0);
+                    return new MeterAnalysis(
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            "",
+                            0,0,0,0.0);
                 }
             }
             @Override
@@ -268,6 +305,8 @@ public class StatsSidebarPanel extends JPanel {
         tooltipsByIndex.clear();
         modelIndexByTextLine.clear();
         textLineByModelIndex.clear();
+        contentLineByModelIndex.clear();
+        lastDetectedForm = a.detectedForm == null ? "" : a.detectedForm;
 
         // Fill model and side arrays from analysis
         for (int i = 0; i < a.displayRows.size(); i++) {
@@ -285,6 +324,16 @@ public class StatsSidebarPanel extends JPanel {
                 textLineByModelIndex.set(modelIdx, textLine);
             }
         }
+        // Build mapping: model index -> ordinal content line (skip stanza separators)
+        int contentOrdinal = 0;
+        for (int i = 0; i < model.size(); i++) {
+            boolean stanza = i < stanzaBreakByIndex.size() && Boolean.TRUE.equals(stanzaBreakByIndex.get(i));
+            if (stanza) {
+                contentLineByModelIndex.add(-1);
+            } else {
+                contentLineByModelIndex.add(contentOrdinal++);
+            }
+        }
 
         // Enhance tooltips with Δtarget info if target set
         if (targetSyllables > 0) {
@@ -293,6 +342,24 @@ public class StatsSidebarPanel extends JPanel {
                 int syl = Math.max(0, syllablesByIndex.get(i));
                 int diff = syl - targetSyllables;
                 String extra = String.format(Locale.ROOT, "  |  Δtarget: %s%d", diff>=0?"+":"", diff);
+                String tip = tooltipsByIndex.get(i);
+                tooltipsByIndex.set(i, (tip == null || tip.isBlank() ? "" : tip) + extra);
+            }
+        }
+
+        if (targetPattern != null && targetPattern.length > 0) {
+            for (int i = 0; i < tooltipsByIndex.size()
+                    && i < syllablesByIndex.size()
+                    && i < stanzaBreakByIndex.size()
+                    && i < contentLineByModelIndex.size(); i++) {
+                if (Boolean.TRUE.equals(stanzaBreakByIndex.get(i))) continue;
+                int ord = contentLineByModelIndex.get(i);
+                if (ord < 0) continue;
+                int expected = targetPattern[ord % targetPattern.length];
+                if (expected <= 0) continue;
+                int syl = Math.max(0, syllablesByIndex.get(i));
+                int diff = syl - expected;
+                String extra = String.format(Locale.ROOT, "  |  Form target: %d (Δ%s%d)", expected, diff>=0?"+":"", diff);
                 String tip = tooltipsByIndex.get(i);
                 tooltipsByIndex.set(i, (tip == null || tip.isBlank() ? "" : tip) + extra);
             }
@@ -312,6 +379,7 @@ public class StatsSidebarPanel extends JPanel {
             double std = lineSyls.isEmpty() ? 0.0 : Math.sqrt(var / lineSyls.size());
             String base = String.format(Locale.ROOT, "Lines: %d  •  Stanzas: %d  •  Avg: %.1f (σ=%.1f)  •  Min: %d  •  Max: %d",
                     a.countedLines, stanzaCount, mean, std, a.minSyllables, a.maxSyllables);
+            StringBuilder sb = new StringBuilder(base);
             if (targetSyllables > 0) {
                 int hits = 0, near = 0;
                 for (int s : lineSyls) {
@@ -321,12 +389,42 @@ public class StatsSidebarPanel extends JPanel {
                 int n = Math.max(1, lineSyls.size());
                 String tgt = String.format(Locale.ROOT, "  •  Target %d: %d%% exact, %d%% within ±1",
                         targetSyllables, Math.round(hits*100.0/n), Math.round((hits+near)*100.0/n));
-                summaryLabel.setText(base + tgt);
-            } else {
-                summaryLabel.setText(base);
+                sb.append(tgt);
             }
+
+            if (targetPattern != null && targetPattern.length > 0) {
+                int hits = 0, near = 0, total = 0;
+                for (int i = 0; i < contentLineByModelIndex.size() && i < syllablesByIndex.size(); i++) {
+                    int ord = contentLineByModelIndex.get(i);
+                    if (ord < 0) continue;
+                    int expected = targetPattern[ord % targetPattern.length];
+                    if (expected <= 0) continue;
+                    int diff = Math.abs(Math.max(0, syllablesByIndex.get(i)) - expected);
+                    if (diff == 0) hits++;
+                    else if (diff == 1) near++;
+                    total++;
+                }
+                if (total > 0) {
+                    sb.append("  •  ");
+                    sb.append(targetPatternLabel != null && !targetPatternLabel.isBlank() ? targetPatternLabel : "Form target");
+                    sb.append(": ").append(hits).append("/").append(total).append(" on beat");
+                    if (near > 0) sb.append(", ").append(near).append(" near");
+                    if (patternExpectedLines != null && patternExpectedLines > 0) {
+                        sb.append(" (expect ").append(patternExpectedLines).append(" lines)");
+                    }
+                }
+            }
+
+            if (lastDetectedForm != null && !lastDetectedForm.isBlank()) {
+                sb.append("  •  Detected: ").append(lastDetectedForm);
+            }
+            summaryLabel.setText(sb.toString());
         } else {
             summaryLabel.setText(" ");
+        }
+
+        if (onAnalysisFinished != null) {
+            try { onAnalysisFinished.run(); } catch (Throwable ignored) {}
         }
     }
 
@@ -345,6 +443,38 @@ public class StatsSidebarPanel extends JPanel {
     }
 
     public boolean isPerStanza() { return perStanza; }
+
+    public void setTargetPattern(int[] pattern, String label, Integer expectedLines) {
+        if (pattern == null || pattern.length == 0) {
+            targetPattern = new int[0];
+            targetPatternLabel = null;
+            patternExpectedLines = null;
+        } else {
+            targetPattern = java.util.Arrays.copyOf(pattern, pattern.length);
+            targetPatternLabel = label;
+            patternExpectedLines = expectedLines;
+        }
+        // Keep uniform target dormant when a form pattern is active
+        suppressSpinnerEvents = true;
+        try {
+            if (targetPattern.length > 0) {
+                targetSyllables = 0;
+                try { targetSpinner.setValue(0); } catch (Throwable ignored) {}
+            }
+        } finally {
+            suppressSpinnerEvents = false;
+        }
+        list.repaint();
+        if (lastText != null) runAnalysisAsync(lastText);
+    }
+
+    public void clearTargetPattern() {
+        setTargetPattern(null, null, null);
+    }
+
+    public String getTargetPatternLabel() { return targetPatternLabel; }
+
+    public String getDetectedForm() { return lastDetectedForm; }
 
     // --- Caret sync: highlight current line and auto-scroll ---
     private int highlightedModelIndex = -1;
@@ -368,6 +498,10 @@ public class StatsSidebarPanel extends JPanel {
      */
     public void setRowClickListener(IntConsumer onLineClicked) {
         this.onRowClick = onLineClicked;
+    }
+
+    public void setAnalysisFinishedCallback(Runnable onAnalysis) {
+        this.onAnalysisFinished = onAnalysis;
     }
 
     // --- Export: copy metrics to clipboard ---

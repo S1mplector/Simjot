@@ -67,6 +67,10 @@ public class PoemPanel extends AbstractEditorPanel {
     private RhymesDockPanel rhymesDock;
     private UndoRedoManager poemTitleUndoManager;
     private UndoRedoManager poemContentUndoManager;
+    // Poetry toolkit controls
+    private javax.swing.JComboBox<String> formPresetBox;
+    private JLabel toolkitStatusLabel;
+    private JLabel toolkitHintLabel;
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -273,14 +277,10 @@ public class PoemPanel extends AbstractEditorPanel {
 
         textWrapper.add(scrollPane, BorderLayout.CENTER);
 
-        // Add some vertical space between title and text area
-        JPanel centerContainer = new JPanel(new BorderLayout());
-        centerContainer.setOpaque(false);
-        centerContainer.add(Box.createRigidArea(new Dimension(0, 15)), BorderLayout.NORTH);
-        centerContainer.add(textWrapper, BorderLayout.CENTER);
         // Initialize optional side panels (hidden by default)
         statsPanel = new StatsSidebarPanel();
         statsPanel.setVisible(false);
+        statsPanel.setAnalysisFinishedCallback(this::refreshToolkitStatus);
         // Wire: clicking a row in stats sidebar moves caret to that text line and highlights it
         statsPanel.setRowClickListener(lineIndex -> {
             if (lineIndex < 0) return;
@@ -307,6 +307,18 @@ public class PoemPanel extends AbstractEditorPanel {
         rhymesDock = new RhymesDockPanel();
         rhymesDock.setVisible(false);
 
+        // Add poetry toolkit above the editor
+        JPanel centerContainer = new JPanel(new BorderLayout());
+        centerContainer.setOpaque(false);
+        JPanel northStack = new JPanel();
+        northStack.setOpaque(false);
+        northStack.setLayout(new BoxLayout(northStack, BoxLayout.Y_AXIS));
+        northStack.add(Box.createRigidArea(new Dimension(0, 10)));
+        northStack.add(buildToolkitBar());
+        northStack.add(Box.createRigidArea(new Dimension(0, 8)));
+        centerContainer.add(northStack, BorderLayout.NORTH);
+        centerContainer.add(textWrapper, BorderLayout.CENTER);
+
         add(statsPanel, BorderLayout.WEST);
         add(centerContainer, BorderLayout.CENTER);
         add(rhymesDock, BorderLayout.EAST);
@@ -326,7 +338,7 @@ public class PoemPanel extends AbstractEditorPanel {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateStanzaCount(stanzaLabel);
-                if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
+                if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
@@ -334,7 +346,7 @@ public class PoemPanel extends AbstractEditorPanel {
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
                 updateStanzaCount(stanzaLabel);
-                if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
+                if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
@@ -342,7 +354,7 @@ public class PoemPanel extends AbstractEditorPanel {
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updateStanzaCount(stanzaLabel);
-                if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(poemEditor.getText());
+                if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
@@ -400,6 +412,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
         // Initial metrics
         updateMetrics(stanzaLabel);
+        refreshToolkitStatus();
     }
 
     private void updateStanzaCount(JLabel label) {
@@ -420,6 +433,108 @@ public class PoemPanel extends AbstractEditorPanel {
         int stanzas = text.trim().isEmpty() ? 0 : text.split("\\n\\s*\\n").length;
         stanzaLabel.setText("Stanzas: " + stanzas);
         updateStatus(text, stanzas);
+    }
+
+    private JPanel buildToolkitBar() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        row.setOpaque(false);
+
+        JLabel title = new JLabel("Poetry Toolkit");
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 13f));
+        row.add(title);
+
+        formPresetBox = new javax.swing.JComboBox<>(new String[]{
+                "Free verse (no targets)",
+                "Haiku (5/7/5)",
+                "Limerick (9/9/6/6/9)",
+                "Sonnet (14x10)",
+                "Octosyllabic quatrain"
+        });
+        formPresetBox.setUI(new ModernComboBoxUI());
+        formPresetBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        formPresetBox.setFocusable(false);
+        formPresetBox.setToolTipText("Apply gentle syllable targets for common forms");
+        formPresetBox.addActionListener(e -> applyFormPreset((String) formPresetBox.getSelectedItem()));
+        row.add(formPresetBox);
+
+        JButton rescanBtn = new RoundedButton("Rescan");
+        rescanBtn.setFocusable(false);
+        rescanBtn.setToolTipText("Refresh meter detection");
+        rescanBtn.addActionListener(e -> {
+            if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
+            refreshToolkitStatus();
+        });
+        row.add(rescanBtn);
+
+        row.add(Box.createHorizontalStrut(10));
+        toolkitStatusLabel = new JLabel("Active form: None • Detected: —");
+        toolkitStatusLabel.setForeground(new Color(60, 60, 60));
+        toolkitStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        row.add(toolkitStatusLabel);
+
+        toolkitHintLabel = new JLabel("Choose a form to set gentle line targets.");
+        toolkitHintLabel.setForeground(new Color(90, 90, 90));
+        toolkitHintLabel.setFont(new Font("SansSerif", Font.ITALIC, 11));
+
+        JPanel wrapper = new JPanel();
+        wrapper.setOpaque(false);
+        wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
+        wrapper.add(row);
+        wrapper.add(toolkitHintLabel);
+        return wrapper;
+    }
+
+    private void applyFormPreset(String preset) {
+        if (statsPanel == null || preset == null) return;
+        switch (preset) {
+            case "Haiku (5/7/5)" -> {
+                statsPanel.setTargetPattern(new int[]{5, 7, 5}, "Haiku 5/7/5", 3);
+                statsPanel.setPerStanza(false);
+                setToolkitHint("Three lines: 5-7-5 syllables and one vivid image.");
+            }
+            case "Limerick (9/9/6/6/9)" -> {
+                statsPanel.setTargetPattern(new int[]{9, 9, 6, 6, 9}, "Limerick beat", 5);
+                statsPanel.setPerStanza(true);
+                setToolkitHint("Five lines with playful bounce and AABBA rhyme.");
+            }
+            case "Sonnet (14x10)" -> {
+                int[] tenBeat = new int[14];
+                java.util.Arrays.fill(tenBeat, 10);
+                statsPanel.setTargetPattern(tenBeat, "Sonnet line targets", 14);
+                statsPanel.setPerStanza(false);
+                setToolkitHint("Fourteen 10-syllable lines; aim for clear volta.");
+            }
+            case "Octosyllabic quatrain" -> {
+                statsPanel.clearTargetPattern();
+                statsPanel.setTargetSyllables(8);
+                statsPanel.setPerStanza(true);
+                setToolkitHint("Quatrains built from 8-syllable lines; steady and songlike.");
+            }
+            default -> {
+                statsPanel.clearTargetPattern();
+                statsPanel.setTargetSyllables(0);
+                statsPanel.setPerStanza(true);
+                setToolkitHint("Free verse—no fixed targets. Listen for your own rhythm.");
+            }
+        }
+        statsPanel.updateFromText(poemEditor.getText());
+        refreshToolkitStatus();
+    }
+
+    private void setToolkitHint(String text) {
+        if (toolkitHintLabel != null && text != null) {
+            toolkitHintLabel.setText(text);
+        }
+    }
+
+    private void refreshToolkitStatus() {
+        if (toolkitStatusLabel == null) return;
+        String active = (statsPanel != null) ? statsPanel.getTargetPatternLabel() : null;
+        String detected = (statsPanel != null) ? statsPanel.getDetectedForm() : "";
+        StringBuilder sb = new StringBuilder();
+        sb.append("Active form: ").append(active != null && !active.isBlank() ? active : "None");
+        sb.append(" • Detected: ").append(detected != null && !detected.isBlank() ? detected : "—");
+        toolkitStatusLabel.setText(sb.toString());
     }
 
     private void updateStatus(String text, int stanzas) {
