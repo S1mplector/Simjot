@@ -1,17 +1,44 @@
 package main.ui.features.gallery;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dialog;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListModel;
+import javax.swing.ImageIcon;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JSlider;
+import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.util.AccentColorUtil;
-import main.ui.components.scrollbar.ModernScrollBarUI;
  
 
 /**
@@ -253,29 +280,8 @@ private JPanel buttonPanel;
         model.clear();
         SwingWorker<Void, WallpaperItem> worker = new SwingWorker<>(){
             @Override protected Void doInBackground(){
-                // Vector generated wallpapers
-                try {
-                    java.util.List<String> ids = java.util.List.of(
-                            GeneratedWallpapers.ID_LINEAR,
-                            GeneratedWallpapers.ID_DIAGONAL,
-                            GeneratedWallpapers.ID_RADIAL
-                    );
-                    for (String id : ids) {
-                        String name = switch (id) {
-                            case GeneratedWallpapers.ID_LINEAR -> "Gray Gradient (Linear)";
-                            case GeneratedWallpapers.ID_DIAGONAL -> "Gray Gradient (Diagonal)";
-                            case GeneratedWallpapers.ID_RADIAL -> "Gray Gradient (Radial)";
-                            default -> id;
-                        };
-                        Image img = GeneratedWallpapers.render(id, 300, 168);
-                        WallpaperItem it = new WallpaperItem(name, id, "Vector", img);
-                        it.setThumb(makeThumbIcon(img, 120, 120));
-                        publish(it);
-                    }
-                } catch (Throwable ignored) {}
-
-                // Built-in resources
-                String[] builtIn = {"img/wallpapers/bg1.jpg","img/wallpapers/bg2.jpg","img/wallpapers/bg3.jpg"};
+                // Built-in season-themed wallpapers
+                String[] builtIn = {"img/background/spring.png","img/background/summer.png","img/background/fall.jpg","img/background/winter.png"};
                 for (String res : builtIn) {
                     try {
                         Image img = ResourceLoader.createImage("Simjot/" + res);
@@ -354,32 +360,12 @@ private JPanel buttonPanel;
     }
     
     private void loadBuiltInWallpapers() {
-        // 1) Add vector-generated gray gradient wallpapers
-        try {
-            java.util.List<String> ids = java.util.List.of(
-                GeneratedWallpapers.ID_LINEAR,
-                GeneratedWallpapers.ID_DIAGONAL,
-                GeneratedWallpapers.ID_RADIAL
-            );
-            for (String id : ids) {
-                String name = switch (id) {
-                    case GeneratedWallpapers.ID_LINEAR -> "Gray Gradient (Linear)";
-                    case GeneratedWallpapers.ID_DIAGONAL -> "Gray Gradient (Diagonal)";
-                    case GeneratedWallpapers.ID_RADIAL -> "Gray Gradient (Radial)";
-                    default -> id;
-                };
-                Image thumb = GeneratedWallpapers.render(id, 300, 168);
-                WallpaperItem item = new WallpaperItem(name, id, "Vector", thumb);
-                item.setThumb(makeThumbIcon(thumb, 120, 120));
-                model.addElement(item);
-            }
-        } catch (Exception ignored) {}
-
-        // 2) Include any existing bundled JPGs (if present)
+        // Season-themed wallpapers
         String[] builtInWallpapers = {
-            "img/wallpapers/bg1.jpg",
-            "img/wallpapers/bg2.jpg", 
-            "img/wallpapers/bg3.jpg"
+            "img/background/spring.png",
+            "img/background/summer.png", 
+            "img/background/fall.jpg",
+            "img/background/winter.png"
         };
         for (String wallpaperPath : builtInWallpapers) {
             try {
@@ -428,9 +414,10 @@ private JPanel buttonPanel;
     
     private void copySampleWallpapers(File wallpapersDir) {
         String[] sampleWallpapers = {
-            "img/wallpapers/bg1.jpg",
-            "img/wallpapers/bg2.jpg", 
-            "img/wallpapers/bg3.jpg"
+            "img/background/spring.png",
+            "img/background/summer.png", 
+            "img/background/fall.jpg",
+            "img/background/winter.png"
         };
         
         for (String wallpaperPath : sampleWallpapers) {

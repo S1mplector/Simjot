@@ -46,6 +46,10 @@ import javax.swing.text.StyledDocument;
 import javax.swing.text.StyledEditorKit;
 
 import main.core.export.PoemExporter;
+import main.core.poetry.ScansionEngine;
+import main.core.poetry.SoundDevicesEngine;
+import main.core.poetry.ThematicAnalyzer;
+import main.core.poetry.VocabularyAnalyzer;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.EntryHistoryManager;
@@ -64,12 +68,25 @@ import main.ui.dialog.export.PoemExportDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
-import main.ui.features.poetry.PoetryToolsPanel;
 import main.ui.features.poetry.RhymesDockPanel;
 import main.ui.features.poetry.StatsSidebarPanel;
 
 public class PoemPanel extends AbstractEditorPanel {
-    // inherited: app, journalFolder, cardLayout, cardPanel
+
+    /**
+     * This class is the main poem writing interface with real-time poetry analysis.
+     * It provides a rich text editor with live statistics, poetry metrics, and interactive tools.
+     * Features include:
+     * - Real-time word count and reading time estimation
+     * - Poetry analysis metrics (vocabulary, theme, sound devices, meter)
+     * - Interactive rhyming dictionary and synonym finder
+     * - Customizable background themes
+     * - Undo/redo functionality with history tracking
+     * 
+     * It is a child class of AbstractEditorPanel.
+     * Inherited: app, journalFolder, cardLayout, cardPanel
+
+     */
 
     // Components for poem writing
     protected JTextField poemTitleField;
@@ -98,8 +115,17 @@ public class PoemPanel extends AbstractEditorPanel {
     // Optional poetry helpers
     private StatsSidebarPanel statsPanel;
     private RhymesDockPanel rhymesDock;
-    private PoetryToolsPanel poetryToolsPanel;
-    private JDialog poetryToolsDialog;
+    // Poetry analysis engines
+    private final VocabularyAnalyzer vocabularyAnalyzer = new VocabularyAnalyzer();
+    private final ThematicAnalyzer thematicAnalyzer = new ThematicAnalyzer();
+    private final SoundDevicesEngine soundDevicesEngine = new SoundDevicesEngine();
+    private final ScansionEngine scansionEngine = new ScansionEngine();
+    // Poetry metrics labels for bottom bar
+    private JLabel vocabLabel;
+    private JLabel themeLabel;
+    private JLabel soundLabel;
+    private JLabel meterLabel;
+    private javax.swing.Timer analysisDebounceTimer;
     private UndoRedoManager poemTitleUndoManager;
     private UndoRedoManager poemContentUndoManager;
     // Poetry toolkit controls
@@ -190,9 +216,6 @@ public class PoemPanel extends AbstractEditorPanel {
                 revalidate(); repaint();
             }
         });
-        ToolbarIconButton analysisToggle = new ToolbarIconButton("chart");
-        analysisToggle.setToolTipText("Poetry Analysis Tools (Scansion, Sound Devices, Themes)");
-        analysisToggle.addActionListener(e -> togglePoetryToolsDialog());
         ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
@@ -210,7 +233,6 @@ public class PoemPanel extends AbstractEditorPanel {
         exportBtn.addActionListener(e -> exportPoem());
         rightToolbar.add(statsToggle);
         rightToolbar.add(rhymesToggle);
-        rightToolbar.add(analysisToggle);
         rightToolbar.add(exportBtn);
         rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
@@ -362,15 +384,19 @@ public class PoemPanel extends AbstractEditorPanel {
         add(centerContainer, BorderLayout.CENTER);
         add(rhymesDock, BorderLayout.EAST);
 
-        // --- Bottom Panel: "Save Poem" button and Stanza Counter ---
-        bottomPanel = new JPanel(new BorderLayout());
+        // --- Bottom Panel: Two rows - status and poetry analysis ---
+        bottomPanel = new JPanel();
         bottomPanel.setOpaque(false);
-        bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
+        bottomPanel.setBorder(BorderFactory.createEmptyBorder(3, 10, 5, 10));
 
+        // Row 1: Status info
+        JPanel row1 = new JPanel(new BorderLayout());
+        row1.setOpaque(false);
         JLabel stanzaLabel = new JLabel("Stanzas: 1");
         stanzaLabel.setForeground(Color.DARK_GRAY);
         stanzaLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
-        bottomPanel.add(stanzaLabel, BorderLayout.WEST);
+        row1.add(stanzaLabel, BorderLayout.WEST);
         
         // Listener to update the stanza count
         poemEditor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -381,6 +407,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                schedulePoetryAnalysis();
             }
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
@@ -389,6 +416,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                schedulePoetryAnalysis();
             }
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
@@ -397,6 +425,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                schedulePoetryAnalysis();
             }
         });
         // Caret listener to update rhyme/synonyms for current word
@@ -416,13 +445,13 @@ public class PoemPanel extends AbstractEditorPanel {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
         });
 
-        // Status + Inspire
+        // Status in center of row1
         JPanel centerFlow = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         centerFlow.setOpaque(false);
         statusLabel = new JLabel("Words: 0 • Chars: 0 • Stanzas: 0 • ~0 min read");
         statusLabel.setForeground(Color.DARK_GRAY);
         centerFlow.add(statusLabel);
-        bottomPanel.add(centerFlow, BorderLayout.CENTER);
+        row1.add(centerFlow, BorderLayout.CENTER);
 
         // Save button (via EditorUIUtils)
         ToolbarIconButton saveButton = EditorUIUtils.createSaveButton("Save Poem", this::savePoem);
@@ -431,7 +460,39 @@ public class PoemPanel extends AbstractEditorPanel {
         saveIndicator = new SaveIndicatorPanel();
         eastPanel.add(saveIndicator);
         eastPanel.add(saveButton);
-        bottomPanel.add(eastPanel, BorderLayout.EAST);
+        row1.add(eastPanel, BorderLayout.EAST);
+        
+        bottomPanel.add(row1);
+
+        // Row 2: Poetry analysis metrics
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 2));
+        row2.setOpaque(false);
+        
+        vocabLabel = new JLabel("Vocab: —");
+        vocabLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        vocabLabel.setForeground(new Color(80, 80, 140));
+        
+        themeLabel = new JLabel("Theme: —");
+        themeLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        themeLabel.setForeground(new Color(120, 80, 80));
+        
+        soundLabel = new JLabel("Sound: —");
+        soundLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        soundLabel.setForeground(new Color(80, 120, 80));
+        
+        meterLabel = new JLabel("Meter: —");
+        meterLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        meterLabel.setForeground(new Color(100, 100, 100));
+        
+        row2.add(vocabLabel);
+        row2.add(new JLabel("•"));
+        row2.add(themeLabel);
+        row2.add(new JLabel("•"));
+        row2.add(soundLabel);
+        row2.add(new JLabel("•"));
+        row2.add(meterLabel);
+        
+        bottomPanel.add(row2);
 
         add(bottomPanel, BorderLayout.SOUTH);
 
@@ -452,6 +513,8 @@ public class PoemPanel extends AbstractEditorPanel {
         // Initial metrics
         updateMetrics(stanzaLabel);
         refreshToolkitStatus();
+        // Run initial poetry analysis
+        schedulePoetryAnalysis();
     }
 
     private void updateStanzaCount(JLabel label) {
@@ -576,27 +639,78 @@ public class PoemPanel extends AbstractEditorPanel {
         toolkitStatusLabel.setText(sb.toString());
     }
 
-    private void togglePoetryToolsDialog() {
-        if (poetryToolsDialog == null) {
-            // Create the dialog
-            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
-            poetryToolsDialog = new JDialog(owner, "Poetry Analysis Tools", false);
-            poetryToolsDialog.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
-            
-            poetryToolsPanel = new PoetryToolsPanel();
-            poetryToolsPanel.setTextSupplier(() -> poemEditor.getText());
-            
-            poetryToolsDialog.add(poetryToolsPanel);
-            poetryToolsDialog.setSize(450, 600);
-            poetryToolsDialog.setLocationRelativeTo(this);
+    private void runPoetryAnalysis(String text) {
+        if (text == null || text.isBlank()) {
+            SwingUtilities.invokeLater(() -> {
+                if (vocabLabel != null) vocabLabel.setText("Vocab: n/a");
+                if (themeLabel != null) themeLabel.setText("Theme: n/a");
+                if (soundLabel != null) soundLabel.setText("Sound: n/a");
+                if (meterLabel != null) meterLabel.setText("Meter: n/a");
+            });
+            return;
         }
         
-        if (poetryToolsDialog.isVisible()) {
-            poetryToolsDialog.setVisible(false);
-        } else {
-            poetryToolsDialog.setVisible(true);
-            poetryToolsPanel.runAnalysis();
+        // Run analysis in background to avoid blocking UI
+        new Thread(() -> {
+            String vocabText = "Vocab: ...";
+            String themeText = "Theme: ...";
+            String soundText = "Sound: ...";
+            String meterText = "Meter: ...";
+            
+            try {
+                // Simple vocabulary stats (always works)
+                String[] words = text.trim().split("\\s+");
+                int wordCount = words.length;
+                java.util.Set<String> unique = new java.util.HashSet<>();
+                for (String w : words) unique.add(w.toLowerCase(java.util.Locale.ROOT));
+                int uniqueCount = unique.size();
+                double ttr = wordCount > 0 ? (double) uniqueCount / wordCount * 100 : 0;
+                vocabText = String.format("TTR: %.0f%%", ttr);
+                
+                // Thematic analysis
+                ThematicAnalyzer.ThematicAnalysis theme = thematicAnalyzer.analyze(text);
+                themeText = "Theme: " + (theme.dominantTheme.equals("Unknown") ? "General" : theme.dominantTheme);
+                
+                // Sound devices
+                SoundDevicesEngine.SoundAnalysis sound = soundDevicesEngine.analyzePoem(text);
+                int devices = sound.devices.size();
+                soundText = "Sound: " + devices;
+                
+                // Scansion/meter
+                ScansionEngine.PoemScansion scansion = scansionEngine.analyzePoem(text);
+                String meter = scansion.dominantMeter;
+                if (meter == null || meter.isEmpty()) meter = "Free";
+                else if (meter.length() > 12) meter = meter.substring(0, 12);
+                meterText = "Meter: " + meter;
+                
+            } catch (Throwable ex) {
+                System.err.println("Poetry analysis error: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+            
+            // Update UI on EDT
+            final String v = vocabText, t = themeText, s = soundText, m = meterText;
+            SwingUtilities.invokeLater(() -> {
+                if (vocabLabel != null) vocabLabel.setText(v);
+                if (themeLabel != null) themeLabel.setText(t);
+                if (soundLabel != null) soundLabel.setText(s);
+                if (meterLabel != null) meterLabel.setText(m);
+            });
+        }).start();
+    }
+    
+    private void schedulePoetryAnalysis() {
+        String text = poemEditor.getText();
+        if (analysisDebounceTimer != null && analysisDebounceTimer.isRunning()) {
+            analysisDebounceTimer.stop();
         }
+        // Debounce: wait 500ms after last keystroke before running analysis
+        analysisDebounceTimer = new javax.swing.Timer(500, e -> {
+            analysisDebounceTimer.stop();
+            runPoetryAnalysis(text);
+        });
+        analysisDebounceTimer.setRepeats(false);
+        analysisDebounceTimer.start();
     }
 
     private void updateStatus(String text, int stanzas) {
