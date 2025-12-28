@@ -39,6 +39,8 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Highlighter;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -115,6 +117,9 @@ public class PoemPanel extends AbstractEditorPanel {
     // Optional poetry helpers
     private StatsSidebarPanel statsPanel;
     private RhymesDockPanel rhymesDock;
+    // Word highlight for rhymes dock
+    private Object currentWordHighlight;
+    private final WordOutlineHighlightPainter wordHighlightPainter = new WordOutlineHighlightPainter(new Color(100, 149, 237, 120));
     // Poetry analysis engines
     private final VocabularyAnalyzer vocabularyAnalyzer = new VocabularyAnalyzer();
     private final ThematicAnalyzer thematicAnalyzer = new ThematicAnalyzer();
@@ -212,6 +217,9 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (vis) {
                     String w = getWordAtCaret();
                     rhymesDock.update(w, poemEditor.getText());
+                    updateWordHighlight();
+                } else {
+                    clearWordHighlight();
                 }
                 revalidate(); repaint();
             }
@@ -433,6 +441,7 @@ public class PoemPanel extends AbstractEditorPanel {
             if (rhymesDock != null && rhymesDock.isVisible()) {
                 String w = getWordAtCaret();
                 rhymesDock.update(w, poemEditor.getText());
+                updateWordHighlight();
             }
             if (statsPanel != null && statsPanel.isVisible()) {
                 statsPanel.setHighlightedLine(getCaretLineIndex());
@@ -1075,6 +1084,93 @@ public class PoemPanel extends AbstractEditorPanel {
     @Override
     public void setGuidedQuestions(String[] questions) {
         // Poems don't use guided questions - no-op
+    }
+
+    // --- Word highlight for rhymes dock ---
+    
+    /**
+     * Get word boundaries at caret position.
+     * @return int[2] with {start, end} or null if no word
+     */
+    private int[] getWordBoundsAtCaret() {
+        try {
+            int pos = poemEditor.getCaretPosition();
+            String text = poemEditor.getText();
+            if (text == null || text.isEmpty()) return null;
+            if (pos < 0) pos = 0; if (pos > text.length()) pos = text.length();
+            int start = pos;
+            while (start > 0 && Character.isLetter(text.charAt(start - 1))) start--;
+            int end = pos;
+            while (end < text.length() && Character.isLetter(text.charAt(end))) end++;
+            if (end > start) return new int[]{start, end};
+        } catch (Throwable ignored) {}
+        return null;
+    }
+    
+    /**
+     * Update the word highlight overlay when rhymes dock is visible.
+     */
+    private void updateWordHighlight() {
+        clearWordHighlight();
+        if (rhymesDock == null || !rhymesDock.isVisible()) return;
+        
+        int[] bounds = getWordBoundsAtCaret();
+        if (bounds == null) return;
+        
+        try {
+            Highlighter hl = poemEditor.getHighlighter();
+            currentWordHighlight = hl.addHighlight(bounds[0], bounds[1], wordHighlightPainter);
+        } catch (BadLocationException ignored) {}
+    }
+    
+    /**
+     * Clear the word highlight overlay.
+     */
+    private void clearWordHighlight() {
+        if (currentWordHighlight != null) {
+            poemEditor.getHighlighter().removeHighlight(currentWordHighlight);
+            currentWordHighlight = null;
+        }
+    }
+    
+    /**
+     * Custom highlight painter that draws a gentle rounded outline around text.
+     */
+    private static class WordOutlineHighlightPainter implements Highlighter.HighlightPainter {
+        private final Color color;
+        
+        public WordOutlineHighlightPainter(Color color) {
+            this.color = color;
+        }
+        
+        @Override
+        public void paint(Graphics g, int offs0, int offs1, java.awt.Shape bounds, javax.swing.text.JTextComponent c) {
+            try {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                java.awt.Rectangle r0 = c.modelToView(offs0);
+                java.awt.Rectangle r1 = c.modelToView(offs1);
+                if (r0 == null || r1 == null) { g2.dispose(); return; }
+                
+                // Calculate bounding rectangle with padding
+                int x = r0.x - 2;
+                int y = r0.y - 1;
+                int w = (r1.x + r1.width) - r0.x + 4;
+                int h = r0.height + 2;
+                
+                // Fill with semi-transparent background
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 40));
+                g2.fillRoundRect(x, y, w, h, 6, 6);
+                
+                // Draw outline
+                g2.setColor(color);
+                g2.setStroke(new java.awt.BasicStroke(1.5f));
+                g2.drawRoundRect(x, y, w, h, 6, 6);
+                
+                g2.dispose();
+            } catch (BadLocationException ignored) {}
+        }
     }
 }
 
