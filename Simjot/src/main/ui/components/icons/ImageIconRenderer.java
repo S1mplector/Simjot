@@ -1,14 +1,21 @@
 package main.ui.components.icons;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
 import javax.swing.ImageIcon;
-import main.infrastructure.io.ResourceLoader;
-import main.ui.util.AccentColorUtil;
+
 import main.core.service.SettingsStore;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.features.gallery.GeneratedWallpapers;
+import main.ui.util.AccentColorUtil;
 
 /**
  * Central PNG icon loader/renderer with high-quality scaling and in-memory caching.
@@ -190,6 +197,7 @@ public final class ImageIconRenderer {
         return switch (id.toLowerCase()) {
             case "notebook" -> "img/icons/notebooks_mainmenu.png";
             case "smile" -> "img/icons/moodchart_mainmenu.png";
+            case "chart", "stats", "analysis" -> "img/icons/list.png";
             case "wrench", "settings", "options" -> "img/icons/settings.png";
             case "trash" -> "img/icons/trash.png";
             case "new", "write", "plus" -> "img/icons/write.png";

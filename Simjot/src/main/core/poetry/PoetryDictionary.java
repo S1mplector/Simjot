@@ -441,7 +441,7 @@ public final class PoetryDictionary {
     }
     
     // Common function words (determiners, prepositions, conjunctions, auxiliaries, pronouns)
-    private static final Set<String> FUNCTION_WORDS = Set.of(
+    private static final Set<String> FUNCTION_WORDS = Collections.unmodifiableSet(new LinkedHashSet<>(java.util.List.of(
         // Determiners/Articles
         "a", "an", "the", "this", "that", "these", "those", "my", "your", "his", "her", 
         "its", "our", "their", "some", "any", "no", "every", "each", "all", "both",
@@ -453,7 +453,7 @@ public final class PoetryDictionary {
         "behind", "beside", "besides", "beyond", "despite", "except", "near", "since",
         "than", "toward", "towards", "upon", "within", "without", "along", "across",
         // Conjunctions
-        "and", "or", "but", "nor", "so", "yet", "for", "if", "when", "while", "although",
+        "and", "or", "but", "nor", "so", "yet", "if", "when", "while", "although",
         "because", "unless", "until", "whether", "though", "whereas", "wherever",
         // Pronouns
         "i", "me", "we", "us", "you", "he", "him", "she", "her", "it", "they", "them",
@@ -466,7 +466,7 @@ public final class PoetryDictionary {
         // Other function words
         "not", "very", "too", "also", "just", "only", "even", "still", "already",
         "now", "then", "here", "there", "where", "how", "why"
-    );
+    )));
     
     /**
      * Get synonyms for a word.
