@@ -1,39 +1,72 @@
 package main.ui.features.entries;
 
-import java.awt.*;
-import java.io.*;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Window;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Random;
-import javax.swing.*;
-import javax.swing.text.*;
-import javax.swing.text.StyledEditorKit;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.JTextPane;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.text.StyledEditorKit;
+
+import main.core.export.PoemExporter;
+import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
+import main.infrastructure.backup.EntryHistoryManager;
+import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
-import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.combobox.ModernComboBoxUI;
-import main.ui.components.util.EditorUIUtils;
+import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
+import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
+import main.ui.components.util.EditorUIUtils;
+import main.ui.dialog.export.PoemExportDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
-import main.ui.components.indicators.SaveIndicatorPanel;
-import main.infrastructure.backup.NotebookInfo;
-import main.ui.features.poetry.StatsSidebarPanel;
-import main.ui.features.poetry.RhymesDockPanel;
-import main.core.export.PoemExporter;
-import main.ui.dialog.export.PoemExportDialog;
 import main.ui.features.editing.UndoRedoManager;
-import main.core.service.LastSaveTracker;
-import main.infrastructure.backup.EntryHistoryManager;
-import main.infrastructure.io.FileIO;
+import main.ui.features.poetry.PoetryToolsPanel;
+import main.ui.features.poetry.RhymesDockPanel;
+import main.ui.features.poetry.StatsSidebarPanel;
 
 public class PoemPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
@@ -65,6 +98,8 @@ public class PoemPanel extends AbstractEditorPanel {
     // Optional poetry helpers
     private StatsSidebarPanel statsPanel;
     private RhymesDockPanel rhymesDock;
+    private PoetryToolsPanel poetryToolsPanel;
+    private JDialog poetryToolsDialog;
     private UndoRedoManager poemTitleUndoManager;
     private UndoRedoManager poemContentUndoManager;
     // Poetry toolkit controls
@@ -155,6 +190,9 @@ public class PoemPanel extends AbstractEditorPanel {
                 revalidate(); repaint();
             }
         });
+        ToolbarIconButton analysisToggle = new ToolbarIconButton("chart");
+        analysisToggle.setToolTipText("Poetry Analysis Tools (Scansion, Sound Devices, Themes)");
+        analysisToggle.addActionListener(e -> togglePoetryToolsDialog());
         ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
@@ -172,6 +210,7 @@ public class PoemPanel extends AbstractEditorPanel {
         exportBtn.addActionListener(e -> exportPoem());
         rightToolbar.add(statsToggle);
         rightToolbar.add(rhymesToggle);
+        rightToolbar.add(analysisToggle);
         rightToolbar.add(exportBtn);
         rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
@@ -535,6 +574,29 @@ public class PoemPanel extends AbstractEditorPanel {
         sb.append("Active form: ").append(active != null && !active.isBlank() ? active : "None");
         sb.append(" • Detected: ").append(detected != null && !detected.isBlank() ? detected : "—");
         toolkitStatusLabel.setText(sb.toString());
+    }
+
+    private void togglePoetryToolsDialog() {
+        if (poetryToolsDialog == null) {
+            // Create the dialog
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            poetryToolsDialog = new JDialog(owner, "Poetry Analysis Tools", false);
+            poetryToolsDialog.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+            
+            poetryToolsPanel = new PoetryToolsPanel();
+            poetryToolsPanel.setTextSupplier(() -> poemEditor.getText());
+            
+            poetryToolsDialog.add(poetryToolsPanel);
+            poetryToolsDialog.setSize(450, 600);
+            poetryToolsDialog.setLocationRelativeTo(this);
+        }
+        
+        if (poetryToolsDialog.isVisible()) {
+            poetryToolsDialog.setVisible(false);
+        } else {
+            poetryToolsDialog.setVisible(true);
+            poetryToolsPanel.runAnalysis();
+        }
     }
 
     private void updateStatus(String text, int stanzas) {
