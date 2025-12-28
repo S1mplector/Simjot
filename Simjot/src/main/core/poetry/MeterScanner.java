@@ -70,7 +70,9 @@ public class MeterScanner {
                 tip = meterHint.isEmpty() ? " " : meterHint;
             }
 
+            int[] stressPattern = PoetryUtils.estimateLineStressPattern(line);
             b.addLineRow(lbl, syl, tip, label != null ? label.toString() : "");
+            b.addStressPattern(stressPattern);
             b.mapTextLineToCurrentRow(i);
         }
 

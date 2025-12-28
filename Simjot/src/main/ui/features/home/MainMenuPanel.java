@@ -45,10 +45,10 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
-import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.components.DragController;
 import main.ui.components.buttons.MainMenuButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
@@ -381,75 +381,40 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.add(writingHeader);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
 
-        FadingButton notebooksButton = createMenuButtonWithIcon("Poetry Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
-        notebooksButton.setForeground(AeroTheme.TEXT_PRIMARY);
-        notebooksButton.setToolTipText("Collect, draft, and manage your poetry notebooks");
-        buttonPanel.add(notebooksButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
-
-        FadingButton searchButton = new MainMenuButton("Search", "explorer");
-        searchButton.setForeground(AeroTheme.TEXT_PRIMARY);
-        searchButton.setToolTipText("Search across all poems and notebooks");
-        searchButton.setFont(searchButton.getFont().deriveFont(Font.BOLD, 20f));
-        searchButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
-        searchButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        searchButton.addActionListener(e -> app.showGlobalSearch());
-        buttonPanel.add(searchButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
-
         // Planning section has been removed
-        // ---------- ARTS section (hidden unless there are visible items) ----------
+        // Icon row (horizontal, compact)
+        JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
+        iconRow.setOpaque(false);
 
-        // Canvas button temporarily removed from the menu (functionality kept for later transformation)
-        FadingButton galleryButton = createMenuButtonWithIcon("Gallery", JournalApp.GALLERY, "image");
-        galleryButton.setForeground(Color.WHITE);
-        galleryButton.setFont(galleryButton.getFont().deriveFont(Font.BOLD, 20f));
-        galleryButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
-        galleryButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        galleryButton.addActionListener(e -> app.switchCard(JournalApp.GALLERY));
+        IconMenuButton notebooksButton = createIconButton("Poetry Notebooks", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        notebooksButton.setToolTipText("Collect, draft, and manage your poetry notebooks");
+        iconRow.add(notebooksButton);
 
-        List<FadingButton> artsBtns = new ArrayList<>();
+        IconMenuButton searchButton = new IconMenuButton("Search", "explorer");
+        searchButton.setToolTipText("Search across all poems and notebooks");
+        searchButton.addActionListener(e -> app.showGlobalSearch());
+        iconRow.add(searchButton);
+
         if (SHOW_GALLERY) {
-            artsBtns.add(galleryButton);
-        }
-        if (!artsBtns.isEmpty()) {
-            JLabel artsHeader = new JLabel("Arts & Gallery");
-            artsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-            artsHeader.setForeground(Color.WHITE);
-            artsHeader.setFont(artsHeader.getFont().deriveFont(Font.BOLD, 22f));
-            buttonPanel.add(artsHeader);
-            buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-            for (FadingButton b : artsBtns) {
-                b.setAlpha(1f);
-                b.setAlignmentX(Component.CENTER_ALIGNMENT);
-                buttonPanel.add(b);
-                buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-            }
-            buttonPanel.add(Box.createRigidArea(new Dimension(0, 12)));
+            IconMenuButton galleryButton = createIconButton("Gallery", JournalApp.GALLERY, "image");
+            galleryButton.addActionListener(e -> app.switchCard(JournalApp.GALLERY));
+            iconRow.add(galleryButton);
         }
 
-        FadingButton settingsButton = createMenuButtonWithIcon("Settings", JournalApp.SETTINGS, "wrench");
+        IconMenuButton settingsButton = createIconButton("Settings", JournalApp.SETTINGS, "wrench");
         settingsButton.setToolTipText("Customize appearance, storage, security, and more");
-        settingsButton.setAlpha(1f);
-        settingsButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        buttonPanel.add(settingsButton);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
+        iconRow.add(settingsButton);
 
-        // ---- Exit button (bottom) ----
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 16)));
-        FadingButton exitButton = new MainMenuButton("Exit", "close");
-        exitButton.setForeground(AeroTheme.TEXT_PRIMARY);
+        IconMenuButton exitButton = new IconMenuButton("Exit", "close");
         exitButton.setToolTipText("Save all work and close Simjot");
-        exitButton.setFont(exitButton.getFont().deriveFont(Font.BOLD, 20f));
-        exitButton.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
-        exitButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         exitButton.addActionListener(e -> {
-            // Use the owning app instance to perform a graceful shutdown with exiting splash
             if (app != null) {
                 app.exitGracefully();
             }
         });
-        buttonPanel.add(exitButton);
+        iconRow.add(exitButton);
+
+        buttonPanel.add(iconRow);
 
         content.add(Box.createRigidArea(new Dimension(0, 20)));
         content.add(buttonPanel);
@@ -831,16 +796,11 @@ public class MainMenuPanel extends JPanel {
                 String iconId = (widget != null && widget.getIconId() != null && !widget.getIconId().trim().isEmpty())
                         ? widget.getIconId().trim()
                         : "lines";
-                FadingButton btn = new MainMenuButton(displayName, iconId);
+                MainMenuButton btn = new MainMenuButton(displayName, iconId);
                 btn.setText(displayName);
                 btn.setToolTipText(displayName);
-                // Keep widget labels visible (no hover-fade)
-                btn.putClientProperty("disableHoverFade", Boolean.TRUE);
-                // Hide sliding icons for widgets to avoid overlapping graphics
-                btn.putClientProperty("hideIcon", Boolean.TRUE);
                 btn.setForeground(AeroTheme.TEXT_PRIMARY);
                 btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 16f));
-                btn.setAlpha(1f);
                 btn.setAlignmentX(Component.CENTER_ALIGNMENT);
                 btn.addActionListener(e -> {
                     if ("Breathing".equalsIgnoreCase(displayName)) {
@@ -1086,12 +1046,8 @@ public class MainMenuPanel extends JPanel {
         // Widget panel disabled
     }
 
-    private FadingButton createMenuButtonWithIcon(String text, String cardName, String icon) {
-        FadingButton button = new MainMenuButton(text, icon);
-        // Main menu button uses theme primary text color for better contrast
-        button.setForeground(AeroTheme.TEXT_PRIMARY);
-        button.setFont(button.getFont().deriveFont(Font.BOLD, 20f));
-        button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+    private IconMenuButton createIconButton(String text, String cardName, String icon) {
+        IconMenuButton button = new IconMenuButton(text, icon);
         button.setAlignmentX(Component.CENTER_ALIGNMENT);
         button.addActionListener(e -> app.switchCard(cardName));
         return button;

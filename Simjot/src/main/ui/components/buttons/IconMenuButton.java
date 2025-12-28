@@ -1,0 +1,92 @@
+package main.ui.components.buttons;
+
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
+import javax.swing.JButton;
+import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.icons.VectorIconPainter;
+import main.ui.theme.aero.AeroTheme;
+
+/**
+ * Minimal icon-first menu button.
+ * Draws a centered PNG/vector icon; on hover/press shows a soft overlay and reveals the caption under the icon.
+ */
+public class IconMenuButton extends JButton {
+    private final String iconId;
+    private final String caption;
+    private boolean hovering = false;
+
+    public IconMenuButton(String text, String iconId) {
+        super(""); // we render text manually
+        this.caption = text == null ? "" : text;
+        this.iconId = iconId == null ? "" : iconId.toLowerCase();
+        setOpaque(false);
+        setContentAreaFilled(false);
+        setBorderPainted(false);
+        setFocusPainted(false);
+        setForeground(AeroTheme.TEXT_PRIMARY);
+        setFont(new Font("SansSerif", Font.BOLD, 16));
+
+        // Size tuned for icon + hover caption
+        int w = 80;
+        int h = 96;
+        Dimension pref = new Dimension(w, h);
+        setPreferredSize(pref);
+        setMinimumSize(pref);
+        setMaximumSize(new Dimension(Integer.MAX_VALUE, h + 10));
+
+        addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { hovering = true; repaint(); }
+            @Override public void mouseExited(MouseEvent e) { hovering = false; repaint(); }
+        });
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int w = getWidth();
+        int h = getHeight();
+
+        // Background plate (subtle only on hover/press)
+        boolean pressed = getModel().isArmed() && getModel().isPressed();
+        if (hovering || pressed) {
+            Color overlay = pressed ? new Color(220, 230, 240, 200) : new Color(235, 241, 249, 200);
+            Shape plate = new RoundRectangle2D.Float(6, 6, w - 12, h - 26, 16, 16);
+            g2.setColor(overlay);
+            g2.fill(plate);
+            g2.setColor(new Color(170, 180, 195));
+            g2.draw(plate);
+        }
+
+        // Icon
+        int iconSize = Math.min(w - 18, 48);
+        int iconX = (w - iconSize) / 2;
+        int iconY = 12 + (hovering ? 0 : 4); // nudge down a bit when idle
+        boolean drawn = false;
+        String resPath = ImageIconRenderer.mapIdToResource(iconId);
+        if (resPath != null) {
+            ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
+            drawn = true;
+        }
+        if (!drawn) {
+            g2.setColor(AeroTheme.TEXT_PRIMARY);
+            VectorIconPainter.paint(g2, iconId, iconX, iconY, iconSize);
+        }
+
+        // Caption (only when hovered)
+        if (hovering) {
+            g2.setColor(getForeground());
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            int textW = fm.stringWidth(caption);
+            int textX = (w - textW) / 2;
+            int textY = iconY + iconSize + fm.getAscent() + 4;
+            g2.drawString(caption, textX, textY);
+        }
+
+        g2.dispose();
+    }
+}

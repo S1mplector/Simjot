@@ -1,160 +1,96 @@
 package main.ui.components.buttons;
 
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
+import javax.swing.JButton;
 import javax.swing.SwingConstants;
-import javax.swing.Timer;
-import main.core.service.SettingsStore;
-import main.infrastructure.monitoring.AppPerf;
-import main.ui.animations.transitions.FadingButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.icons.VectorIconPainter;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
-/** A main-menu button that animates a white vector icon sliding out on hover. */
-public class MainMenuButton extends FadingButton {
+/**
+ * Main menu button with a calm, non-animated style.
+ * Rounded card with subtle hover/press shading and centered icon + text.
+ */
+public class MainMenuButton extends JButton {
     private final String iconId;
-    private float progress = 0f;    // 0 hidden, 1 fully shown
     private boolean hovering = false;
-    private Timer animTimer;
-    private BufferedImage bgDefault, bgHover, bgPressed;
-    private int cacheW, cacheH;
 
     public MainMenuButton(String text, String iconId){
         super(text);
         this.iconId = iconId.toLowerCase();
         // Left align text
         setHorizontalAlignment(SwingConstants.CENTER);
-        // Animation timer using centralized FPS
-        animTimer = new Timer(AppPerf.getAnimationDelay(), e->{
-            if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
-                return;
-            }
-            float target = hovering ? 1f : 0f;
-            float speed = 0.08f;
-            if (Math.abs(progress - target) > 0.01f) {
-                progress += (target - progress) * speed;
-                repaint();
-            } else {
-                progress = target;
-                animTimer.stop();
-            }
-        });
-        // Hover listeners
+        setFocusPainted(false);
+        setBorderPainted(false);
+        setContentAreaFilled(false);
+        setOpaque(false);
+        setFont(getFont().deriveFont(Font.BOLD, 18f));
+        setForeground(AeroTheme.TEXT_PRIMARY);
+        // Size calculated to fit icon + text without clipping
+        int baseHeight = 60;
+        int textWidth = getFontMetrics(getFont()).stringWidth(text) + 1;
+        int minWidth = Math.max(260, 16 * 3 + textWidth + baseHeight); // padding + icon + text
+        Dimension pref = new Dimension(minWidth, baseHeight);
+        setPreferredSize(pref);
+        setMinimumSize(pref);
+        setMaximumSize(new Dimension(minWidth, baseHeight + 6)); // allow slight vertical growth for layout
+        // Hover listeners for simple state toggle (no animation)
         addMouseListener(new MouseAdapter(){
-            @Override public void mouseEntered(MouseEvent e){ 
-                hovering=true; 
-                if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
-                    progress = 1f; // Show icon immediately
-                    repaint();
-                } else {
-                    animTimer.start(); 
-                }
-            }
-            @Override public void mouseExited(MouseEvent e){ 
-                hovering=false; 
-                if (SettingsStore.get().isMainMenuAnimationsDisabled()) {
-                    progress = 0f; // Hide icon immediately
-                    repaint();
-                } else {
-                    animTimer.start(); 
-                }
-            }
+            @Override public void mouseEntered(MouseEvent e){ hovering = true; repaint(); }
+            @Override public void mouseExited(MouseEvent e){ hovering = false; repaint(); }
         });
-    }
-
-    private void ensureBgCache(){
-        int w = getWidth();
-        int h = getHeight();
-        if (w <= 0 || h <= 0) return;
-        if (bgDefault != null && cacheW == w && cacheH == h) return;
-        cacheW = w; cacheH = h;
-        bgDefault = renderBg(AeroTheme.BUTTON_BG_TOP, AeroTheme.BUTTON_BG_BOTTOM, w, h);
-        bgHover   = renderBg(AeroTheme.BUTTON_HOVER_TOP, AeroTheme.BUTTON_HOVER_BOTTOM, w, h);
-        bgPressed = renderBg(AeroTheme.BUTTON_PRESS_TOP, AeroTheme.BUTTON_PRESS_BOTTOM, w, h);
-    }
-
-    private BufferedImage renderBg(Color top, Color bottom, int w, int h){
-        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = img.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        Rectangle r = new Rectangle(0, 0, w, h);
-        AeroPainters.paintVerticalGradient(g2, r, top, bottom, 15);
-        AeroPainters.paintGlassOverlay(g2, r, 15);
-        g2.setColor(new Color(180, 180, 180));
-        g2.draw(new RoundRectangle2D.Float(0, 0, w, h, 15, 15));
-        g2.dispose();
-        return img;
     }
 
     @Override
     protected void paintComponent(Graphics g){
-        boolean disableHoverFade = Boolean.TRUE.equals(getClientProperty("disableHoverFade"));
-        boolean hideIcon = Boolean.TRUE.equals(getClientProperty("hideIcon"));
-        float p = disableHoverFade ? 0f : progress;
-        float iconProgress = hideIcon ? 0f : (disableHoverFade ? 1f : p);
-        int extra = (int) (20 * p);
+        boolean pressed = getModel().isArmed() && getModel().isPressed();
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        Shape bgShape = new RoundRectangle2D.Float(-extra, 0, getWidth() + 2 * extra, getHeight(), 15, 15);
-        boolean pressed = getModel().isPressed();
-        ensureBgCache();
-        BufferedImage bgImg = pressed ? bgPressed : (hovering ? bgHover : bgDefault);
-        if (bgImg != null) {
-            g2.setClip(bgShape);
-            g2.drawImage(bgImg, -extra, 0, getWidth() + 2 * extra, getHeight(), null);
-            g2.setClip(null);
-            g2.setColor(new Color(180, 180, 180));
-            g2.draw(bgShape);
+        int w = getWidth();
+        int h = getHeight();
+        float radius = 14f;
+
+        Color base = new Color(245, 246, 250);
+        Color hover = new Color(235, 239, 245);
+        Color press = new Color(225, 231, 240);
+        Color border = new Color(190, 195, 205);
+
+        Color bg = pressed ? press : (hovering ? hover : base);
+        g2.setColor(bg);
+        g2.fill(new RoundRectangle2D.Float(0, 0, w, h, radius, radius));
+        g2.setColor(border);
+        g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, radius, radius));
+
+        // Draw icon + text
+        int padding = 18;
+        int iconSize = Math.max(24, Math.min(h - padding * 2, 30));
+        int iconX = padding;
+        int iconY = (h - iconSize) / 2;
+
+        Graphics2D gIcon = (Graphics2D) g2.create();
+        gIcon.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        String resPath = ImageIconRenderer.mapIdToResource(iconId);
+        boolean drawn = false;
+        if (resPath != null) {
+            ImageIconRenderer.draw(gIcon, resPath, iconX, iconY, iconSize, this, true);
+            drawn = true;
         }
+        if (!drawn) {
+            gIcon.setColor(AeroTheme.TEXT_PRIMARY);
+            drawVector(gIcon, iconId, iconX, iconY, iconSize);
+        }
+        gIcon.dispose();
+
+        g2.setColor(getForeground());
+        FontMetrics fm = g2.getFontMetrics();
+        String text = getText();
+        int textX = iconX + iconSize + padding;
+        int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+        g2.drawString(text, textX, textY);
         g2.dispose();
-
-        // Draw text with fading alpha (but do NOT affect icon color)
-        Color fgBase = getForeground();
-        Color fgOpaque = new Color(fgBase.getRed(), fgBase.getGreen(), fgBase.getBlue());
-        Color fgFaded = new Color(fgOpaque.getRed(), fgOpaque.getGreen(), fgOpaque.getBlue(), (int) (255 * (1 - p)));
-
-        // Avoid double background paint from FadingButton by making its background transparent during super call
-        Color oldBg = getBackground();
-        setBackground(new Color(0, 0, 0, 0));
-        setForeground(fgFaded);
-        super.paintComponent(g); // paints text with modified alpha
-        // Restore colors
-        setForeground(fgOpaque);
-        setBackground(oldBg);
-
-        // Draw sliding icon
-        if(iconProgress>0f){
-            Graphics2D g2Icon = (Graphics2D) g.create();
-            g2Icon.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2Icon.setComposite(AlphaComposite.SrcOver.derive(iconProgress));
-
-            int size = getHeight() - 14; // icon slightly smaller than button height
-
-            // Compute centre position
-            int xCenter = (getWidth() - size) / 2;
-            // Start from outside right edge when hidden
-            int xStart = getWidth() + size;
-            int x = xStart + (int)((xCenter - xStart) * iconProgress);
-
-            int y = (getHeight() - size) / 2;
-            // Prefer centralized PNG renderer (with caching & shadow); fallback to vector
-            String resPath = ImageIconRenderer.mapIdToResource(iconId);
-            boolean drawn = false;
-            if (resPath != null) {
-                ImageIconRenderer.draw(g2Icon, resPath, x, y, size, this, true);
-                drawn = true;
-            }
-            if (!drawn) {
-                // Icons use theme primary text color for better contrast
-                g2Icon.setColor(AeroTheme.TEXT_PRIMARY);
-                drawVector(g2Icon, iconId, x, y, size);
-            }
-            g2Icon.dispose();
-        }
     }
 
     // PNG path resolution is centralized in ImageIconRenderer.mapIdToResource

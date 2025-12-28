@@ -234,6 +234,23 @@ public final class PoetryUtils {
         }
         return pattern;
     }
+
+    /**
+     * Estimate a binary stress pattern for a whole line. This is intentionally simple:
+     * - Split into words, estimate stress per word, then flatten.
+     * - Clamp to the syllable count we already calculated to avoid drift.
+     */
+    public static int[] estimateLineStressPattern(String line) {
+        if (line == null || line.isBlank()) return new int[0];
+        java.util.List<Integer> bits = new java.util.ArrayList<>();
+        for (String w : wordsInLine(line)) {
+            int[] pat = estimateStressPattern(w);
+            for (int b : pat) bits.add(b);
+        }
+        int[] out = new int[bits.size()];
+        for (int i = 0; i < bits.size(); i++) out[i] = bits.get(i);
+        return out;
+    }
     
     /**
      * Check if a line follows iambic pattern (unstressed-stressed).

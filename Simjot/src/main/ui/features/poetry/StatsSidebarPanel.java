@@ -23,6 +23,7 @@ public class StatsSidebarPanel extends JPanel {
     private final java.util.List<Integer> modelIndexByTextLine = new ArrayList<>(); // maps text line -> model index
     private final java.util.List<Integer> textLineByModelIndex = new ArrayList<>(); // reverse: model index -> text line
     private final java.util.List<Integer> contentLineByModelIndex = new ArrayList<>(); // reverse: model index -> content line (skip stanza separators)
+    private final java.util.List<int[]> stressByTextLine = new ArrayList<>();
     private final MeterScanner meterScanner = new MeterScanner();
 
     // Async/debounce state
@@ -199,6 +200,18 @@ public class StatsSidebarPanel extends JPanel {
                         };
                         c.setForeground(col);
                     }
+                } else if (index >= 0 && index < textLineByModelIndex.size()) {
+                    int textLine = textLineByModelIndex.get(index);
+                    if (textLine >= 0 && textLine < stressByTextLine.size()) {
+                        int[] stress = stressByTextLine.get(textLine);
+                        if (stress != null && stress.length > 0) {
+                            int pulses = 0;
+                            for (int b : stress) if (b == 1) pulses++;
+                            if (pulses > 0) {
+                                c.setForeground(new Color(60, 100, 160));
+                            }
+                        }
+                    }
                 } else if (targetSyllables > 0 && index >= 0 && index < syllablesByIndex.size()) {
                     int syl = Math.max(0, syllablesByIndex.get(index));
                     int diff = syl - targetSyllables;
@@ -275,14 +288,15 @@ public class StatsSidebarPanel extends JPanel {
                     return meterScanner.analyze(text, perStanza);
                 } catch (Throwable t) {
                     return new MeterAnalysis(
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            Collections.emptyList(),
+                            java.util.Collections.<String>emptyList(),
+                            java.util.Collections.<Integer>emptyList(),
+                            java.util.Collections.<Boolean>emptyList(),
+                            java.util.Collections.<String>emptyList(),
+                            java.util.Collections.<Integer>emptyList(),
+                            java.util.Collections.<Integer>emptyList(),
+                            java.util.Collections.<String>emptyList(),
                             "",
+                            java.util.Collections.<int[]>emptyList(),
                             0,0,0,0.0);
                 }
             }
@@ -307,6 +321,8 @@ public class StatsSidebarPanel extends JPanel {
         textLineByModelIndex.clear();
         contentLineByModelIndex.clear();
         lastDetectedForm = a.detectedForm == null ? "" : a.detectedForm;
+        stressByTextLine.clear();
+        stressByTextLine.addAll(a.stressByTextLine);
 
         // Fill model and side arrays from analysis
         for (int i = 0; i < a.displayRows.size(); i++) {
@@ -363,6 +379,17 @@ public class StatsSidebarPanel extends JPanel {
                 String tip = tooltipsByIndex.get(i);
                 tooltipsByIndex.set(i, (tip == null || tip.isBlank() ? "" : tip) + extra);
             }
+        }
+
+        // Append stress pattern hints to tooltips
+        for (int i = 0; i < tooltipsByIndex.size() && i < textLineByModelIndex.size(); i++) {
+            int tl = textLineByModelIndex.get(i);
+            if (tl < 0 || tl >= stressByTextLine.size()) continue;
+            int[] stress = stressByTextLine.get(tl);
+            if (stress == null || stress.length == 0) continue;
+            String pattern = stressPatternString(stress);
+            String tip = tooltipsByIndex.get(i);
+            tooltipsByIndex.set(i, (tip == null || tip.isBlank() ? "" : tip) + "  |  Stress: " + pattern);
         }
 
         // Summary footer: lines, stanzas, avg/min/max, stddev, target hit rate
@@ -489,6 +516,15 @@ public class StatsSidebarPanel extends JPanel {
             list.setSelectedIndex(highlightedModelIndex);
             list.ensureIndexIsVisible(highlightedModelIndex);
         }
+    }
+
+    private static String stressPatternString(int[] pattern) {
+        if (pattern == null || pattern.length == 0) return "";
+        StringBuilder sb = new StringBuilder(pattern.length);
+        for (int b : pattern) {
+            sb.append(b == 1 ? '/' : '˘');
+        }
+        return sb.toString();
     }
 
     // --- Editor sync: notify on row click ---

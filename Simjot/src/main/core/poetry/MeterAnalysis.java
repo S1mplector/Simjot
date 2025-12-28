@@ -15,6 +15,7 @@ public class MeterAnalysis {
     public final List<Integer> syllablesByTextLine; // non-blank lines only (order preserved)
     public final List<String> rhymeLabelsByTextLine; // rhyme scheme labels aligned to syllablesByTextLine
     public final String detectedForm;
+    public final java.util.List<int[]> stressByTextLine; // 0/1 patterns per line (best-effort)
 
     public final int minSyllables;
     public final int maxSyllables;
@@ -29,6 +30,7 @@ public class MeterAnalysis {
                          List<Integer> syllablesByTextLine,
                          List<String> rhymeLabelsByTextLine,
                          String detectedForm,
+                         java.util.List<int[]> stressByTextLine,
                          int minSyllables,
                          int maxSyllables,
                          int countedLines,
@@ -41,6 +43,7 @@ public class MeterAnalysis {
         this.syllablesByTextLine = List.copyOf(syllablesByTextLine);
         this.rhymeLabelsByTextLine = List.copyOf(rhymeLabelsByTextLine);
         this.detectedForm = detectedForm == null ? "" : detectedForm;
+        this.stressByTextLine = stressByTextLine == null ? List.of() : List.copyOf(stressByTextLine);
         this.minSyllables = minSyllables;
         this.maxSyllables = maxSyllables;
         this.countedLines = countedLines;
@@ -57,6 +60,7 @@ public class MeterAnalysis {
         private final List<Integer> modelIndexByTextLine = new ArrayList<>();
         private final List<Integer> syllablesByTextLine = new ArrayList<>();
         private final List<String> rhymeLabelsByTextLine = new ArrayList<>();
+        private final java.util.List<int[]> stressByTextLine = new ArrayList<>();
         private int minSyl = Integer.MAX_VALUE, maxSyl = 0, counted = 0, total = 0;
         private String detectedForm = "";
 
@@ -93,11 +97,19 @@ public class MeterAnalysis {
             this.detectedForm = form == null ? "" : form;
         }
 
+        public void addStressPattern(int[] pattern) {
+            if (pattern == null) {
+                stressByTextLine.add(new int[0]);
+            } else {
+                stressByTextLine.add(java.util.Arrays.copyOf(pattern, pattern.length));
+            }
+        }
+
         public MeterAnalysis build() {
             double avg = counted > 0 ? (total / (double) counted) : 0.0;
             if (counted == 0) { minSyl = 0; maxSyl = 0; }
             return new MeterAnalysis(displayRows, syllablesByRow, stanzaBreakByRow, tooltipsByRow, modelIndexByTextLine,
-                    syllablesByTextLine, rhymeLabelsByTextLine, detectedForm,
+                    syllablesByTextLine, rhymeLabelsByTextLine, detectedForm, stressByTextLine,
                     minSyl, maxSyl, counted, avg);
         }
     }
