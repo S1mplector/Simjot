@@ -47,7 +47,6 @@ import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
@@ -62,6 +61,7 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
 
 public class NotebookManagerPanel extends JPanel {
@@ -463,7 +463,7 @@ public class NotebookManagerPanel extends JPanel {
                     store.create(name, type, "notebook", description, accentColor);
                     refresh();
                 } catch (IllegalArgumentException ex) {
-                    JOptionPane.showMessageDialog(this, ex.getMessage(), "Could not create notebook", JOptionPane.WARNING_MESSAGE);
+                    CustomConfirmDialog.confirm(this, "Could not create notebook", ex.getMessage());
                 }
             }
         }
@@ -724,10 +724,10 @@ public class NotebookManagerPanel extends JPanel {
             deleteBtn.setForeground(new Color(180, 60, 60));
             deleteBtn.setPreferredSize(new Dimension(90,36));
             deleteBtn.addActionListener(e->{ 
-                int result = JOptionPane.showConfirmDialog(this, 
-                    "Delete notebook '" + nb.getName() + "' and all its contents?",
-                    "Delete Notebook", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                if (result == JOptionPane.YES_OPTION) {
+                boolean confirm = CustomConfirmDialog.confirm(this, 
+                    "Delete Notebook",
+                    "Delete notebook '" + nb.getName() + "' and all its contents?");
+                if (confirm) {
                     store.delete(nb);
                     modified = true;
                     setVisible(false);
