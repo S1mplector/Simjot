@@ -1,25 +1,72 @@
 package main.ui.features.notebooks;
 
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DragGestureEvent;
+import java.awt.dnd.DragGestureListener;
+import java.awt.dnd.DragSource;
+import java.awt.dnd.DragSourceDragEvent;
+import java.awt.dnd.DragSourceDropEvent;
+import java.awt.dnd.DragSourceEvent;
+import java.awt.dnd.DragSourceListener;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import javax.swing.*;
+import java.util.List;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
- 
-import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
-import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.RoundedPanel;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroTheme;
 
 public class NotebookManagerPanel extends JPanel {
     private final NotebookStore store = new NotebookStore();
-    private final JPanel gallery = new JPanel(new FlowLayout(FlowLayout.LEFT,20,20));
+    private final JPanel gallery = new JPanel();
     private final JournalApp app;
 
     public NotebookManagerPanel(JournalApp app){
@@ -40,6 +87,7 @@ public class NotebookManagerPanel extends JPanel {
         add(topBar, BorderLayout.NORTH);
 
         gallery.setOpaque(false);
+        gallery.setLayout(new BoxLayout(gallery, BoxLayout.Y_AXIS));
         JScrollPane scroll = new JScrollPane(gallery);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getVerticalScrollBar().setUnitIncrement(16);
@@ -51,12 +99,127 @@ public class NotebookManagerPanel extends JPanel {
     public void refresh(){
         store.reload();
         gallery.removeAll();
-        java.util.List<NotebookInfo> list = store.list();
-        for(NotebookInfo nb: list){
-            gallery.add(createTile(nb));
+        
+        // Display clusters first
+        List<String> clusterIds = store.getClusterIds();
+        for (String clusterId : clusterIds) {
+            gallery.add(createClusterPanel(clusterId));
+            gallery.add(Box.createVerticalStrut(10));
         }
-        gallery.add(createAddTile()); // always present at the end
+        
+        // Display unclustered notebooks
+        List<NotebookInfo> unclustered = store.getUnclusteredNotebooks();
+        if (!unclustered.isEmpty()) {
+            JPanel unclusteredPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 20));
+            unclusteredPanel.setOpaque(false);
+            unclusteredPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            for (NotebookInfo nb : unclustered) {
+                unclusteredPanel.add(createTile(nb));
+            }
+            unclusteredPanel.add(createAddTile());
+            gallery.add(unclusteredPanel);
+        } else {
+            // Only add tile if no notebooks at all
+            JPanel addPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 20));
+            addPanel.setOpaque(false);
+            addPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            addPanel.add(createAddTile());
+            gallery.add(addPanel);
+        }
+        
         revalidate(); repaint();
+    }
+    
+    private JPanel createClusterPanel(String clusterId) {
+        JPanel clusterPanel = new JPanel(new BorderLayout(8, 8));
+        clusterPanel.setOpaque(false);
+        clusterPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        clusterPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(147, 112, 219, 150)),
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+        
+        // Cluster header with name and actions
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel clusterLabel = new JLabel(clusterId);
+        clusterLabel.setFont(clusterLabel.getFont().deriveFont(Font.BOLD, 14f));
+        clusterLabel.setForeground(new Color(80, 80, 80));
+        header.add(clusterLabel, BorderLayout.WEST);
+        
+        // Cluster actions - trash icon button
+        ToolbarIconButton disbandBtn = new ToolbarIconButton("trash");
+        disbandBtn.setToolTipText("Disband cluster");
+        disbandBtn.addActionListener(e -> {
+            boolean confirm = CustomConfirmDialog.confirm(this, 
+                "Disband Cluster",
+                "Disband cluster '" + clusterId + "'?<br>Notebooks will become unclustered.");
+            if (confirm) {
+                store.disbandCluster(clusterId);
+                refresh();
+            }
+        });
+        header.add(disbandBtn, BorderLayout.EAST);
+        clusterPanel.add(header, BorderLayout.NORTH);
+        
+        // Notebooks in cluster
+        JPanel notebooksFlow = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+        notebooksFlow.setOpaque(false);
+        List<NotebookInfo> inCluster = store.getNotebooksInCluster(clusterId);
+        for (NotebookInfo nb : inCluster) {
+            notebooksFlow.add(createTile(nb));
+        }
+        clusterPanel.add(notebooksFlow, BorderLayout.CENTER);
+        
+        // Make cluster a drop target
+        setupClusterDropTarget(clusterPanel, clusterId);
+        
+        return clusterPanel;
+    }
+    
+    private void setupClusterDropTarget(JPanel clusterPanel, String clusterId) {
+        new DropTarget(clusterPanel, new DropTargetAdapter() {
+            @Override
+            public void drop(DropTargetDropEvent dtde) {
+                try {
+                    dtde.acceptDrop(DnDConstants.ACTION_MOVE);
+                    Transferable t = dtde.getTransferable();
+                    if (t.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                        String nbName = (String) t.getTransferData(DataFlavor.stringFlavor);
+                        // Find notebook by name and assign to cluster
+                        for (NotebookInfo nb : store.list()) {
+                            if (nb.getName().equals(nbName)) {
+                                store.assignToCluster(nb, clusterId);
+                                break;
+                            }
+                        }
+                        refresh();
+                    }
+                    dtde.dropComplete(true);
+                } catch (Exception ex) {
+                    dtde.dropComplete(false);
+                }
+            }
+            
+            @Override
+            public void dragEnter(DropTargetDragEvent dtde) {
+                clusterPanel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(100, 149, 237)),
+                    BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(100, 149, 237, 100), 2),
+                        BorderFactory.createEmptyBorder(6, 10, 6, 10)
+                    )
+                ));
+            }
+            
+            @Override
+            public void dragExit(DropTargetEvent dte) {
+                clusterPanel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(147, 112, 219, 150)),
+                    BorderFactory.createEmptyBorder(8, 12, 8, 12)
+                ));
+            }
+        });
     }
 
     private JPanel createTile(NotebookInfo nb){
@@ -109,14 +272,20 @@ public class NotebookManagerPanel extends JPanel {
         return files==null?0:files.length;
     }
 
-    private class NotebookTile extends JPanel implements MouseListener{
+    private class NotebookTile extends JPanel implements MouseListener, DragGestureListener, DragSourceListener {
         private final NotebookInfo nb;
+        private final DragSource dragSource;
+        
         NotebookTile(NotebookInfo nb){
             this.nb = nb;
             setLayout(new BorderLayout());
             setOpaque(false);
             setBorder(BorderFactory.createEmptyBorder(2,2,2,2));
             addMouseListener(this);
+            
+            // Setup drag source for clustering
+            dragSource = new DragSource();
+            dragSource.createDefaultDragGestureRecognizer(this, DnDConstants.ACTION_MOVE, this);
 
             JLabel icon = new JLabel(new ImageIcon(createIcon(nb)));
             icon.setHorizontalAlignment(SwingConstants.CENTER);
@@ -131,27 +300,85 @@ public class NotebookManagerPanel extends JPanel {
             JLabel nameLbl = new JLabel(nb.getName(),SwingConstants.CENTER);
             nameLbl.setForeground(AeroTheme.TEXT_PRIMARY);
             NotebookTile.this.add(nameLbl, BorderLayout.SOUTH);
+            
+            // Show description tooltip if present
+            if (nb.getDescription() != null && !nb.getDescription().isEmpty()) {
+                setToolTipText(nb.getDescription());
+            }
+            
+            // Setup as drop target for creating new clusters
+            setupDropTarget();
         }
-        private boolean hover=false;
-        private boolean selected=false;
-        private float selProgress = 0f; // 0..1 animation for selection
-        private javax.swing.Timer selTimer;
-        void setSelected(boolean s){
-            if(this.selected == s) return;
-            this.selected = s;
-            // animate towards target (1 for selected, 0 for not)
-            if(selTimer!=null && selTimer.isRunning()) selTimer.stop();
-            final float target = s ? 1f : 0f;
-            selTimer = new javax.swing.Timer(16, null);
-            selTimer.addActionListener(e->{
-                // simple easing towards target
-                selProgress += (target - selProgress) * 0.25f;
-                if(Math.abs(target - selProgress) < 0.02f){ selProgress = target; selTimer.stop(); }
-                repaint();
+        
+        private void setupDropTarget() {
+            new DropTarget(this, new DropTargetAdapter() {
+                @Override
+                public void drop(DropTargetDropEvent dtde) {
+                    try {
+                        dtde.acceptDrop(DnDConstants.ACTION_MOVE);
+                        Transferable t = dtde.getTransferable();
+                        if (t.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                            String draggedName = (String) t.getTransferData(DataFlavor.stringFlavor);
+                            if (!draggedName.equals(nb.getName())) {
+                                // Create new cluster or add to existing
+                                String clusterId = nb.isClustered() ? nb.getClusterId() : promptForClusterName();
+                                if (clusterId != null && !clusterId.isEmpty()) {
+                                    // Assign both notebooks to cluster
+                                    for (NotebookInfo notebook : store.list()) {
+                                        if (notebook.getName().equals(draggedName) || notebook.getName().equals(nb.getName())) {
+                                            store.assignToCluster(notebook, clusterId);
+                                        }
+                                    }
+                                    refresh();
+                                }
+                            }
+                        }
+                        dtde.dropComplete(true);
+                    } catch (Exception ex) {
+                        dtde.dropComplete(false);
+                    }
+                }
+                
+                @Override
+                public void dragEnter(DropTargetDragEvent dtde) {
+                    setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(100, 149, 237), 2),
+                        BorderFactory.createEmptyBorder(0, 0, 0, 0)
+                    ));
+                }
+                
+                @Override
+                public void dragExit(DropTargetEvent dte) {
+                    setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+                }
             });
-            selTimer.start();
-            repaint();
         }
+        
+        private String promptForClusterName() {
+            return CustomInputDialog.prompt(
+                NotebookManagerPanel.this,
+                "Create Cluster",
+                "Enter a name for the new cluster:",
+                ""
+            );
+        }
+        
+        // DragGestureListener
+        @Override
+        public void dragGestureRecognized(DragGestureEvent dge) {
+            StringSelection transferable = new StringSelection(nb.getName());
+            dragSource.startDrag(dge, DragSource.DefaultMoveDrop, transferable, this);
+        }
+        
+        // DragSourceListener methods
+        @Override public void dragEnter(DragSourceDragEvent dsde) {}
+        @Override public void dragOver(DragSourceDragEvent dsde) {}
+        @Override public void dropActionChanged(DragSourceDragEvent dsde) {}
+        @Override public void dragExit(DragSourceEvent dse) {}
+        @Override public void dragDropEnd(DragSourceDropEvent dsde) {}
+        
+        private boolean hover=false;
+        
         @Override protected void paintComponent(Graphics g){
             super.paintComponent(g);
             Graphics2D g2=(Graphics2D)g.create();
@@ -161,13 +388,18 @@ public class NotebookManagerPanel extends JPanel {
             int h = getHeight();
             int arc = 16;
 
+            // Accent color indicator
+            Color accent = nb.getAccentColor();
+            g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 60));
+            g2.fillRoundRect(0, h - 6, w, 6, 4, 4);
+
             // Subtle hover background
-            if(hover && selProgress < 0.5f){
+            if(hover){
                 g2.setColor(new Color(255,255,255,90));
-                g2.fillRoundRect(0,0,w-1,h-1,arc,arc);
+                g2.fillRoundRect(0,0,w-1,h-7,arc,arc);
                 g2.setColor(new Color(0,0,0,40));
                 g2.setStroke(new BasicStroke(1.5f));
-                g2.drawRoundRect(1,1,w-3,h-3,arc,arc);
+                g2.drawRoundRect(1,1,w-3,h-9,arc,arc);
             }
 
             g2.dispose();
@@ -177,10 +409,45 @@ public class NotebookManagerPanel extends JPanel {
         @Override public void mouseClicked(MouseEvent e){
             if(SwingUtilities.isLeftMouseButton(e)){
                 if(e.getClickCount()==1){ openNotebook(nb); }
+                else if(e.getClickCount()==2){ showNotebookOptions(nb); }
+            } else if (SwingUtilities.isRightMouseButton(e)) {
+                showContextMenu(e);
             }
         }
         @Override public void mousePressed(MouseEvent e){}
         @Override public void mouseReleased(MouseEvent e){}
+        
+        private void showContextMenu(MouseEvent e) {
+            JPopupMenu menu = new JPopupMenu();
+            JMenuItem openItem = new JMenuItem("Open");
+            openItem.addActionListener(ev -> openNotebook(nb));
+            menu.add(openItem);
+            
+            JMenuItem editItem = new JMenuItem("Edit Settings...");
+            editItem.addActionListener(ev -> showNotebookOptions(nb));
+            menu.add(editItem);
+            
+            menu.addSeparator();
+            
+            if (nb.isClustered()) {
+                JMenuItem removeFromCluster = new JMenuItem("Remove from Cluster");
+                removeFromCluster.addActionListener(ev -> {
+                    store.removeFromCluster(nb);
+                    refresh();
+                });
+                menu.add(removeFromCluster);
+            }
+            
+            menu.show(this, e.getX(), e.getY());
+        }
+    }
+    
+    private void showNotebookOptions(NotebookInfo nb) {
+        NotebookOptionsDialog dlg = new NotebookOptionsDialog((Frame) SwingUtilities.getWindowAncestor(this), nb, store);
+        dlg.setVisible(true);
+        if (dlg.wasModified()) {
+            refresh();
+        }
     }
 
     private void promptNew(){
@@ -189,10 +456,11 @@ public class NotebookManagerPanel extends JPanel {
         if(dlg.isAccepted()){
             String name = dlg.getNotebookName();
             NotebookInfo.Type type = dlg.getNotebookType();
+            String description = dlg.getDescription();
+            int accentColor = dlg.getAccentColor();
             if(name!=null && !name.isEmpty()){
                 try {
-                    NotebookInfo nb = store.create(name, type, "notebook");
-                    // Immediately refresh the gallery to show the new notebook
+                    store.create(name, type, "notebook", description, accentColor);
                     refresh();
                 } catch (IllegalArgumentException ex) {
                     JOptionPane.showMessageDialog(this, ex.getMessage(), "Could not create notebook", JOptionPane.WARNING_MESSAGE);
@@ -205,15 +473,29 @@ public class NotebookManagerPanel extends JPanel {
         app.openNotebookEntries(nb);
     }
 
-    /* Create dialog */
+    /* Create dialog with customization options */
     private static class CreateNotebookDialog extends JDialog{
         private boolean accepted=false;
         private final ModernTextField nameField = new ModernTextField(20);
-        // Simjot is now poetry-focused: only allow creating poetry notebooks (keep types for legacy notebooks elsewhere)
+        private final ModernTextField descField = new ModernTextField(20);
         private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.POETRY });
+        private Color selectedColor = new Color(147, 112, 219); // Default purple
+        private final JPanel colorPreview;
+        
+        // Preset colors for notebooks
+        private static final Color[] PRESET_COLORS = {
+            new Color(147, 112, 219), // Purple
+            new Color(100, 149, 237), // Cornflower blue  
+            new Color(60, 179, 113),  // Sea green
+            new Color(255, 165, 0),   // Orange
+            new Color(220, 20, 60),   // Crimson
+            new Color(255, 182, 193), // Light pink
+            new Color(64, 224, 208),  // Turquoise
+            new Color(169, 169, 169)  // Gray
+        };
 
         CreateNotebookDialog(Frame parent){
-            super(parent, "Create Notebook", true);
+            super(parent, "Create Poetry Notebook", true);
             setUndecorated(true);
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
@@ -224,7 +506,7 @@ public class NotebookManagerPanel extends JPanel {
             panel.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
 
             // Title
-            JLabel title = new JLabel("Create Notebook", SwingConstants.LEFT);
+            JLabel title = new JLabel("Create Poetry Notebook", SwingConstants.LEFT);
             title.setForeground(Color.DARK_GRAY);
             title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
             panel.add(title, BorderLayout.NORTH);
@@ -235,62 +517,47 @@ public class NotebookManagerPanel extends JPanel {
             GridBagConstraints gc = new GridBagConstraints();
             gc.gridx=0; gc.gridy=0; gc.anchor=GridBagConstraints.WEST; gc.fill=GridBagConstraints.HORIZONTAL; gc.weightx=1.0; gc.insets=new Insets(4,2,4,2);
 
-            // Name field
+            // Name field with label
+            JLabel nameLabel = new JLabel("Name:");
+            nameLabel.setForeground(Color.DARK_GRAY);
+            center.add(nameLabel, gc);
+            gc.gridy++;
             nameField.setToolTipText("Notebook name");
             center.add(nameField, gc);
 
-            // Type selector
+            // Description field
             gc.gridy++;
-            typeBox.setUI(new ModernComboBoxUI());
-            typeBox.setFocusable(false);
-            typeBox.setRenderer(new javax.swing.ListCellRenderer<NotebookInfo.Type>(){
-                private final JPanel cell = new JPanel(new BorderLayout());
-                private final JLabel t = new JLabel();
-                private final JLabel sub = new JLabel();
-                {
-                    cell.setOpaque(true);
-                    t.setFont(t.getFont().deriveFont(Font.PLAIN, 14f));
-                    sub.setFont(sub.getFont().deriveFont(Font.PLAIN, 11f));
-                    sub.setForeground(new Color(120,120,120));
-                    cell.add(t, BorderLayout.NORTH);
-                    cell.add(sub, BorderLayout.SOUTH);
-                    cell.setBorder(BorderFactory.createEmptyBorder(3,8,3,8));
-                }
-                @Override public Component getListCellRendererComponent(JList<? extends NotebookInfo.Type> list, NotebookInfo.Type value, int index, boolean isSelected, boolean cellHasFocus){
-                    String friendly = switch (value) {
-                        case JOURNAL -> "Journaling";
-                        case POETRY -> "Poetry Notebook";
-                        case NOTETAKING -> "Notetaking";
-                    };
-                    String desc = switch (value) {
-                        case JOURNAL -> "Daily notes, moods, reflections";
-                        case POETRY -> "Focused drafts, revision, rhyme helpers";
-                        case NOTETAKING -> "Rich notes with images & formatting";
-                    };
-                    t.setText(friendly);
-                    sub.setText(index>=0?desc:"");
-                    if(isSelected){ cell.setBackground(list.getSelectionBackground()); t.setForeground(list.getSelectionForeground()); sub.setForeground(list.getSelectionForeground()); }
-                    else { cell.setBackground(Color.WHITE); t.setForeground(Color.DARK_GRAY); sub.setForeground(new Color(120,120,120)); }
-                    return cell;
-                }
-            });
-            center.add(typeBox, gc);
-
-            // Description label under combo (updates on selection)
-            gc.gridy++;
-            JLabel descLabel = new JLabel("Focused drafts, revision, rhyme helpers");
-            descLabel.setForeground(new Color(120,120,120));
+            JLabel descLabel = new JLabel("Description (optional):");
+            descLabel.setForeground(Color.DARK_GRAY);
             center.add(descLabel, gc);
+            gc.gridy++;
+            descField.setToolTipText("Brief description of this notebook");
+            center.add(descField, gc);
+            
+            // Accent color picker
+            gc.gridy++;
+            JLabel colorLabel = new JLabel("Accent Color:");
+            colorLabel.setForeground(Color.DARK_GRAY);
+            center.add(colorLabel, gc);
+            
+            gc.gridy++;
+            JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+            colorRow.setOpaque(false);
+            for (Color c : PRESET_COLORS) {
+                JPanel swatch = createColorSwatch(c);
+                colorRow.add(swatch);
+            }
+            colorPreview = new JPanel();
+            colorPreview.setPreferredSize(new Dimension(24, 24));
+            colorPreview.setBackground(selectedColor);
+            colorPreview.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+            colorRow.add(Box.createHorizontalStrut(10));
+            colorRow.add(new JLabel("Selected:"));
+            colorRow.add(colorPreview);
+            center.add(colorRow, gc);
 
-            typeBox.addActionListener(e->{
-                NotebookInfo.Type t = (NotebookInfo.Type) typeBox.getSelectedItem();
-                String desc = switch (t) {
-                    case JOURNAL -> "Daily notes, moods, reflections";
-                    case POETRY -> "Write and organize poems";
-                    case NOTETAKING -> "Rich notes with images & formatting";
-                };
-                descLabel.setText(desc);
-            });
+            // Hide type selector since we only support poetry
+            typeBox.setSelectedItem(NotebookInfo.Type.POETRY);
 
             panel.add(center, BorderLayout.CENTER);
 
@@ -317,53 +584,198 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(420,260);
+            setSize(420, 320);
             setLocationRelativeTo(parent);
+        }
+        
+        private JPanel createColorSwatch(Color c) {
+            JPanel swatch = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(c);
+                    g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 4, 4);
+                    if (c.equals(selectedColor)) {
+                        g2.setColor(Color.DARK_GRAY);
+                        g2.setStroke(new BasicStroke(2));
+                        g2.drawRoundRect(1, 1, getWidth()-3, getHeight()-3, 4, 4);
+                    }
+                    g2.dispose();
+                }
+            };
+            swatch.setPreferredSize(new Dimension(24, 24));
+            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            swatch.addMouseListener(new MouseAdapter() {
+                @Override public void mouseClicked(MouseEvent e) {
+                    selectedColor = c;
+                    colorPreview.setBackground(c);
+                    // Repaint all swatches
+                    Container parent = swatch.getParent();
+                    if (parent != null) parent.repaint();
+                }
+            });
+            return swatch;
         }
 
         boolean isAccepted(){ return accepted; }
         String getNotebookName(){ return nameField.getText().trim(); }
+        String getDescription(){ return descField.getText().trim(); }
+        int getAccentColor(){ return selectedColor.getRGB(); }
         NotebookInfo.Type getNotebookType(){ return (NotebookInfo.Type)typeBox.getSelectedItem(); }
     }
 
-    /* Options dialog */
-    private static class NotebookOptionsDialog extends JDialog{
-        private boolean renamed=false, deleted=false; private String newName=null;
-        NotebookOptionsDialog(Frame parent, NotebookInfo nb){
-            super(parent, nb.getName(), true);
+    /* Options dialog for editing existing notebooks */
+    private class NotebookOptionsDialog extends JDialog{
+        private boolean modified = false;
+        private final NotebookStore store;
+        private final NotebookInfo notebook;
+        private final ModernTextField descField;
+        private Color selectedColor;
+        private final JPanel colorPreview;
+        
+        NotebookOptionsDialog(Frame parent, NotebookInfo nb, NotebookStore store){
+            super(parent, "Edit: " + nb.getName(), true);
+            this.store = store;
+            this.notebook = nb;
+            this.selectedColor = nb.getAccentColor();
+            
             setUndecorated(true);
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
 
-            RoundedPanel panel = new RoundedPanel(); panel.setArc(20);
-            panel.setBackground(new Color(45,45,45,230)); panel.setLayout(new BorderLayout(10,10)); panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
+            RoundedPanel panel = new RoundedPanel();
+            panel.setArc(16);
+            panel.setLayout(new BorderLayout(12,12));
+            panel.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
 
-            JLabel info = new JLabel("<html><center>Created "+((System.currentTimeMillis()-nb.getCreatedMillis())/86400000L)+" days ago<br>Entries: "+countEntries(nb)+"</center></html>", SwingConstants.CENTER);
-            info.setForeground(Color.WHITE);
-            panel.add(info, BorderLayout.NORTH);
+            // Title with notebook info
+            JPanel header = new JPanel(new BorderLayout());
+            header.setOpaque(false);
+            JLabel title = new JLabel(nb.getName(), SwingConstants.LEFT);
+            title.setForeground(Color.DARK_GRAY);
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+            header.add(title, BorderLayout.WEST);
+            
+            long daysAgo = (System.currentTimeMillis() - nb.getCreatedMillis()) / 86400000L;
+            JLabel info = new JLabel("Created " + daysAgo + " days ago • " + countEntries(nb) + " entries");
+            info.setForeground(new Color(120, 120, 120));
+            info.setFont(info.getFont().deriveFont(11f));
+            header.add(info, BorderLayout.SOUTH);
+            panel.add(header, BorderLayout.NORTH);
 
-            JTextField nameField = new JTextField(nb.getName());
-            nameField.setBorder(BorderFactory.createEmptyBorder(6,8,6,8));
-            panel.add(nameField, BorderLayout.CENTER);
+            // Center content
+            JPanel center = new JPanel(new GridBagLayout());
+            center.setOpaque(false);
+            GridBagConstraints gc = new GridBagConstraints();
+            gc.gridx=0; gc.gridy=0; gc.anchor=GridBagConstraints.WEST; gc.fill=GridBagConstraints.HORIZONTAL; gc.weightx=1.0; gc.insets=new Insets(6,2,6,2);
 
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER,12,0)); btns.setOpaque(false);
-            FadingButton save = new FadingButton("Save"); save.setBackground(new Color(80,130,180)); save.setForeground(Color.WHITE);
-            FadingButton del  = new FadingButton("Delete"); del.setBackground(new Color(200,30,30)); del.setForeground(Color.WHITE);
-            FadingButton close  = new FadingButton("Close"); close.setBackground(new Color(120,120,120)); close.setForeground(Color.WHITE);
+            // Description field
+            JLabel descLabel = new JLabel("Description:");
+            descLabel.setForeground(Color.DARK_GRAY);
+            center.add(descLabel, gc);
+            gc.gridy++;
+            descField = new ModernTextField(20);
+            descField.setText(nb.getDescription());
+            center.add(descField, gc);
+            
+            // Accent color picker
+            gc.gridy++;
+            JLabel colorLabel = new JLabel("Accent Color:");
+            colorLabel.setForeground(Color.DARK_GRAY);
+            center.add(colorLabel, gc);
+            
+            gc.gridy++;
+            JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+            colorRow.setOpaque(false);
+            for (Color c : CreateNotebookDialog.PRESET_COLORS) {
+                colorRow.add(createColorSwatch(c));
+            }
+            colorPreview = new JPanel();
+            colorPreview.setPreferredSize(new Dimension(24, 24));
+            colorPreview.setBackground(selectedColor);
+            colorPreview.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+            colorRow.add(Box.createHorizontalStrut(10));
+            colorRow.add(new JLabel("Selected:"));
+            colorRow.add(colorPreview);
+            center.add(colorRow, gc);
+            
+            // Cluster info
+            if (nb.isClustered()) {
+                gc.gridy++;
+                JLabel clusterLabel = new JLabel("In cluster: " + nb.getClusterId());
+                clusterLabel.setForeground(new Color(100, 100, 100));
+                center.add(clusterLabel, gc);
+            }
 
-            save.addActionListener(e->{ renamed=true; newName=nameField.getText().trim(); setVisible(false); dispose(); });
-            del.addActionListener(e->{ deleted=true; setVisible(false); dispose(); });
-            close.addActionListener(e->{ setVisible(false); dispose(); });
+            panel.add(center, BorderLayout.CENTER);
 
-            btns.add(save); btns.add(del); btns.add(close);
+            // Buttons
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT,10,0));
+            btns.setOpaque(false);
+            RoundedButton saveBtn = new RoundedButton("Save");
+            saveBtn.setPreferredSize(new Dimension(90,36));
+            saveBtn.addActionListener(e->{ 
+                store.updateCustomization(notebook, descField.getText().trim(), selectedColor.getRGB());
+                modified = true;
+                setVisible(false); 
+                dispose(); 
+            });
+            RoundedButton deleteBtn = new RoundedButton("Delete");
+            deleteBtn.setForeground(new Color(180, 60, 60));
+            deleteBtn.setPreferredSize(new Dimension(90,36));
+            deleteBtn.addActionListener(e->{ 
+                int result = JOptionPane.showConfirmDialog(this, 
+                    "Delete notebook '" + nb.getName() + "' and all its contents?",
+                    "Delete Notebook", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                if (result == JOptionPane.YES_OPTION) {
+                    store.delete(nb);
+                    modified = true;
+                    setVisible(false);
+                    dispose();
+                }
+            });
+            RoundedButton cancelBtn = new RoundedButton("Cancel");
+            cancelBtn.setForeground(Color.DARK_GRAY);
+            cancelBtn.setPreferredSize(new Dimension(90,36));
+            cancelBtn.addActionListener(e->{ setVisible(false); dispose(); });
+            btns.add(saveBtn); btns.add(deleteBtn); btns.add(cancelBtn);
             panel.add(btns, BorderLayout.SOUTH);
 
             add(panel);
-            pack(); setLocationRelativeTo(parent);
+            pack();
+            setSize(420, 300);
+            setLocationRelativeTo(parent);
         }
-        boolean isDeleted(){ return deleted; }
-        boolean isRenamed(){ return renamed; }
-        String getNewName(){ return newName; }
+        
+        private JPanel createColorSwatch(Color c) {
+            JPanel swatch = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(c);
+                    g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 4, 4);
+                    if (c.getRGB() == selectedColor.getRGB()) {
+                        g2.setColor(Color.DARK_GRAY);
+                        g2.setStroke(new BasicStroke(2));
+                        g2.drawRoundRect(1, 1, getWidth()-3, getHeight()-3, 4, 4);
+                    }
+                    g2.dispose();
+                }
+            };
+            swatch.setPreferredSize(new Dimension(24, 24));
+            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            swatch.addMouseListener(new MouseAdapter() {
+                @Override public void mouseClicked(MouseEvent e) {
+                    selectedColor = c;
+                    colorPreview.setBackground(c);
+                    Container parent = swatch.getParent();
+                    if (parent != null) parent.repaint();
+                }
+            });
+            return swatch;
+        }
+        
+        boolean wasModified(){ return modified; }
     }
 
     // Create the permanent tile for adding a new notebook

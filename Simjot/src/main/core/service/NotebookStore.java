@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
@@ -78,7 +79,7 @@ public final class NotebookStore {
     }
 
     private void parseJson(String raw, Set<String> seenNames) {
-        // Minimal parser tailored to our own serialized format: [{"name":"...","type":"JOURNAL","folder":"/path","created":0,"iconId":"legacy"}, ...]
+        // Minimal parser tailored to our own serialized format
         Pattern objPattern = Pattern.compile("\\{[^}]*\\}");
         Matcher m = objPattern.matcher(raw);
         while (m.find()) {
@@ -88,13 +89,23 @@ public final class NotebookStore {
             String folderStr = extractJsonString(obj, "folder");
             String iconId = extractJsonString(obj, "iconId");
             Long created = extractJsonLong(obj, "created");
+            // New customization fields
+            String description = extractJsonString(obj, "description");
+            Long accentColor = extractJsonLong(obj, "accentColor");
+            String clusterId = extractJsonString(obj, "clusterId");
+            
             if (name == null || typeStr == null || folderStr == null) continue;
             NotebookInfo.Type type;
             try { type = NotebookInfo.Type.valueOf(typeStr); } catch (IllegalArgumentException e) { continue; }
             if (!isNewName(seenNames, name)) continue;
             File folder = new File(folderStr);
             long createdMs = created != null ? created : (folder.exists() ? folder.lastModified() : System.currentTimeMillis());
-            notebooks.add(new NotebookInfo(name, type, folder, createdMs, iconId == null ? "legacy" : iconId));
+            int accent = accentColor != null ? accentColor.intValue() : -1;
+            notebooks.add(new NotebookInfo(name, type, folder, createdMs, 
+                iconId == null ? "legacy" : iconId,
+                description == null ? "" : description,
+                accent,
+                clusterId));
         }
     }
 
@@ -131,6 +142,111 @@ public final class NotebookStore {
     // Backward compatibility
     public NotebookInfo create(String name, NotebookInfo.Type type){
         return create(name,type,"legacy");
+    }
+    
+    /** Create notebook with full customization options */
+    public NotebookInfo create(String name, NotebookInfo.Type type, String iconId, String description, int accentColor) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Notebook name cannot be empty");
+        }
+        for (NotebookInfo nb : notebooks) {
+            if (nb.getName().equalsIgnoreCase(name.trim())) {
+                throw new IllegalArgumentException("Notebook with the same name already exists");
+            }
+        }
+        File folder = new File(AppDirectories.getRoot(), "notebooks" + File.separator + name);
+        folder.mkdirs();
+        NotebookInfo nb = new NotebookInfo(name, type, folder, System.currentTimeMillis(), iconId, description, accentColor, null);
+        notebooks.add(nb);
+        save();
+        return nb;
+    }
+    
+    /** Update notebook customization (description, accent color) */
+    public boolean updateCustomization(NotebookInfo nb, String description, int accentColor) {
+        if (nb == null) return false;
+        int idx = -1;
+        for (int i = 0; i < notebooks.size(); i++) {
+            if (notebooks.get(i).getName().equalsIgnoreCase(nb.getName())) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) return false;
+        NotebookInfo updated = notebooks.get(idx).withCustomization(description, accentColor);
+        notebooks.set(idx, updated);
+        save();
+        return true;
+    }
+    
+    // --- Cluster Management --- //
+    
+    /** Assign a notebook to a cluster */
+    public boolean assignToCluster(NotebookInfo nb, String clusterId) {
+        if (nb == null) return false;
+        int idx = -1;
+        for (int i = 0; i < notebooks.size(); i++) {
+            if (notebooks.get(i).getName().equalsIgnoreCase(nb.getName())) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) return false;
+        NotebookInfo updated = notebooks.get(idx).withCluster(clusterId);
+        notebooks.set(idx, updated);
+        save();
+        return true;
+    }
+    
+    /** Remove a notebook from its cluster */
+    public boolean removeFromCluster(NotebookInfo nb) {
+        return assignToCluster(nb, null);
+    }
+    
+    /** Get all unique cluster IDs */
+    public List<String> getClusterIds() {
+        Set<String> ids = new java.util.LinkedHashSet<>();
+        for (NotebookInfo nb : notebooks) {
+            if (nb.isClustered()) {
+                ids.add(nb.getClusterId());
+            }
+        }
+        return new ArrayList<>(ids);
+    }
+    
+    /** Get notebooks in a specific cluster */
+    public List<NotebookInfo> getNotebooksInCluster(String clusterId) {
+        List<NotebookInfo> result = new ArrayList<>();
+        if (clusterId == null) return result;
+        for (NotebookInfo nb : notebooks) {
+            if (clusterId.equals(nb.getClusterId())) {
+                result.add(nb);
+            }
+        }
+        return result;
+    }
+    
+    /** Get unclustered notebooks */
+    public List<NotebookInfo> getUnclusteredNotebooks() {
+        List<NotebookInfo> result = new ArrayList<>();
+        for (NotebookInfo nb : notebooks) {
+            if (!nb.isClustered()) {
+                result.add(nb);
+            }
+        }
+        return result;
+    }
+    
+    /** Disband a cluster (removes all notebooks from it) */
+    public void disbandCluster(String clusterId) {
+        if (clusterId == null) return;
+        for (int i = 0; i < notebooks.size(); i++) {
+            NotebookInfo nb = notebooks.get(i);
+            if (clusterId.equals(nb.getClusterId())) {
+                notebooks.set(i, nb.withCluster(null));
+            }
+        }
+        save();
     }
 
     /**
@@ -265,7 +381,12 @@ public final class NotebookStore {
             sb.append("\"type\":\"").append(jsonEscape(nb.getType().name())).append("\",");
             sb.append("\"folder\":\"").append(jsonEscape(nb.getFolder().getAbsolutePath())).append("\",");
             sb.append("\"created\":").append(nb.getCreatedMillis()).append(",");
-            sb.append("\"iconId\":\"").append(jsonEscape(nb.getIconId())).append("\"");
+            sb.append("\"iconId\":\"").append(jsonEscape(nb.getIconId())).append("\",");
+            sb.append("\"description\":\"").append(jsonEscape(nb.getDescription())).append("\",");
+            sb.append("\"accentColor\":").append(nb.getAccentColorRaw());
+            if (nb.getClusterId() != null) {
+                sb.append(",\"clusterId\":\"").append(jsonEscape(nb.getClusterId())).append("\"");
+            }
             sb.append("}");
         }
         if (!notebooks.isEmpty()) sb.append("\n");
