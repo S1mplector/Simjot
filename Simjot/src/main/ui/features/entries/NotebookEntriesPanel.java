@@ -20,8 +20,8 @@ import java.awt.image.Kernel;
 import java.io.BufferedReader;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
@@ -63,6 +63,7 @@ import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 
@@ -323,13 +324,17 @@ public class NotebookEntriesPanel extends JPanel {
 
         ToolbarIconButton delNbBtn = new ToolbarIconButton("trash");
         delNbBtn.addActionListener(e->deleteNotebook());
+        
+        ToolbarIconButton calendarBtn = new ToolbarIconButton("calendar");
+        calendarBtn.setToolTipText("Filter by date");
+        calendarBtn.addActionListener(e->showDateFilter());
 
         top.add(backBtn);
         top.add(new JLabel(nb.getName()));
         top.add(Box.createHorizontalStrut(20));
         top.add(new JLabel("Search:")); top.add(searchField);
         top.add(new JLabel("Sort:")); top.add(sortBox);
-        top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn);
+        top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn); top.add(calendarBtn);
         add(top,BorderLayout.NORTH);
 
         // Debounce search updates to avoid frequent resorting/filtering while typing
@@ -456,7 +461,17 @@ public class NotebookEntriesPanel extends JPanel {
         List<File> filtered = allFiles.stream().filter(f -> {
             String name = f.getName().toLowerCase();
             String title = java.util.Objects.toString(titles.get(f), f.getName()).toLowerCase();
-            return name.contains(q) || title.contains(q);
+            boolean textMatch = name.contains(q) || title.contains(q);
+            if (!textMatch) return false;
+            
+            // Apply date filter if set
+            if (filterStartDate != null || filterEndDate != null) {
+                java.time.LocalDate fileDate = java.time.Instant.ofEpochMilli(f.lastModified())
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                if (filterStartDate != null && fileDate.isBefore(filterStartDate)) return false;
+                if (filterEndDate != null && fileDate.isAfter(filterEndDate)) return false;
+            }
+            return true;
         }).collect(Collectors.toList());
         switch(sortBox.getSelectedIndex()){
             case 0 -> filtered.sort(Comparator
@@ -587,6 +602,75 @@ public class NotebookEntriesPanel extends JPanel {
         // refresh manager panel
         app.refreshNotebookManager();
         app.switchCard(JournalApp.NOTEBOOK_MANAGER);
+    }
+    
+    private java.time.LocalDate filterStartDate = null;
+    private java.time.LocalDate filterEndDate = null;
+    
+    private void showDateFilter() {
+        // Create a popup with date range picker
+        javax.swing.JPopupMenu popup = new javax.swing.JPopupMenu();
+        popup.setLayout(new java.awt.BorderLayout());
+        popup.setBorder(BorderFactory.createEmptyBorder());
+        
+        JPanel content = new JPanel();
+        content.setLayout(new java.awt.GridBagLayout());
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        
+        java.awt.GridBagConstraints gbc = new java.awt.GridBagConstraints();
+        gbc.insets = new java.awt.Insets(4, 4, 4, 4);
+        gbc.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        
+        // Title
+        JLabel title = new JLabel("Filter by Date Range");
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        content.add(title, gbc);
+        
+        // From date
+        gbc.gridwidth = 1; gbc.gridy = 1; gbc.gridx = 0;
+        content.add(new JLabel("From:"), gbc);
+        ModernDatePicker fromPicker = new ModernDatePicker(filterStartDate);
+        gbc.gridx = 1;
+        content.add(fromPicker, gbc);
+        
+        // To date
+        gbc.gridy = 2; gbc.gridx = 0;
+        content.add(new JLabel("To:"), gbc);
+        ModernDatePicker toPicker = new ModernDatePicker(filterEndDate);
+        gbc.gridx = 1;
+        content.add(toPicker, gbc);
+        
+        // Buttons
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        buttons.setOpaque(false);
+        
+        ToolbarIconButton clearBtn = new ToolbarIconButton("delete");
+        clearBtn.setToolTipText("Clear filter");
+        clearBtn.addActionListener(e -> {
+            filterStartDate = null;
+            filterEndDate = null;
+            popup.setVisible(false);
+            update();
+        });
+        
+        ToolbarIconButton applyBtn = new ToolbarIconButton("check");
+        applyBtn.setToolTipText("Apply filter");
+        applyBtn.addActionListener(e -> {
+            filterStartDate = fromPicker.getSelectedDate();
+            filterEndDate = toPicker.getSelectedDate();
+            popup.setVisible(false);
+            update();
+        });
+        
+        buttons.add(clearBtn);
+        buttons.add(applyBtn);
+        gbc.gridy = 3; gbc.gridx = 0; gbc.gridwidth = 2;
+        content.add(buttons, gbc);
+        
+        popup.add(content);
+        popup.show(this, 200, 40);
     }
 
     private void openSelected(){ File f=list.getSelectedValue(); if(f!=null) openFile(f); }
