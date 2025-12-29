@@ -1,24 +1,32 @@
 package main.ui.components.toolbars;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.util.function.Consumer;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+
+import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
-import main.ui.components.combobox.ModernComboBoxUI;
-import main.ui.components.fields.ModernTextField;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.fields.ModernTextField;
 import main.ui.components.util.EditorUIUtils;
-import main.infrastructure.backup.NotebookInfo;
 
 /**
- * Reusable two-row poetry-style editor toolbar:
+ * Reusable poetry-style editor toolbar:
  * - Left: Back button, Title label, Title field
- * - Center: B / I / U formatting buttons
- * - Bottom row: Font family, Size, Spacing selectors
+ * - Center: B / I / U / S formatting buttons
  * - Right: caller-provided controls (e.g., stats/rhymes/export/fullscreen/settings)
  *
- * Behavior is provided via callbacks so callers (EntryPanel/PoemPanel) can wire to their editors.
+ * Font settings are now in Appearance settings.
  */
 public class PoetryStyleToolbar extends JPanel {
     private final JPanel container;
@@ -33,10 +41,10 @@ public class PoetryStyleToolbar extends JPanel {
             NotebookInfo nbInfo,
             String titleLabelText,
             String titlePlaceholder,
-            java.util.function.Consumer<Boolean> onBold,
-            java.util.function.Consumer<Boolean> onItalic,
-            java.util.function.Consumer<Boolean> onUnderline,
-            java.util.function.Consumer<Boolean> onStrike,
+            Consumer<Boolean> onBold,
+            Consumer<Boolean> onItalic,
+            Consumer<Boolean> onUnderline,
+            Consumer<Boolean> onStrike,
             Consumer<String> onFontFamily,
             Consumer<Integer> onFontSize,
             Consumer<String> onLineSpacing,
@@ -94,58 +102,8 @@ public class PoetryStyleToolbar extends JPanel {
         topToolbar.add(underlineBtn);
         topToolbar.add(strikeBtn);
 
-        // Bottom row (font/size/spacing)
-        JPanel bottomToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        bottomToolbar.setOpaque(false);
-
-        JLabel fontLabel = new JLabel("Font:");
-        fontLabel.setForeground(Color.DARK_GRAY);
-        fontLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
-        bottomToolbar.add(fontLabel);
-
-        // Include a few handwriting-style faces so poetry can feel more personal.
-        String[] fonts = {
-                "Serif", "Georgia", "Garamond", "Baskerville",
-                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand", "Apple Chancery", "Cursive"
-        };
-        JComboBox<String> fontSelector = new JComboBox<>(fonts);
-        fontSelector.setUI(new ModernComboBoxUI());
-        fontSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        fontSelector.setSelectedItem("Serif");
-        fontSelector.addActionListener(e -> {
-            if (onFontFamily != null) {
-                onFontFamily.accept((String) fontSelector.getSelectedItem());
-            }
-        });
-        bottomToolbar.add(fontSelector);
-
-        bottomToolbar.add(new JLabel(" Size:"));
-        Integer[] sizes = {12, 14, 16, 18, 20, 22, 24, 28};
-        JComboBox<Integer> sizeSelector = new JComboBox<>(sizes);
-        sizeSelector.setUI(new ModernComboBoxUI());
-        sizeSelector.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        sizeSelector.setSelectedItem(16);
-        sizeSelector.addActionListener(e -> {
-            if (onFontSize != null) {
-                Integer sz = (Integer) sizeSelector.getSelectedItem();
-                if (sz != null) onFontSize.accept(sz);
-            }
-        });
-        bottomToolbar.add(sizeSelector);
-
-        bottomToolbar.add(new JLabel(" Spacing:"));
-        JComboBox<String> spacing = new JComboBox<>(new String[]{"1.0", "1.2", "1.5"});
-        spacing.setUI(new ModernComboBoxUI());
-        spacing.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        spacing.setSelectedIndex(0);
-        spacing.addActionListener(e -> {
-            if (onLineSpacing != null) onLineSpacing.accept((String) spacing.getSelectedItem());
-        });
-        bottomToolbar.add(spacing);
-
-        // Assemble
-        container.add(topToolbar, BorderLayout.NORTH);
-        container.add(bottomToolbar, BorderLayout.CENTER);
+        // Assemble (font settings moved to Appearance settings)
+        container.add(topToolbar, BorderLayout.CENTER);
         if (rightToolbarControls != null) {
             container.add(rightToolbarControls, BorderLayout.EAST);
         }

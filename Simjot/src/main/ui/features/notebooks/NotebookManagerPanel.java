@@ -57,8 +57,10 @@ import javax.swing.SwingUtilities;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.input.CustomInputDialog;
@@ -546,6 +548,8 @@ public class NotebookManagerPanel extends JPanel {
             center.add(typeLabel, gc);
             gc.gridy++;
             typeBox.setToolTipText("Notebook type");
+            typeBox.setUI(new ModernComboBoxUI());
+            typeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
             center.add(typeBox, gc);
             typeBox.addActionListener(e -> {
                 NotebookInfo.Type t = (NotebookInfo.Type) typeBox.getSelectedItem();
@@ -732,20 +736,19 @@ public class NotebookManagerPanel extends JPanel {
 
             panel.add(center, BorderLayout.CENTER);
 
-            // Buttons
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT,10,0));
+            // Buttons (IconMenuButton style)
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
             btns.setOpaque(false);
-            RoundedButton saveBtn = new RoundedButton("Save");
-            saveBtn.setPreferredSize(new Dimension(90,36));
+            IconMenuButton saveBtn = new IconMenuButton("Save", "save");
+            saveBtn.setToolTipText("Save changes");
             saveBtn.addActionListener(e->{ 
                 store.updateCustomization(notebook, descField.getText().trim(), selectedColor.getRGB());
                 modified = true;
                 setVisible(false); 
                 dispose(); 
             });
-            RoundedButton deleteBtn = new RoundedButton("Delete");
-            deleteBtn.setForeground(new Color(180, 60, 60));
-            deleteBtn.setPreferredSize(new Dimension(90,36));
+            IconMenuButton deleteBtn = new IconMenuButton("Delete", "trash");
+            deleteBtn.setToolTipText("Delete this notebook");
             deleteBtn.addActionListener(e->{ 
                 boolean confirm = CustomConfirmDialog.confirm(this, 
                     "Delete Notebook",
@@ -757,9 +760,8 @@ public class NotebookManagerPanel extends JPanel {
                     dispose();
                 }
             });
-            RoundedButton cancelBtn = new RoundedButton("Cancel");
-            cancelBtn.setForeground(Color.DARK_GRAY);
-            cancelBtn.setPreferredSize(new Dimension(90,36));
+            IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
+            cancelBtn.setToolTipText("Cancel and close");
             cancelBtn.addActionListener(e->{ setVisible(false); dispose(); });
             btns.add(saveBtn); btns.add(deleteBtn); btns.add(cancelBtn);
             panel.add(btns, BorderLayout.SOUTH);

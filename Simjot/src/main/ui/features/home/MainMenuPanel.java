@@ -370,7 +370,7 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // ---------- WRITING section ----------
-        JLabel writingHeader = new JLabel("Poetry Studio");
+        JLabel writingHeader = new JLabel("Poetry And Journaling Studio");
         writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
         writingHeader.setForeground(Color.WHITE);
         writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));
@@ -382,8 +382,8 @@ public class MainMenuPanel extends JPanel {
         JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         iconRow.setOpaque(false);
 
-        IconMenuButton notebooksButton = createIconButton("Poetry", JournalApp.NOTEBOOK_MANAGER, "notebook");
-        notebooksButton.setToolTipText("Collect, draft, and manage your poetry notebooks");
+        IconMenuButton notebooksButton = createIconButton("Write", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        notebooksButton.setToolTipText("Collect, draft, and manage your notebooks");
         iconRow.add(notebooksButton);
 
         IconMenuButton searchButton = new IconMenuButton("Search", "explorer");

@@ -2,7 +2,6 @@ package main.ui.features.splash;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -20,7 +19,7 @@ import javax.swing.JWindow;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
 
-import main.ui.components.indicators.Win7ProgressBar;
+import main.ui.components.spinner.ModernSpinner;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -29,7 +28,7 @@ import main.ui.theme.aero.AeroTheme;
 public class AeroSplashScreen extends JWindow {
     private final JLabel title = new JLabel("Simjot", SwingConstants.CENTER);
     private final JLabel subtitle = new JLabel("Loading...", SwingConstants.CENTER);
-    private final Win7ProgressBar progressBar = Win7ProgressBar.createCompact();
+    private final ModernSpinner spinner = new ModernSpinner(28, new Color(0, 120, 215));
 
     public AeroSplashScreen() {
         setAlwaysOnTop(true);
@@ -72,15 +71,14 @@ public class AeroSplashScreen extends JWindow {
         subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 15f));
         subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Progress bar
-        progressBar.setAlignmentX(Component.CENTER_ALIGNMENT);
-        progressBar.setMaximumSize(new Dimension(280, 18));
+        // Spinner
+        spinner.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         rounded.add(title);
         rounded.add(Box.createVerticalStrut(6));
         rounded.add(subtitle);
         rounded.add(Box.createVerticalStrut(16));
-        rounded.add(progressBar);
+        rounded.add(spinner);
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 1; gbc.weighty = 1;

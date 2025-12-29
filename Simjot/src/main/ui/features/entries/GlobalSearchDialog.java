@@ -26,7 +26,6 @@ import java.util.regex.Pattern;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -45,8 +44,8 @@ import javax.swing.text.rtf.RTFEditorKit;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.fields.ModernTextField;
-import main.ui.components.buttons.RoundedButton;
 
 /**
  * Global search across all notebooks with snippets and filters.
@@ -80,7 +79,8 @@ public class GlobalSearchDialog extends JDialog {
         queryField = new ModernTextField(30);
         queryField.setPlaceholder("Search across notebooks...");
         topRow.add(queryField, BorderLayout.CENTER);
-        JButton searchBtn = new RoundedButton("Search");
+        IconMenuButton searchBtn = new IconMenuButton("Search", "explorer");
+        searchBtn.setToolTipText("Search notebooks");
         searchBtn.addActionListener(e -> runSearch());
         topRow.add(searchBtn, BorderLayout.EAST);
 
@@ -145,14 +145,19 @@ public class GlobalSearchDialog extends JDialog {
             }
         });
 
-        JButton openBtn = new RoundedButton("Open");
+        IconMenuButton openBtn = new IconMenuButton("Open", "load");
+        openBtn.setToolTipText("Open selected entry");
         openBtn.addActionListener(e -> openSelected());
-        JPanel openRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        openRow.add(openBtn);
+        IconMenuButton closeBtn = new IconMenuButton("Close", "close");
+        closeBtn.setToolTipText("Close search");
+        closeBtn.addActionListener(e -> dispose());
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 18, 0));
+        btnRow.add(openBtn);
+        btnRow.add(closeBtn);
         JPanel bottomBar = new JPanel(new BorderLayout());
         bottomBar.setOpaque(false);
         bottomBar.add(statusLabel, BorderLayout.WEST);
-        bottomBar.add(openRow, BorderLayout.EAST);
+        bottomBar.add(btnRow, BorderLayout.EAST);
         root.add(bottomBar, BorderLayout.SOUTH);
 
         setContentPane(root);

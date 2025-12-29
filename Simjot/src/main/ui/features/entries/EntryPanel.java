@@ -667,12 +667,24 @@ public class EntryPanel extends AbstractEditorPanel {
         contentArea = new JTextPane();
         contentArea.setDoubleBuffered(true);
 
-        // Load font size directly from settings to ensure persistence
+        // Load font settings from Appearance settings
+        String fontFamily = SettingsStore.get().getEditorFontFamily();
         int savedFontSize = SettingsStore.get().getJournalFontSize();
-        contentArea.setFont(new Font("Serif", Font.ITALIC, savedFontSize));
+        String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
+        contentArea.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
         // JTextPane handles wrapping automatically via view; ensure editor kit is styled
         contentArea.setEditorKit(new StyledEditorKit());
         contentArea.setOpaque(false);
+        // Apply line spacing from settings
+        float spacing = switch (lineSpacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            try {
+                StyledDocument doc = (StyledDocument) contentArea.getStyledDocument();
+                MutableAttributeSet attrs = new SimpleAttributeSet();
+                StyleConstants.setLineSpacing(attrs, spacing);
+                doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+            } catch (Exception ignored) {}
+        });
         // Match poem editor text color
         contentArea.setForeground(new Color(40, 40, 40));
         ensureSimStyles();

@@ -2,12 +2,15 @@ package main.ui.features.settings;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.image.BufferedImage;
 
+import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
 import javax.swing.JCheckBox;
@@ -16,6 +19,11 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JTextPane;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
@@ -34,6 +42,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
     private final JCheckBox lowPowerChk;
+    // Editor Font settings
+    private final JComboBox<String> fontFamilyBox;
+    private final JComboBox<Integer> fontSizeBox;
+    private final JComboBox<String> lineSpacingBox;
+    private final JTextPane fontPreview;
 
     AppearanceSettingsPage() {
         setLayout(new GridBagLayout());
@@ -107,7 +120,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         lowPowerChk.setUI(new ModernCheckBoxUI());
         lowPowerChk.setBackground(new Color(0, 0, 0, 0));
 
-        backgroundOptionsBtn = new IconMenuButton("Background", "appearance_settings");
+        backgroundOptionsBtn = new IconMenuButton("Set BG", "backgroundoptions");
         backgroundOptionsBtn.setToolTipText("Background Options");
         backgroundOptionsBtn.addActionListener(e -> openBackgroundOptions());
 
@@ -128,6 +141,75 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(disableAnimationsChk, gc);
         gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
         gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(lowPowerChk, gc);
+
+        // Editor Font section
+        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2;
+        gc.insets = new Insets(20, 5, 5, 5);
+        add(SettingsUi.header("Editor Font", "Font style for journals and poems"), gc);
+        gc.insets = new Insets(5, 5, 5, 5);
+        gc.gridwidth = 1;
+
+        String[] fonts = {"Serif", "Georgia", "Garamond", "Baskerville",
+                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand", "Cursive"};
+        fontFamilyBox = new JComboBox<>(fonts);
+        fontFamilyBox.setUI(new ModernComboBoxUI());
+        fontFamilyBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        fontFamilyBox.setSelectedItem(store.getEditorFontFamily());
+        fontFamilyBox.addActionListener(e -> updateFontPreview());
+
+        Integer[] sizes = {12, 14, 16, 18, 20, 22, 24, 28};
+        fontSizeBox = new JComboBox<>(sizes);
+        fontSizeBox.setUI(new ModernComboBoxUI());
+        fontSizeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        fontSizeBox.setSelectedItem(store.getJournalFontSize());
+        fontSizeBox.addActionListener(e -> updateFontPreview());
+
+        lineSpacingBox = new JComboBox<>(new String[]{"1.0", "1.2", "1.5"});
+        lineSpacingBox.setUI(new ModernComboBoxUI());
+        lineSpacingBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        lineSpacingBox.setSelectedItem(store.getEditorLineSpacing());
+        lineSpacingBox.addActionListener(e -> updateFontPreview());
+
+        gc.gridx = 0; gc.gridy = 10; add(SettingsUi.label("Font:"), gc);
+        gc.gridx = 1; add(fontFamilyBox, gc);
+        gc.gridx = 0; gc.gridy = 11; add(SettingsUi.label("Size:"), gc);
+        gc.gridx = 1; add(fontSizeBox, gc);
+        gc.gridx = 0; gc.gridy = 12; add(SettingsUi.label("Line spacing:"), gc);
+        gc.gridx = 1; add(lineSpacingBox, gc);
+
+        // Live preview panel
+        fontPreview = new JTextPane();
+        fontPreview.setText("The quick brown fox jumps over the lazy dog.\nHow vexingly quick daft zebras jump!");
+        fontPreview.setEditable(false);
+        fontPreview.setBackground(new Color(252, 252, 250));
+        fontPreview.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 200, 200)),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+        fontPreview.setPreferredSize(new Dimension(300, 80));
+        updateFontPreview();
+
+        gc.gridx = 0; gc.gridy = 13; gc.gridwidth = 2;
+        gc.fill = GridBagConstraints.BOTH;
+        add(fontPreview, gc);
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.gridwidth = 1;
+    }
+
+    private void updateFontPreview() {
+        String family = (String) fontFamilyBox.getSelectedItem();
+        Integer size = (Integer) fontSizeBox.getSelectedItem();
+        String spacingStr = (String) lineSpacingBox.getSelectedItem();
+        if (family == null) family = "Serif";
+        if (size == null) size = 16;
+        float spacing = switch (spacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+
+        fontPreview.setFont(new Font(family, Font.PLAIN, size));
+        try {
+            StyledDocument doc = fontPreview.getStyledDocument();
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setLineSpacing(attrs, spacing);
+            doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+        } catch (Exception ignored) {}
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -162,6 +244,17 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         boolean lp = lowPowerChk.isSelected();
         store.setLowPowerMode(lp);
         AppPerf.setLowPowerMode(lp);
+
+        // Editor Font settings
+        String fontFamily = (String) fontFamilyBox.getSelectedItem();
+        Integer fontSize = (Integer) fontSizeBox.getSelectedItem();
+        String lineSpacing = (String) lineSpacingBox.getSelectedItem();
+        if (fontFamily != null) store.setEditorFontFamily(fontFamily);
+        if (fontSize != null) {
+            store.setJournalFontSize(fontSize);
+            store.setPoemFontSize(fontSize);
+        }
+        if (lineSpacing != null) store.setEditorLineSpacing(lineSpacing);
     }
 
     private void openBackgroundOptions() {

@@ -33,7 +33,7 @@ import javax.swing.SwingWorker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
@@ -209,25 +209,16 @@ public class WallpaperGalleryPanel extends JDialog {
 private JPanel buttonPanel;
     
     private void setupButtons() {
-        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        RoundedButton selectBtn = new RoundedButton("Select");
-        RoundedButton refreshBtn = new RoundedButton("Refresh");
-        RoundedButton openFolderBtn = new RoundedButton("Open Folder");
-        RoundedButton cancelBtn = new RoundedButton("Cancel");
+        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
+        IconMenuButton selectBtn = new IconMenuButton("Select", "save");
+        IconMenuButton refreshBtn = new IconMenuButton("Refresh", "refreshsizes");
+        IconMenuButton openFolderBtn = new IconMenuButton("Open", "explorer");
+        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
 
-        // Set icons to the left of text
-        selectBtn.setIcon(iconById("save"));
-        refreshBtn.setIcon(iconById("refreshsizes")); // closest existing refresh icon
-        openFolderBtn.setIcon(iconById("explorer"));
-        cancelBtn.setIcon(iconById("close"));
-        selectBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
-        refreshBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
-        openFolderBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
-        cancelBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
-        selectBtn.setIconTextGap(6);
-        refreshBtn.setIconTextGap(6);
-        openFolderBtn.setIconTextGap(6);
-        cancelBtn.setIconTextGap(6);
+        selectBtn.setToolTipText("Apply selected wallpaper");
+        refreshBtn.setToolTipText("Refresh wallpaper list");
+        openFolderBtn.setToolTipText("Open wallpapers folder");
+        cancelBtn.setToolTipText("Cancel and close");
         
         selectBtn.addActionListener(e -> {
             selectedItem = list.getSelectedValue();

@@ -12,7 +12,6 @@ import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
-import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -22,8 +21,6 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
-import javax.imageio.ImageIO;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -91,22 +88,6 @@ public class MoodChartPanel extends JPanel {
         cbTicks.setOpaque(false);
         cbTicks.addActionListener(e->{ settings.setShowEntryTicks(cbTicks.isSelected()); repaint(); });
         top.add(cbTicks);
-        JButton exportBtn = new JButton("Export");
-        exportBtn.addActionListener(e->{
-            try {
-                BufferedImage img = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
-                Graphics2D g2 = img.createGraphics();
-                paint(g2);
-                g2.dispose();
-                javax.swing.JFileChooser fc = new javax.swing.JFileChooser();
-                fc.setSelectedFile(new File("mood_chart.png"));
-                if (fc.showSaveDialog(MoodChartPanel.this) == javax.swing.JFileChooser.APPROVE_OPTION) {
-                    File out = fc.getSelectedFile();
-                    ImageIO.write(img, "png", out);
-                }
-            } catch (Throwable ignored) {}
-        });
-        top.add(exportBtn);
 
         // Analytics summary panel
         JPanel summaryPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 24, 4));

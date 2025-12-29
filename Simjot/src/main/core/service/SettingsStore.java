@@ -22,6 +22,8 @@ public final class SettingsStore {
     // Keys
     private static final String KEY_JOURNAL_FONT = "journalFontSize";
     private static final String KEY_POEM_FONT    = "poemFontSize";
+    private static final String KEY_EDITOR_FONT_FAMILY = "editorFontFamily";
+    private static final String KEY_EDITOR_LINE_SPACING = "editorLineSpacing";
     private static final String KEY_ANIMATION    = "animation";
     private static final String KEY_THEME        = "theme";
     private static final String KEY_GLOW         = "glowEnabled";
@@ -215,6 +217,12 @@ public final class SettingsStore {
 
     public int getPoemFontSize(){ return safeInt(KEY_POEM_FONT, DEF_POEM_FONT); }
     public void setPoemFontSize(int v){ props.setProperty(KEY_POEM_FONT, String.valueOf(v)); }
+
+    public String getEditorFontFamily(){ return props.getProperty(KEY_EDITOR_FONT_FAMILY, "Serif"); }
+    public void setEditorFontFamily(String f){ props.setProperty(KEY_EDITOR_FONT_FAMILY, f); }
+
+    public String getEditorLineSpacing(){ return props.getProperty(KEY_EDITOR_LINE_SPACING, "1.0"); }
+    public void setEditorLineSpacing(String s){ props.setProperty(KEY_EDITOR_LINE_SPACING, s); }
 
     public String getAnimation(){ return props.getProperty(KEY_ANIMATION, DEF_ANIMATION); }
     public void setAnimation(String a){ props.setProperty(KEY_ANIMATION, a); }

@@ -1,6 +1,14 @@
 package main.ui.util;
 
-import java.awt.*;
+/**
+ * Utility class for accent color extraction and manipulation.
+ * @author S1mplector
+ */
+
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 public final class AccentColorUtil {

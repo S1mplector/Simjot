@@ -310,13 +310,19 @@ public class PoemPanel extends AbstractEditorPanel {
         poemEditor.setOpaque(false);
         poemEditor.setForeground(new Color(40, 40, 40));
 
-        // Load font size directly from settings to ensure persistence
+        // Load font settings from Appearance settings
+        String fontFamily = SettingsStore.get().getEditorFontFamily();
         int savedFontSize = SettingsStore.get().getPoemFontSize();
-        poemEditor.setFont(new Font("Serif", Font.ITALIC, savedFontSize));
-        /*
-          NOTE: If you want a truly cursive font, pick one installed on your system, 
-          e.g. new Font("Gabriola", Font.PLAIN, 18) or "Lucida Handwriting", etc.
-        */
+        String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
+        poemEditor.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+        // Apply line spacing from settings
+        float spacing = switch (lineSpacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            StyledDocument doc = poemEditor.getStyledDocument();
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setLineSpacing(attrs, spacing);
+            doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+        });
 
         // Enable rich image paste & drag-and-drop into the poem editor
         ImagePasteManager.install(

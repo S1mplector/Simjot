@@ -208,6 +208,7 @@ public final class ImageIconRenderer {
             case "close" -> "img/icons/close.png";
             case "save" -> "img/icons/save.png";
             case "load" -> "img/icons/load.png";
+            case "backgroundoptions" -> "img/icons/backgroundoptions.png";
             // View / window controls
             case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "img/icons/fullscreen.png";
             case "export", "share", "download" -> "img/icons/export.png";
