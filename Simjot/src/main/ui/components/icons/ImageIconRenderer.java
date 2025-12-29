@@ -37,15 +37,22 @@ public final class ImageIconRenderer {
     }
 
     private static final Map<Key, BufferedImage> CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, BufferedImage> SOURCE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, String> ID_TO_PATH_CACHE = new ConcurrentHashMap<>();
+    private static final String ID_CACHE_MISS = "__missing__";
+    private static final String CUSTOM_PNG_DIR = "img/icons/original/";
     private static final String STREAMLINE_SVG_DIR = "img/icons/streamline-ultimate-light---free--24x24-SVG/";
     private static final String STREAMLINE_PNG_DIR = "img/icons/streamline-ultimate-light---free--24x24-PNG/";
 
     public static void setAccentTint(Color c) {
-        // Tinting disabled for Streamline icon set.
+        // Tinting disabled for icon sets, but clear caches on palette changes.
+        clearCaches();
     }
 
     public static void clearCaches() {
         CACHE.clear();
+        SOURCE_CACHE.clear();
+        ID_TO_PATH_CACHE.clear();
     }
     private static int tintSignature() { return 0; }
 
@@ -115,6 +122,9 @@ public final class ImageIconRenderer {
             BufferedImage tmp = new BufferedImage(nw, nh, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = tmp.createGraphics();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
             g2.drawImage(current, 0, 0, nw, nh, null);
             g2.dispose();
             if (current != src) current.flush();
@@ -127,6 +137,8 @@ public final class ImageIconRenderer {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
         g.drawImage(current, 0, 0, target, target, null);
         g.dispose();
         if (current != src) current.flush();
@@ -146,6 +158,8 @@ public final class ImageIconRenderer {
     }
 
     private static BufferedImage loadRasterImage(String path){
+        BufferedImage cached = SOURCE_CACHE.get(path);
+        if (cached != null) return cached;
         Image imgRaw = ResourceLoader.createImage("Simjot/" + path);
         if (imgRaw == null) return null;
 
@@ -156,8 +170,12 @@ public final class ImageIconRenderer {
         BufferedImage src = new BufferedImage(srcW, srcH, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gsrc = src.createGraphics();
         gsrc.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        gsrc.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        gsrc.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+        gsrc.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
         gsrc.drawImage(imgRaw, 0, 0, null);
         gsrc.dispose();
+        SOURCE_CACHE.put(path, src);
         return src;
     }
 
@@ -249,8 +267,7 @@ public final class ImageIconRenderer {
         return STREAMLINE_SVG_DIR + name + "--Streamline-Ultimate.svg";
     }
 
-    // Convenience mapping for common IDs used across the app
-    public static String mapIdToResource(String id){
+    private static String mapIdToStreamlineResource(String id){
         if (id == null) return null;
         return switch (id.toLowerCase()) {
             case "notebook" -> iconSvg("Bookmarks-Document");
@@ -297,5 +314,40 @@ public final class ImageIconRenderer {
             case "sticky_widget", "widget_sticky" -> iconSvg("Paper-Write");
             default -> null;
         };
+    }
+
+    private static boolean resourceExists(String path) {
+        return ResourceLoader.getResource("Simjot/" + path) != null;
+    }
+
+    private static String resolveCustomResource(String id) {
+        if (id == null || id.isEmpty()) return null;
+        String direct = CUSTOM_PNG_DIR + id + ".png";
+        if (resourceExists(direct)) return direct;
+        String alias = switch (id) {
+            case "smile", "mood", "moodchart" -> "moodchart";
+            case "saveandexit", "save_and_exit" -> "saveandexit";
+            case "wrench", "settings", "options" -> "settings";
+            case "notebook_nopen" -> "notebook_nopen";
+            case "notebook" -> "notebook";
+            case "back" -> "back";
+            case "search" -> "search";
+            default -> null;
+        };
+        if (alias == null) return null;
+        String aliasPath = CUSTOM_PNG_DIR + alias + ".png";
+        return resourceExists(aliasPath) ? aliasPath : null;
+    }
+
+    // Convenience mapping for common IDs used across the app
+    public static String mapIdToResource(String id){
+        if (id == null) return null;
+        String key = id.toLowerCase();
+        String cached = ID_TO_PATH_CACHE.get(key);
+        if (cached != null) return ID_CACHE_MISS.equals(cached) ? null : cached;
+        String custom = resolveCustomResource(key);
+        String resolved = (custom != null) ? custom : mapIdToStreamlineResource(key);
+        ID_TO_PATH_CACHE.put(key, resolved != null ? resolved : ID_CACHE_MISS);
+        return resolved;
     }
 }

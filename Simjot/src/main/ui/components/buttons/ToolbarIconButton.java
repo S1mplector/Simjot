@@ -32,7 +32,7 @@ import main.ui.theme.aero.AeroTheme;
 
 public class ToolbarIconButton extends JButton {
     private final String id;
-    private final String resourcePath; // centralized PNG path (may be null)
+    private final String resourcePath; // centralized icon path (may be null)
     private boolean selected;
     private boolean glow;
     private Timer glowTimer;
@@ -47,7 +47,7 @@ public class ToolbarIconButton extends JButton {
         setPreferredSize(new Dimension(40,40));
         setFocusPainted(false); setBorderPainted(false); setContentAreaFilled(false);
 
-        // Centralized mapping for PNGs; fallback to legacy img/{id}.png
+        // Centralized mapping for icons; fallback to legacy img/{id}.png
         String mapped = ImageIconRenderer.mapIdToResource(this.id);
         this.resourcePath = (mapped != null) ? mapped : ("img/" + id + ".png");
 

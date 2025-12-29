@@ -34,6 +34,23 @@ The Apache License 2.0 is a permissive free software license that allows:
 
 This license requires preservation of copyright and license notices.
 
+## Apache Batik (Transcoder)
+
+**Version**: 1.17  
+**License**: Apache License 2.0  
+**Website**: https://xmlgraphics.apache.org/batik/  
+**Usage**: SVG to raster transcoding for legacy icon assets
+
+### License Summary
+The Apache License 2.0 is a permissive free software license that allows:
+- Commercial use
+- Distribution
+- Modification
+- Patent use
+- Private use
+
+This license requires preservation of copyright and license notices.
+
 ## Maven Dependencies
 
 These libraries are managed through Maven and are included in the built JAR file via the maven-shade-plugin.
@@ -51,6 +68,11 @@ These libraries are managed through Maven and are included in the built JAR file
         <artifactId>jnativehook</artifactId>
         <version>2.2.2</version>
     </dependency>
+    <dependency>
+        <groupId>org.apache.xmlgraphics</groupId>
+        <artifactId>batik-transcoder</artifactId>
+        <version>1.17</version>
+    </dependency>
 </dependencies>
 ```
 
@@ -63,6 +85,7 @@ Simjot complies with all licensing requirements for these third-party libraries.
 - Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
 - Apache PDFBox License: https://pdfbox.apache.org/2.0/license.html
 - JNativeHook License: https://github.com/kwhat/jnativehook/blob/master/LICENSE
+- Batik License: https://xmlgraphics.apache.org/batik/license.html
 
 ---
 *This notice ensures compliance with third-party library licensing requirements.*

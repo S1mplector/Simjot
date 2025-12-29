@@ -399,7 +399,7 @@ public class MainMenuPanel extends JPanel {
         notebooksButton.setToolTipText("Collect, draft, and manage your notebooks");
         iconRow.add(notebooksButton);
 
-        IconMenuButton searchButton = new IconMenuButton("Search", "explorer");
+        IconMenuButton searchButton = new IconMenuButton("Search", "search");
         searchButton.setToolTipText("Search across all poems and notebooks");
         searchButton.addActionListener(e -> app.showGlobalSearch());
         iconRow.add(searchButton);

@@ -123,7 +123,7 @@ public class SettingsPanel extends JPanel {
         JPanel chrome = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         chrome.setOpaque(true);
         chrome.setBackground(Color.WHITE);
-        // Icon buttons for Cancel/Save using centralized PNG renderer
+        // Icon buttons for Cancel/Save using centralized icon renderer
         ToolbarIconButton cancel = new ToolbarIconButton("back");
         cancel.setToolTipText("Cancel");
         cancel.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));

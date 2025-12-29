@@ -82,7 +82,7 @@ public class GlobalSearchDialog extends JDialog {
         queryField = new ModernTextField(30);
         queryField.setPlaceholder("Search across notebooks...");
         topRow.add(queryField, BorderLayout.CENTER);
-        IconMenuButton searchBtn = new IconMenuButton("Search", "explorer");
+        IconMenuButton searchBtn = new IconMenuButton("Search", "search");
         searchBtn.setToolTipText("Search notebooks");
         searchBtn.addActionListener(e -> runSearch());
         topRow.add(searchBtn, BorderLayout.EAST);
