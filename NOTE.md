@@ -2,7 +2,7 @@
 
 Simjot was born during one of the most challenging periods of my life. I was going through hard times, battling depression, dealing with difficult emotions, and searching for ways to find peace and clarity amidst the chaos. This journaling application wasn't created as a commercial venture or technical showcase but rather emerged as a personal sanctuary, a safe space for me to process thoughts and emotions when I needed it most.
 
-I want to think that Simjot was designed to be **recreational software**. It is meant to be a gentle, calming digital companion that encourages reflection without pressure. The features, from mood tracking to poetry writing, were all crafted with the intention of making journaling a soothing, meditative experience rather than a chore.
+I want to think that, due to this, Simjot was subconsciously designed to be **recreational software**. It is meant to be a gentle, calming digital companion that encourages reflection without pressure. The features, from mood tracking to poetry writing, were all crafted with the intention of making journaling a soothing, meditative experience rather than a chore.
 
 During the development process, I poured my own experiences with anxiety, stress, and emotional turbulence into the design. Everything is there because they helped me in some way, and I hope they can help others too.
 
