@@ -8,7 +8,6 @@ This document covers building Simjot from source on all platforms.
 |-------------|---------|-------|
 | JDK | 17+ | Ensure `java`, `javac`, and `jpackage` are on your `PATH` |
 | Maven | 3.8+ | Optional but recommended |
-| Ollama | Latest | Optional, for Sim AI features |
 
 ## Build Methods
 
@@ -42,7 +41,7 @@ Supported IDEs:
 - VS Code with Java extensions
 - NetBeans
 
-### 3. Manual Build (Advanced)
+### 3. Manual Build
 
 For environments without Maven:
 
@@ -58,7 +57,7 @@ jar --create --file Simjot.jar --main-class main.ui.app.JournalApp -C build/clas
 cp -r Simjot/src/main/resources/* build/classes/
 ```
 
-## Native Packaging
+## Native Packaging with jpackage (recommended)
 
 ### Windows
 
@@ -121,21 +120,6 @@ java -Xmx2g -jar Simjot.jar
 SIMJOT_LOG=debug java -jar Simjot.jar
 ```
 
-## Setting Up Sim AI (Optional)
-
-Simjot's AI companion requires Ollama:
-
-1. **Install Ollama**: https://ollama.ai
-2. **Pull a model**:
-   ```bash
-   ollama pull deepseek-coder:6.7b
-   ```
-3. **Start Ollama** (if not running as service):
-   ```bash
-   ollama serve
-   ```
-4. **Enable in Simjot**: Settings → Sim → Enable Sim
-
 ## Troubleshooting
 
 | Issue | Solution |
@@ -144,13 +128,9 @@ Simjot's AI companion requires Ollama:
 | `jpackage` not found | Included with JDK 14+; verify installation |
 | Missing resources | Ensure resources are copied to `build/classes/` |
 | Maven build fails | Run `mvn clean` then retry |
-| Sim AI not working | Verify Ollama is running: `curl localhost:11434` |
 
 ## Project Dependencies
 
 Core dependencies (managed by Maven):
 - **JUnit 5**: Testing framework
-- No external runtime dependencies—pure Java Swing application
-
-Optional:
-- **Ollama**: Local LLM server for Sim AI features
+- No external runtime dependencies, Simjot is a pure Java Swing application
