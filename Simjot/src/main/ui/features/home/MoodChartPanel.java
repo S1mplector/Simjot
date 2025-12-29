@@ -31,7 +31,7 @@ import javax.swing.JPopupMenu;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 
 public class MoodChartPanel extends JPanel {
@@ -60,10 +60,11 @@ public class MoodChartPanel extends JPanel {
         setBackground(Color.WHITE);
         setLayout(new BorderLayout());
 
-        RoundedButton backButton = new RoundedButton("Back to Main Menu");
+        IconMenuButton backButton = new IconMenuButton("Back", "back");
+        backButton.setToolTipText("Back to Main Menu");
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
 
-        JPanel bottomPanel = new JPanel();
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         bottomPanel.add(backButton);
         add(bottomPanel, BorderLayout.SOUTH);
 

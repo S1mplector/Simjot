@@ -434,45 +434,51 @@ public class GlobalSearchDialog extends JDialog {
     }
 
     private static class SearchResultRenderer extends JPanel implements ListCellRenderer<SearchResult> {
-        private final JLabel title = new JLabel();
-        private final JLabel snippet = new JLabel();
+        private final JLabel titleLine = new JLabel();
         private final JLabel meta = new JLabel();
 
         SearchResultRenderer() {
-            setLayout(new BorderLayout(6, 4));
-            title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
-            snippet.setFont(snippet.getFont().deriveFont(Font.PLAIN, 12f));
+            setLayout(new BorderLayout(4, 2));
+            titleLine.setFont(titleLine.getFont().deriveFont(Font.PLAIN, 14f));
             meta.setFont(meta.getFont().deriveFont(Font.PLAIN, 11f));
-            snippet.setForeground(new Color(90, 90, 90));
-            meta.setForeground(new Color(120, 120, 120));
-            add(title, BorderLayout.NORTH);
-            add(snippet, BorderLayout.CENTER);
+            meta.setForeground(new Color(110, 110, 110));
+            add(titleLine, BorderLayout.CENTER);
             add(meta, BorderLayout.SOUTH);
-            setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+            setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         }
 
         @Override
         public Component getListCellRendererComponent(JList<? extends SearchResult> list, SearchResult value,
                                                       int index, boolean isSelected, boolean cellHasFocus) {
             if (value != null) {
-                title.setText(value.title + "  (" + value.notebook.getName() + ")");
-                snippet.setText(value.snippet == null ? "" : value.snippet);
+                // Format: "Entry Title" from 📓 Notebook Name
+                String entryTitle = value.title != null && !value.title.isEmpty() ? value.title : "Untitled";
+                String nbName = value.notebook.getName();
+                titleLine.setText("<html><b>" + escapeHtml(entryTitle) + "</b> <span style='color:#666;'>from</span> <span style='color:#4a7c9b;'>📓 " + escapeHtml(nbName) + "</span></html>");
+                
                 String date = DateTimeFormatter.ofPattern("yyyy-MM-dd")
                         .format(Instant.ofEpochMilli(value.savedAt).atZone(ZoneId.systemDefault()).toLocalDate());
-                String mood = value.mood >= 0 ? "Mood " + value.mood : "Mood -";
+                String mood = value.mood >= 0 ? "Mood " + value.mood : "";
                 String tagText = (value.tags != null && !value.tags.isEmpty())
                         ? "Tags: " + String.join(", ", value.tags)
-                        : "Tags: -";
-                meta.setText(date + "  •  " + mood + "  •  " + tagText);
+                        : "";
+                StringBuilder sb = new StringBuilder(date);
+                if (!mood.isEmpty()) sb.append("  •  ").append(mood);
+                if (!tagText.isEmpty()) sb.append("  •  ").append(tagText);
+                meta.setText(sb.toString());
             }
             if (isSelected) {
-                setBackground(new Color(225, 232, 245));
+                setBackground(new Color(225, 235, 250));
                 setOpaque(true);
             } else {
                 setBackground(Color.WHITE);
                 setOpaque(true);
             }
             return this;
+        }
+        
+        private static String escapeHtml(String s) {
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         }
     }
 
