@@ -5,9 +5,9 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.dialog.config.BreathingConfigDialog;
 import main.ui.features.widgets.BreathingWidget;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -34,20 +34,7 @@ public class BreathingExerciseWindow extends JDialog {
         setLayout(new BorderLayout());
         
         // Main breathing panel
-        JPanel mainPanel = new JPanel(new BorderLayout()) {
-            @Override protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                AeroPainters.paintVerticalGradient(
-                        g2,
-                        new Rectangle(0, 0, getWidth(), getHeight()),
-                        Color.WHITE,
-                        new Color(230, 234, 238), // light silver
-                        0);
-                g2.dispose();
-            }
-        };
-        mainPanel.setOpaque(true);
+        FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(), 18);
         
         // Top instruction panel
         JPanel topPanel = new JPanel();

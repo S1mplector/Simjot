@@ -63,6 +63,7 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.indicators.SaveIndicatorPanel;
@@ -1200,22 +1201,10 @@ class CustomInspirationDialog extends JDialog {
         
         JLabel label = new JLabel(word, SwingConstants.CENTER);
         label.setFont(new Font("Serif", Font.BOLD | Font.ITALIC, 28));
-        label.setForeground(Color.WHITE);
-        label.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
+        label.setForeground(new Color(40, 40, 40));
+        label.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
 
-        // Panel with a dark, translucent background
-        JPanel contentPanel = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(30, 30, 30, 220));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 30, 30);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        contentPanel.setOpaque(false);
+        FrostedGlassPanel contentPanel = new FrostedGlassPanel(new BorderLayout(), 30);
         contentPanel.add(label);
         add(contentPanel);
 

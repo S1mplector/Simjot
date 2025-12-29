@@ -4,7 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 
 public class CustomMessageDialog extends JDialog {
  
@@ -17,22 +17,7 @@ public class CustomMessageDialog extends JDialog {
         setBackground(new Color(0, 0, 0, 0)); // Transparent background
         setLayout(new BorderLayout());
 
-        // Use RoundedPanel but force a flat fill (no gradient)
-        RoundedPanel mainPanel = new RoundedPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // Flat, light background (no gradient)
-                int arc = 30; // match setArc below
-                g2.setColor(new Color(250, 250, 250));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-                g2.dispose();
-            }
-        };
-        mainPanel.setArc(30);
-        mainPanel.setOpaque(false);
-        mainPanel.setLayout(new BorderLayout(10, 10));
+        FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(10, 10), 30);
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel messageLabel = new JLabel("<html><body style='text-align: center;'>" + message + "</body></html>", SwingConstants.CENTER);

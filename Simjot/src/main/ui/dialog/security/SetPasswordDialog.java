@@ -5,6 +5,7 @@ import main.core.service.SettingsStore;
 
 import javax.swing.*;
 import java.awt.*;
+import main.ui.components.containers.FrostedGlassPanel;
 
 public class SetPasswordDialog extends JDialog {
     private final JPasswordField oldPw = new JPasswordField(16);
@@ -22,9 +23,8 @@ public class SetPasswordDialog extends JDialog {
     }
 
     private void buildUI(){
-        JPanel root = new JPanel(new BorderLayout());
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(), 16);
         root.setBorder(BorderFactory.createEmptyBorder(14,14,14,14));
-        root.setBackground(Color.WHITE);
 
         JLabel title = new JLabel("Set or change the lock password", SwingConstants.CENTER);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));

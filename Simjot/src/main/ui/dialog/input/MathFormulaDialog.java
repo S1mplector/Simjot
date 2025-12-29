@@ -8,6 +8,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
+import main.ui.components.containers.FrostedGlassPanel;
 
 public class MathFormulaDialog extends JDialog {
     public static class Result {
@@ -81,6 +82,8 @@ public class MathFormulaDialog extends JDialog {
         super(owner, "Insert Math Formula", true);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
+        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         input = new JTextArea(4, 40);
         input.setLineWrap(true);
@@ -93,6 +96,7 @@ public class MathFormulaDialog extends JDialog {
         showLatex = new JCheckBox("Show LaTeX", false);
 
         JPanel opts = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        opts.setOpaque(false);
         opts.add(new JLabel("Size:"));
         opts.add(sizeSpinner);
         opts.add(transparentBg);
@@ -107,6 +111,7 @@ public class MathFormulaDialog extends JDialog {
         tabs.addTab("Calculus", buildCalculusTab());
 
         JPanel topBar = new JPanel(new BorderLayout());
+        topBar.setOpaque(false);
         topBar.add(tabs, BorderLayout.CENTER);
         topBar.add(opts, BorderLayout.SOUTH);
 
@@ -125,7 +130,9 @@ public class MathFormulaDialog extends JDialog {
         prevScroll.setPreferredSize(new Dimension(600, 280));
 
         JPanel center = new JPanel(new BorderLayout(8, 8));
+        center.setOpaque(false);
         JPanel northStack = new JPanel(new BorderLayout());
+        northStack.setOpaque(false);
         northStack.add(topBar, BorderLayout.NORTH);
         fieldsPanel = new JPanel();
         fieldsPanel.setOpaque(false);
@@ -141,14 +148,16 @@ public class MathFormulaDialog extends JDialog {
         latexPanel.setVisible(false);
         center.add(latexPanel, BorderLayout.SOUTH);
 
-        add(center, BorderLayout.CENTER);
+        root.add(center, BorderLayout.CENTER);
 
         JButton insertBtn = new JButton("Insert");
         JButton cancelBtn = new JButton("Cancel");
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottom.setOpaque(false);
         bottom.add(cancelBtn);
         bottom.add(insertBtn);
-        add(bottom, BorderLayout.SOUTH);
+        root.add(bottom, BorderLayout.SOUTH);
+        setContentPane(root);
 
         Runnable refresh = this::renderPreview;
         input.addKeyListener(new KeyAdapter(){

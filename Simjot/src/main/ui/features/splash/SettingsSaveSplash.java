@@ -3,12 +3,8 @@ package main.ui.features.splash;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.RenderingHints;
-import java.awt.geom.RoundRectangle2D;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -19,6 +15,7 @@ import javax.swing.JWindow;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
 
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinner;
 import main.ui.theme.aero.AeroTheme;
 
@@ -42,23 +39,7 @@ public class SettingsSaveSplash extends JWindow {
         content.setBackground(new Color(0, 0, 0, 0));
         content.setDoubleBuffered(true);
 
-        // Rounded panel with white fill
-        JPanel rounded = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth();
-                int h = getHeight();
-                int arc = 16;
-                g2.setColor(Color.WHITE);
-                g2.fill(new RoundRectangle2D.Float(0, 0, w-1, h-1, arc, arc));
-                g2.setColor(new Color(180, 190, 200));
-                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w-1, h-1, arc, arc));
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        rounded.setOpaque(false);
+        FrostedGlassPanel rounded = new FrostedGlassPanel(16);
         rounded.setLayout(new BoxLayout(rounded, BoxLayout.Y_AXIS));
         rounded.setBorder(BorderFactory.createEmptyBorder(24, 28, 24, 28));
         rounded.setAlignmentX(Component.CENTER_ALIGNMENT);

@@ -30,6 +30,7 @@ import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.AeroPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.input.AeroTextField;
 
@@ -60,11 +61,8 @@ public class EntryTypeSelectionDialog extends JDialog {
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
 
-        RoundedPanel mainPanel = new RoundedPanel();
-        mainPanel.setArc(18);
-        mainPanel.setLayout(new BorderLayout(0, 0));
+        FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(0, 0), 18);
         mainPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-        mainPanel.setBackground(Color.WHITE);
 
         // Top toolbar-style header (Aero panel)
         AeroPanel topBar = new AeroPanel(16);
@@ -145,8 +143,7 @@ public class EntryTypeSelectionDialog extends JDialog {
 
         // Bottom buttons
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 12));
-        bottomPanel.setOpaque(true);
-        bottomPanel.setBackground(Color.WHITE);
+        bottomPanel.setOpaque(false);
 
         useBtn = new RoundedButton("Use Template");
         useBtn.setPreferredSize(new Dimension(140, 36));

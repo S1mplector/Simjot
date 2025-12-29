@@ -14,6 +14,7 @@ import java.util.Date;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.slider.MoodSlider;
 
 /**
@@ -66,27 +67,8 @@ public class QuickMoodWidget implements Widget {
         dialog.setBackground(new Color(0,0,0,0));
         dialog.setLayout(new BorderLayout());
 
-        JPanel content = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth();
-                int h = getHeight();
-                Paint bg = new LinearGradientPaint(0, 0, 0, h,
-                        new float[]{0f, 0.5f, 1f},
-                        new Color[]{new Color(252,252,252,210), new Color(236,236,236,210), new Color(222,222,222,210)});
-                g2.setPaint(bg);
-                g2.fillRoundRect(0, 0, w, h, 16, 16);
-                g2.setColor(new Color(170,170,170));
-                g2.setStroke(new BasicStroke(1f));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 16, 16);
-                g2.dispose();
-            }
-        };
-        content.setOpaque(false);
+        FrostedGlassPanel content = new FrostedGlassPanel(new BorderLayout(8, 8), 16);
         content.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
-        content.setLayout(new BorderLayout(8, 8));
 
         // Header with close button
         JPanel header = new JPanel(new BorderLayout());

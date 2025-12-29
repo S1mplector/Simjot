@@ -25,7 +25,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
 import main.ui.components.buttons.IconMenuButton;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 
 /**
  * Modern color picker dialog with HSB sliders, preset colors, and hex input.
@@ -64,9 +64,7 @@ public class ModernColorPickerDialog extends JDialog {
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
         
-        RoundedPanel mainPanel = new RoundedPanel();
-        mainPanel.setArc(16);
-        mainPanel.setLayout(new BorderLayout(12, 12));
+        FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(12, 12), 16);
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         
         // Title

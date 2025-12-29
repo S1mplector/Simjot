@@ -5,6 +5,7 @@ import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 /**
@@ -56,9 +57,11 @@ public class BreathingConfigDialog extends JDialog {
         super(parent, "Breathing Exercise Configuration", true);
         setLayout(new BorderLayout());
         
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(), 18);
+        root.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+
         JPanel mainPanel = new JPanel(new GridBagLayout());
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setOpaque(false);
         
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(8, 8, 8, 8);
@@ -205,7 +208,7 @@ public class BreathingConfigDialog extends JDialog {
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setOpaque(false);
         
         RoundedButton cancelBtn = new RoundedButton("Cancel");
         cancelBtn.addActionListener(e -> {
@@ -223,8 +226,9 @@ public class BreathingConfigDialog extends JDialog {
         buttonPanel.add(cancelBtn);
         buttonPanel.add(startBtn);
         
-        add(mainPanel, BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
+        root.add(mainPanel, BorderLayout.CENTER);
+        root.add(buttonPanel, BorderLayout.SOUTH);
+        setContentPane(root);
         
         // Listen for custom timing changes
         inhaleSpinner.addChangeListener(e -> checkCustomPattern());

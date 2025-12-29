@@ -30,6 +30,7 @@ import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.FileIO;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.ModernTextField;
 import main.ui.dialog.message.CustomMessageDialog;
 
@@ -50,9 +51,8 @@ public class QuickCaptureDialog extends JDialog {
         setResizable(false);
         setAlwaysOnTop(true);
 
-        JPanel root = new JPanel(new BorderLayout(10, 10));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        root.setBackground(new Color(245, 245, 245));
 
         titleField = new ModernTextField(24);
         titleField.setFont(new Font("Serif", Font.BOLD, 16));

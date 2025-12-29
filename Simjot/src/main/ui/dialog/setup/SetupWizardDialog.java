@@ -7,6 +7,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.ModernFileIcons;
 import main.ui.components.spinner.ModernSpinner;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
@@ -31,8 +32,9 @@ public class SetupWizardDialog extends JDialog {
     private void initUI() {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout(10,10));
-        JPanel content = new JPanel();
+        FrostedGlassPanel content = new FrostedGlassPanel(16);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
 
         JLabel title = new JLabel("Welcome to Simjot!", JLabel.CENTER);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));

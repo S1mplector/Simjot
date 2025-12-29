@@ -24,6 +24,7 @@ import javax.swing.JSlider;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 public class PoemBackgroundDialog extends JDialog {
@@ -45,10 +46,12 @@ public class PoemBackgroundDialog extends JDialog {
         
         // Main content panel with increased padding
         JPanel contentPanel = new JPanel(new BorderLayout(15, 15));
+        contentPanel.setOpaque(false);
         contentPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
         
         // Preview panel with increased size and better spacing
         JPanel previewPanel = new JPanel(new BorderLayout(10, 10));
+        previewPanel.setOpaque(false);
         previewPanel.setBorder(BorderFactory.createTitledBorder("Preview"));
         previewLabel = new JLabel("No background selected", JLabel.CENTER);
         previewLabel.setPreferredSize(new Dimension(350, 250));
@@ -65,6 +68,7 @@ public class PoemBackgroundDialog extends JDialog {
         
         // Opacity control with better spacing
         JPanel opacityPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+        opacityPanel.setOpaque(false);
         opacityPanel.setBorder(BorderFactory.createTitledBorder("Background Opacity"));
         
         JLabel opacityLabel = new JLabel("Opacity:");
@@ -91,9 +95,11 @@ public class PoemBackgroundDialog extends JDialog {
         
         // Button panel with improved spacing
         JPanel buttonPanel = new JPanel(new BorderLayout(15, 0));
+        buttonPanel.setOpaque(false);
         
         // Centered buttons (IconMenuButton style)
         JPanel centerButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 8));
+        centerButtonPanel.setOpaque(false);
         
         IconMenuButton galleryBtn = new IconMenuButton("Gallery", "gallery");
         galleryBtn.setToolTipText("Choose from gallery");
@@ -123,9 +129,10 @@ public class PoemBackgroundDialog extends JDialog {
         contentPanel.add(previewPanel, BorderLayout.CENTER);
         contentPanel.add(opacityPanel, BorderLayout.SOUTH);
         
-        // Add everything to the dialog
-        add(contentPanel, BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(), 16);
+        root.add(contentPanel, BorderLayout.CENTER);
+        root.add(buttonPanel, BorderLayout.SOUTH);
+        setContentPane(root);
         
         // Ensure the dialog is properly sized
         pack();

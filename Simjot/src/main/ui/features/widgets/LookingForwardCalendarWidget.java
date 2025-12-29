@@ -40,6 +40,7 @@ import javax.swing.SwingConstants;
 import javax.swing.border.LineBorder;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.theme.Theme;
 
 /**
@@ -107,23 +108,7 @@ public class LookingForwardCalendarWidget implements Widget {
         dialog.getRootPane().putClientProperty("apple.awt.draggableWindowBackground", Boolean.FALSE);
         dialog.setBackground(new Color(0, 0, 0, 0));
 
-        JPanel root = new JPanel(new BorderLayout(10, 10)) {
-            @Override protected void paintComponent(java.awt.Graphics g) {
-                super.paintComponent(g);
-                var g2 = (java.awt.Graphics2D) g.create();
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth(), h = getHeight();
-                java.awt.Paint bg = new java.awt.LinearGradientPaint(0, 0, 0, h,
-                        new float[]{0f, 1f},
-                        new Color[]{new Color(252, 252, 252, 235), new Color(236, 240, 245, 235)});
-                g2.setPaint(bg);
-                g2.fillRoundRect(0, 0, w, h, 16, 16);
-                g2.setColor(new Color(180, 180, 180));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 16, 16);
-                g2.dispose();
-            }
-        };
-        root.setOpaque(false);
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
         root.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
         // Header with month navigation

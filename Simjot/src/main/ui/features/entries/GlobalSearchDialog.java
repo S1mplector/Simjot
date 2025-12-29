@@ -45,6 +45,7 @@ import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.ModernTextField;
 
 /**
@@ -71,11 +72,13 @@ public class GlobalSearchDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setPreferredSize(new Dimension(820, 520));
 
-        JPanel root = new JPanel(new BorderLayout(12, 12));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(12, 12), 16);
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         JPanel filters = new JPanel(new BorderLayout(10, 10));
+        filters.setOpaque(false);
         JPanel topRow = new JPanel(new BorderLayout(8, 8));
+        topRow.setOpaque(false);
         queryField = new ModernTextField(30);
         queryField.setPlaceholder("Search across notebooks...");
         topRow.add(queryField, BorderLayout.CENTER);
@@ -85,7 +88,9 @@ public class GlobalSearchDialog extends JDialog {
         topRow.add(searchBtn, BorderLayout.EAST);
 
         JPanel secondRow = new JPanel(new GridLayout(2, 1, 6, 6));
+        secondRow.setOpaque(false);
         JPanel rowA = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        rowA.setOpaque(false);
         rowA.add(new JLabel("Tags:"));
         tagField = new ModernTextField(18);
         tagField.setPlaceholder("tag1, tag2");
@@ -100,6 +105,7 @@ public class GlobalSearchDialog extends JDialog {
         rowA.add(toDateField);
 
         JPanel rowB = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        rowB.setOpaque(false);
         rowB.add(new JLabel("Mood:"));
         moodMin = new JSpinner(new SpinnerNumberModel(0, 0, 100, 1));
         moodMax = new JSpinner(new SpinnerNumberModel(100, 0, 100, 1));
@@ -152,6 +158,7 @@ public class GlobalSearchDialog extends JDialog {
         closeBtn.setToolTipText("Close search");
         closeBtn.addActionListener(e -> dispose());
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 18, 0));
+        btnRow.setOpaque(false);
         btnRow.add(openBtn);
         btnRow.add(closeBtn);
         JPanel bottomBar = new JPanel(new BorderLayout());

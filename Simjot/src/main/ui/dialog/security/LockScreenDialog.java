@@ -4,6 +4,7 @@ import main.core.security.LockUtil;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroPasswordField;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.BackgroundPanel;
@@ -68,18 +69,18 @@ public class LockScreenDialog extends JDialog {
         JComponent content = createBackground();
         content.setLayout(new GridBagLayout());
 
-        JPanel column = new JPanel();
-        column.setOpaque(false);
+        FrostedGlassPanel column = new FrostedGlassPanel(18);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setBorder(BorderFactory.createEmptyBorder(18, 24, 18, 24));
 
         // Welcome header (bigger)
         JLabel title = new JLabel("Welcome back");
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
-        title.setForeground(Color.WHITE);
+        title.setForeground(AeroTheme.TEXT_PRIMARY);
         title.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 34f));
         JLabel sub = new JLabel("Enter your password to continue");
         sub.setAlignmentX(Component.CENTER_ALIGNMENT);
-        sub.setForeground(new Color(240, 240, 240));
+        sub.setForeground(new Color(90, 90, 90));
         sub.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 14f));
 
         column.add(title);

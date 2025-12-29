@@ -4,7 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -20,10 +20,7 @@ public class CustomChoiceDialog extends JDialog {
         setBackground(new Color(0,0,0,0));
         setLayout(new BorderLayout());
 
-        RoundedPanel panel = new RoundedPanel();
-        panel.setArc(30);
-        panel.setBackground(new Color(45,45,45,230));
-        panel.setLayout(new BorderLayout(14,14));
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(14,14), 30);
         panel.setBorder(BorderFactory.createEmptyBorder(22,24,20,24));
 
         JLabel lbl = new JLabel("<html><body style='text-align:center;'>"+message+"</body></html>", SwingConstants.CENTER);

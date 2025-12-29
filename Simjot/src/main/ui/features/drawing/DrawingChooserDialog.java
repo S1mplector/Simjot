@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 
 /**
  * Modal dialog that lists all .mydraw files inside the supplied directory
@@ -25,6 +26,9 @@ public class DrawingChooserDialog extends JDialog {
         setLayout(new BorderLayout());
         setSize(520, 380);
         setLocationRelativeTo(owner);
+
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(), 16);
+        root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Thumbnail list setup
         list.setLayoutOrientation(JList.HORIZONTAL_WRAP);
@@ -59,20 +63,23 @@ public class DrawingChooserDialog extends JDialog {
         sc.setBackground(Color.WHITE);
         sc.getViewport().setOpaque(true);
         sc.getViewport().setBackground(Color.WHITE);
-        add(sc, BorderLayout.CENTER);
+        root.add(sc, BorderLayout.CENTER);
 
         // Info label and buttons
         JPanel south = new JPanel(new BorderLayout());
+        south.setOpaque(false);
         JLabel info = new JLabel(" ");
         info.setBorder(BorderFactory.createEmptyBorder(2,8,2,8));
         south.add(info, BorderLayout.CENTER);
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btns.setOpaque(false);
         RoundedButton del = new RoundedButton("Delete");
         RoundedButton open = new RoundedButton("Open");
         RoundedButton cancel = new RoundedButton("Cancel");
         btns.add(del); btns.add(open); btns.add(cancel);
         south.add(btns, BorderLayout.EAST);
-        add(south, BorderLayout.SOUTH);
+        root.add(south, BorderLayout.SOUTH);
+        setContentPane(root);
 
         open.addActionListener(e->{
             selected = list.getSelectedValue();

@@ -5,6 +5,7 @@ import main.core.service.SettingsStore;
 
 import javax.swing.*;
 import java.awt.*;
+import main.ui.components.containers.FrostedGlassPanel;
 
 public class LockDialog extends JDialog {
     public enum Mode { UNLOCK }
@@ -25,9 +26,8 @@ public class LockDialog extends JDialog {
     }
 
     private void buildUI(){
-        JPanel chrome = new JPanel(new BorderLayout());
+        FrostedGlassPanel chrome = new FrostedGlassPanel(new BorderLayout(), 16);
         chrome.setBorder(BorderFactory.createEmptyBorder(14,14,14,14));
-        chrome.setBackground(new Color(255,255,255));
 
         JLabel title = new JLabel("Enter password to unlock", SwingConstants.CENTER);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));

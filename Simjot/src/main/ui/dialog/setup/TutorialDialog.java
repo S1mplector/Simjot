@@ -6,7 +6,7 @@ import java.util.List;
 import javax.swing.*;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 
 /**
  * A simple multi-page modal dialog that walks the user through the core features
@@ -28,9 +28,7 @@ public class TutorialDialog extends JDialog {
     private void initUI() {
         setUndecorated(true);
         // Outer rounded frame look
-        RoundedPanel container = new RoundedPanel(15);
-        container.setBackground(new Color(250,250,250));
-        container.setLayout(new BorderLayout(10,10));
+        FrostedGlassPanel container = new FrostedGlassPanel(new BorderLayout(10,10), 15);
         container.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
 
         // build pages – refreshed for the latest main-menu layout with visuals

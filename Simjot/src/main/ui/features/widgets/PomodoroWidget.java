@@ -4,6 +4,7 @@ import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.VectorIconPainter;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
@@ -115,35 +116,8 @@ public class PomodoroWidget implements Widget {
         // Make window fully transparent so only our rounded panel is visible (no sharp rectangular frame)
         dialog.setBackground(new Color(0,0,0,0));
 
-        JPanel content = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth();
-                int h = getHeight();
-
-                // Aero silvery panel gradient
-                Paint bg = new LinearGradientPaint(0, 0, 0, h,
-                        new float[]{0f, 0.5f, 1f},
-                        new Color[]{new Color(252,252,252,200), new Color(236,236,236,200), new Color(222,222,222,200)});
-                g2.setPaint(bg);
-                g2.fillRoundRect(0, 0, w, h, 16, 16);
-
-                // Glass highlight
-                g2.setPaint(new GradientPaint(0, 0, new Color(255,255,255,170), 0, h/2f, new Color(255,255,255,0)));
-                g2.fillRoundRect(1, 1, w-2, Math.max(1, h/2), 14, 14);
-
-                // Subtle border
-                g2.setColor(new Color(170,170,170));
-                g2.setStroke(new BasicStroke(1f));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 16, 16);
-                g2.dispose();
-            }
-        };
-        content.setOpaque(false);
+        FrostedGlassPanel content = new FrostedGlassPanel(new BorderLayout(8, 8), 16);
         content.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
-        content.setLayout(new BorderLayout(8, 8));
 
         // Header with settings
         JPanel header = new JPanel(new BorderLayout());
@@ -330,8 +304,10 @@ public class PomodoroWidget implements Widget {
     private void showSettingsDialog() {
         JDialog d = new JDialog(owner, "Pomodoro Settings", true);
         d.setLayout(new BorderLayout(10, 10));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
+        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         JPanel form = new JPanel(new GridBagLayout());
-        form.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        form.setOpaque(false);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(4,4,4,4);
         gbc.anchor = GridBagConstraints.WEST;
@@ -355,6 +331,7 @@ public class PomodoroWidget implements Widget {
         gbc.gridx=1; gbc.gridy=3; form.add(cyclesSpin, gbc);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttons.setOpaque(false);
         RoundedButton ok = new RoundedButton("Save");
         RoundedButton cancel = new RoundedButton("Cancel");
         ok.addActionListener(e -> {
@@ -370,8 +347,9 @@ public class PomodoroWidget implements Widget {
         buttons.add(ok);
         buttons.add(cancel);
 
-        d.add(form, BorderLayout.CENTER);
-        d.add(buttons, BorderLayout.SOUTH);
+        root.add(form, BorderLayout.CENTER);
+        root.add(buttons, BorderLayout.SOUTH);
+        d.setContentPane(root);
         d.pack();
         d.setLocationRelativeTo(owner);
         d.setVisible(true);

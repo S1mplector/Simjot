@@ -23,6 +23,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicSliderUI;
 
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.slider.MoodSlider;
 import main.ui.theme.aero.AeroTheme;
 
@@ -50,14 +51,11 @@ public class DetailedMoodDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
 
-        // Set uniform light grey background (#e7e7e7)
-        Color bg = new Color(0xE7, 0xE7, 0xE7);
-        getContentPane().setBackground(bg);
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
+        root.setBorder(new EmptyBorder(12, 16, 8, 16));
 
         JPanel content = new JPanel(new GridBagLayout());
-        content.setOpaque(true);
-        content.setBackground(bg);
-        content.setBorder(new EmptyBorder(12, 16, 8, 16));
+        content.setOpaque(false);
 
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(6, 6, 6, 6);
@@ -71,11 +69,10 @@ public class DetailedMoodDialog extends JDialog {
         gc.gridy++; addRow(content, gc, "Anxiety", anxiety);
         gc.gridy++; addRow(content, gc, "Stress", stress);
 
-        add(content, BorderLayout.CENTER);
+        root.add(content, BorderLayout.CENTER);
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btnPanel.setOpaque(true);
-        btnPanel.setBackground(bg);
+        btnPanel.setOpaque(false);
         RoundedButton cancel = new RoundedButton("Cancel");
         cancel.setForeground(AeroTheme.TEXT_PRIMARY);
         cancel.addActionListener(e -> { okPressed = false; dispose(); });
@@ -88,7 +85,9 @@ public class DetailedMoodDialog extends JDialog {
         });
         btnPanel.add(cancel);
         btnPanel.add(ok);
-        add(btnPanel, BorderLayout.SOUTH);
+        root.add(btnPanel, BorderLayout.SOUTH);
+
+        setContentPane(root);
 
         pack();
         setMinimumSize(new Dimension(Math.max(420, getWidth()), Math.max(360, getHeight())));

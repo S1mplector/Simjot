@@ -7,7 +7,7 @@ import java.util.*;
 import javax.swing.*;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.icons.ImageIconRenderer;
@@ -451,10 +451,7 @@ public class IdeaStickyWidget implements Widget {
         header.add(title, BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
 
-        RoundedPanel panel = new RoundedPanel(12);
-        panel.setLayout(new BorderLayout());
-        panel.setBackground(new Color(255,255,255,240));
-        panel.setForeground(new Color(0,0,0,0)); // no outline
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(), 12);
         panel.setBorder(BorderFactory.createEmptyBorder(4,4,4,4));
         panel.add(header, BorderLayout.NORTH);
         panel.add(scroller, BorderLayout.CENTER);
@@ -662,10 +659,8 @@ public class IdeaStickyWidget implements Widget {
     private void showColorPalette(Component invoker) {
         JWindow pal = new JWindow(owner);
         pal.setAlwaysOnTop(true);
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        FrostedGlassPanel row = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 6, 6), 12);
         row.setBorder(BorderFactory.createEmptyBorder(6,6,6,6));
-        row.setOpaque(true);
-        row.setBackground(new Color(255,255,255,240));
         Color[] colors = new Color[]{
                 new Color(255,255,170), // yellow
                 new Color(196,255,196), // mint

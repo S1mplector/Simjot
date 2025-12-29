@@ -4,7 +4,7 @@ import java.awt.*;
 import java.io.File;
 import javax.swing.*;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.dialog.message.UIMessage;
 
 /**
@@ -27,9 +27,7 @@ public class DirectoryChooserDialog extends JDialog {
 
     private void initUI() {
         // Rounded outer panel
-        RoundedPanel container = new RoundedPanel(15);
-        container.setBackground(new Color(250, 250, 250));
-        container.setLayout(new BorderLayout(10,10));
+        FrostedGlassPanel container = new FrostedGlassPanel(new BorderLayout(10,10), 15);
         container.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
 
         // File chooser (directories only) without its own buttons

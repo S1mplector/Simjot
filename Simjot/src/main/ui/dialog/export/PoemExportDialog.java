@@ -5,6 +5,7 @@ import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.fields.ModernTextField;
+import main.ui.components.containers.FrostedGlassPanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -37,13 +38,12 @@ public class PoemExportDialog extends JDialog {
     }
 
     private void buildUI() {
-        JPanel root = new JPanel(new BorderLayout(10, 10));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         JPanel opts = new JPanel();
         opts.setLayout(new BoxLayout(opts, BoxLayout.Y_AXIS));
-        opts.setOpaque(true);
-        opts.setBackground(Color.WHITE);
+        opts.setOpaque(false);
 
         // Save location row
         JPanel rowSave = new JPanel(new FlowLayout(FlowLayout.LEFT));

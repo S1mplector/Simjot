@@ -61,7 +61,6 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.containers.RoundedPanel;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
@@ -501,9 +500,7 @@ public class NotebookManagerPanel extends JPanel {
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
 
-            RoundedPanel panel = new RoundedPanel();
-            panel.setArc(16);
-            panel.setLayout(new BorderLayout(12,12));
+            FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(12,12), 16);
             panel.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
 
             // Title
@@ -603,9 +600,7 @@ public class NotebookManagerPanel extends JPanel {
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
 
-            RoundedPanel panel = new RoundedPanel();
-            panel.setArc(16);
-            panel.setLayout(new BorderLayout(12,12));
+            FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(12,12), 16);
             panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
 
             // Title with notebook info

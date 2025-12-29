@@ -6,7 +6,7 @@ import java.util.List;
 import javax.swing.*;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
 import main.ui.components.containers.AeroPanel;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
@@ -45,12 +45,8 @@ public class TemplateManagerDialog extends JDialog {
         setLayout(new BorderLayout());
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 
-        RoundedPanel mainPanel = new RoundedPanel();
-        mainPanel.setArc(18);
-        mainPanel.setFlat(true);
-        mainPanel.setLayout(new BorderLayout(12, 12));
+        FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(12, 12), 18);
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        mainPanel.setBackground(Color.WHITE);
 
         // Title
         JLabel titleLabel = new JLabel("Journal Templates" + (notebook!=null? " — "+notebook.getName():""));

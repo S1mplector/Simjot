@@ -34,6 +34,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
@@ -64,6 +65,9 @@ public class WallpaperGalleryPanel extends JDialog {
         setSize(700, 600);
         setLocationRelativeTo(parent);
 
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
+        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
         if (autoSaveSelection) {
             try {
                 SettingsStore.get().setBackgroundOpacity(1.0f);
@@ -74,7 +78,7 @@ public class WallpaperGalleryPanel extends JDialog {
         // Title
         JLabel titleLabel = new JLabel("Select a wallpaper from built-in or your gallery:", SwingConstants.CENTER);
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
-        add(titleLabel, BorderLayout.NORTH);
+        root.add(titleLabel, BorderLayout.NORTH);
         
         // Image grid
         setupImageGrid();
@@ -91,10 +95,11 @@ public class WallpaperGalleryPanel extends JDialog {
         hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
         hbar.setOpaque(false);
         hbar.setUnitIncrement(16);
-        add(listScroll, BorderLayout.CENTER);
+        root.add(listScroll, BorderLayout.CENTER);
 
         // Live preview + accent swatch (right side)
         JPanel preview = new JPanel(new BorderLayout(8, 8));
+        preview.setOpaque(false);
         preview.setPreferredSize(new Dimension(280, 0));
         preview.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
         previewImageLabel = new JLabel("Preview", SwingConstants.CENTER);
@@ -113,13 +118,16 @@ public class WallpaperGalleryPanel extends JDialog {
         swatchRow.add(accentSwatch);
         preview.add(swatchRow, BorderLayout.SOUTH);
 
-        add(preview, BorderLayout.EAST);
+        root.add(preview, BorderLayout.EAST);
         
         // Buttons panel
         JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.setOpaque(false);
         setupButtons();
         bottomPanel.add(buttonPanel, BorderLayout.CENTER);
-        add(bottomPanel, BorderLayout.SOUTH);
+        root.add(bottomPanel, BorderLayout.SOUTH);
+
+        setContentPane(root);
         
         loadWallpapersAsync();
         list.addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) updatePreview(); });
@@ -210,6 +218,7 @@ private JPanel buttonPanel;
     
     private void setupButtons() {
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
+        buttonPanel.setOpaque(false);
         IconMenuButton selectBtn = new IconMenuButton("Select", "save");
         IconMenuButton refreshBtn = new IconMenuButton("Refresh", "refreshsizes");
         IconMenuButton openFolderBtn = new IconMenuButton("Open", "explorer");

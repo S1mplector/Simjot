@@ -4,7 +4,7 @@ import java.awt.*;
 import javax.swing.*;
 import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
-import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.FrostedGlassPanel;
 
 /**
  * Simple modern input dialog with translucent rounded panel, OK / Cancel buttons.
@@ -18,11 +18,7 @@ public class CustomInputDialog extends JDialog {
         setBackground(new Color(0,0,0,0));
         setLayout(new BorderLayout());
 
-        RoundedPanel panel = new RoundedPanel();
-        panel.setArc(30);
-        panel.setFlat(true);
-        panel.setBackground(new Color(245,245,245));
-        panel.setLayout(new BorderLayout(10,10));
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(10,10), 30);
         panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
 
         JLabel lbl = new JLabel("<html><body style='text-align:center;'>"+message+"</body></html>", SwingConstants.CENTER);
