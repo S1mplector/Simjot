@@ -116,9 +116,9 @@ public final class ImageIconRenderer {
         BufferedImage current = src;
         int cw = srcW;
         int ch = srcH;
-        while (cw / 2 >= target && ch / 2 >= target) {
-            int nw = Math.max(target, cw / 2);
-            int nh = Math.max(target, ch / 2);
+        while (cw / 2 >= target || ch / 2 >= target) {
+            int nw = Math.max(1, cw / 2);
+            int nh = Math.max(1, ch / 2);
             BufferedImage tmp = new BufferedImage(nw, nh, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = tmp.createGraphics();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
@@ -139,7 +139,12 @@ public final class ImageIconRenderer {
         g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
-        g.drawImage(current, 0, 0, target, target, null);
+        float scale = Math.min((float) target / srcW, (float) target / srcH);
+        int drawW = Math.max(1, Math.round(srcW * scale));
+        int drawH = Math.max(1, Math.round(srcH * scale));
+        int drawX = (target - drawW) / 2;
+        int drawY = (target - drawH) / 2;
+        g.drawImage(current, drawX, drawY, drawW, drawH, null);
         g.dispose();
         if (current != src) current.flush();
         return scaled;
