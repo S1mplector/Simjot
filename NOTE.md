@@ -1,4 +1,4 @@
-# A Note from the Author
+# A Note from me 
 
 Simjot was born during one of the most challenging periods of my life. I was going through hard times, battling depression, dealing with difficult emotions, and searching for ways to find peace and clarity amidst the chaos. This journaling application wasn't created as a commercial venture or technical showcase but rather emerged as a personal sanctuary, a safe space for me to process thoughts and emotions when I needed it most.
 
