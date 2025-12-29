@@ -89,6 +89,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
@@ -514,10 +515,8 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void initUI() {
         // --- Extended Toolbar with Mood Slider ---
-        toolbarContainer = new JPanel(new BorderLayout(0, 5));
-        // Solid background so the page wallpaper does not seep through the toolbar
-        toolbarContainer.setOpaque(true);
-        toolbarContainer.setBackground(new Color(0xE7, 0xE7, 0xE7)); // #e7e7e7
+        toolbarContainer = new FrostedGlassPanel(new BorderLayout(0, 5), 16);
+        // Frosted background keeps controls legible while letting the wallpaper peek through
         toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Build right-side controls (journal-specific)

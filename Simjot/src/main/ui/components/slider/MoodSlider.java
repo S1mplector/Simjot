@@ -10,6 +10,8 @@ import javax.swing.plaf.basic.BasicSliderUI;
  * circular knob (no emoji rendering).
  */
 public class MoodSlider extends JSlider {
+    private static final Color FROST_BG = new Color(245, 245, 245, 200);
+
     public MoodSlider() {
         super(0, 100, 50);
         setOpaque(false);
@@ -17,8 +19,8 @@ public class MoodSlider extends JSlider {
         setPreferredSize(new Dimension(220, 40));
         // Help prevent painting artifacts by leveraging Swing's double buffering
         setDoubleBuffered(true);
-        // Ensure background matches toolbar exact color when needed (#e7e7e7)
-        setBackground(new Color(0xE7, 0xE7, 0xE7));
+        // Ensure background matches frosted toolbar glass when we clear repaint regions
+        setBackground(FROST_BG);
         // Install custom UI
         setUI(new MoodSliderUI(this));
     }
@@ -65,9 +67,8 @@ public class MoodSlider extends JSlider {
             Shape clip = g2.getClip();
             if (clip != null) {
                 Rectangle cb = clip.getBounds();
-                Color bg = new Color(0xE7, 0xE7, 0xE7);
                 Color old = g2.getColor();
-                g2.setColor(bg);
+                g2.setColor(FROST_BG);
                 g2.fillRect(cb.x, cb.y, cb.width, cb.height);
                 g2.setColor(old);
             }

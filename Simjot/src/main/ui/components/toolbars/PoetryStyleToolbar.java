@@ -18,6 +18,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.fields.ModernTextField;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.util.EditorUIUtils;
 
 /**
@@ -53,9 +54,7 @@ public class PoetryStyleToolbar extends JPanel {
         super(new BorderLayout(0, 5));
         setOpaque(false);
 
-        container = new JPanel(new BorderLayout(0, 5));
-        container.setOpaque(true);
-        container.setBackground(new Color(0xE7, 0xE7, 0xE7));
+        container = new FrostedGlassPanel(new BorderLayout(0, 5), 16);
         container.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Top row (back + title + B/I/U)
