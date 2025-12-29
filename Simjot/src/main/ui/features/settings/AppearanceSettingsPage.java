@@ -2,10 +2,11 @@ package main.ui.features.settings;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
@@ -13,20 +14,19 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.JList;
-import java.awt.image.BufferedImage;
+import javax.swing.JPanel;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadingButton;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 class AppearanceSettingsPage extends JPanel implements SettingsPage {
-    private final RoundedButton backgroundOptionsBtn;
+    private final IconMenuButton backgroundOptionsBtn;
     private final JComboBox<String> themeBox;
     private final JComboBox<String> densityBox;
     private final JComboBox<AccentOption> accentBox;
@@ -107,11 +107,17 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         lowPowerChk.setUI(new ModernCheckBoxUI());
         lowPowerChk.setBackground(new Color(0, 0, 0, 0));
 
-        backgroundOptionsBtn = new RoundedButton("Background Options");
+        backgroundOptionsBtn = new IconMenuButton("Background", "appearance_settings");
+        backgroundOptionsBtn.setToolTipText("Background Options");
         backgroundOptionsBtn.addActionListener(e -> openBackgroundOptions());
 
         gc.gridx = 0; gc.gridy = 1; add(SettingsUi.label("Background:"), gc);
-        gc.gridx = 1; add(backgroundOptionsBtn, gc);
+        gc.gridx = 1;
+        gc.fill = GridBagConstraints.NONE;
+        gc.anchor = GridBagConstraints.WEST;
+        add(backgroundOptionsBtn, gc);
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.anchor = GridBagConstraints.CENTER;
         gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Theme:"), gc);
         gc.gridx = 1; add(themeBox, gc);
         gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("Layout density:"), gc);

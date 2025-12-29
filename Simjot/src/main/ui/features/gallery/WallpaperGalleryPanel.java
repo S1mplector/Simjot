@@ -24,7 +24,6 @@ import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JSlider;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
@@ -53,7 +52,6 @@ public class WallpaperGalleryPanel extends JDialog {
     private final boolean autoSaveSelection; // New field to control auto-saving
     private JLabel previewImageLabel;
     private JPanel accentSwatch;
-    private JSlider opacitySlider; // only for main menu (autoSaveSelection)
     
     public WallpaperGalleryPanel(Component parent) {
         this(parent, true); // Default to auto-saving for backward compatibility
@@ -65,6 +63,13 @@ public class WallpaperGalleryPanel extends JDialog {
         setLayout(new BorderLayout(10, 10));
         setSize(700, 600);
         setLocationRelativeTo(parent);
+
+        if (autoSaveSelection) {
+            try {
+                SettingsStore.get().setBackgroundOpacity(1.0f);
+                SettingsStore.get().save();
+            } catch (Throwable ignored) {}
+        }
         
         // Title
         JLabel titleLabel = new JLabel("Select a wallpaper from built-in or your gallery:", SwingConstants.CENTER);
@@ -114,24 +119,6 @@ public class WallpaperGalleryPanel extends JDialog {
         JPanel bottomPanel = new JPanel(new BorderLayout());
         setupButtons();
         bottomPanel.add(buttonPanel, BorderLayout.CENTER);
-
-        // Optional main-menu opacity slider when auto-saving the selection
-        if (autoSaveSelection) {
-            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-            right.add(new JLabel("Opacity:"));
-            opacitySlider = new JSlider(0, 100, (int)(SettingsStore.get().getBackgroundOpacity()*100f));
-            opacitySlider.setPreferredSize(new Dimension(180, 22));
-            right.add(opacitySlider);
-            JLabel val = new JLabel(String.valueOf(opacitySlider.getValue()) + "%");
-            right.add(val);
-            opacitySlider.addChangeListener(e -> {
-                int v = opacitySlider.getValue();
-                val.setText(v + "%");
-                SettingsStore.get().setBackgroundOpacity(v/100f);
-                SettingsStore.get().save();
-            });
-            bottomPanel.add(right, BorderLayout.EAST);
-        }
         add(bottomPanel, BorderLayout.SOUTH);
         
         loadWallpapersAsync();
