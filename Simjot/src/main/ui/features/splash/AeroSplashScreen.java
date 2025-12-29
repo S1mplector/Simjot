@@ -5,18 +5,21 @@ import java.awt.Component;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Image;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
 
+import main.core.AppInfo;
+import main.infrastructure.io.ResourceLoader;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.spinner.ModernSpinner;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -24,8 +27,8 @@ import main.ui.theme.aero.AeroTheme;
  */
 public class AeroSplashScreen extends JWindow {
     private final JLabel title = new JLabel("Simjot", SwingConstants.CENTER);
+    private final JLabel version = new JLabel("Version " + AppInfo.versionString(), SwingConstants.CENTER);
     private final JLabel subtitle = new JLabel("Loading...", SwingConstants.CENTER);
-    private final ModernSpinner spinner = new ModernSpinner(28, new Color(0, 120, 215));
 
     public AeroSplashScreen() {
         setAlwaysOnTop(true);
@@ -45,22 +48,42 @@ public class AeroSplashScreen extends JWindow {
         rounded.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
         rounded.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Texts
+        // Icon + title row
+        JLabel icon = new JLabel();
+        icon.setAlignmentY(Component.CENTER_ALIGNMENT);
+        Image img = ResourceLoader.createImage("img/icons/simjot.png");
+        if (img != null) {
+            int size = 48;
+            icon.setIcon(new ImageIcon(img.getScaledInstance(size, size, Image.SCALE_SMOOTH)));
+        }
+
         title.setForeground(AeroTheme.TEXT_PRIMARY);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 28f));
-        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        title.setAlignmentY(Component.CENTER_ALIGNMENT);
+
+        JPanel titleRow = new JPanel();
+        titleRow.setOpaque(false);
+        titleRow.setLayout(new BoxLayout(titleRow, BoxLayout.X_AXIS));
+        titleRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titleRow.add(icon);
+        titleRow.add(Box.createHorizontalStrut(10));
+        titleRow.add(title);
+
+        // Version
+        version.setForeground(new Color(0, 0, 0, 170));
+        version.setFont(resolveHandFont(version.getFont(), 16f));
+        version.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Status
         subtitle.setForeground(new Color(0, 0, 0, 180));
         subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 15f));
         subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Spinner
-        spinner.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        rounded.add(title);
+        rounded.add(titleRow);
+        rounded.add(Box.createVerticalStrut(6));
+        rounded.add(version);
         rounded.add(Box.createVerticalStrut(6));
         rounded.add(subtitle);
-        rounded.add(Box.createVerticalStrut(16));
-        rounded.add(spinner);
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 1; gbc.weighty = 1;
@@ -74,6 +97,14 @@ public class AeroSplashScreen extends JWindow {
         if (text != null && !text.equals(subtitle.getText())) {
             subtitle.setText(text);
         }
+    }
+
+    private static Font resolveHandFont(Font base, float size) {
+        Font hand = new Font("Bradley Hand", Font.PLAIN, Math.round(size));
+        if ("dialog".equalsIgnoreCase(hand.getFamily())) {
+            return base.deriveFont(Font.PLAIN, size);
+        }
+        return hand.deriveFont(Font.PLAIN, size);
     }
 
     // No window shape manipulation needed with the simplified visuals

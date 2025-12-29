@@ -61,8 +61,9 @@ import javax.swing.event.DocumentListener;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
@@ -311,18 +312,19 @@ public class NotebookEntriesPanel extends JPanel {
         setBackground(Color.WHITE);
 
         // Top bar
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel top = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
+        top.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         // Replace text back button with PNG back icon button
-        ToolbarIconButton backBtn = new ToolbarIconButton("back");
+        ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("Back", "back");
         backBtn.setToolTipText("Back to Notebooks");
         backBtn.addActionListener(e->app.switchCard(JournalApp.NOTEBOOK_MANAGER));
 
-        ToolbarIconButton newBtn = new ToolbarIconButton("new");
+        ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("New", "new");
         newBtn.addActionListener(e->createNew());
-        ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
+        ToolbarMenuIconButton deleteBtn = new ToolbarMenuIconButton("Entry", "delete");
         deleteBtn.addActionListener(e->deleteSelected());
 
-        ToolbarIconButton delNbBtn = new ToolbarIconButton("trash");
+        ToolbarMenuIconButton delNbBtn = new ToolbarMenuIconButton("Notebook", "trash");
         delNbBtn.addActionListener(e->deleteNotebook());
 
         top.add(backBtn);
@@ -642,7 +644,7 @@ public class NotebookEntriesPanel extends JPanel {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttons.setOpaque(false);
         
-        ToolbarIconButton clearBtn = new ToolbarIconButton("delete");
+        ToolbarMenuIconButton clearBtn = new ToolbarMenuIconButton("Clear", "delete");
         clearBtn.setToolTipText("Clear filter");
         clearBtn.addActionListener(e -> {
             filterStartDate = null;
@@ -651,7 +653,7 @@ public class NotebookEntriesPanel extends JPanel {
             update();
         });
         
-        ToolbarIconButton applyBtn = new ToolbarIconButton("check");
+        ToolbarMenuIconButton applyBtn = new ToolbarMenuIconButton("Apply", "check");
         applyBtn.setToolTipText("Apply filter");
         applyBtn.addActionListener(e -> {
             filterStartDate = fromPicker.getSelectedDate();

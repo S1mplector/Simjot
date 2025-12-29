@@ -58,8 +58,9 @@ import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.input.CustomInputDialog;
@@ -76,9 +77,9 @@ public class NotebookManagerPanel extends JPanel {
         setBackground(Color.WHITE);
 
         // Top toolbar matching other panels
-        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topBar.setBackground(new Color(230,230,230));
-        ToolbarIconButton backBtn = new ToolbarIconButton("back");
+        JPanel topBar = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
+        topBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("Back", "back");
         backBtn.setToolTipText("Back to Main Menu");
         backBtn.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
 
@@ -149,7 +150,7 @@ public class NotebookManagerPanel extends JPanel {
         header.add(clusterLabel, BorderLayout.WEST);
         
         // Cluster actions - trash icon button
-        ToolbarIconButton disbandBtn = new ToolbarIconButton("trash");
+        ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("Disband", "trash");
         disbandBtn.setToolTipText("Disband cluster");
         disbandBtn.addActionListener(e -> {
             boolean confirm = CustomConfirmDialog.confirm(this, 
