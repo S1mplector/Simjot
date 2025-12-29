@@ -719,9 +719,10 @@ public class NotebookManagerPanel extends JPanel {
             center.add(colorLabel, gc);
             
             gc.gridy++;
-            gc.insets = new Insets(4, 4, 4, 4);
-            JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+            gc.insets = new Insets(4, 4, 8, 4);
+            JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
             colorRow.setOpaque(false);
+            colorRow.setPreferredSize(new Dimension(460, 38));
             for (Color c : CreateNotebookDialog.PRESET_COLORS) {
                 colorRow.add(createColorSwatch(c));
             }
@@ -739,7 +740,8 @@ public class NotebookManagerPanel extends JPanel {
                     g2.dispose();
                 }
             };
-            customSwatch.setPreferredSize(new Dimension(28, 28));
+            customSwatch.setPreferredSize(new Dimension(32, 32));
+            customSwatch.setMinimumSize(new Dimension(32, 32));
             customSwatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             customSwatch.setToolTipText("Choose custom color");
             customSwatch.addMouseListener(new MouseAdapter() {
@@ -862,16 +864,15 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(500, 480);
+            setSize(520, 560);
             setLocationRelativeTo(parent);
         }
         
         private void updateColorPreview() {
             colorPreview.repaint();
             iconPreview.repaint();
-            // Repaint all swatches to update selection indicator
-            Container parent = colorPreview.getParent();
-            if (parent != null) parent.getParent().repaint();
+            // Repaint the entire dialog content to update all swatches' selection indicators
+            getContentPane().repaint();
         }
         
         private void chooseCustomIcon() {
@@ -899,7 +900,8 @@ public class NotebookManagerPanel extends JPanel {
                     g2.dispose();
                 }
             };
-            swatch.setPreferredSize(new Dimension(28, 28));
+            swatch.setPreferredSize(new Dimension(32, 32));
+            swatch.setMinimumSize(new Dimension(32, 32));
             swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             swatch.addMouseListener(new MouseAdapter() {
                 @Override public void mouseClicked(MouseEvent e) {
