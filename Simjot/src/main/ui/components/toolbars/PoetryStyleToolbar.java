@@ -1,24 +1,23 @@
 package main.ui.components.toolbars;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.RoundedToggleButton;
-import main.ui.components.buttons.ToolbarIconButton;
-import main.ui.components.fields.ModernTextField;
+import main.ui.components.buttons.HandStyleToggleButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.components.util.EditorUIUtils;
 
 /**
@@ -28,14 +27,17 @@ import main.ui.components.util.EditorUIUtils;
  * - Right: caller-provided controls (e.g., stats/rhymes/export/fullscreen/settings)
  *
  * Font settings are now in Appearance settings.
+ * 
+ * The rendering is kept lightweight using simple Swing operations like Graphics2D and GradientPaint.
+ * This toolbar is used in the poetry and entry toolbars.
  */
 public class PoetryStyleToolbar extends JPanel {
     private final JPanel container;
-    private final ModernTextField titleField;
-    private RoundedToggleButton boldBtn;
-    private RoundedToggleButton italicBtn;
-    private RoundedToggleButton underlineBtn;
-    private RoundedToggleButton strikeBtn;
+    private final TitleDividerField titleField;
+    private HandStyleToggleButton boldBtn;
+    private HandStyleToggleButton italicBtn;
+    private HandStyleToggleButton underlineBtn;
+    private HandStyleToggleButton strikeBtn;
 
     public PoetryStyleToolbar(
             JournalApp app,
@@ -57,65 +59,78 @@ public class PoetryStyleToolbar extends JPanel {
         container = new FrostedGlassPanel(new BorderLayout(0, 5), 16);
         container.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Top row (back + title + B/I/U)
-        JPanel topToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topToolbar.setOpaque(false);
+        // Single-row toolbar (back + title + formatting + caller-provided controls)
+        JPanel row = new JPanel();
+        row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
 
         ToolbarIconButton backButton = EditorUIUtils.createBackToEntriesButton(app, nbInfo);
-        topToolbar.add(backButton);
+        alignCenter(backButton);
+        row.add(backButton);
 
         JLabel titleLabel = new JLabel(titleLabelText);
-        titleLabel.setForeground(Color.DARK_GRAY);
         titleLabel.setFont(new Font("Serif", Font.BOLD, 16));
-        topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(titleLabel);
+        alignCenter(titleLabel);
+        row.add(Box.createHorizontalStrut(8));
+        row.add(titleLabel);
 
-        titleField = new ModernTextField(24);
+        titleField = new TitleDividerField(24);
         titleField.setFont(new Font("Serif", Font.BOLD, 16));
         // Directly set placeholder (avoid pattern matching instanceof for broader compatibility)
         titleField.setPlaceholder(titlePlaceholder);
-        topToolbar.add(titleField);
+        titleField.setPreferredSize(new Dimension(360, 32));
+        titleField.setMaximumSize(new Dimension(10000, 34));
+        alignCenter(titleField);
+        row.add(Box.createHorizontalStrut(8));
+        row.add(titleField);
 
         // Formatting buttons (RoundedToggleButton styling with selected highlight)
-        Dimension btnSize = new Dimension(48, 28);
-        boldBtn = new RoundedToggleButton("B");
-        boldBtn.setPreferredSize(btnSize);
-        boldBtn.setFocusPainted(false);
+        boldBtn = new HandStyleToggleButton("B");
         boldBtn.addActionListener(e -> { if (onBold != null) onBold.accept(boldBtn.isSelected()); });
-        italicBtn = new RoundedToggleButton("I");
-        italicBtn.setPreferredSize(btnSize);
-        italicBtn.setFocusPainted(false);
+        italicBtn = new HandStyleToggleButton("I");
         italicBtn.addActionListener(e -> { if (onItalic != null) onItalic.accept(italicBtn.isSelected()); });
-        underlineBtn = new RoundedToggleButton("U");
-        underlineBtn.setPreferredSize(btnSize);
-        underlineBtn.setFocusPainted(false);
+        underlineBtn = new HandStyleToggleButton("U");
         underlineBtn.addActionListener(e -> { if (onUnderline != null) onUnderline.accept(underlineBtn.isSelected()); });
-        strikeBtn = new RoundedToggleButton("S");
-        strikeBtn.setPreferredSize(btnSize);
-        strikeBtn.setFocusPainted(false);
+        strikeBtn = new HandStyleToggleButton("S");
         strikeBtn.setToolTipText("Strikethrough");
         strikeBtn.addActionListener(e -> { if (onStrike != null) onStrike.accept(strikeBtn.isSelected()); });
-        topToolbar.add(Box.createHorizontalStrut(6));
-        topToolbar.add(boldBtn);
-        topToolbar.add(italicBtn);
-        topToolbar.add(underlineBtn);
-        topToolbar.add(strikeBtn);
+        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn}) {
+            alignCenter(btn);
+        }
+        row.add(Box.createHorizontalStrut(12));
+        row.add(boldBtn);
+        row.add(Box.createHorizontalStrut(6));
+        row.add(italicBtn);
+        row.add(Box.createHorizontalStrut(6));
+        row.add(underlineBtn);
+        row.add(Box.createHorizontalStrut(6));
+        row.add(strikeBtn);
+
+        row.add(Box.createHorizontalGlue());
 
         // Assemble (font settings moved to Appearance settings)
-        container.add(topToolbar, BorderLayout.CENTER);
         if (rightToolbarControls != null) {
-            container.add(rightToolbarControls, BorderLayout.EAST);
+            alignCenter(rightToolbarControls);
+            row.add(Box.createHorizontalStrut(10));
+            row.add(rightToolbarControls);
         }
+        container.add(row, BorderLayout.CENTER);
         add(container, BorderLayout.CENTER);
     }
 
     public JPanel getContainer() { return container; }
-    public ModernTextField getTitleField() { return titleField; }
+    public TitleDividerField getTitleField() { return titleField; }
 
     public void setToggleStates(boolean bold, boolean italic, boolean underline, boolean strike) {
         if (boldBtn != null) boldBtn.setSelected(bold);
         if (italicBtn != null) italicBtn.setSelected(italic);
         if (underlineBtn != null) underlineBtn.setSelected(underline);
         if (strikeBtn != null) strikeBtn.setSelected(strike);
+    }
+
+    private static void alignCenter(Component c) {
+        if (c instanceof JComponent jc) {
+            jc.setAlignmentY(Component.CENTER_ALIGNMENT);
+        }
     }
 }

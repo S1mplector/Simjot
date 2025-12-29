@@ -61,6 +61,7 @@ import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
@@ -198,7 +199,7 @@ public class PoemPanel extends AbstractEditorPanel {
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
         // Toggles for poetry helpers
-        ToolbarIconButton statsToggle = new ToolbarIconButton("list");
+        ToolbarMenuIconButton statsToggle = new ToolbarMenuIconButton("Stats", "list");
         statsToggle.setToolTipText("Toggle Stats Sidebar");
         statsToggle.addActionListener(e -> {
             if (statsPanel != null) {
@@ -208,7 +209,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 revalidate(); repaint();
             }
         });
-        ToolbarIconButton rhymesToggle = new ToolbarIconButton("rhyme");
+        ToolbarMenuIconButton rhymesToggle = new ToolbarMenuIconButton("Rhymes", "rhyme");
         rhymesToggle.setToolTipText("Toggle Rhymes & Thesaurus Dock");
         rhymesToggle.addActionListener(e -> {
             if (rhymesDock != null) {
@@ -225,7 +226,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 revalidate(); repaint();
             }
         });
-        ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
+        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
             PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
@@ -233,11 +234,11 @@ public class PoemPanel extends AbstractEditorPanel {
             repaint();
         });
         // Distraction-free toggle
-        ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
+        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("Fullscreen", "fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
         // Export button (advanced)
-        ToolbarIconButton exportBtn = new ToolbarIconButton("export");
+        ToolbarMenuIconButton exportBtn = new ToolbarMenuIconButton("Export", "export");
         exportBtn.setToolTipText("Export poem (Markdown/HTML/TXT/PNG)");
         exportBtn.addActionListener(e -> exportPoem());
         rightToolbar.add(statsToggle);
@@ -285,7 +286,7 @@ public class PoemPanel extends AbstractEditorPanel {
         dfHeader.setOpaque(false);
         dfHeader.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         // Use the same back icon, but only exit fullscreen (do not navigate away)
-        ToolbarIconButton dfBack = new ToolbarIconButton("back");
+        ToolbarMenuIconButton dfBack = new ToolbarMenuIconButton("Exit", "back");
         dfBack.setToolTipText("Exit Fullscreen");
         dfBack.addActionListener(e -> toggleDistractionFree());
         dfHeader.add(dfBack);

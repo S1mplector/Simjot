@@ -1,0 +1,65 @@
+# NOTICE - Quotes Collection
+
+## Source and Creation
+
+This quotes collection (`quotes.json`) was **hand-constructed** through manual curation and compilation. The quotes were selected, organized, and formatted specifically for use in the Simjot journaling application.
+
+## Usage Rights
+
+This quotes collection is provided **free of charge** and can be **freely used and distributed** by anyone for any purpose, including:
+
+- **Commercial applications**
+- **Open source projects** (any license)
+- **Educational purposes**
+- **Personal projects**
+- **Research and development**
+- **Redistribution** in original or modified form
+
+## Permissions
+
+### What You Can Do
+- **Use** these quotes in any application
+- **Modify** the collection (add/remove quotes)
+- **Distribute** the quotes in your applications
+- **Share** the quotes with others
+- **Create derivative works** based on this collection
+- **Use commercially** without any fees or restrictions
+
+### No Restrictions
+- No attribution required (though appreciated)
+- No license compatibility concerns
+- No usage limitations
+- No commercial restrictions
+
+## Quote Attribution
+
+While the quotes themselves are in the public domain or fall under fair use, the original authors are credited where known. This attribution is provided for informational purposes and does not impose any usage restrictions on this collection.
+
+## Collection Format
+
+The quotes are stored in JSON format with the following structure:
+```json
+{
+  "quoteText": "The quote text",
+  "quoteAuthor": "Author name"
+}
+```
+
+## Quality and Curation
+
+This collection was carefully curated to include:
+- Inspirational and motivational quotes
+- Quotes suitable for journaling and reflection
+- Proper attribution where available
+- Clean formatting for easy parsing
+
+## No Warranty
+
+This quotes collection is provided "AS IS" without warranty of any kind. The accuracy of attributions or quote content cannot be guaranteed, as many quotes are widely circulated and may have variations.
+
+---
+
+**Collection Status**: Free for any use  
+**Creation Method**: Hand-constructed  
+**Distribution Rights**: Unlimited  
+**Effective Date**: December 2024

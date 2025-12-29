@@ -89,7 +89,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
-import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
@@ -132,6 +132,8 @@ public class EntryPanel extends AbstractEditorPanel {
     // 'currentFile' is inherited from AbstractEditorPanel
     // UI refs for toggling (distraction-free / zen mode)
     private JPanel toolbarContainer;
+    private JPanel toolbarGroup;
+    private JPanel moodContainer;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
@@ -472,12 +474,12 @@ public class EntryPanel extends AbstractEditorPanel {
         distractionFree = !distractionFree;
         // Swap toolbar with minimal df header in NORTH and hide bottom panel
         if (distractionFree) {
-            try { remove(toolbarContainer); } catch (Throwable ignored) {}
+            try { remove(toolbarGroup != null ? toolbarGroup : toolbarContainer); } catch (Throwable ignored) {}
             add(dfHeader, BorderLayout.NORTH);
             if (bottomPanel != null) bottomPanel.setVisible(false);
         } else {
             try { remove(dfHeader); } catch (Throwable ignored) {}
-            add(toolbarContainer, BorderLayout.NORTH);
+            add(toolbarGroup != null ? toolbarGroup : toolbarContainer, BorderLayout.NORTH);
             if (bottomPanel != null) bottomPanel.setVisible(true);
         }
         revalidate();
@@ -514,39 +516,33 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private void initUI() {
-        // --- Extended Toolbar with Mood Slider ---
-        toolbarContainer = new FrostedGlassPanel(new BorderLayout(0, 5), 16);
-        // Frosted background keeps controls legible while letting the wallpaper peek through
-        toolbarContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        // Build right-side controls (journal-specific)
-        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Build right-side controls (journal-specific) that live inside the main frosted bar
+        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightToolbar.setOpaque(false);
-        ToolbarIconButton dfBtn = new ToolbarIconButton("fullscreen");
+        if (supportsClockButton()) {
+            ToolbarMenuIconButton clockBtn = new ToolbarMenuIconButton("Time", "clock");
+            clockBtn.setToolTipText("Insert time snapshot");
+            clockBtn.addActionListener(e -> insertClockSnapshot());
+            rightToolbar.add(clockBtn);
+            rightToolbar.add(Box.createHorizontalStrut(6));
+        }
+        ToolbarMenuIconButton restoreBtn = new ToolbarMenuIconButton("Restore", "load");
+        restoreBtn.setToolTipText("Restore previous version");
+        restoreBtn.addActionListener(e -> showRestoreDialog());
+        rightToolbar.add(restoreBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("Fullscreen", "fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
-        ToolbarIconButton settingsBtn = new ToolbarIconButton("options");
+        rightToolbar.add(dfBtn);
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "options");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
             EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
             dialog.setVisible(true);
             repaint();
         });
-        if (supportsClockButton()) {
-            JButton clockBtn = new ClockToolbarButton();
-            clockBtn.setToolTipText("Insert time snapshot");
-            clockBtn.addActionListener(e -> insertClockSnapshot());
-            rightToolbar.add(clockBtn);
-            rightToolbar.add(Box.createHorizontalStrut(6));
-        }
-        ToolbarIconButton restoreBtn = new ToolbarIconButton("load");
-        restoreBtn.setToolTipText("Restore previous version");
-        restoreBtn.addActionListener(e -> showRestoreDialog());
-        rightToolbar.add(restoreBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        // Guidance button disabled
-        rightToolbar.add(dfBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(settingsBtn);
 
         // Create shared poetry-style toolbar
@@ -583,9 +579,14 @@ public class EntryPanel extends AbstractEditorPanel {
         );
         // Bind the shared title field to our reference used elsewhere
         titleField = sharedToolbar.getTitleField();
+        toolbarContainer = sharedToolbar.getContainer();
 
-        // Build mood slider stack to show under the shared toolbar (optional)
-        JPanel bottomStack = null;
+        // Stack toolbar + mood controls (mood lives below the frosted bar)
+        toolbarGroup = new JPanel();
+        toolbarGroup.setOpaque(false);
+        toolbarGroup.setLayout(new BoxLayout(toolbarGroup, BoxLayout.Y_AXIS));
+        toolbarGroup.add(toolbarContainer);
+
         if (supportsMoodControls()) {
             JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
             moodRow.setOpaque(false);
@@ -600,7 +601,7 @@ public class EntryPanel extends AbstractEditorPanel {
             expandMoodBtn.setPreferredSize(new Dimension(28, 28));
             expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
             moodRow.add(expandMoodBtn);
-            bottomStack = new JPanel();
+            JPanel bottomStack = new JPanel();
             bottomStack.setOpaque(false);
             bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
             bottomStack.add(moodRow);
@@ -620,27 +621,22 @@ public class EntryPanel extends AbstractEditorPanel {
                 if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
                 finalExpandMoodBtn.setText(next ? "\u2039" : "\u203A");
             });
+            moodContainer = new JPanel(new BorderLayout());
+            moodContainer.setOpaque(false);
+            moodContainer.setBorder(BorderFactory.createEmptyBorder(6, 10, 0, 10));
+            moodContainer.add(bottomStack, BorderLayout.CENTER);
+            toolbarGroup.add(Box.createVerticalStrut(6));
+            toolbarGroup.add(moodContainer);
         }
 
-        // Wrap shared toolbar + mood stack into a single NORTH container
-        JPanel northWrapper = new JPanel(new BorderLayout());
-        northWrapper.setOpaque(false);
-        northWrapper.add(sharedToolbar, BorderLayout.NORTH);
-        if (bottomStack != null) {
-            northWrapper.add(bottomStack, BorderLayout.CENTER);
-        }
-
-        toolbarContainer.add(northWrapper, BorderLayout.CENTER);
-        toolbarContainer.add(rightToolbar, BorderLayout.EAST);
-
-        add(toolbarContainer, BorderLayout.NORTH);
+        add(toolbarGroup, BorderLayout.NORTH);
 
         // Distraction-free header: only Back button, no other controls
         dfHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         dfHeader.setOpaque(false);
         dfHeader.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         // Use the standard back icon, but here it exits fullscreen
-        ToolbarIconButton dfBack = new ToolbarIconButton("back");
+        ToolbarMenuIconButton dfBack = new ToolbarMenuIconButton("Exit", "back");
         dfBack.setToolTipText("Exit Fullscreen");
         dfBack.addActionListener(e -> toggleDistractionFree());
         dfHeader.add(dfBack);
