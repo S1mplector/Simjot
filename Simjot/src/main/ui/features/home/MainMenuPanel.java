@@ -138,24 +138,40 @@ public class MainMenuPanel extends JPanel {
 
         private final NotebookStore nbStore = new NotebookStore();
 
-        private long lastSizeCompute = 0L;
-        private volatile String lastSizeText = "Library: …";
+        private volatile String lastSizeText = "…";
 
         AppContextIndicators() {
             setOpaque(false);
-            setLayout(new FlowLayout(FlowLayout.CENTER, 16, 0));
-            Font f = AeroTheme.defaultFont();
+            setLayout(new FlowLayout(FlowLayout.CENTER, 8, 0));
+            Font bradleyHand = new Font("Bradley Hand", Font.PLAIN, 13);
             Color c = AeroTheme.TEXT_PRIMARY;
+
+            // Notebook icon
+            JPanel nbIcon = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/notebooks_mainmenu.png", 18, false);
+                    if (img != null) {
+                        g2.drawImage(img, 0, 0, null);
+                    }
+                    g2.dispose();
+                }
+            };
+            nbIcon.setPreferredSize(new Dimension(18, 18));
+            nbIcon.setOpaque(false);
+            add(nbIcon);
 
             for (JLabel l : new JLabel[]{countsLbl, autosaveLbl, sizeLbl}) {
                 l.setForeground(c);
-                l.setFont(f);
+                l.setFont(bradleyHand);
                 add(l);
             }
 
-            countsLbl.setText("Notebooks: – • Entries: –");
-            autosaveLbl.setText("Autosave: – | Last save: –");
-            sizeLbl.setText(lastSizeText);
+            countsLbl.setText("– notebooks  •  – entries");
+            autosaveLbl.setText(" |  Autosave: –  •  Last: –");
+            sizeLbl.setText(" |  Size: " + lastSizeText);
 
             javax.swing.Timer uiTimer = new javax.swing.Timer(1000, e -> updateFast());
             uiTimer.start();
@@ -174,7 +190,7 @@ public class MainMenuPanel extends JPanel {
                 lastCountsMillis = now;
             }
             updateAutosave();
-            sizeLbl.setText(lastSizeText);
+            sizeLbl.setText(" |  Size: " + lastSizeText);
         }
 
         private long lastCountsMillis = 0L;
@@ -186,7 +202,7 @@ public class MainMenuPanel extends JPanel {
             } catch (Exception ignore) { }
 
             int entries = countFilesSafe(AppDirectories.folder(AppDirectories.Type.ENTRIES));
-            countsLbl.setText("Notebooks: " + notebooks + " • Entries: " + entries);
+            countsLbl.setText(notebooks + " notebooks  •  " + entries + " entries");
         }
 
         private int countFilesSafe(java.io.File dir) {
@@ -218,16 +234,10 @@ public class MainMenuPanel extends JPanel {
                         .toLocalDateTime();
                 lastTxt = dt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
             }
-            autosaveLbl.setText("Autosave: " + auto + " | Last save: " + lastTxt);
+            autosaveLbl.setText(" |  Autosave: " + auto + "  •  Last: " + lastTxt);
         }
 
         private void computeSizeAsync() {
-            final java.io.File root;
-            try {
-                root = AppDirectories.getRoot();
-            } catch (Exception ex) {
-                return;
-            }
             Thread t = new Thread(() -> {
                 long size = 0L;
                 try {
@@ -235,11 +245,9 @@ public class MainMenuPanel extends JPanel {
                         size += folderSize(AppDirectories.folder(typ));
                     }
                 } catch (Exception ignored) {}
-                final String txt = "Library: " + humanSize(size);
-                lastSizeCompute = System.currentTimeMillis();
-                lastSizeText = txt;
+                lastSizeText = humanSize(size);
                 // Trigger EDT repaint
-                SwingUtilities.invokeLater(() -> sizeLbl.setText(lastSizeText));
+                SwingUtilities.invokeLater(() -> sizeLbl.setText(" |  Size: " + lastSizeText));
             }, "lib-size-worker");
             t.setDaemon(true);
             t.start();
@@ -495,12 +503,31 @@ public class MainMenuPanel extends JPanel {
         southPanel.setPreferredSize(new Dimension(10, 56));
         southPanel.setBorder(BorderFactory.createEmptyBorder(3, 8, 6, 8));
 
-        // Left: version info
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        // Left: version info with about icon
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         left.setOpaque(false);
-        JLabel versionLabel = new JLabel("Version 1.0 - By Ilgaz, with love");
+        Font bradleyHand = new Font("Bradley Hand", Font.PLAIN, 13);
+        
+        // About icon
+        JPanel aboutIcon = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/about_settings.png", 18, false);
+                if (img != null) {
+                    g2.drawImage(img, 0, 0, null);
+                }
+                g2.dispose();
+            }
+        };
+        aboutIcon.setPreferredSize(new Dimension(18, 18));
+        aboutIcon.setOpaque(false);
+        left.add(aboutIcon);
+        
+        JLabel versionLabel = new JLabel("v.0.1.0");
         versionLabel.setForeground(AeroTheme.TEXT_PRIMARY);
-        versionLabel.setFont(AeroTheme.defaultFont());
+        versionLabel.setFont(bradleyHand);
         left.add(versionLabel);
         southPanel.add(left, BorderLayout.WEST);
 

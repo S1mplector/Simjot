@@ -241,23 +241,36 @@ public class NotebookManagerPanel extends JPanel {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 
-        // Use centralized PNG renderer with notebook's custom accent color
-        String id = "notebook";
-        String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource(id);
-        Color accentColor = nb.getAccentColor();
-        java.awt.image.BufferedImage scaled = (res != null)
-                ? main.ui.components.icons.ImageIconRenderer.getWithCustomAccent(res, ICON_SIZE, true, accentColor)
-                : null;
-
         int x = (S - ICON_SIZE) / 2;
         int y = (S - ICON_SIZE) / 2;
+        
+        // Check for custom icon first
+        String customPath = nb.getCustomIconPath();
+        if (customPath != null && !customPath.isEmpty()) {
+            try {
+                BufferedImage customImg = javax.imageio.ImageIO.read(new java.io.File(customPath));
+                if (customImg != null) {
+                    java.awt.Image scaled = customImg.getScaledInstance(ICON_SIZE, ICON_SIZE, java.awt.Image.SCALE_SMOOTH);
+                    g2.drawImage(scaled, x, y, null);
+                    g2.dispose();
+                    return canvas;
+                }
+            } catch (Exception ignored) {}
+        }
+        
+        // Use default notebook icon with system accent color
+        String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
+        java.awt.image.BufferedImage scaled = (res != null)
+                ? main.ui.components.icons.ImageIconRenderer.get(res, ICON_SIZE, true)
+                : null;
+
         if (scaled != null) {
             g2.drawImage(scaled, x, y, null);
         } else {
-            // Fallback: simple vector placeholder with accent color
-            g2.setColor(new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 180));
+            // Fallback: simple vector placeholder
+            g2.setColor(new Color(200, 200, 200));
             g2.fillRoundRect(x, y, ICON_SIZE, ICON_SIZE, 10, 10);
-            g2.setColor(accentColor.darker());
+            g2.setColor(new Color(150, 150, 150));
             g2.drawRoundRect(x, y, ICON_SIZE, ICON_SIZE, 10, 10);
         }
         g2.dispose();
@@ -658,8 +671,6 @@ public class NotebookManagerPanel extends JPanel {
         private final NotebookStore store;
         private final NotebookInfo notebook;
         private final ModernTextField descField;
-        private Color selectedColor;
-        private final JPanel colorPreview;
         private final JPanel iconPreview;
         private String customIconPath = null;
         
@@ -667,7 +678,6 @@ public class NotebookManagerPanel extends JPanel {
             super(parent, "Edit: " + nb.getName(), true);
             this.store = store;
             this.notebook = nb;
-            this.selectedColor = nb.getAccentColor();
             this.customIconPath = nb.getCustomIconPath();
             
             setUndecorated(true);
@@ -710,116 +720,69 @@ public class NotebookManagerPanel extends JPanel {
             descField.setText(nb.getDescription());
             center.add(descField, gc);
             
-            // Accent color picker
+            // Icon section
             gc.gridy++;
             gc.insets = new Insets(14, 4, 6, 4);
-            JLabel colorLabel = new JLabel("Accent Color:");
-            colorLabel.setForeground(Color.DARK_GRAY);
-            colorLabel.setFont(colorLabel.getFont().deriveFont(Font.BOLD, 13f));
-            center.add(colorLabel, gc);
+            JLabel iconLabel = new JLabel("Notebook Icon:");
+            iconLabel.setForeground(Color.DARK_GRAY);
+            iconLabel.setFont(iconLabel.getFont().deriveFont(Font.BOLD, 13f));
+            center.add(iconLabel, gc);
             
             gc.gridy++;
-            gc.insets = new Insets(4, 4, 8, 4);
-            JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-            colorRow.setOpaque(false);
-            colorRow.setPreferredSize(new Dimension(460, 38));
-            for (Color c : CreateNotebookDialog.PRESET_COLORS) {
-                colorRow.add(createColorSwatch(c));
-            }
-            // Custom color button
-            JPanel customSwatch = new JPanel() {
-                @Override protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    // Rainbow gradient for "custom"
-                    g2.setPaint(new java.awt.GradientPaint(0, 0, Color.RED, getWidth(), getHeight(), Color.BLUE));
-                    g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
-                    g2.setColor(Color.WHITE);
-                    g2.setFont(g2.getFont().deriveFont(Font.BOLD, 10f));
-                    g2.drawString("+", 8, 17);
-                    g2.dispose();
-                }
-            };
-            customSwatch.setPreferredSize(new Dimension(32, 32));
-            customSwatch.setMinimumSize(new Dimension(32, 32));
-            customSwatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            customSwatch.setToolTipText("Choose custom color");
-            customSwatch.addMouseListener(new MouseAdapter() {
-                @Override public void mouseClicked(MouseEvent e) {
-                    Color chosen = main.ui.dialog.utils.ModernColorPickerDialog.showDialog(
-                            NotebookOptionsDialog.this, "Choose Accent Color", selectedColor);
-                    if (chosen != null) {
-                        selectedColor = chosen;
-                        updateColorPreview();
-                    }
-                }
-            });
-            colorRow.add(customSwatch);
-            center.add(colorRow, gc);
+            gc.insets = new Insets(8, 4, 8, 4);
+            JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+            iconRow.setOpaque(false);
             
-            // Color preview + icon preview row
-            gc.gridy++;
-            gc.insets = new Insets(10, 4, 10, 4);
-            JPanel previewRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
-            previewRow.setOpaque(false);
-            
-            JPanel colorSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-            colorSection.setOpaque(false);
-            colorSection.add(new JLabel("Color:"));
-            colorPreview = new JPanel() {
-                @Override protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(selectedColor);
-                    g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
-                    g2.setColor(Color.GRAY);
-                    g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
-                    g2.dispose();
-                }
-            };
-            colorPreview.setPreferredSize(new Dimension(32, 32));
-            colorSection.add(colorPreview);
-            previewRow.add(colorSection);
-            
-            // Icon preview with accent color
-            JPanel iconSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-            iconSection.setOpaque(false);
-            iconSection.add(new JLabel("Preview:"));
+            // Show current icon preview
             iconPreview = new JPanel() {
                 @Override protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    int w = getWidth(), h = getHeight();
-                    // Draw notebook icon with accent color
-                    g2.setColor(selectedColor);
-                    g2.fillRoundRect(4, 2, w-8, h-4, 6, 6);
-                    g2.setColor(selectedColor.darker());
-                    g2.drawRoundRect(4, 2, w-9, h-5, 6, 6);
-                    // Rings
-                    g2.setColor(new Color(80, 80, 80));
-                    for (int i = 0; i < 3; i++) {
-                        int y = 8 + i * 10;
-                        g2.fillOval(1, y, 6, 6);
+                    g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    // Draw the actual notebook icon (custom or default)
+                    String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
+                    java.awt.image.BufferedImage img = (res != null) 
+                            ? main.ui.components.icons.ImageIconRenderer.get(res, 48, true) 
+                            : null;
+                    if (customIconPath != null && !customIconPath.isEmpty()) {
+                        try {
+                            img = javax.imageio.ImageIO.read(new java.io.File(customIconPath));
+                            if (img != null) {
+                                java.awt.Image scaled = img.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH);
+                                g2.drawImage(scaled, 0, 0, null);
+                                g2.dispose();
+                                return;
+                            }
+                        } catch (Exception ignored) {}
                     }
-                    // Lines on cover
-                    g2.setColor(new Color(255, 255, 255, 120));
-                    g2.drawLine(12, 10, w-12, 10);
-                    g2.drawLine(12, 18, w-12, 18);
+                    if (img != null) {
+                        g2.drawImage(img, 0, 0, null);
+                    }
                     g2.dispose();
                 }
             };
             iconPreview.setPreferredSize(new Dimension(48, 48));
             iconPreview.setBorder(BorderFactory.createLineBorder(new Color(200,200,200)));
-            iconSection.add(iconPreview);
+            iconRow.add(iconPreview);
             
             // Change icon button
-            IconMenuButton changeIconBtn = new IconMenuButton("Icon", "backgroundoptions");
+            IconMenuButton changeIconBtn = new IconMenuButton("Change Icon", "backgroundoptions");
             changeIconBtn.setToolTipText("Upload custom icon");
             changeIconBtn.addActionListener(e -> chooseCustomIcon());
-            iconSection.add(changeIconBtn);
+            iconRow.add(changeIconBtn);
             
-            previewRow.add(iconSection);
-            center.add(previewRow, gc);
+            // Remove custom icon button (only if custom icon is set)
+            if (customIconPath != null && !customIconPath.isEmpty()) {
+                IconMenuButton removeIconBtn = new IconMenuButton("Reset", "close");
+                removeIconBtn.setToolTipText("Reset to default icon");
+                removeIconBtn.addActionListener(e -> {
+                    customIconPath = null;
+                    iconPreview.repaint();
+                });
+                iconRow.add(removeIconBtn);
+            }
+            
+            center.add(iconRow, gc);
             
             // Cluster info
             if (nb.isClustered()) {
@@ -838,7 +801,7 @@ public class NotebookManagerPanel extends JPanel {
             IconMenuButton saveBtn = new IconMenuButton("Save", "save");
             saveBtn.setToolTipText("Save changes");
             saveBtn.addActionListener(e->{ 
-                store.updateCustomization(notebook, descField.getText().trim(), selectedColor.getRGB(), customIconPath);
+                store.updateCustomization(notebook, descField.getText().trim(), -1, customIconPath);
                 modified = true;
                 setVisible(false); 
                 dispose(); 
@@ -864,15 +827,8 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(520, 560);
+            setSize(420, 340);
             setLocationRelativeTo(parent);
-        }
-        
-        private void updateColorPreview() {
-            colorPreview.repaint();
-            iconPreview.repaint();
-            // Repaint the entire dialog content to update all swatches' selection indicators
-            getContentPane().repaint();
         }
         
         private void chooseCustomIcon() {
@@ -883,33 +839,6 @@ public class NotebookManagerPanel extends JPanel {
                 customIconPath = fc.getSelectedFile().getAbsolutePath();
                 iconPreview.repaint();
             }
-        }
-        
-        private JPanel createColorSwatch(Color c) {
-            JPanel swatch = new JPanel() {
-                @Override protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(c);
-                    g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
-                    if (c.getRGB() == selectedColor.getRGB()) {
-                        g2.setColor(Color.DARK_GRAY);
-                        g2.setStroke(new BasicStroke(2));
-                        g2.drawRoundRect(1, 1, getWidth()-3, getHeight()-3, 6, 6);
-                    }
-                    g2.dispose();
-                }
-            };
-            swatch.setPreferredSize(new Dimension(32, 32));
-            swatch.setMinimumSize(new Dimension(32, 32));
-            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            swatch.addMouseListener(new MouseAdapter() {
-                @Override public void mouseClicked(MouseEvent e) {
-                    selectedColor = c;
-                    updateColorPreview();
-                }
-            });
-            return swatch;
         }
         
         boolean wasModified(){ return modified; }

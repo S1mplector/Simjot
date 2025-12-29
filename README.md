@@ -1,24 +1,16 @@
-#  Simjot
+# Simjot
 
 <p align="left">
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
-> Status: Development of Simjot has ended. This project is no longer in active development.
-
 A feature-rich and highly personalizable journaling application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
-
-## Project Status
-
-- Due to scalability and maintenance constraints, Simjot is no longer in active development. The current codebase represents the final version.
-- Issues and pull requests may not be reviewed or merged. Please feel free to fork for personal use.
 
 ## Features
 
 ### **Multi-Format Content Creation**
-- **Journal Entries**: Traditional diary-style entries with mood tracking and rich formatting
-- **Poetry Writing**: Dedicated poetry editor with metering and rhyme tips. 
-- **Notetaking**: Lightweight text notes with their own notebook type.
+- **Journal Entries**: Traditional diary-style entries with mood tracking, rich formatting, and customizable templates
+- **Poetry Writing**: Dedicated poetry editor with real-time syllable counting, rhyme scheme detection, meter analysis, and form recognition (sonnet, haiku, etc.)
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
@@ -29,16 +21,27 @@ A feature-rich and highly personalizable journaling application built with Java 
 ### **Organization & Management**
 - **Notebook system** with different types (Journal, Notetaking, Poetry)
 - **File browser** with entry previews and word counts
-- **Auto-save functionality** with timestamp-based filenames
+- **Smart auto-save functionality** with timestamp-based filenames
 - **Search and filter** capabilities across all content
+- **Entry templates** with customizable fields and quick selection
+
+### **Security & Backup**
+- **Password Protection**: Lock your journal with AES-256 encryption
+- **Auto-lock**: Configurable inactivity timeout
+- **Comprehensive Backup System**: Automatic, scheduled, and manual backups
+- **Selective Backup**: Choose to include mood data, settings, wallpapers
+- **Backup Verification**: Integrity checking and pruning by age
+- **Easy Restore**: Browse and restore from any backup point
 
 ### **User Experience**
-- **Modern UI design** with smooth animations and transitions
-- **Customizable backgrounds** and themes
+- **Modern UI design** with smooth animations and transitions (can be disabled)
+- **Multiple themes**: Aero, Light, Sepia, and custom backgrounds
+- **Quick Settings Overlay**: Rapid access to common settings
 - **Intuitive navigation** with card-based interface
 - **Tutorial system** for new users
-- **Settings panel** for personalization
 - **Sound effects** and visual feedback
+- **RAM monitoring** and performance metrics
+- **Global hotkeys** for quick capture
 
 ## Screenshots
 
@@ -79,30 +82,44 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 ### Prerequisites
 - **Java 17 or higher** installed on your system
 - **JDK 17 or higher** for building the project
+- **Maven** (optional) for dependency management
+- **Ollama** (optional) for Sim AI companion features
 
 ### Installation & Build
-1. **Clone or download** the project to your local machine
-2. On Windows, you can use the provided packaging script (no longer actively maintained):
-   ```cmd
-   package_simjournal.bat
-   ```
-   This compiles sources, builds a modular `Simjot.jar`, copies resources, and produces a Windows app image under `dist/`.
-3. On macOS/Linux (or if you prefer), build/run from your IDE or via `javac`/`jar` with the main class set to `main.ui.app.JournalApp`.
+
+#### Using Maven (Recommended)
+```bash
+cd Simjot
+mvn clean package
+```
+
+#### Manual Build
+See [README_BUILD.md](README_BUILD.md) for detailed build instructions including:
+- Windows packaging with `jpackage`
+- macOS/Linux builds
+- IDE setup
 
 ### Running the Application
 
-After building, you can run Simjot in two ways:
-
-**Option 1: Native Executable (Windows)**
-```
-dist/Simjot/Simjot.exe
+**Option 1: Via Maven**
+```bash
+cd Simjot
+mvn exec:java -Dexec.mainClass="main.ui.app.JournalApp"
 ```
 
 **Option 2: JAR File**
-```cmd
+```bash
 java -jar Simjot.jar
 ```
-This option runs on Windows/macOS/Linux as long as Java 17+ is installed.
+
+**Option 3: Native Executable (after packaging)**
+- Windows: `dist/Simjot/Simjot.exe`
+- macOS: `build/macos-installer/Simjot.app`
+
+### Setting Up Sim AI (Optional)
+1. Install [Ollama](https://ollama.ai)
+2. Pull the Deepseek model: `ollama pull deepseek-coder:6.7b` (or your preferred model)
+3. Enable Sim in Simjot Settings → Sim
 
 ## Usage Guide
 
@@ -147,17 +164,49 @@ On first startup, Simjot will prompt you to:
 
 ```
 Simjot/
-├── src/
-│   ├── main/
-│   │   ├── core/               # Domain models, services, poetry, sim, exports
-│   │   ├── infrastructure/     # Persistence/adapters/utilities
-│   │   ├── resources/          # App resources (if any)
-│   │   └── ui/                 # Swing UI (features, panels, widgets, etc.)
-│   └── module-info.java        # Java module definition
-├── tests/                      # Unit tests (mirrors main packages)
-├── docs/                       # Project documentation & screenshots
-├── build/                      # Compiled classes and build artifacts
-└── sources.txt                 # Source file listing (build helper)
+├── Simjot/                     # Main application module
+│   ├── src/main/
+│   │   ├── core/               # Domain models and business logic
+│   │   │   ├── analytics/      # Usage analytics
+│   │   │   ├── export/         # Export functionality
+│   │   │   ├── poetry/         # Poetry analysis engine
+│   │   │   ├── security/       # Encryption and locking
+│   │   │   ├── service/        # Core services
+│   │   │   ├── sim/            # Sim AI companion system
+│   │   │   │   ├── api/        # Ollama API integration
+│   │   │   │   ├── engine/     # AI reasoning engine
+│   │   │   │   ├── llm/        # LLM prompt engineering
+│   │   │   │   ├── memory/     # Long-term memory store
+│   │   │   │   └── proactive/  # Proactive triggering
+│   │   │   └── spelling/       # Spell checking
+│   │   ├── infrastructure/     # System services
+│   │   │   ├── backup/         # Backup management
+│   │   │   ├── hotkeys/        # Global hotkey support
+│   │   │   ├── io/             # File I/O utilities
+│   │   │   └── monitoring/     # Performance monitoring
+│   │   ├── resources/          # Images, audio, dictionaries
+│   │   └── ui/                 # User interface
+│   │       ├── animations/     # Animation utilities
+│   │       ├── components/     # Reusable UI components
+│   │       ├── dialog/         # Dialog windows
+│   │       ├── features/       # Feature modules
+│   │       │   ├── drawing/    # Drawing canvas
+│   │       │   ├── entries/    # Entry management
+│   │       │   ├── home/       # Main menu and dashboard
+│   │       │   ├── poetry/     # Poetry editor
+│   │       │   ├── settings/   # Settings pages
+│   │       │   └── widgets/    # Productivity widgets
+│   │       ├── sim/            # Sim chat interface
+│   │       └── theme/          # Theming system
+│   ├── tests/                  # Unit tests (JUnit 5)
+│   ├── docs/                   # Documentation and screenshots
+│   └── pom.xml                 # Maven configuration
+├── scripts/                    # Build and test scripts
+├── build/                      # Compiled output
+├── README.md                   # This file
+├── README_BUILD.md             # Build instructions
+├── TESTING.md                  # Testing guide
+└── LICENSE.md                  # License
 ```
 
 ## Technical Details
@@ -166,20 +215,24 @@ Simjot/
 - **Modular Java application** using Java Platform Module System
 - **Swing-based UI** with custom Look & Feel
 - **CardLayout navigation** for smooth panel transitions
-- **Observer pattern** for UI updates and state management
+- **MVC pattern** with observer-based UI updates
+- **Event-driven design** with event bus for component communication
 - **File-based persistence** with custom serialization
 
 ### Technologies Used
 - **Java 17+** with Project Jigsaw (modular system)
 - **Java Swing** for cross-platform GUI
 - **Java 2D Graphics** for drawing and image processing
-- **Custom file formats** for data persistence
+- **Ollama API** for local LLM integration (Sim AI)
+- **AES-256 encryption** for security features
 - **Built-in audio support** for sound effects
 
 ### File Formats
-- **Journal entries**: `.note` files with metadata
-- **Poems**: `.poem` files with title and content
-- **Settings**: Configuration files in user directory
+- **Journal entries**: `.note` files with metadata and mood data
+- **Poems**: `.poem` files with title, content, and analysis metadata
+- **Settings**: JSON configuration in user directory
+- **Backups**: Compressed archives with selective content
+- **Sim Memory**: Encrypted memory store for AI context
 
 ## Customization
 
@@ -190,38 +243,51 @@ Simjot/
 - Personalized color schemes for drawing tools
 
 ### Settings Options
-- Default brush sizes and colors
-- Auto-save intervals
-- Thumbnail generation preferences
-- Audio feedback controls
-- Tutorial and tip visibility
+- **General**: Default brush sizes, colors, auto-save intervals
+- **Appearance**: Themes, animations, font scaling
+- **Drawing**: Brush presets, pressure sensitivity
+- **Security**: Password, auto-lock, encryption
+- **Storage**: Backup schedules, destinations, selective includes
+- **Sim**: AI personality, proactive mode, memory management
 
-## Contributing
+## Testing
 
-This application wasn't meant to be commercially available; it's a personal journaling application. Given development has ended, contributions are unlikely to be merged, but you may:
+Run the test suite:
+```bash
+bash scripts/run_tests.sh
+```
 
-1. **Fork the repository**
-2. Maintain changes in your fork (recommended)
+See [TESTING.md](TESTING.md) for detailed testing information.
 
-### Development Setup
-1. **Ensure Java 17+ is installed**
-2. **Import the project** into your preferred IDE
-3. **Run the main class**: `main.ui.app.JournalApp`
-4. **Make changes** and test thoroughly
+## License
 
+Simjot is released under a **Source-Available Personal Use License**. You may:
+- View and study the source code
+- Use the software for personal purposes
+- Create private forks for personal modification
 
+You may **not**:
+- Distribute the original or modified software
+- Use for commercial purposes
+- Sublicense the software
 
+See [LICENSE.md](LICENSE.md) for full terms.
+
+## Troubleshooting
 
 ### Common Issues
 - **Application won't start**: Ensure Java 17+ is installed and in your PATH
-- **Drawing performance**: Close unused applications for better graphics performance
 - **File not found errors**: Check that the journal folder path is accessible
+- **Backup failures**: Verify write permissions to backup destination
 
-### Support
-For technical questions, please refer to the existing documentation and code. New issues may not receive responses.
-
-## Acknowledgments
+### Debug Mode
+Enable debug logging by setting environment variable:
+```bash
+SIMJOT_LOG=debug java -jar Simjot.jar
+```
 
 ---
+
+I started developing Simjot when I was battling some extremely hard feelings and when I was in a bad state of mind. I needed a tool to help me express my thoughts and emotions, and Simjot was born. I hope it helps you too.
 
 *Happy Journaling!*
