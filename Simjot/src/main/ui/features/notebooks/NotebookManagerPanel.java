@@ -4,7 +4,6 @@ import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -473,10 +472,9 @@ public class NotebookManagerPanel extends JPanel {
             String name = dlg.getNotebookName();
             NotebookInfo.Type type = dlg.getNotebookType();
             String description = dlg.getDescription();
-            int accentColor = dlg.getAccentColor();
             if(name!=null && !name.isEmpty()){
                 try {
-                    store.create(name, type, "notebook", description, accentColor);
+                    store.create(name, type, "notebook", description, -1); // Use system accent color
                     refresh();
                 } catch (IllegalArgumentException ex) {
                     CustomConfirmDialog.confirm(this, "Could not create notebook", ex.getMessage());
@@ -495,20 +493,6 @@ public class NotebookManagerPanel extends JPanel {
         private final ModernTextField nameField = new ModernTextField(20);
         private final ModernTextField descField = new ModernTextField(20);
         private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.POETRY, NotebookInfo.Type.JOURNAL });
-        private Color selectedColor = new Color(147, 112, 219); // Default purple
-        private final JPanel colorPreview;
-        
-        // Preset colors for notebooks
-        private static final Color[] PRESET_COLORS = {
-            new Color(147, 112, 219), // Purple
-            new Color(100, 149, 237), // Cornflower blue  
-            new Color(60, 179, 113),  // Sea green
-            new Color(255, 165, 0),   // Orange
-            new Color(220, 20, 60),   // Crimson
-            new Color(255, 182, 193), // Light pink
-            new Color(64, 224, 208),  // Turquoise
-            new Color(169, 169, 169)  // Gray
-        };
 
         CreateNotebookDialog(Frame parent){
             super(parent, "Create Notebook", true);
@@ -550,11 +534,6 @@ public class NotebookManagerPanel extends JPanel {
             descField.setToolTipText("Brief description of this notebook");
             center.add(descField, gc);
 
-            colorPreview = new JPanel();
-            colorPreview.setPreferredSize(new Dimension(24, 24));
-            colorPreview.setBackground(selectedColor);
-            colorPreview.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-
             // Notebook type
             gc.gridy++;
             JLabel typeLabel = new JLabel("Type:");
@@ -565,39 +544,8 @@ public class NotebookManagerPanel extends JPanel {
             typeBox.setUI(new ModernComboBoxUI());
             typeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
             center.add(typeBox, gc);
-            typeBox.addActionListener(e -> {
-                NotebookInfo.Type t = (NotebookInfo.Type) typeBox.getSelectedItem();
-                if (t == NotebookInfo.Type.JOURNAL) {
-                    selectedColor = new Color(100, 149, 237);
-                } else if (t == NotebookInfo.Type.POETRY) {
-                    selectedColor = new Color(147, 112, 219);
-                } else if (t == NotebookInfo.Type.NOTETAKING) {
-                    selectedColor = new Color(60, 179, 113);
-                }
-                colorPreview.setBackground(selectedColor);
-                Container p = colorPreview.getParent();
-                if (p != null) p.repaint();
-            });
 
-            // Accent color picker
-            gc.gridy++;
-            JLabel colorLabel = new JLabel("Accent Color:");
-            colorLabel.setForeground(Color.DARK_GRAY);
-            center.add(colorLabel, gc);
-            
-            gc.gridy++;
-            JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-            colorRow.setOpaque(false);
-            for (Color c : PRESET_COLORS) {
-                JPanel swatch = createColorSwatch(c);
-                colorRow.add(swatch);
-            }
-            colorRow.add(Box.createHorizontalStrut(10));
-            colorRow.add(new JLabel("Selected:"));
-            colorRow.add(colorPreview);
-            center.add(colorRow, gc);
-
-            // Hide type selector since we only support poetry
+            // Default to poetry type
             typeBox.setSelectedItem(NotebookInfo.Type.POETRY);
 
             panel.add(center, BorderLayout.CENTER);
@@ -625,43 +573,13 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(420, 360);
+            setSize(380, 280);
             setLocationRelativeTo(parent);
-        }
-        
-        private JPanel createColorSwatch(Color c) {
-            JPanel swatch = new JPanel() {
-                @Override protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(c);
-                    g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, 4, 4);
-                    if (c.equals(selectedColor)) {
-                        g2.setColor(Color.DARK_GRAY);
-                        g2.setStroke(new BasicStroke(2));
-                        g2.drawRoundRect(1, 1, getWidth()-3, getHeight()-3, 4, 4);
-                    }
-                    g2.dispose();
-                }
-            };
-            swatch.setPreferredSize(new Dimension(24, 24));
-            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            swatch.addMouseListener(new MouseAdapter() {
-                @Override public void mouseClicked(MouseEvent e) {
-                    selectedColor = c;
-                    colorPreview.setBackground(c);
-                    // Repaint all swatches
-                    Container parent = swatch.getParent();
-                    if (parent != null) parent.repaint();
-                }
-            });
-            return swatch;
         }
 
         boolean isAccepted(){ return accepted; }
         String getNotebookName(){ return nameField.getText().trim(); }
         String getDescription(){ return descField.getText().trim(); }
-        int getAccentColor(){ return selectedColor.getRGB(); }
         NotebookInfo.Type getNotebookType(){ return (NotebookInfo.Type)typeBox.getSelectedItem(); }
     }
 
