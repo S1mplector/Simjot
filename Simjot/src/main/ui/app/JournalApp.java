@@ -25,7 +25,10 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
@@ -96,7 +99,10 @@ public class JournalApp extends JFrame {
     // Config file to store the journal folder path
     private File configFile;
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
-    private static final long EXIT_WATCHDOG_TIMEOUT_MS = 12_000L;
+    private static final long EXIT_WATCHDOG_TIMEOUT_MS = 25_000L;
+    private static final int STARTUP_MIN_SPLASH_MS = 6500;
+    private static final int EXIT_MIN_SPLASH_MS = 5500;
+    private static final long EXIT_PULSE_MS = 1200L;
     private static String[] launchArgs = new String[0];
 
     // Card identifiers
@@ -234,6 +240,50 @@ public class JournalApp extends JFrame {
         if (rootFolder != null) {
             saveJournalFolderConfig();
         }
+    }
+
+    private static boolean runOnEdtWithTimeout(Runnable task, long timeoutMs) {
+        if (task == null) return true;
+        try {
+            if (SwingUtilities.isEventDispatchThread()) {
+                task.run();
+                return true;
+            }
+        } catch (Throwable ignored) {}
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Throwable> err = new AtomicReference<>();
+        try {
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    task.run();
+                } catch (Throwable t) {
+                    err.set(t);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        } catch (Throwable t) {
+            try { CrashReporter.report("edt-invoke", Thread.currentThread(), t); } catch (Throwable ignored) {}
+            return false;
+        }
+
+        boolean ok = false;
+        try {
+            ok = latch.await(Math.max(1L, timeoutMs), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            ok = false;
+        }
+
+        Throwable t = err.get();
+        if (t != null) {
+            try { CrashReporter.report("edt-task", Thread.currentThread(), t); } catch (Throwable ignored) {}
+        }
+        if (!ok) {
+            try { CrashReporter.report("edt-timeout", Thread.currentThread(), new RuntimeException("EDT task timed out")); } catch (Throwable ignored) {}
+        }
+        return ok;
     }
 
     private void saveJournalFolderConfig() {
@@ -547,6 +597,9 @@ public class JournalApp extends JFrame {
                 try { Thread.sleep(EXIT_WATCHDOG_TIMEOUT_MS); } catch (InterruptedException ignored) {}
                 if (exitInProgress.get()) {
                     System.err.println("[JournalApp] Exit watchdog forcing halt after timeout");
+                    try {
+                        CrashReporter.report("exit-timeout", Thread.currentThread(), new RuntimeException("Exit watchdog timeout"));
+                    } catch (Throwable ignored) {}
                     try { Runtime.getRuntime().halt(0); } catch (Throwable ignored) {}
                 }
             }, "SimjotExitWatchdog");
@@ -626,6 +679,30 @@ public class JournalApp extends JFrame {
             final AeroSplashScreen splash = new AeroSplashScreen();
             splash.setStatus("Exiting…");
             splash.setVisible(true);
+            final long exitSplashShownAt = System.nanoTime();
+
+            try {
+                Thread pulse = new Thread(() -> {
+                    try {
+                        while (exitInProgress.get()) {
+                            long elapsedMs = (System.nanoTime() - exitSplashShownAt) / 1_000_000L;
+                            if (elapsedMs >= 9000 && elapsedMs < 18000) {
+                                SwingUtilities.invokeLater(() -> {
+                                    try { splash.setStatus("Still exiting…"); } catch (Throwable ignored) {}
+                                });
+                            } else if (elapsedMs >= 18000 && elapsedMs < (EXIT_WATCHDOG_TIMEOUT_MS - 500)) {
+                                SwingUtilities.invokeLater(() -> {
+                                    try { splash.setStatus("Finishing up…"); } catch (Throwable ignored) {}
+                                });
+                            }
+                            Thread.sleep(EXIT_PULSE_MS);
+                        }
+                    } catch (Throwable ignored) {}
+                }, "SimjotExitPulse");
+                pulse.setDaemon(true);
+                pulse.start();
+            } catch (Throwable ignored) {}
+
             try { setEnabled(false); } catch (Throwable ignored) {}
             try { setVisible(false); } catch (Throwable ignored) {}
 
@@ -635,20 +712,22 @@ public class JournalApp extends JFrame {
                 @Override protected Void doInBackground() {
                     publish("Saving open editors…");
                     try {
-                        javax.swing.SwingUtilities.invokeLater(() -> {
+                        JournalApp.runOnEdtWithTimeout(() -> {
                             for (main.ui.features.entries.NotebookEditor ed : editors) {
                                 try { ed.triggerSave(); } catch (Throwable ignored) {}
                             }
-                        });
+                        }, 2500);
                     } catch (Throwable ignored) {}
+
+                    try { Thread.sleep(220); } catch (Throwable ignored) {}
 
                     publish("Stopping Sim components…");
                     try {
-                        javax.swing.SwingUtilities.invokeLater(() -> {
+                        JournalApp.runOnEdtWithTimeout(() -> {
                             try { if (simOverlay != null) simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
                             try { if (simScheduler != null) simScheduler.stop(); } catch (Throwable ignored) {}
                             try { if (simBrain != null) simBrain.shutdown(); } catch (Throwable ignored) {}
-                        });
+                        }, 2500);
                     } catch (Throwable ignored) {}
 
                     publish("Stopping services…");
@@ -665,9 +744,17 @@ public class JournalApp extends JFrame {
                     if (!chunks.isEmpty()) splash.setStatus(chunks.get(chunks.size()-1));
                 }
                 @Override protected void done() {
-                    splash.fadeOutAndDispose(() -> {
-                        try { System.exit(0); } catch (Throwable ignored) {}
+                    long elapsedMs = (System.nanoTime() - exitSplashShownAt) / 1_000_000L;
+                    int remaining = EXIT_MIN_SPLASH_MS - (int) elapsedMs;
+                    if (remaining < 0) remaining = 0;
+                    javax.swing.Timer t = new javax.swing.Timer(remaining, ev -> {
+                        ((javax.swing.Timer) ev.getSource()).stop();
+                        splash.fadeOutAndDispose(() -> {
+                            try { System.exit(0); } catch (Throwable ignored) {}
+                        });
                     });
+                    t.setRepeats(false);
+                    t.start();
                 }
             }.execute();
         } catch (Throwable t) {
@@ -1081,6 +1168,33 @@ public class JournalApp extends JFrame {
                         }
                     } catch (Throwable ignored) {}
 
+                    publish("Checking disk space…");
+                    try {
+                        java.io.File root = null;
+                        try { root = main.infrastructure.io.AppDirectories.getRoot(); } catch (Throwable ignored) {}
+                        java.io.File base = (root != null) ? root : new java.io.File(System.getProperty("user.home"));
+                        long usable = base.getUsableSpace();
+                        // warn only; avoid blocking startup
+                        if (usable > 0 && usable < 150L * 1024L * 1024L) {
+                            main.infrastructure.io.IoLog.warn("disk-space", "Low disk space detected: " + usable + " bytes", null);
+                        }
+                    } catch (Throwable ignored) {}
+
+                    publish("Loading notebooks…");
+                    try {
+                        main.core.service.NotebookStore nb = new main.core.service.NotebookStore();
+                        nb.reload();
+                        try {
+                            int count = nb.list() == null ? 0 : nb.list().size();
+                            publish("Notebooks: " + count);
+                        } catch (Throwable ignored2) {}
+                    } catch (Throwable ignored) {}
+
+                    publish("Warming writing tools…");
+                    try { main.core.spelling.SpellCheckEngine.get(); } catch (Throwable ignored) {}
+                    try { main.core.spelling.IntelligentAutocorrect.get(); } catch (Throwable ignored) {}
+                    try { Thread.sleep(80); } catch (Throwable ignored) {}
+
                     // Warm font/text rendering via an offscreen draw to prime text rasterizer/metrics
                     publish("Priming text rendering…");
                     try {
@@ -1126,10 +1240,10 @@ public class JournalApp extends JFrame {
                         }
                     } catch (Throwable ignored) {}
 
-                    // Soft time cap (~2.5s) to avoid lingering on splash
+                    // Soft time cap (~4.5s) to intentionally keep splash visible while warming caches
                     try {
                         long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
-                        if (elapsedMs < 2500) Thread.sleep(50); // tiny debounce, keep UI responsive
+                        if (elapsedMs < 4500) Thread.sleep(80);
                     } catch (Throwable ignored) {}
 
                     publish("Starting UI…");
@@ -1147,7 +1261,7 @@ public class JournalApp extends JFrame {
                     // Start the poll timer BEFORE constructing the UI, so that a modal first-run wizard
                     // won't block splash dismissal on the EDT. The timer will dispose the splash once
                     // any other window (e.g., the setup wizard) is showing and the minimum time elapsed.
-                    final int minMs = 2000; // minimum splash time
+                    final int minMs = STARTUP_MIN_SPLASH_MS; // minimum splash time
                     javax.swing.Timer wait = new javax.swing.Timer(40, ev -> {
                         java.awt.Window[] wins = java.awt.Window.getWindows();
                         boolean otherVisible = false;
