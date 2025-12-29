@@ -2,10 +2,7 @@ package main.ui.components.combobox;
 
 import java.awt.*;
 import javax.swing.*;
-import javax.swing.plaf.ComboPopup;
 import javax.swing.plaf.basic.BasicComboBoxUI;
-import javax.swing.plaf.basic.BasicComboPopup;
-import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.theme.Theme;
 
@@ -13,29 +10,6 @@ public class ModernComboBoxUI extends BasicComboBoxUI {
     @Override
     protected JButton createArrowButton() {
         return new JButton() {{ setVisible(false); }};
-    }
-
-    @Override
-    protected ComboPopup createPopup() {
-        BasicComboPopup popup = new BasicComboPopup(comboBox) {
-            @Override
-            protected JScrollPane createScroller() {
-                JScrollPane scroller = super.createScroller();
-                try {
-                    JScrollBar vbar = scroller.getVerticalScrollBar();
-                    vbar.setUI(new ModernScrollBarUI());
-                    vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
-                    vbar.setOpaque(false);
-                    JScrollBar hbar = scroller.getHorizontalScrollBar();
-                    hbar.setUI(new ModernScrollBarUI());
-                    hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
-                    hbar.setOpaque(false);
-                } catch (Throwable ignored) {}
-                return scroller;
-            }
-        };
-        popup.getAccessibleContext().setAccessibleParent(comboBox);
-        return popup;
     }
 
     @Override

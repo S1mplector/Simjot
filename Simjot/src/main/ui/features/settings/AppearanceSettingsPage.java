@@ -19,7 +19,13 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
+import javax.swing.SwingUtilities;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
+import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -31,6 +37,7 @@ import main.ui.animations.transitions.FadingButton;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 class AppearanceSettingsPage extends JPanel implements SettingsPage {
@@ -159,6 +166,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         fontFamilyBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
         fontFamilyBox.setSelectedItem(store.getEditorFontFamily());
         fontFamilyBox.addActionListener(e -> updateFontPreview());
+        installPopupScrollbar(fontFamilyBox);
 
         Integer[] sizes = {12, 14, 16, 18, 20, 22, 24, 28};
         fontSizeBox = new JComboBox<>(sizes);
@@ -196,6 +204,35 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         add(fontPreview, gc);
         gc.fill = GridBagConstraints.HORIZONTAL;
         gc.gridwidth = 1;
+    }
+
+    private static void installPopupScrollbar(JComboBox<?> comboBox) {
+        comboBox.addPopupMenuListener(new PopupMenuListener() {
+            @Override public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                SwingUtilities.invokeLater(() -> applyPopupScrollbar(comboBox));
+            }
+            @Override public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
+            @Override public void popupMenuCanceled(PopupMenuEvent e) {}
+        });
+    }
+
+    private static void applyPopupScrollbar(JComboBox<?> comboBox) {
+        try {
+            Object child = comboBox.getUI().getAccessibleChild(comboBox, 0);
+            if (child instanceof BasicComboPopup popup) {
+                JList<?> list = popup.getList();
+                JScrollPane scroller = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, list);
+                if (scroller == null) return;
+                JScrollBar vbar = scroller.getVerticalScrollBar();
+                vbar.setUI(new ModernScrollBarUI());
+                vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
+                vbar.setOpaque(false);
+                JScrollBar hbar = scroller.getHorizontalScrollBar();
+                hbar.setUI(new ModernScrollBarUI());
+                hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
+                hbar.setOpaque(false);
+            }
+        } catch (Throwable ignored) {}
     }
 
     private void updateFontPreview() {
