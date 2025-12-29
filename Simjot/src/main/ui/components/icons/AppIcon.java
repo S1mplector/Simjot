@@ -71,6 +71,9 @@ public final class AppIcon {
         try {
             // Try multiple paths for the icon
             String[] paths = {
+                "Simjot/img/icons/original/simjot.png",
+                "img/icons/original/simjot.png",
+                "/img/icons/original/simjot.png",
                 "Simjot/img/icons/simjot.png",
                 "img/icons/simjot.png",
                 "/img/icons/simjot.png"

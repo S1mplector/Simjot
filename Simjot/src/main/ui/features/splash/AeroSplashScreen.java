@@ -50,10 +50,8 @@ public class AeroSplashScreen extends JWindow {
         JLabel icon = new JLabel();
         icon.setAlignmentY(Component.CENTER_ALIGNMENT);
         int size = 48;
-        String res = ImageIconRenderer.mapIdToResource("sticky_widget");
-        if (res != null) {
-            icon.setIcon(ImageIconRenderer.icon(res, size, false));
-        }
+        String res = "img/icons/original/simjot.png";
+        icon.setIcon(ImageIconRenderer.icon(res, size, false));
 
         title.setForeground(AeroTheme.TEXT_PRIMARY);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 28f));
