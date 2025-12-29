@@ -15,7 +15,6 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.Insets;
 import java.awt.LinearGradientPaint;
 import java.awt.Paint;
 import java.awt.Point;
@@ -595,36 +594,10 @@ public class EntryPanel extends AbstractEditorPanel {
             moodSlider.addChangeListener(e -> {
                 try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
             });
-            RoundedButton expandMoodBtn = new RoundedButton("\u203A");
-            expandMoodBtn.setToolTipText("Open detailed mood logging");
-            expandMoodBtn.setForeground(AeroTheme.TEXT_PRIMARY);
-            expandMoodBtn.setPreferredSize(new Dimension(28, 28));
-            expandMoodBtn.setMargin(new Insets(0, 0, 0, 0));
-            moodRow.add(expandMoodBtn);
-            JPanel bottomStack = new JPanel();
-            bottomStack.setOpaque(false);
-            bottomStack.setLayout(new BoxLayout(bottomStack, BoxLayout.Y_AXIS));
-            bottomStack.add(moodRow);
-            detailedMoodPanel = new DetailedMoodPanel((composite, details) -> {
-                moodSlider.setValue(composite);
-                recordMood(composite, details);
-                new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this),
-                        "Mood Logged",
-                        "Detailed mood saved (" + composite + ")",
-                        false).showDialog();
-            });
-            bottomStack.add(detailedMoodPanel);
-            RoundedButton finalExpandMoodBtn = expandMoodBtn;
-            expandMoodBtn.addActionListener(e -> {
-                boolean next = detailedMoodPanel == null || !detailedMoodPanel.isExpanded();
-                if (next) prefillDetailedMoodFromLogToday();
-                if (detailedMoodPanel != null) detailedMoodPanel.setExpanded(next);
-                finalExpandMoodBtn.setText(next ? "\u2039" : "\u203A");
-            });
             moodContainer = new JPanel(new BorderLayout());
             moodContainer.setOpaque(false);
             moodContainer.setBorder(BorderFactory.createEmptyBorder(6, 10, 0, 10));
-            moodContainer.add(bottomStack, BorderLayout.CENTER);
+            moodContainer.add(moodRow, BorderLayout.CENTER);
             toolbarGroup.add(Box.createVerticalStrut(6));
             toolbarGroup.add(moodContainer);
         }
