@@ -4,7 +4,7 @@
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
-A feature-rich and highly personalizable journaling application built with Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant digital environment.
+A highly personalizable creative wellness application built with pure Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant environment.
 
 ## Features
 

@@ -150,7 +150,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridwidth = 1;
 
         String[] fonts = {"Serif", "Georgia", "Garamond", "Baskerville",
-                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand", "Cursive"};
+                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand",
+                "Segoe Print", "Marker Felt", "Noteworthy", "Chalkboard", "Chalkboard SE",
+                "Apple Chancery", "Snell Roundhand", "Zapfino", "Brush Script MT",
+                "Lucida Calligraphy", "Papyrus", "Cursive"};
         fontFamilyBox = new JComboBox<>(fonts);
         fontFamilyBox.setUI(new ModernComboBoxUI());
         fontFamilyBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());

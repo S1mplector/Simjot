@@ -302,6 +302,7 @@ public final class ImageIconRenderer {
             case "back" -> "img/icons/back.png";
             case "list" -> "img/icons/list.png";
             case "close" -> "img/icons/close.png";
+            case "saveandexit", "save_and_exit" -> "img/icons/saveandexit.png";
             case "check", "select", "apply" -> "img/icons/select.png";
             case "save" -> "img/icons/save.png";
             case "load" -> "img/icons/load.png";

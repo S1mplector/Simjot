@@ -84,6 +84,8 @@ public class WallpaperGalleryPanel extends JDialog {
         setupImageGrid();
         JScrollPane listScroll = new JScrollPane(list);
         listScroll.setBorder(BorderFactory.createEmptyBorder());
+        listScroll.setOpaque(false);
+        listScroll.getViewport().setOpaque(false);
         // Apply the same modern scrollbars used in poetry/journal panels
         JScrollBar vbar = listScroll.getVerticalScrollBar();
         vbar.setUI(new ModernScrollBarUI());
@@ -95,17 +97,19 @@ public class WallpaperGalleryPanel extends JDialog {
         hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
         hbar.setOpaque(false);
         hbar.setUnitIncrement(16);
-        root.add(listScroll, BorderLayout.CENTER);
+        FrostedGlassPanel browserPanel = new FrostedGlassPanel(new BorderLayout(), 14);
+        browserPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        browserPanel.add(listScroll, BorderLayout.CENTER);
+        root.add(browserPanel, BorderLayout.CENTER);
 
         // Live preview + accent swatch (right side)
-        JPanel preview = new JPanel(new BorderLayout(8, 8));
-        preview.setOpaque(false);
+        FrostedGlassPanel preview = new FrostedGlassPanel(new BorderLayout(8, 8), 14);
         preview.setPreferredSize(new Dimension(280, 0));
         preview.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
         previewImageLabel = new JLabel("Preview", SwingConstants.CENTER);
-        previewImageLabel.setOpaque(true);
-        previewImageLabel.setBackground(Color.WHITE);
-        previewImageLabel.setBorder(BorderFactory.createLineBorder(new Color(200,200,200)));
+        previewImageLabel.setOpaque(false);
+        previewImageLabel.setForeground(new Color(60, 60, 60));
+        previewImageLabel.setBorder(BorderFactory.createLineBorder(new Color(200,200,200,160)));
         preview.add(previewImageLabel, BorderLayout.CENTER);
 
         JPanel swatchRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
@@ -149,7 +153,8 @@ public class WallpaperGalleryPanel extends JDialog {
         list.setFixedCellWidth(160);
         list.setFixedCellHeight(180);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setBackground(Color.WHITE);
+        list.setOpaque(false);
+        list.setBackground(new Color(255, 255, 255, 0));
 
         // Reusable renderer to avoid reallocations and rescaling during scroll
         class Cell extends JPanel implements ListCellRenderer<WallpaperItem> {
@@ -188,7 +193,7 @@ public class WallpaperGalleryPanel extends JDialog {
                     source.setText(v.getSource());
                     setToolTipText(v.getName() + " (" + v.getSource() + ")");
                 }
-                setBackground(isSelected ? new Color(0,120,215,60) : Color.WHITE);
+                setBackground(isSelected ? new Color(0, 120, 215, 70) : new Color(255, 255, 255, 180));
                 return this;
             }
         }

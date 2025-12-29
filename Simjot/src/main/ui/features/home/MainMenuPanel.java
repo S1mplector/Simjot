@@ -413,7 +413,7 @@ public class MainMenuPanel extends JPanel {
         settingsButton.setToolTipText("Customize appearance, storage, security, and more");
         iconRow.add(settingsButton);
 
-        IconMenuButton exitButton = new IconMenuButton("Exit", "close");
+        IconMenuButton exitButton = new IconMenuButton("Exit", "saveandexit");
         exitButton.setToolTipText("Save all work and close Simjot");
         exitButton.addActionListener(e -> {
             if (app != null) {
