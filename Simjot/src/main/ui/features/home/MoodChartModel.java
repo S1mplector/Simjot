@@ -1,10 +1,15 @@
 package main.ui.features.home;
 
-import java.io.*;
-import java.time.*;
+import java.io.File;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import main.infrastructure.io.AppDirectories;
+import java.util.ArrayList;
+
+import main.core.analytics.MoodAnalyticsEngine;
+import main.core.analytics.MoodAnalyticsEngine.AnalyticsResult;
+import main.core.analytics.MoodAnalyticsEngine.DailyStats;
+import main.core.analytics.MoodAnalyticsEngine.MoodSample;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 
@@ -14,72 +19,59 @@ final class MoodChartModel {
 
     private final java.util.List<LocalDate> dayList = new ArrayList<>();
     private final java.util.List<Double> avgMoodList = new ArrayList<>();
+    private final java.util.List<Double> smoothedMoodList = new ArrayList<>();
     private final java.util.Map<LocalDate, java.util.List<File>> entriesByDate = new java.util.HashMap<>();
     private final java.util.Map<LocalDate, java.util.List<LocalDateTime>> moodTimesByDate = new java.util.HashMap<>();
     private final java.util.Map<LocalDate, java.util.List<EntryRef>> entryTimesByDate = new java.util.HashMap<>();
     private final java.util.Map<LocalDate, java.util.List<Details>> detailsByDate = new java.util.HashMap<>();
 
-    boolean load(int rangeIndex){
-        dayList.clear(); avgMoodList.clear();
-        entriesByDate.clear(); moodTimesByDate.clear(); entryTimesByDate.clear(); detailsByDate.clear();
-        int daysLimit = switch(rangeIndex){ case 0 -> 7; case 1 -> 30; case 2 -> 90; case 3 -> 365; default -> Integer.MAX_VALUE; };
-        LocalDate today = LocalDate.now();
-        java.util.Map<LocalDate, java.util.List<Integer>> map = new java.util.HashMap<>();
-        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        if (moodFile.exists()) {
-            try (BufferedReader br = new BufferedReader(new FileReader(moodFile))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    String[] parts = line.split(",");
-                    if (parts.length >= 2) {
-                        LocalDate date; LocalDateTime dateTime = null;
-                        try {
-                            date = LocalDate.parse(parts[0]);
-                        } catch (Exception ex) {
-                            try {
-                                DateTimeFormatter alt = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-                                dateTime = LocalDateTime.parse(parts[0], alt);
-                                date = dateTime.toLocalDate();
-                            } catch (Exception ex2) {
-                                continue;
-                            }
-                        }
-                        String moodStr = parts[1].trim();
-                        int pct;
-                        try { pct = Math.max(0, Math.min(100, Integer.parseInt(moodStr))); }
-                        catch (NumberFormatException nfe) { pct = ":)".equals(moodStr) ? 100 : ":/".equals(moodStr) ? 50 : 0; }
-                        map.computeIfAbsent(date, d -> new ArrayList<>()).add(pct);
-                        if (dateTime != null) moodTimesByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(dateTime);
+    // Enhanced analytics results
+    private AnalyticsResult lastAnalytics;
 
-                        // Parse detailed emotions if present: ts,composite,joy,calm,gratitude,energy,sadness,anger,anxiety,stress
-                        if (parts.length >= 10) {
-                            try {
-                                int joy = Integer.parseInt(parts[2].trim());
-                                int calm = Integer.parseInt(parts[3].trim());
-                                int gratitude = Integer.parseInt(parts[4].trim());
-                                int energy = Integer.parseInt(parts[5].trim());
-                                int sadness = Integer.parseInt(parts[6].trim());
-                                int anger = Integer.parseInt(parts[7].trim());
-                                int anxiety = Integer.parseInt(parts[8].trim());
-                                int stress = Integer.parseInt(parts[9].trim());
-                                detailsByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(new Details(dateTime, joy, calm, gratitude, energy, sadness, anger, anxiety, stress));
-                            } catch (Throwable ignored) {}
-                        }
+    boolean load(int rangeIndex){
+        dayList.clear(); avgMoodList.clear(); smoothedMoodList.clear();
+        entriesByDate.clear(); moodTimesByDate.clear(); entryTimesByDate.clear(); detailsByDate.clear();
+        lastAnalytics = null;
+
+        int daysLimit = switch(rangeIndex){ case 0 -> 7; case 1 -> 30; case 2 -> 90; case 3 -> 365; default -> 0; };
+
+        // Use enhanced analytics engine
+        MoodAnalyticsEngine engine = MoodAnalyticsEngine.get();
+        AnalyticsResult analytics = engine.analyze(daysLimit, 7); // 7-day smoothing window
+        lastAnalytics = analytics;
+
+        if (analytics.dates.isEmpty()) return false;
+
+        // Populate lists from analytics
+        dayList.addAll(analytics.dates);
+        avgMoodList.addAll(analytics.dailyAverages);
+        smoothedMoodList.addAll(analytics.smoothedAverages);
+
+        // Convert detailed stats to legacy Details format for backward compatibility
+        for (LocalDate d : analytics.dates) {
+            DailyStats stats = analytics.dailyStats.get(d);
+            if (stats != null && !stats.samples.isEmpty()) {
+                for (MoodSample sample : stats.samples) {
+                    if (sample.timestamp != null) {
+                        moodTimesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(sample.timestamp);
+                    }
+                    if (sample.hasDetails()) {
+                        detailsByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(
+                            new Details(sample.timestamp,
+                                sample.joy, sample.calm, sample.gratitude, sample.energy,
+                                sample.sadness, sample.anger, sample.anxiety, sample.stress));
                     }
                 }
-            } catch (IOException ignored) {}
+            }
         }
-        if (map.isEmpty()) return false;
-        java.util.List<LocalDate> keys = new ArrayList<>(map.keySet());
-        Collections.sort(keys);
-        LocalDate start = (daysLimit == Integer.MAX_VALUE) ? keys.get(0) : today.minusDays(Math.max(0, daysLimit - 1));
-        LocalDate end = today;
-        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
-            dayList.add(d);
-            java.util.List<Integer> l = map.get(d);
-            if (l == null || l.isEmpty()) avgMoodList.add(null);
-            else avgMoodList.add(l.stream().mapToInt(x -> x).average().orElse(0));
-        }
+
+        // Load journal entries for date mapping
+        loadJournalEntries();
+
+        return true;
+    }
+
+    private void loadJournalEntries() {
         try {
             NotebookStore store = new NotebookStore();
             java.util.List<NotebookInfo> nbs = store.list();
@@ -108,15 +100,24 @@ final class MoodChartModel {
                 }
             }
         } catch (Throwable ignored) {}
-        return true;
     }
 
     java.util.List<LocalDate> getDays(){ return dayList; }
     java.util.List<Double> getValues(){ return avgMoodList; }
+    java.util.List<Double> getSmoothedValues(){ return smoothedMoodList; }
     java.util.Map<LocalDate, java.util.List<File>> getEntriesByDate(){ return entriesByDate; }
     java.util.Map<LocalDate, java.util.List<LocalDateTime>> getMoodTimesByDate(){ return moodTimesByDate; }
     java.util.Map<LocalDate, java.util.List<EntryRef>> getEntryTimesByDate(){ return entryTimesByDate; }
     java.util.Map<LocalDate, java.util.List<Details>> getDetailsByDate(){ return detailsByDate; }
+
+    // Enhanced analytics accessors
+    AnalyticsResult getAnalytics(){ return lastAnalytics; }
+    double getOverallAverage(){ return lastAnalytics != null ? lastAnalytics.overallAverage : 0; }
+    double getVolatility(){ return lastAnalytics != null ? lastAnalytics.volatility : 0; }
+    int getCurrentStreak(){ return lastAnalytics != null ? lastAnalytics.currentStreak : 0; }
+    int getLongestGoodStreak(){ return lastAnalytics != null ? lastAnalytics.longestGoodStreak : 0; }
+    int getLongestBadStreak(){ return lastAnalytics != null ? lastAnalytics.longestBadStreak : 0; }
+    int getTotalSamples(){ return lastAnalytics != null ? lastAnalytics.totalSamples : 0; }
 
     Details getLatestDetailsFor(LocalDate d){
         java.util.List<Details> l = detailsByDate.get(d);

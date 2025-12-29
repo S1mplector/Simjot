@@ -1,17 +1,38 @@
 package main.ui.features.home;
 
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.awt.image.BufferedImage;
-import java.io.*;
-import javax.imageio.ImageIO;
-import java.time.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import javax.swing.*;
+import java.util.Objects;
+
+import javax.imageio.ImageIO;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
- 
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.combobox.ModernComboBoxUI;
@@ -29,7 +50,11 @@ public class MoodChartPanel extends JPanel {
     private final MoodChartSettings settings = new MoodChartSettings();
     private final MoodChartRenderer renderer = new MoodChartRenderer(settings);
 
-    
+    // Analytics summary labels
+    private JLabel avgLabel;
+    private JLabel volatilityLabel;
+    private JLabel streakLabel;
+    private JLabel samplesLabel;
     
     public MoodChartPanel(JournalApp app, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -52,7 +77,7 @@ public class MoodChartPanel extends JPanel {
         rangeBox.setUI(new ModernComboBoxUI());
         rangeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
         rangeBox.setSelectedIndex(1);
-        rangeBox.addActionListener(e->{ model.load(rangeBox.getSelectedIndex()); repaint(); });
+        rangeBox.addActionListener(e->{ model.load(rangeBox.getSelectedIndex()); updateSummaryLabels(); repaint(); });
         top.add(rangeBox);
         JCheckBox cbFill = new JCheckBox("Fill", settings.isShowFill());
         cbFill.setOpaque(false);
@@ -82,16 +107,39 @@ public class MoodChartPanel extends JPanel {
             } catch (Throwable ignored) {}
         });
         top.add(exportBtn);
-        add(top, BorderLayout.NORTH);
+
+        // Analytics summary panel
+        JPanel summaryPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 24, 4));
+        summaryPanel.setBackground(new Color(245, 248, 252));
+        summaryPanel.setBorder(javax.swing.BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(200, 210, 220)));
+        avgLabel = new JLabel("Overall: --");
+        avgLabel.setFont(avgLabel.getFont().deriveFont(Font.BOLD, 13f));
+        volatilityLabel = new JLabel("Volatility: --");
+        volatilityLabel.setFont(volatilityLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        streakLabel = new JLabel("Streak: --");
+        streakLabel.setFont(streakLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        samplesLabel = new JLabel("Samples: --");
+        samplesLabel.setFont(samplesLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        summaryPanel.add(avgLabel);
+        summaryPanel.add(volatilityLabel);
+        summaryPanel.add(streakLabel);
+        summaryPanel.add(samplesLabel);
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.add(top, BorderLayout.NORTH);
+        headerPanel.add(summaryPanel, BorderLayout.SOUTH);
+        add(headerPanel, BorderLayout.NORTH);
 
         // Load initial data
         model.load(rangeBox.getSelectedIndex());
+        updateSummaryLabels();
 
         // Refresh data every time the panel becomes visible
         addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
             public void componentShown(java.awt.event.ComponentEvent e) {
                 model.load(rangeBox.getSelectedIndex());
+                updateSummaryLabels();
                 repaint();
             }
             @Override
@@ -104,6 +152,32 @@ public class MoodChartPanel extends JPanel {
     private void loadMoodData() {
         model.load(rangeBox.getSelectedIndex());
         renderer.invalidate();
+    }
+
+    private void updateSummaryLabels() {
+        double avg = model.getOverallAverage();
+        double vol = model.getVolatility();
+        int streak = model.getCurrentStreak();
+        int samples = model.getTotalSamples();
+
+        avgLabel.setText(String.format("Overall: %.0f/100", avg));
+        avgLabel.setForeground(main.core.analytics.MoodAnalyticsEngine.getColor(avg));
+
+        volatilityLabel.setText(String.format("Volatility: %.1f", vol));
+        volatilityLabel.setToolTipText("Standard deviation of daily mood averages");
+
+        if (streak > 0) {
+            streakLabel.setText(String.format("Streak: %d good days", streak));
+            streakLabel.setForeground(new Color(40, 160, 90));
+        } else if (streak < 0) {
+            streakLabel.setText(String.format("Streak: %d tough days", -streak));
+            streakLabel.setForeground(new Color(200, 100, 60));
+        } else {
+            streakLabel.setText("Streak: --");
+            streakLabel.setForeground(Color.DARK_GRAY);
+        }
+
+        samplesLabel.setText(String.format("Samples: %d", samples));
     }
     
     private boolean hasAnyJournalEntries() {

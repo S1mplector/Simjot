@@ -397,6 +397,10 @@ public class MainMenuPanel extends JPanel {
             iconRow.add(galleryButton);
         }
 
+        IconMenuButton moodButton = createIconButton("Mood", JournalApp.MOOD_CHART, "smile");
+        moodButton.setToolTipText("View mood trends and analytics over time");
+        iconRow.add(moodButton);
+
         IconMenuButton settingsButton = createIconButton("Settings", JournalApp.SETTINGS, "wrench");
         settingsButton.setToolTipText("Customize appearance, storage, security, and more");
         iconRow.add(settingsButton);
