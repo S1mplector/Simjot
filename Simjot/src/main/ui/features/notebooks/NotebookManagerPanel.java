@@ -478,7 +478,7 @@ public class NotebookManagerPanel extends JPanel {
         private boolean accepted=false;
         private final ModernTextField nameField = new ModernTextField(20);
         private final ModernTextField descField = new ModernTextField(20);
-        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.POETRY });
+        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.POETRY, NotebookInfo.Type.JOURNAL });
         private Color selectedColor = new Color(147, 112, 219); // Default purple
         private final JPanel colorPreview;
         
@@ -495,7 +495,7 @@ public class NotebookManagerPanel extends JPanel {
         };
 
         CreateNotebookDialog(Frame parent){
-            super(parent, "Create Poetry Notebook", true);
+            super(parent, "Create Notebook", true);
             setUndecorated(true);
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
@@ -506,7 +506,7 @@ public class NotebookManagerPanel extends JPanel {
             panel.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
 
             // Title
-            JLabel title = new JLabel("Create Poetry Notebook", SwingConstants.LEFT);
+            JLabel title = new JLabel("Create Notebook", SwingConstants.LEFT);
             title.setForeground(Color.DARK_GRAY);
             title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
             panel.add(title, BorderLayout.NORTH);
@@ -533,7 +533,34 @@ public class NotebookManagerPanel extends JPanel {
             gc.gridy++;
             descField.setToolTipText("Brief description of this notebook");
             center.add(descField, gc);
-            
+
+            colorPreview = new JPanel();
+            colorPreview.setPreferredSize(new Dimension(24, 24));
+            colorPreview.setBackground(selectedColor);
+            colorPreview.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+
+            // Notebook type
+            gc.gridy++;
+            JLabel typeLabel = new JLabel("Type:");
+            typeLabel.setForeground(Color.DARK_GRAY);
+            center.add(typeLabel, gc);
+            gc.gridy++;
+            typeBox.setToolTipText("Notebook type");
+            center.add(typeBox, gc);
+            typeBox.addActionListener(e -> {
+                NotebookInfo.Type t = (NotebookInfo.Type) typeBox.getSelectedItem();
+                if (t == NotebookInfo.Type.JOURNAL) {
+                    selectedColor = new Color(100, 149, 237);
+                } else if (t == NotebookInfo.Type.POETRY) {
+                    selectedColor = new Color(147, 112, 219);
+                } else if (t == NotebookInfo.Type.NOTETAKING) {
+                    selectedColor = new Color(60, 179, 113);
+                }
+                colorPreview.setBackground(selectedColor);
+                Container p = colorPreview.getParent();
+                if (p != null) p.repaint();
+            });
+
             // Accent color picker
             gc.gridy++;
             JLabel colorLabel = new JLabel("Accent Color:");
@@ -547,10 +574,6 @@ public class NotebookManagerPanel extends JPanel {
                 JPanel swatch = createColorSwatch(c);
                 colorRow.add(swatch);
             }
-            colorPreview = new JPanel();
-            colorPreview.setPreferredSize(new Dimension(24, 24));
-            colorPreview.setBackground(selectedColor);
-            colorPreview.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
             colorRow.add(Box.createHorizontalStrut(10));
             colorRow.add(new JLabel("Selected:"));
             colorRow.add(colorPreview);
@@ -584,7 +607,7 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(420, 320);
+            setSize(420, 360);
             setLocationRelativeTo(parent);
         }
         
