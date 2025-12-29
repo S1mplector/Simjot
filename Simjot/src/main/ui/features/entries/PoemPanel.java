@@ -200,7 +200,7 @@ public class PoemPanel extends AbstractEditorPanel {
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.setOpaque(false);
         // Toggles for poetry helpers
-        ToolbarMenuIconButton statsToggle = new ToolbarMenuIconButton("Stats", "list");
+        ToolbarMenuIconButton statsToggle = new ToolbarMenuIconButton("Stats", "stats");
         statsToggle.setToolTipText("Toggle Stats Sidebar");
         statsToggle.addActionListener(e -> {
             if (statsPanel != null) {
@@ -227,7 +227,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 revalidate(); repaint();
             }
         });
-        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "options");
+        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "backgroundoptions");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
             PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));

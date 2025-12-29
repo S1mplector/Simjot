@@ -123,14 +123,10 @@ public class ToolbarIconButton extends JButton {
         int ix = (getWidth()-size)/2;
         int iy = (getHeight()-size)/2;
         if (resourcePath != null) {
-            java.awt.image.BufferedImage buf = ImageIconRenderer.get(resourcePath, size, true);
-            if (buf != null) {
-                Composite old = g2.getComposite();
-                if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
-                g2.drawImage(buf, ix, iy, null);
-                if (iconOpacity < 0.999f) g2.setComposite(old);
-                painted = true;
-            }
+            Composite old = g2.getComposite();
+            if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
+            painted = ImageIconRenderer.draw(g2, resourcePath, ix, iy, size, this, true);
+            if (iconOpacity < 0.999f) g2.setComposite(old);
         }
         if(!painted){
             Composite old = g2.getComposite();

@@ -1,18 +1,24 @@
 package main.ui.features.settings;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -35,10 +41,23 @@ import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadingButton;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.calendars.CircularCalendar;
+import main.ui.components.calendars.GlassCalendar;
+import main.ui.components.calendars.MinimalistCalendar;
+import main.ui.components.calendars.PostItCalendar;
+import main.ui.components.calendars.TornPageCalendar;
 import main.ui.components.checkbox.ModernCheckBoxUI;
+import main.ui.components.clocks.MinimalistClock;
+import main.ui.components.clocks.NeonClock;
+import main.ui.components.clocks.PolarClock;
+import main.ui.components.clocks.SegmentClock;
+import main.ui.components.clocks.SunburstClock;
+import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.features.gallery.WallpaperGalleryPanel;
+import main.ui.features.home.AnalogClockPanel;
+import main.ui.features.home.TodayCalendarPanel;
 
 class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final IconMenuButton backgroundOptionsBtn;
@@ -54,6 +73,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<Integer> fontSizeBox;
     private final JComboBox<String> lineSpacingBox;
     private final JTextPane fontPreview;
+    // Clock and Calendar style selection
+    private String selectedClockStyle;
+    private String selectedCalendarStyle;
+    private static final String[] CLOCK_STYLES = {"Classic", "Minimalist", "Neon", "Swiss", "Sunburst", "Segment", "Polar"};
+    private static final String[] CALENDAR_STYLES = {"Classic", "Minimalist", "TornPage", "Circular", "PostIt", "Glass"};
 
     AppearanceSettingsPage() {
         setLayout(new GridBagLayout());
@@ -204,6 +228,60 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         add(fontPreview, gc);
         gc.fill = GridBagConstraints.HORIZONTAL;
         gc.gridwidth = 1;
+
+        // Clock & Calendar Style section
+        gc.gridx = 0; gc.gridy = 14; gc.gridwidth = 2;
+        gc.insets = new Insets(20, 5, 5, 5);
+        add(SettingsUi.header("Clock & Calendar", "Style for main menu widgets"), gc);
+        gc.insets = new Insets(5, 5, 5, 5);
+
+        // Clock style selection
+        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
+        add(SettingsUi.label("Clock style:"), gc);
+
+        selectedClockStyle = store.getClockStyle();
+        StyleCycler clockCycler = new StyleCycler(CLOCK_STYLES, selectedClockStyle, true);
+        clockCycler.setOnChange(style -> selectedClockStyle = style);
+        gc.gridx = 0; gc.gridy = 16; gc.gridwidth = 2;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        add(clockCycler, gc);
+
+        // Calendar style selection
+        gc.gridx = 0; gc.gridy = 17; gc.gridwidth = 2;
+        gc.insets = new Insets(10, 5, 5, 5);
+        add(SettingsUi.label("Calendar style:"), gc);
+        gc.insets = new Insets(5, 5, 5, 5);
+
+        selectedCalendarStyle = store.getCalendarStyle();
+        StyleCycler calendarCycler = new StyleCycler(CALENDAR_STYLES, selectedCalendarStyle, false);
+        calendarCycler.setOnChange(style -> selectedCalendarStyle = style);
+        gc.gridx = 0; gc.gridy = 18; gc.gridwidth = 2;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        add(calendarCycler, gc);
+        gc.gridwidth = 1;
+    }
+
+    private static JPanel createClockPreview(String style) {
+        return switch (style) {
+            case "Minimalist" -> new MinimalistClock();
+            case "Neon" -> new NeonClock();
+            case "Swiss" -> new SwissRailwayClock();
+            case "Sunburst" -> new SunburstClock();
+            case "Segment" -> new SegmentClock();
+            case "Polar" -> new PolarClock();
+            default -> new AnalogClockPanel();
+        };
+    }
+
+    private static JPanel createCalendarPreview(String style) {
+        return switch (style) {
+            case "Minimalist" -> new MinimalistCalendar();
+            case "TornPage" -> new TornPageCalendar();
+            case "Circular" -> new CircularCalendar();
+            case "PostIt" -> new PostItCalendar();
+            case "Glass" -> new GlassCalendar();
+            default -> new TodayCalendarPanel();
+        };
     }
 
     private static void installPopupScrollbar(JComboBox<?> comboBox) {
@@ -295,6 +373,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             store.setPoemFontSize(fontSize);
         }
         if (lineSpacing != null) store.setEditorLineSpacing(lineSpacing);
+
+        // Clock and Calendar styles
+        if (selectedClockStyle != null) store.setClockStyle(selectedClockStyle);
+        if (selectedCalendarStyle != null) store.setCalendarStyle(selectedCalendarStyle);
     }
 
     private void openBackgroundOptions() {
@@ -343,6 +425,131 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             g.fillRoundRect(0, 0, s-2, s-2, 6, 6);
             g.dispose();
             return new ImageIcon(img);
+        }
+    }
+
+    private class StyleCycler extends JPanel {
+        private final String[] styles;
+        private final boolean isClock;
+        private int currentIndex;
+        private JPanel previewContainer;
+        private JLabel nameLabel;
+        private java.util.function.Consumer<String> onChange;
+
+        StyleCycler(String[] styles, String initialStyle, boolean isClock) {
+            this.styles = styles;
+            this.isClock = isClock;
+            this.currentIndex = findIndex(initialStyle);
+            setOpaque(false);
+            setLayout(new BorderLayout(8, 0));
+            buildUI();
+        }
+
+        private int findIndex(String style) {
+            for (int i = 0; i < styles.length; i++) {
+                if (styles[i].equals(style)) return i;
+            }
+            return 0;
+        }
+
+        void setOnChange(java.util.function.Consumer<String> callback) {
+            this.onChange = callback;
+        }
+
+        private void buildUI() {
+            // Left arrow
+            JButton prevBtn = createArrowButton("◀");
+            prevBtn.addActionListener(e -> cycle(-1));
+            add(prevBtn, BorderLayout.WEST);
+
+            // Center: preview + name
+            JPanel center = new JPanel();
+            center.setOpaque(false);
+            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+
+            previewContainer = new JPanel(new BorderLayout());
+            previewContainer.setOpaque(false);
+            previewContainer.setPreferredSize(isClock ? new Dimension(160, 160) : new Dimension(140, 160));
+            previewContainer.setAlignmentX(Component.CENTER_ALIGNMENT);
+            center.add(previewContainer);
+
+            nameLabel = new JLabel();
+            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 13f));
+            nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            nameLabel.setHorizontalAlignment(JLabel.CENTER);
+            center.add(javax.swing.Box.createRigidArea(new Dimension(0, 6)));
+            center.add(nameLabel);
+
+            // Index indicator
+            JLabel indexLabel = new JLabel() {
+                @Override
+                public String getText() {
+                    return (currentIndex + 1) + " / " + styles.length;
+                }
+            };
+            indexLabel.setFont(indexLabel.getFont().deriveFont(Font.PLAIN, 11f));
+            indexLabel.setForeground(new Color(120, 120, 120));
+            indexLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            indexLabel.setHorizontalAlignment(JLabel.CENTER);
+            center.add(indexLabel);
+
+            add(center, BorderLayout.CENTER);
+
+            // Right arrow
+            JButton nextBtn = createArrowButton("▶");
+            nextBtn.addActionListener(e -> cycle(1));
+            add(nextBtn, BorderLayout.EAST);
+
+            updatePreview();
+        }
+
+        private JButton createArrowButton(String text) {
+            JButton btn = new JButton(text) {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    if (getModel().isPressed()) {
+                        g2.setColor(new Color(0, 0, 0, 25));
+                    } else if (getModel().isRollover()) {
+                        g2.setColor(new Color(0, 0, 0, 15));
+                    } else {
+                        g2.setColor(new Color(0, 0, 0, 5));
+                    }
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            btn.setFont(btn.getFont().deriveFont(Font.BOLD, 16f));
+            btn.setForeground(new Color(80, 80, 80));
+            btn.setOpaque(false);
+            btn.setContentAreaFilled(false);
+            btn.setBorderPainted(false);
+            btn.setFocusPainted(false);
+            btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            btn.setPreferredSize(new Dimension(36, 36));
+            return btn;
+        }
+
+        private void cycle(int delta) {
+            currentIndex = (currentIndex + delta + styles.length) % styles.length;
+            updatePreview();
+            if (onChange != null) {
+                onChange.accept(styles[currentIndex]);
+            }
+        }
+
+        private void updatePreview() {
+            previewContainer.removeAll();
+            String style = styles[currentIndex];
+            JPanel preview = isClock ? createClockPreview(style) : createCalendarPreview(style);
+            preview.setPreferredSize(isClock ? new Dimension(150, 150) : new Dimension(130, 150));
+            previewContainer.add(preview, BorderLayout.CENTER);
+            nameLabel.setText(style);
+            previewContainer.revalidate();
+            previewContainer.repaint();
+            repaint();
         }
     }
 }

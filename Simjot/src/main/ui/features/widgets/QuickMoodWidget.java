@@ -75,7 +75,7 @@ public class QuickMoodWidget implements Widget {
         header.setOpaque(false);
         JLabel title = new JLabel("Quick Mood", SwingConstants.CENTER);
         title.setFont(new Font("SansSerif", Font.BOLD, 14));
-        JButton close = new JButton(new ImageIcon(ImageIconRenderer.get(ImageIconRenderer.mapIdToResource("close"), 16, true)));
+        JButton close = new JButton(ImageIconRenderer.icon(ImageIconRenderer.mapIdToResource("close"), 16, true));
         close.setOpaque(false);
         close.setContentAreaFilled(false);
         close.setBorderPainted(false);

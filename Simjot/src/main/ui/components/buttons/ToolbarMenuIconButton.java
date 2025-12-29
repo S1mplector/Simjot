@@ -68,8 +68,7 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         boolean drawn = false;
         String res = ImageIconRenderer.mapIdToResource(iconId);
         if (res != null) {
-            ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
-            drawn = true;
+            drawn = ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
         }
         if (!drawn) {
             g2.setColor(AeroTheme.TEXT_PRIMARY);

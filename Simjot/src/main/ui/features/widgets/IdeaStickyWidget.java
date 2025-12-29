@@ -273,8 +273,8 @@ public class IdeaStickyWidget implements Widget {
         if (id != null) {
             String res = ImageIconRenderer.mapIdToResource(id);
             if (res != null) {
-                java.awt.image.BufferedImage img = ImageIconRenderer.get(res, size, false);
-                if (img != null) return new ImageIcon(img);
+                Icon icon = ImageIconRenderer.icon(res, size, false);
+                if (icon != null) return icon;
             }
         }
         // fallback to simple drawn shapes
@@ -338,8 +338,7 @@ public class IdeaStickyWidget implements Widget {
                 lbl.setText(n.toString());
                 if (pinned) {
                     String res = ImageIconRenderer.mapIdToResource("sticky_widget");
-                    java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, 14, false) : null;
-                    lbl.setIcon(img != null ? new ImageIcon(img) : null);
+                    lbl.setIcon(res != null ? ImageIconRenderer.icon(res, 14, false) : null);
                 } else {
                     lbl.setIcon(null);
                 }

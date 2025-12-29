@@ -9,7 +9,6 @@ import java.awt.GridBagLayout;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
@@ -52,9 +51,8 @@ public class AeroSplashScreen extends JWindow {
         icon.setAlignmentY(Component.CENTER_ALIGNMENT);
         int size = 48;
         String res = ImageIconRenderer.mapIdToResource("sticky_widget");
-        java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, size, false) : null;
-        if (img != null) {
-            icon.setIcon(new ImageIcon(img));
+        if (res != null) {
+            icon.setIcon(ImageIconRenderer.icon(res, size, false));
         }
 
         title.setForeground(AeroTheme.TEXT_PRIMARY);

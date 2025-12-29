@@ -87,6 +87,9 @@ public final class SettingsStore {
     // Visual accents
     private static final String KEY_MAINMENU_ACCENT_RGB = "mainMenuAccentRGB";
     private static final String KEY_WIDGET_ACCENT_RGB = "widgetAccentRGB";
+    // Clock and Calendar styles
+    private static final String KEY_CLOCK_STYLE = "clockStyle";
+    private static final String KEY_CALENDAR_STYLE = "calendarStyle";
     // Widgets
     private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
     private static final String KEY_WIDGET_ENABLED_PREFIX = "widget.enabled.";
@@ -475,6 +478,13 @@ public final class SettingsStore {
         return Boolean.parseBoolean(props.getProperty(KEY_LOW_POWER_MODE, String.valueOf(DEF_LOW_POWER_MODE)));
     }
     public void setLowPowerMode(boolean b){ props.setProperty(KEY_LOW_POWER_MODE, String.valueOf(b)); }
+
+    // Clock and Calendar styles
+    public String getClockStyle(){ return props.getProperty(KEY_CLOCK_STYLE, "Classic"); }
+    public void setClockStyle(String style){ if(style!=null && !style.isBlank()) props.setProperty(KEY_CLOCK_STYLE, style); }
+
+    public String getCalendarStyle(){ return props.getProperty(KEY_CALENDAR_STYLE, "Classic"); }
+    public void setCalendarStyle(String style){ if(style!=null && !style.isBlank()) props.setProperty(KEY_CALENDAR_STYLE, style); }
 
     public float getUIScale() {
         try {

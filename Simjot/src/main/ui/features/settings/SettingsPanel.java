@@ -16,7 +16,6 @@ import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -218,8 +217,7 @@ public class SettingsPanel extends JPanel {
 
         private static Icon loadSectionIcon(String id) {
             String res = ImageIconRenderer.mapIdToResource(id);
-            java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, 18, false) : null;
-            return img != null ? new ImageIcon(img) : null;
+            return res != null ? ImageIconRenderer.icon(res, 18, false) : null;
         }
         
         SidebarCellRenderer(){

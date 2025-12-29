@@ -45,6 +45,17 @@ import main.ui.app.JournalApp;
 import main.ui.components.DragController;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.MainMenuButton;
+import main.ui.components.calendars.CircularCalendar;
+import main.ui.components.calendars.GlassCalendar;
+import main.ui.components.calendars.MinimalistCalendar;
+import main.ui.components.calendars.PostItCalendar;
+import main.ui.components.calendars.TornPageCalendar;
+import main.ui.components.clocks.MinimalistClock;
+import main.ui.components.clocks.NeonClock;
+import main.ui.components.clocks.PolarClock;
+import main.ui.components.clocks.SegmentClock;
+import main.ui.components.clocks.SunburstClock;
+import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
@@ -85,8 +96,7 @@ public class MainMenuPanel extends JPanel {
             String label = readStickyTitle(id);
             if (label == null) continue;
             String res = ImageIconRenderer.mapIdToResource("sticky_widget");
-            java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, 16, false) : null;
-            JButton b = new JButton(label, img != null ? new ImageIcon(img) : null);
+            JButton b = new JButton(label, res != null ? ImageIconRenderer.icon(res, 16, false) : null);
             b.setFocusPainted(false);
             b.setOpaque(false);
             b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -155,11 +165,8 @@ public class MainMenuPanel extends JPanel {
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
                     String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
-                    java.awt.image.BufferedImage img = res != null
-                            ? main.ui.components.icons.ImageIconRenderer.get(res, 18, false)
-                            : null;
-                    if (img != null) {
-                        g2.drawImage(img, 0, 0, null);
+                    if (res != null) {
+                        main.ui.components.icons.ImageIconRenderer.draw(g2, res, 0, 0, 18, this, false);
                     }
                     g2.dispose();
                 }
@@ -347,11 +354,11 @@ public class MainMenuPanel extends JPanel {
         content.add(timePanelTop);
 
         // ---- Clock and Today Calendar side-by-side ----
-        AnalogClockPanel clockPanel = new AnalogClockPanel();
+        JPanel clockPanel = createClockForStyle(SettingsStore.get().getClockStyle(), accent);
         clockPanel.setPreferredSize(new Dimension(200, 200));
         clockPanel.setMaximumSize(new Dimension(220, 220));
 
-        TodayCalendarPanel calendarPanel = new TodayCalendarPanel(accent);
+        JPanel calendarPanel = createCalendarForStyle(SettingsStore.get().getCalendarStyle(), accent);
         calendarPanel.setPreferredSize(new Dimension(150, 150));
         calendarPanel.setMaximumSize(new Dimension(170, 170));
 
@@ -520,11 +527,8 @@ public class MainMenuPanel extends JPanel {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
                 String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("about_settings");
-                java.awt.image.BufferedImage img = res != null
-                        ? main.ui.components.icons.ImageIconRenderer.get(res, 18, false)
-                        : null;
-                if (img != null) {
-                    g2.drawImage(img, 0, 0, null);
+                if (res != null) {
+                    main.ui.components.icons.ImageIconRenderer.draw(g2, res, 0, 0, 18, this, false);
                 }
                 g2.dispose();
             }
@@ -649,6 +653,29 @@ public class MainMenuPanel extends JPanel {
         if (newX != location.x || newY != location.y) {
             widgetPanel.setBounds(newX, newY, widgetSize.width, widgetSize.height);
         }
+    }
+
+    private static JPanel createClockForStyle(String style, Color accent) {
+        return switch (style) {
+            case "Minimalist" -> new MinimalistClock();
+            case "Neon" -> new NeonClock(accent);
+            case "Swiss" -> new SwissRailwayClock();
+            case "Sunburst" -> new SunburstClock(accent);
+            case "Segment" -> new SegmentClock(accent);
+            case "Polar" -> new PolarClock(accent);
+            default -> new AnalogClockPanel();
+        };
+    }
+
+    private static JPanel createCalendarForStyle(String style, Color accent) {
+        return switch (style) {
+            case "Minimalist" -> new MinimalistCalendar(accent);
+            case "TornPage" -> new TornPageCalendar(accent);
+            case "Circular" -> new CircularCalendar(accent);
+            case "PostIt" -> new PostItCalendar(accent);
+            case "Glass" -> new GlassCalendar(accent);
+            default -> new TodayCalendarPanel(accent);
+        };
     }
 
     /**

@@ -324,7 +324,7 @@ public class NotebookEntriesPanel extends JPanel {
         ToolbarMenuIconButton deleteBtn = new ToolbarMenuIconButton("Entry", "delete");
         deleteBtn.addActionListener(e->deleteSelected());
 
-        ToolbarMenuIconButton delNbBtn = new ToolbarMenuIconButton("Notebook", "trash");
+        ToolbarMenuIconButton delNbBtn = new ToolbarMenuIconButton("Notebook", "delete_notebook");
         delNbBtn.addActionListener(e->deleteNotebook());
 
         top.add(backBtn);

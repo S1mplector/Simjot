@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -140,11 +141,9 @@ public class WallpaperGalleryPanel extends JDialog {
         }
     }
 
-    private static ImageIcon iconById(String id) {
+    private static Icon iconById(String id) {
         String path = ImageIconRenderer.mapIdToResource(id);
-        if (path == null) return null;
-        java.awt.image.BufferedImage img = ImageIconRenderer.get(path, 18, false);
-        return img != null ? new ImageIcon(img) : null;
+        return path != null ? ImageIconRenderer.icon(path, 18, false) : null;
     }
     
     private void setupImageGrid() {

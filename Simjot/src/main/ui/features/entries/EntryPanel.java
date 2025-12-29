@@ -535,7 +535,7 @@ public class EntryPanel extends AbstractEditorPanel {
         dfBtn.addActionListener(e -> toggleDistractionFree());
         rightToolbar.add(dfBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
-        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "options");
+        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "backgroundoptions");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
             EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));

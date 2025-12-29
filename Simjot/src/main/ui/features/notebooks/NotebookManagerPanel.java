@@ -148,8 +148,8 @@ public class NotebookManagerPanel extends JPanel {
         clusterLabel.setForeground(new Color(80, 80, 80));
         header.add(clusterLabel, BorderLayout.WEST);
         
-        // Cluster actions - trash icon button
-        ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("Disband", "trash");
+        // Cluster actions - notebook delete icon button
+        ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("Disband", "delete_notebook");
         disbandBtn.setToolTipText("Disband cluster");
         disbandBtn.addActionListener(e -> {
             boolean confirm = CustomConfirmDialog.confirm(this, 
@@ -655,9 +655,7 @@ public class NotebookManagerPanel extends JPanel {
                     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
                     // Draw the actual notebook icon (custom or default)
                     String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
-                    java.awt.image.BufferedImage img = (res != null) 
-                            ? main.ui.components.icons.ImageIconRenderer.get(res, 48, true) 
-                            : null;
+                    java.awt.image.BufferedImage img = null;
                     if (customIconPath != null && !customIconPath.isEmpty()) {
                         try {
                             img = javax.imageio.ImageIO.read(new java.io.File(customIconPath));
@@ -671,6 +669,8 @@ public class NotebookManagerPanel extends JPanel {
                     }
                     if (img != null) {
                         g2.drawImage(img, 0, 0, null);
+                    } else if (res != null) {
+                        main.ui.components.icons.ImageIconRenderer.draw(g2, res, 0, 0, 48, this, true);
                     }
                     g2.dispose();
                 }
@@ -720,7 +720,7 @@ public class NotebookManagerPanel extends JPanel {
                 setVisible(false); 
                 dispose(); 
             });
-            IconMenuButton deleteBtn = new IconMenuButton("Delete", "trash");
+            IconMenuButton deleteBtn = new IconMenuButton("Delete", "delete_notebook");
             deleteBtn.setToolTipText("Delete this notebook");
             deleteBtn.addActionListener(e->{ 
                 boolean confirm = CustomConfirmDialog.confirm(this, 
@@ -783,13 +783,10 @@ public class NotebookManagerPanel extends JPanel {
                 // Center icon for creating a new notebook
                 int iconSize = 42;
                 String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("new");
-                java.awt.image.BufferedImage img = res != null
-                        ? main.ui.components.icons.ImageIconRenderer.get(res, iconSize, true)
-                        : null;
-                if (img != null) {
+                if (res != null) {
                     int x = (getWidth() - iconSize) / 2;
                     int y = (getHeight() - iconSize) / 2;
-                    g2.drawImage(img, x, y, null);
+                    main.ui.components.icons.ImageIconRenderer.draw(g2, res, x, y, iconSize, this, true);
                 }
 
                 g2.dispose();

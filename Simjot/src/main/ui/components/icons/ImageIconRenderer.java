@@ -4,6 +4,7 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -15,8 +16,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.awt.geom.AffineTransform;
 
 import javax.swing.ImageIcon;
+import javax.swing.Icon;
 
 import main.infrastructure.io.ResourceLoader;
 
@@ -78,11 +81,72 @@ public final class ImageIconRenderer {
         return buildWithAccent(resourcePath, size, shadow, customAccent);
     }
 
-    public static void draw(Graphics2D g, String resourcePath, int x, int y, int size, Component obs, boolean shadow){
-        BufferedImage img = get(resourcePath, size, shadow);
-        if (img != null) {
+    public static boolean draw(Graphics2D g, String resourcePath, int x, int y, int size, Component obs, boolean shadow){
+        if (g == null || resourcePath == null || size <= 0) return false;
+        double scale = resolveScale(g, obs);
+        int scaledSize = Math.max(1, (int)Math.ceil(size * scale));
+        BufferedImage img = get(resourcePath, scaledSize, shadow);
+        if (img == null) return false;
+        if (Math.abs(scale - 1.0) < 0.01) {
             g.drawImage(img, x, y, obs);
+        } else {
+            g.drawImage(img, x, y, size, size, obs);
         }
+        return true;
+    }
+    
+    public static Icon icon(String resourcePath, int size, boolean shadow) {
+        if (resourcePath == null || size <= 0) return null;
+        int target = Math.max(1, size);
+        return new HiDpiIcon(resourcePath, target, shadow);
+    }
+
+    private static final class HiDpiIcon implements Icon {
+        private final String path;
+        private final int size;
+        private final boolean shadow;
+
+        private HiDpiIcon(String path, int size, boolean shadow) {
+            this.path = path;
+            this.size = size;
+            this.shadow = shadow;
+        }
+
+        @Override public int getIconWidth() { return size; }
+        @Override public int getIconHeight() { return size; }
+        @Override public void paintIcon(Component c, java.awt.Graphics g, int x, int y) {
+            if (g instanceof Graphics2D g2) {
+                ImageIconRenderer.draw(g2, path, x, y, size, c, shadow);
+            }
+        }
+    }
+
+    private static double resolveScale(Graphics2D g, Component obs) {
+        double scale = 1.0;
+        try {
+            GraphicsConfiguration gc = (obs != null) ? obs.getGraphicsConfiguration() : g.getDeviceConfiguration();
+            if (gc != null) {
+                AffineTransform tx = gc.getDefaultTransform();
+                scale = Math.max(tx.getScaleX(), tx.getScaleY());
+            }
+        } catch (Throwable ignored) {
+        }
+        if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) {
+            scale = 1.0;
+        }
+        if (Math.abs(scale - 1.0) < 0.01) {
+            try {
+                AffineTransform tx = g.getTransform();
+                double sx = Math.abs(tx.getScaleX());
+                double sy = Math.abs(tx.getScaleY());
+                scale = Math.max(sx, sy);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) {
+            scale = 1.0;
+        }
+        return scale;
     }
 
     private static BufferedImage build(String path, int size, boolean withShadow){
@@ -332,11 +396,23 @@ public final class ImageIconRenderer {
         String alias = switch (id) {
             case "smile", "mood", "moodchart" -> "moodchart";
             case "saveandexit", "save_and_exit" -> "saveandexit";
-            case "wrench", "settings", "options" -> "settings";
+            case "wrench", "settings", "options", "general_settings", "settings_general" -> "settings";
+            case "appearance_settings", "settings_appearance" -> "settings_appearance";
+            case "storage_settings", "settings_storage" -> "settings_storage";
+            case "backgroundoptions" -> "set_background";
             case "notebook_nopen" -> "notebook_nopen";
             case "notebook" -> "notebook";
             case "back" -> "back";
             case "search" -> "search";
+            case "clock" -> "clock";
+            case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "fullscreen";
+            case "save" -> "save";
+            case "load", "restore" -> "restore";
+            case "new", "plus", "new_entry" -> "new_entry";
+            case "stats", "analysis", "chart" -> "poetry_metering";
+            case "delete_entry", "delete" -> "delete_entry";
+            case "delete_notebook" -> "delete_notebook";
+            case "trash" -> "delete_default";
             default -> null;
         };
         if (alias == null) return null;

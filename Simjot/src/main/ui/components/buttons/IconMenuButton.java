@@ -68,8 +68,7 @@ public class IconMenuButton extends JButton {
         boolean drawn = false;
         String resPath = ImageIconRenderer.mapIdToResource(iconId);
         if (resPath != null) {
-            ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
-            drawn = true;
+            drawn = ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
         }
         if (!drawn) {
             g2.setColor(AeroTheme.TEXT_PRIMARY);

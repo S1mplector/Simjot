@@ -58,10 +58,11 @@ public class PomodoroWidget implements Widget {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 String res = ImageIconRenderer.mapIdToResource(id);
-                java.awt.image.BufferedImage img = ImageIconRenderer.get(res, s, true);
-                if (img != null) {
-                    g2.drawImage(img, x, y, null);
-                } else {
+                boolean drawn = false;
+                if (res != null) {
+                    drawn = ImageIconRenderer.draw(g2, res, x, y, s, c, true);
+                }
+                if (!drawn) {
                     // Fallback to vector draw if image not found
                     VectorIconPainter.paint(g2, id, x, y, s);
                 }
