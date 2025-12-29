@@ -1,7 +1,11 @@
 package main.core.service;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Properties;
+
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
 
@@ -56,6 +60,8 @@ public final class SettingsStore {
     private static final String KEY_OPEN_LAST = "openLastOnStartup";
     private static final String KEY_LAST_OPENED_FILE = "lastOpenedFile";
     private static final String KEY_SPELLCHECK = "spellCheckEnabled";
+    private static final String KEY_AUTOCORRECT_JOURNAL = "autocorrect.journal";
+    private static final String KEY_AUTOCORRECT_POETRY = "autocorrect.poetry";
     private static final String KEY_AUTOSAVE_ON_BLUR = "autosaveOnFocusLoss";
     public static final String KEY_BACKUP_FREQ = "backup.frequency";
     public static final String KEY_BACKUP_KEEP = "backup.keep";
@@ -105,6 +111,8 @@ public final class SettingsStore {
     private static final String  DEF_DATE_FORMAT = "yyyy-MM-dd";
     private static final boolean DEF_OPEN_LAST = false;
     private static final boolean DEF_SPELLCHECK = false;
+    private static final boolean DEF_AUTOCORRECT_JOURNAL = true;
+    private static final boolean DEF_AUTOCORRECT_POETRY = false;
     private static final boolean DEF_AUTOSAVE_ON_BLUR = false;
     public static final String DEF_BACKUP_FREQ = "Off";
     public static final int DEF_BACKUP_KEEP = 7;
@@ -389,6 +397,12 @@ public final class SettingsStore {
 
     public boolean isSpellCheckEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_SPELLCHECK, String.valueOf(DEF_SPELLCHECK))); }
     public void setSpellCheckEnabled(boolean b){ props.setProperty(KEY_SPELLCHECK, String.valueOf(b)); }
+
+    public boolean isJournalAutocorrectEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_AUTOCORRECT_JOURNAL, String.valueOf(DEF_AUTOCORRECT_JOURNAL))); }
+    public void setJournalAutocorrectEnabled(boolean b){ props.setProperty(KEY_AUTOCORRECT_JOURNAL, String.valueOf(b)); }
+
+    public boolean isPoetryAutocorrectEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_AUTOCORRECT_POETRY, String.valueOf(DEF_AUTOCORRECT_POETRY))); }
+    public void setPoetryAutocorrectEnabled(boolean b){ props.setProperty(KEY_AUTOCORRECT_POETRY, String.valueOf(b)); }
 
     public boolean isAutosaveOnFocusLoss(){ return Boolean.parseBoolean(props.getProperty(KEY_AUTOSAVE_ON_BLUR, String.valueOf(DEF_AUTOSAVE_ON_BLUR))); }
     public void setAutosaveOnFocusLoss(boolean b){ props.setProperty(KEY_AUTOSAVE_ON_BLUR, String.valueOf(b)); }

@@ -54,6 +54,7 @@ import main.core.poetry.ThematicAnalyzer;
 import main.core.poetry.VocabularyAnalyzer;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
+import main.core.spelling.AutocorrectDocumentFilter;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.FileIO;
@@ -343,6 +344,12 @@ public class PoemPanel extends AbstractEditorPanel {
         // Add undo/redo support (after components are created)
         this.poemContentUndoManager = new UndoRedoManager(poemEditor);
         this.poemTitleUndoManager = new UndoRedoManager(poemTitleField);
+
+        try {
+            if (SettingsStore.get().isPoetryAutocorrectEnabled()) {
+                AutocorrectDocumentFilter.install(poemEditor);
+            }
+        } catch (Throwable ignored) {}
 
         textWrapper.add(scrollPane, BorderLayout.CENTER);
 

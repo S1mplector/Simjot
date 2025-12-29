@@ -4,13 +4,14 @@ import java.awt.Color;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
 import main.ui.components.combobox.ModernComboBoxUI;
@@ -23,6 +24,8 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<String> dateFormatBox;
     private final JCheckBox openLastChk;
     private final JCheckBox spellChk;
+    private final JCheckBox journalAutocorrectChk;
+    private final JCheckBox poetryAutocorrectChk;
     private final JCheckBox autosaveOnBlurChk;
     
 
@@ -81,10 +84,20 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         spellChk.setBackground(new Color(0, 0, 0, 0));
         gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(spellChk, gc);
 
+        journalAutocorrectChk = new JCheckBox("Enable autocorrect in journal editor", store.isJournalAutocorrectEnabled());
+        journalAutocorrectChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        journalAutocorrectChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(journalAutocorrectChk, gc);
+
+        poetryAutocorrectChk = new JCheckBox("Enable autocorrect in poetry editor", store.isPoetryAutocorrectEnabled());
+        poetryAutocorrectChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        poetryAutocorrectChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(poetryAutocorrectChk, gc);
+
         autosaveOnBlurChk = new JCheckBox("Autosave on focus loss", store.isAutosaveOnFocusLoss());
         autosaveOnBlurChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
         autosaveOnBlurChk.setBackground(new Color(0, 0, 0, 0));
-        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(autosaveOnBlurChk, gc);
+        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2; add(autosaveOnBlurChk, gc);
 
         // Backup settings moved to Storage section
     }
@@ -106,6 +119,8 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setDateFormat((String) dateFormatBox.getSelectedItem());
         store.setOpenLastOnStartup(openLastChk.isSelected());
         store.setSpellCheckEnabled(spellChk.isSelected());
+        store.setJournalAutocorrectEnabled(journalAutocorrectChk.isSelected());
+        store.setPoetryAutocorrectEnabled(poetryAutocorrectChk.isSelected());
         store.setAutosaveOnFocusLoss(autosaveOnBlurChk.isSelected());
     }
 }

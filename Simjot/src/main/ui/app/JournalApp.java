@@ -1,4 +1,6 @@
 package main.ui.app;
+
+// AWT imports
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -8,12 +10,12 @@ import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.RenderingHints;
-import java.awt.KeyboardFocusManager;
 import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
+import java.awt.RenderingHints;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -47,6 +49,8 @@ import main.infrastructure.backup.BackupService;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.hotkeys.GlobalHotkeyManager;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.CrashReporter;
+import main.infrastructure.io.FileIO;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
 import main.ui.animations.transitions.FadeTransitionPanel;
@@ -58,11 +62,11 @@ import main.ui.dialog.security.LockScreenDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.dialog.setup.TutorialDialog;
 import main.ui.features.drawing.DrawingPanel;
+import main.ui.features.entries.GlobalSearchDialog;
 import main.ui.features.entries.NotebookEditor;
 import main.ui.features.entries.NotebookEditorFactory;
 import main.ui.features.entries.NotebookEditorType;
 import main.ui.features.entries.NotebookEntriesPanel;
-import main.ui.features.entries.GlobalSearchDialog;
 import main.ui.features.entries.QuickCaptureDialog;
 import main.ui.features.gallery.GalleryPanel;
 import main.ui.features.gallery.GeneratedWallpapers;
@@ -70,7 +74,6 @@ import main.ui.features.home.MainMenuPanel;
 import main.ui.features.home.MoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
 import main.ui.features.settings.SettingsPanel;
-import main.infrastructure.io.FileIO;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
@@ -943,6 +946,7 @@ public class JournalApp extends JFrame {
 
     public static void main(String[] args) {
         launchArgs = (args == null) ? new String[0] : args.clone();
+        try { CrashReporter.install(); } catch (Throwable ignored) {}
         SwingUtilities.invokeLater(() -> {
             // Apply LAF before creating the splash to prevent flicker
             try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}

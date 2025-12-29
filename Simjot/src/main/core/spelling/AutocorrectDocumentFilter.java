@@ -71,25 +71,43 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     }
     
     private void setupUndoShortcut() {
-        // Ctrl+Z to undo last autocorrect
+        try {
+            Object installed = textComponent.getClientProperty("autocorrect.undo.installed");
+            if (Boolean.TRUE.equals(installed)) return;
+        } catch (Throwable ignored) {}
+
         InputMap im = textComponent.getInputMap(JComponent.WHEN_FOCUSED);
         ActionMap am = textComponent.getActionMap();
-        
-        // Don't override existing undo - just add our own that runs first
+
         KeyStroke ctrlZ = KeyStroke.getKeyStroke("control Z");
-        Action existingUndo = am.get(im.get(ctrlZ));
-        
-        am.put("autocorrect-undo", new AbstractAction() {
+        KeyStroke metaZ = KeyStroke.getKeyStroke("meta Z");
+
+        Action delegate = am.get("undo");
+        if (delegate == null) {
+            Object k1 = im.get(ctrlZ);
+            if (k1 != null) delegate = am.get(k1);
+        }
+        if (delegate == null) {
+            Object k2 = im.get(metaZ);
+            if (k2 != null) delegate = am.get(k2);
+        }
+        final Action existingUndo = delegate;
+
+        am.put("undo", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (undoLastCorrection()) {
-                    // We handled it
-                } else if (existingUndo != null) {
+                    return;
+                }
+                if (existingUndo != null) {
                     existingUndo.actionPerformed(e);
                 }
             }
         });
-        im.put(ctrlZ, "autocorrect-undo");
+
+        im.put(ctrlZ, "undo");
+        im.put(metaZ, "undo");
+        try { textComponent.putClientProperty("autocorrect.undo.installed", Boolean.TRUE); } catch (Throwable ignored) {}
     }
     
     @Override
@@ -187,6 +205,13 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         undoInProgress = true;
         try {
             Document doc = textComponent.getDocument();
+
+            AttributeSet attrs = null;
+            if (doc instanceof javax.swing.text.StyledDocument sd) {
+                try {
+                    attrs = sd.getCharacterElement(Math.max(0, start)).getAttributes();
+                } catch (Throwable ignored) {}
+            }
             
             // Store for undo
             lastOriginal = original;
@@ -195,7 +220,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
             
             // Apply the correction
             doc.remove(start, end - start);
-            doc.insertString(start, correction, null);
+            doc.insertString(start, correction, attrs);
             
             // Move caret to end of corrected word + 1 (after trigger char)
             textComponent.setCaretPosition(Math.min(start + correction.length() + 1, doc.getLength()));

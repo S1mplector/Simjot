@@ -12,13 +12,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 
 /**
  * Provides Sim read-only access to notebooks, entries and mood data.
- * Phase 2 will flesh this out.
  */
 public final class SimDataGateway {
     private static SimDataGateway INSTANCE;

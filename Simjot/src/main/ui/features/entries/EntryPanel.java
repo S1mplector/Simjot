@@ -79,6 +79,7 @@ import javax.swing.text.rtf.RTFEditorKit;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
+import main.core.spelling.AutocorrectDocumentFilter;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
@@ -696,6 +697,12 @@ public class EntryPanel extends AbstractEditorPanel {
         this.contentUndoManager = new UndoRedoManager(contentArea);
         this.titleUndoManager = new UndoRedoManager(titleField);
 
+        try {
+            if (SettingsStore.get().isJournalAutocorrectEnabled()) {
+                AutocorrectDocumentFilter.install(contentArea);
+            }
+        } catch (Throwable ignored) {}
+
         // Add document listener for word count and typing snapshot; keep a reference
         editorDocListener = new javax.swing.event.DocumentListener() {
             @Override
@@ -734,6 +741,12 @@ public class EntryPanel extends AbstractEditorPanel {
             } catch (Throwable ignored) {}
             // Ensure label reflects loaded content immediately
             try { updateWordCount(); } catch (Throwable ignored) {}
+
+            try {
+                if (SettingsStore.get().isJournalAutocorrectEnabled()) {
+                    AutocorrectDocumentFilter.install(contentArea);
+                }
+            } catch (Throwable ignored) {}
         });
         // Autosave on title change too
         titleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
