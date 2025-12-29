@@ -16,6 +16,7 @@ import javax.swing.JPanel;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.HandStyleToggleButton;
+import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.util.EditorUIUtils;

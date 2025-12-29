@@ -32,7 +32,7 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         setBorderPainted(false);
         setFocusPainted(false);
         setForeground(AeroTheme.TEXT_PRIMARY);
-        setFont(new Font("SansSerif", Font.BOLD, 13f));
+        setFont(new Font("SansSerif", Font.BOLD, 13));
         Dimension d = new Dimension(42, 42);
         setPreferredSize(d);
         setMinimumSize(d);
@@ -68,7 +68,8 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         boolean drawn = false;
         String res = ImageIconRenderer.mapIdToResource(iconId);
         if (res != null) {
-            drawn = ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
+            ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
+            drawn = true;
         }
         if (!drawn) {
             g2.setColor(AeroTheme.TEXT_PRIMARY);
