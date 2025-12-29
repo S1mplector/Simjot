@@ -93,7 +93,7 @@ public class MainMenuButton extends JButton {
         g2.dispose();
     }
 
-    // PNG path resolution is centralized in ImageIconRenderer.mapIdToResource
+    // Icon path resolution is centralized in ImageIconRenderer.mapIdToResource
 
     private void drawVector(Graphics2D g2, String id, int x, int y, int s){
         g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));

@@ -11,7 +11,7 @@ import main.ui.theme.aero.AeroTheme;
 
 /**
  * Minimal icon-first menu button.
- * Draws a centered PNG/vector icon; on hover/press shows a soft overlay and reveals the caption under the icon.
+ * Draws a centered SVG/PNG/vector icon; on hover/press shows a soft overlay and reveals the caption under the icon.
  */
 public class IconMenuButton extends JButton {
     private final String iconId;

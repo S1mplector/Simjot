@@ -780,7 +780,7 @@ public class NotebookManagerPanel extends JPanel {
                 g2.setColor(new Color(200,200,200));
                 g2.drawRoundRect(0,0,w-1,h-1,12,12);
 
-                // Center PNG icon for creating a new notebook
+                // Center icon for creating a new notebook
                 int iconSize = 42;
                 String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("new");
                 java.awt.image.BufferedImage img = res != null

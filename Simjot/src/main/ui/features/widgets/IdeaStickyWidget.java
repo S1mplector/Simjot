@@ -258,7 +258,7 @@ public class IdeaStickyWidget implements Widget {
         return b;
     }
 
-    // Icon factory for mini buttons: prefer PNGs, fallback to vector/primitive
+    // Icon factory for mini buttons: prefer themed icon assets, fallback to vector/primitive
     private Icon iconFor(String name, int size) {
         String id = switch (name) {
             case "close" -> "close";
