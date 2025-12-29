@@ -7,15 +7,16 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.swing.ImageIcon;
-
-import org.apache.batik.transcoder.TranscoderInput;
-import org.apache.batik.transcoder.TranscoderOutput;
-import org.apache.batik.transcoder.image.ImageTranscoder;
 
 import main.infrastructure.io.ResourceLoader;
 
@@ -163,13 +164,20 @@ public final class ImageIconRenderer {
     private static BufferedImage renderSvg(String path, int target){
         try (InputStream in = ResourceLoader.getResourceAsStream("Simjot/" + path)) {
             if (in == null) return null;
-            TranscoderInput input = new TranscoderInput(in);
-            BufferedImageTranscoder t = new BufferedImageTranscoder();
-            t.addTranscodingHint(ImageTranscoder.KEY_WIDTH, (float) target);
-            t.addTranscodingHint(ImageTranscoder.KEY_HEIGHT, (float) target);
-            t.transcode(input, null);
-            return t.getImage();
-        } catch (Exception ignored) {
+            Object transcoder = newPngTranscoder();
+            if (transcoder == null) return null;
+            Class<?> inputClass = Class.forName("org.apache.batik.transcoder.TranscoderInput");
+            Class<?> outputClass = Class.forName("org.apache.batik.transcoder.TranscoderOutput");
+            Object input = inputClass.getConstructor(InputStream.class).newInstance(in);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Object output = outputClass.getConstructor(OutputStream.class).newInstance(out);
+            applySvgSizeHints(transcoder, target);
+            Method transcode = transcoder.getClass().getMethod("transcode", inputClass, outputClass);
+            transcode.invoke(transcoder, input, output);
+            byte[] bytes = out.toByteArray();
+            if (bytes.length == 0) return null;
+            return javax.imageio.ImageIO.read(new ByteArrayInputStream(bytes));
+        } catch (Throwable ignored) {
             return null;
         }
     }
@@ -203,21 +211,27 @@ public final class ImageIconRenderer {
         return STREAMLINE_PNG_DIR + stem + ".png";
     }
 
-    private static final class BufferedImageTranscoder extends ImageTranscoder {
-        private BufferedImage image;
-
-        @Override
-        public BufferedImage createImage(int w, int h) {
-            return new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+    private static Object newPngTranscoder() {
+        try {
+            Class<?> transcoderClass = Class.forName("org.apache.batik.transcoder.image.PNGTranscoder");
+            return transcoderClass.getConstructor().newInstance();
+        } catch (Throwable ignored) {
+            return null;
         }
+    }
 
-        @Override
-        public void writeImage(BufferedImage img, TranscoderOutput out) {
-            this.image = img;
-        }
-
-        BufferedImage getImage() {
-            return image;
+    private static void applySvgSizeHints(Object transcoder, int target) {
+        try {
+            Class<?> svgAbstract = Class.forName("org.apache.batik.transcoder.SVGAbstractTranscoder");
+            Field keyWidthField = svgAbstract.getField("KEY_WIDTH");
+            Field keyHeightField = svgAbstract.getField("KEY_HEIGHT");
+            Object keyWidth = keyWidthField.get(null);
+            Object keyHeight = keyHeightField.get(null);
+            Class<?> keyClass = Class.forName("org.apache.batik.transcoder.TranscodingHints$Key");
+            Method addHint = transcoder.getClass().getMethod("addTranscodingHint", keyClass, Object.class);
+            addHint.invoke(transcoder, keyWidth, Float.valueOf(target));
+            addHint.invoke(transcoder, keyHeight, Float.valueOf(target));
+        } catch (Throwable ignored) {
         }
     }
 
@@ -248,7 +262,7 @@ public final class ImageIconRenderer {
             case "write" -> iconSvg("Pen-Write");
             case "brush", "pencil" -> iconSvg("Pencil-1");
             case "delete", "delete_entry" -> iconSvg("Delete-2");
-            case "back" -> iconSvg("Go-Backward-30-Control");
+            case "back" -> iconSvg("Direction-Button-2");
             case "list", "lines" -> iconSvg("List-Numbers");
             case "close" -> iconSvg("Remove-Bold");
             case "saveandexit", "save_and_exit" -> iconSvg("Login-1");
