@@ -24,6 +24,8 @@ import main.infrastructure.io.IoLog;
 
 /**
  * Persists list of notebooks under Simjot/notebooks.json and provides helpers.
+ * It is used to load and save notebooks from/to the file system.
+ * @author S1mplector
  */
 public final class NotebookStore {
     private static final String FILE_NAME = "notebooks.json";
@@ -164,6 +166,11 @@ public final class NotebookStore {
     
     /** Update notebook customization (description, accent color) */
     public boolean updateCustomization(NotebookInfo nb, String description, int accentColor) {
+        return updateCustomization(nb, description, accentColor, null);
+    }
+    
+    /** Update notebook customization (description, accent color, custom icon path) */
+    public boolean updateCustomization(NotebookInfo nb, String description, int accentColor, String customIconPath) {
         if (nb == null) return false;
         int idx = -1;
         for (int i = 0; i < notebooks.size(); i++) {
@@ -173,7 +180,7 @@ public final class NotebookStore {
             }
         }
         if (idx < 0) return false;
-        NotebookInfo updated = notebooks.get(idx).withCustomization(description, accentColor);
+        NotebookInfo updated = notebooks.get(idx).withCustomization(description, accentColor, customIconPath);
         notebooks.set(idx, updated);
         save();
         return true;

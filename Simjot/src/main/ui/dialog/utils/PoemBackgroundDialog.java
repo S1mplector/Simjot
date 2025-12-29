@@ -1,11 +1,29 @@
 package main.ui.dialog.utils;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Frame;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.ImageIcon;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JSlider;
+
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 public class PoemBackgroundDialog extends JDialog {
@@ -74,32 +92,32 @@ public class PoemBackgroundDialog extends JDialog {
         // Button panel with improved spacing
         JPanel buttonPanel = new JPanel(new BorderLayout(15, 0));
         
-        // Left-aligned buttons
-        JPanel leftButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        RoundedButton galleryBtn = new RoundedButton("Choose from Gallery...");
+        // Centered buttons (IconMenuButton style)
+        JPanel centerButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 8));
+        
+        IconMenuButton galleryBtn = new IconMenuButton("Gallery", "gallery");
+        galleryBtn.setToolTipText("Choose from gallery");
         galleryBtn.addActionListener(e -> selectFromGallery());
         
-        RoundedButton removeBtn = new RoundedButton("Remove Background");
+        IconMenuButton removeBtn = new IconMenuButton("Remove", "trash");
+        removeBtn.setToolTipText("Remove background");
         removeBtn.addActionListener(e -> removeBackground());
         
-        leftButtonPanel.add(galleryBtn);
-        leftButtonPanel.add(Box.createHorizontalStrut(5));
-        leftButtonPanel.add(removeBtn);
-        
-        // Right-aligned buttons
-        JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        RoundedButton okBtn = new RoundedButton("OK");
+        IconMenuButton okBtn = new IconMenuButton("OK", "save");
+        okBtn.setToolTipText("Apply changes");
         okBtn.addActionListener(e -> saveAndClose());
         
-        RoundedButton cancelBtn = new RoundedButton("Cancel");
+        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
+        cancelBtn.setToolTipText("Cancel changes");
         cancelBtn.addActionListener(e -> dispose());
         
-        rightButtonPanel.add(okBtn);
-        rightButtonPanel.add(cancelBtn);
+        centerButtonPanel.add(galleryBtn);
+        centerButtonPanel.add(removeBtn);
+        centerButtonPanel.add(okBtn);
+        centerButtonPanel.add(cancelBtn);
         
-        // Add all components to the main layout
-        buttonPanel.add(leftButtonPanel, BorderLayout.WEST);
-        buttonPanel.add(rightButtonPanel, BorderLayout.EAST);
+        // Add centered buttons
+        buttonPanel.add(centerButtonPanel, BorderLayout.CENTER);
         
         // Add all sections to the content panel
         contentPanel.add(previewPanel, BorderLayout.CENTER);

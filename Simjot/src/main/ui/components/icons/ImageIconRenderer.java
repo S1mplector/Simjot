@@ -60,6 +60,18 @@ public final class ImageIconRenderer {
         Key key = new Key(resourcePath, size, shadow, tintSignature());
         return CACHE.computeIfAbsent(key, k -> build(k.path, k.size, k.shadow));
     }
+    
+    /**
+     * Get an icon with a custom accent color override (not cached, bypasses system accent).
+     * Used for notebook tiles with custom accent colors.
+     */
+    public static BufferedImage getWithCustomAccent(String resourcePath, int size, boolean shadow, Color customAccent){
+        if (resourcePath == null) return null;
+        if (resourcePath.startsWith("Simjot/")) {
+            resourcePath = resourcePath.substring("Simjot/".length());
+        }
+        return buildWithAccent(resourcePath, size, shadow, customAccent);
+    }
 
     public static void draw(Graphics2D g, String resourcePath, int x, int y, int size, Component obs, boolean shadow){
         BufferedImage img = get(resourcePath, size, shadow);
@@ -129,6 +141,90 @@ public final class ImageIconRenderer {
         gOut.drawImage(shadow, 1, 1, null);
         gOut.drawImage(tinted, 0, 0, null);
         gOut.dispose();
+        return out;
+    }
+
+    private static BufferedImage buildWithAccent(String path, int size, boolean withShadow, Color customAccent){
+        Image imgRaw = ResourceLoader.createImage("Simjot/" + path);
+        if (imgRaw == null) return null;
+
+        int target = Math.max(1, size);
+        ImageIcon icon = new ImageIcon(imgRaw);
+        int srcW = icon.getIconWidth();
+        int srcH = icon.getIconHeight();
+        if (srcW <= 0 || srcH <= 0) return null;
+        BufferedImage src = new BufferedImage(srcW, srcH, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D gsrc = src.createGraphics();
+        gsrc.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        gsrc.drawImage(imgRaw, 0, 0, null);
+        gsrc.dispose();
+
+        BufferedImage current = src;
+        int cw = srcW, ch = srcH;
+        while (cw / 2 >= target && ch / 2 >= target) {
+            int nw = Math.max(target, cw / 2);
+            int nh = Math.max(target, ch / 2);
+            BufferedImage tmp = new BufferedImage(nw, nh, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = tmp.createGraphics();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.drawImage(current, 0, 0, nw, nh, null);
+            g2.dispose();
+            if (current != src) current.flush();
+            current = tmp; cw = nw; ch = nh;
+        }
+
+        BufferedImage scaled = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.drawImage(current, 0, 0, target, target, null);
+        g.dispose();
+        if (current != src) current.flush();
+
+        // Apply custom accent tint
+        BufferedImage tinted = recolorWithAccent(scaled, customAccent);
+
+        if (!withShadow) return tinted;
+        BufferedImage shadow = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D gSh = shadow.createGraphics();
+        gSh.drawImage(tinted, 0, 0, null);
+        gSh.setComposite(AlphaComposite.SrcAtop);
+        gSh.setColor(new Color(0,0,0,80));
+        gSh.fillRect(0, 0, target, target);
+        gSh.dispose();
+
+        BufferedImage out = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D gOut = out.createGraphics();
+        gOut.drawImage(shadow, 1, 1, null);
+        gOut.drawImage(tinted, 0, 0, null);
+        gOut.dispose();
+        return out;
+    }
+
+    private static BufferedImage recolorWithAccent(BufferedImage src, Color accentColor){
+        if (accentColor == null) return src;
+        float[] tgtHSB = Color.RGBtoHSB(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), null);
+        float tgtHue = tgtHSB[0];
+        float tgtSat = Math.max(0.35f, tgtHSB[1]);
+
+        int w = src.getWidth(), height = src.getHeight();
+        BufferedImage out = new BufferedImage(w, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y=0; y<height; y++){
+            for (int x=0; x<w; x++){
+                int argb = src.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                if (a == 0) { out.setRGB(x, y, 0); continue; }
+                int r = (argb >>> 16) & 0xFF;
+                int g = (argb >>> 8) & 0xFF;
+                int b = (argb) & 0xFF;
+                float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+                if (lum < 0.06f || lum > 0.97f) { out.setRGB(x, y, argb); continue; }
+                float v = clamp01(lum * 1.0f);
+                int rgb = Color.HSBtoRGB(tgtHue, tgtSat, v);
+                out.setRGB(x, y, (a << 24) | (rgb & 0x00FFFFFF));
+            }
+        }
         return out;
     }
 
@@ -209,6 +305,7 @@ public final class ImageIconRenderer {
             case "save" -> "img/icons/save.png";
             case "load" -> "img/icons/load.png";
             case "backgroundoptions" -> "img/icons/backgroundoptions.png";
+            case "gallery", "gallerypicker" -> "img/icons/backgroundoptions copy.png";
             // View / window controls
             case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "img/icons/fullscreen.png";
             case "export", "share", "download" -> "img/icons/export.png";
