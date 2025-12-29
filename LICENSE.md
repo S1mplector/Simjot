@@ -1,6 +1,7 @@
 # Simjot Source-Available Personal Use License
 
-**Version 0.1.0 — Effective Date: December 2024**
+**Version 0.1.0
+Effective Date: December 2024**
 
 Copyright (c) 2025 Ilgaz Mehmetoğlu. All rights reserved.
 
