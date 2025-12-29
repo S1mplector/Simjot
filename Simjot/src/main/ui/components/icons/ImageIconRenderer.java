@@ -409,6 +409,7 @@ public final class ImageIconRenderer {
             case "save" -> "save";
             case "load", "restore" -> "restore";
             case "new", "plus", "new_entry" -> "new_entry";
+            case "exit" -> "exit";
             case "stats", "analysis", "chart" -> "poetry_metering";
             case "delete_entry", "delete" -> "delete_entry";
             case "delete_notebook" -> "delete_notebook";

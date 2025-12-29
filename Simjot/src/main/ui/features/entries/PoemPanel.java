@@ -258,8 +258,8 @@ public class PoemPanel extends AbstractEditorPanel {
         main.ui.components.toolbars.PoetryStyleToolbar sharedToolbar = new main.ui.components.toolbars.PoetryStyleToolbar(
                 app,
                 nbInfo,
-                "Poem Title:",
-                "Untitled poem",
+                "",
+                null,
                 (selected) -> setTypingStyleBold(selected),
                 (selected) -> setTypingStyleItalic(selected),
                 (selected) -> setTypingStyleUnderline(selected),
@@ -317,6 +317,10 @@ public class PoemPanel extends AbstractEditorPanel {
         int savedFontSize = SettingsStore.get().getPoemFontSize();
         String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
         poemEditor.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+        if (poemTitleField != null) {
+            poemTitleField.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+            poemTitleField.setPlaceholder(null);
+        }
         // Apply line spacing from settings
         float spacing = switch (lineSpacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
         javax.swing.SwingUtilities.invokeLater(() -> {

@@ -733,7 +733,7 @@ public class NotebookManagerPanel extends JPanel {
                     dispose();
                 }
             });
-            IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
+            IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
             cancelBtn.setToolTipText("Cancel and close");
             cancelBtn.addActionListener(e->{ setVisible(false); dispose(); });
             btns.add(saveBtn); btns.add(deleteBtn); btns.add(cancelBtn);
@@ -741,7 +741,7 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(420, 340);
+            setSize(420, 420);
             setLocationRelativeTo(parent);
         }
         

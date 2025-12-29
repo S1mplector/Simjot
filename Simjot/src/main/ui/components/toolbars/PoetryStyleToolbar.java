@@ -69,14 +69,15 @@ public class PoetryStyleToolbar extends JPanel {
         alignCenter(backButton);
         row.add(backButton);
 
-        JLabel titleLabel = new JLabel(titleLabelText);
-        titleLabel.setFont(new Font("Serif", Font.BOLD, 16));
-        alignCenter(titleLabel);
-        row.add(Box.createHorizontalStrut(8));
-        row.add(titleLabel);
+        if (titleLabelText != null && !titleLabelText.isBlank()) {
+            JLabel titleLabel = new JLabel(titleLabelText);
+            titleLabel.setFont(new Font("Serif", Font.BOLD, 16));
+            alignCenter(titleLabel);
+            row.add(Box.createHorizontalStrut(8));
+            row.add(titleLabel);
+        }
 
         titleField = new TitleDividerField(24);
-        titleField.setFont(new Font("Serif", Font.BOLD, 16));
         // Directly set placeholder (avoid pattern matching instanceof for broader compatibility)
         titleField.setPlaceholder(titlePlaceholder);
         titleField.setPreferredSize(new Dimension(360, 32));

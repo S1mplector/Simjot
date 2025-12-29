@@ -458,7 +458,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
 
         private void buildUI() {
             // Left arrow
-            JButton prevBtn = createArrowButton("◀");
+            JButton prevBtn = createArrowButton("back");
             prevBtn.addActionListener(e -> cycle(-1));
             add(prevBtn, BorderLayout.WEST);
 
@@ -496,15 +496,17 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             add(center, BorderLayout.CENTER);
 
             // Right arrow
-            JButton nextBtn = createArrowButton("▶");
+            JButton nextBtn = createArrowButton("forward");
             nextBtn.addActionListener(e -> cycle(1));
             add(nextBtn, BorderLayout.EAST);
 
             updatePreview();
         }
 
-        private JButton createArrowButton(String text) {
-            JButton btn = new JButton(text) {
+        private JButton createArrowButton(String iconId) {
+            String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource(iconId);
+            javax.swing.Icon icon = res != null ? main.ui.components.icons.ImageIconRenderer.icon(res, 20, false) : null;
+            JButton btn = new JButton(icon) {
                 @Override
                 protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
@@ -514,15 +516,13 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
                     } else if (getModel().isRollover()) {
                         g2.setColor(new Color(0, 0, 0, 15));
                     } else {
-                        g2.setColor(new Color(0, 0, 0, 5));
+                        g2.setColor(new Color(0, 0, 0, 0));
                     }
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                     g2.dispose();
                     super.paintComponent(g);
                 }
             };
-            btn.setFont(btn.getFont().deriveFont(Font.BOLD, 16f));
-            btn.setForeground(new Color(80, 80, 80));
             btn.setOpaque(false);
             btn.setContentAreaFilled(false);
             btn.setBorderPainted(false);

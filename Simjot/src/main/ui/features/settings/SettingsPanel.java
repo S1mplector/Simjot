@@ -136,8 +136,15 @@ public class SettingsPanel extends JPanel {
 
     private void addPage(String name, SettingsPage page){
         pages.put(name, page);
-        // Add page directly; main area remains plain white
-        cardsPanel.add(page.getComponent(), name);
+        // Wrap page in a scroll pane so content can scroll if it exceeds visible area
+        JScrollPane scrollPane = new JScrollPane(page.getComponent());
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+        scrollPane.getVerticalScrollBar().setUI(new AeroScrollBarUI());
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        cardsPanel.add(scrollPane, name);
     }
 
     private void saveAll(){

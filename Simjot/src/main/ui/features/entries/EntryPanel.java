@@ -556,8 +556,8 @@ public class EntryPanel extends AbstractEditorPanel {
         main.ui.components.toolbars.PoetryStyleToolbar sharedToolbar = new main.ui.components.toolbars.PoetryStyleToolbar(
                 app,
                 nbInfo,
-                "Title:",
-                "Untitled entry",
+                "",
+                null,
                 (selected) -> setTypingStyleBold(selected),
                 (selected) -> setTypingStyleItalic(selected),
                 (selected) -> setTypingStyleUnderline(selected),
@@ -640,6 +640,10 @@ public class EntryPanel extends AbstractEditorPanel {
         int savedFontSize = SettingsStore.get().getJournalFontSize();
         String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
         contentArea.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+        if (titleField != null) {
+            titleField.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+            titleField.setPlaceholder(null);
+        }
         // JTextPane handles wrapping automatically via view; ensure editor kit is styled
         contentArea.setEditorKit(new StyledEditorKit());
         contentArea.setOpaque(false);
