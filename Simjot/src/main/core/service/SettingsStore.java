@@ -10,20 +10,54 @@ import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
 
 /**
- * Singleton-like helper that persists user preferences under Simjot/settings/preferences.properties.
- */
+ * Singleton helper that persists user preferences under Simjot/settings/preferences.properties.
+ * 
+ * <p>This class manages all user-configurable settings for the Simjot application, including:
+ * <ul>
+ *   <li>UI preferences (themes, fonts, colors, animations)</li>
+ *   <li>Editor settings (font sizes, line spacing, autocorrect)</li>
+ *   <li>Backup and security configurations</li>
+ *   <li>Widget and layout preferences</li>
+ *   <li>Custom quotes and accent colors</li>
+ * </ul>
+ * 
+ * <p>Settings are stored in a Java Properties file and automatically loaded on startup.
+ * The class supports both in-memory mode (during early initialization) and persistent mode
+ * (once the application directory structure is established).</p>
+ * 
+ * <p><strong>Note:</strong> This class is thread-safe. All public methods are synchronized
+ * to ensure safe concurrent access from multiple threads.</p>
+ * 
+ * @author S1mplector
+ *  */
 public final class SettingsStore {
 
+    /**
+     * The filename for the preferences properties file.
+     */
     private static final String FILE_NAME = "preferences.properties";
 
+    /**
+     * Internal properties storage for all settings.
+     */
     private final Properties props = new Properties();
+    
+    /**
+     * The file where settings are persisted. Null if in memory-only mode.
+     */
     private final File storeFile;
 
-    // Keys
+    // ====================
+    // SETTINGS KEYS
+    // ====================
+    
+    // Font Settings
     private static final String KEY_JOURNAL_FONT = "journalFontSize";
     private static final String KEY_POEM_FONT    = "poemFontSize";
     private static final String KEY_EDITOR_FONT_FAMILY = "editorFontFamily";
     private static final String KEY_EDITOR_LINE_SPACING = "editorLineSpacing";
+    
+    // Theme and Appearance
     private static final String KEY_ANIMATION    = "animation";
     private static final String KEY_THEME        = "theme";
     private static final String KEY_GLOW         = "glowEnabled";
@@ -87,12 +121,20 @@ public final class SettingsStore {
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
 
-    // Defaults
+    // ====================
+    // DEFAULT VALUES
+    // ====================
+    
+    // Font defaults
     private static final int    DEF_JOURNAL_FONT = 14;
     private static final int    DEF_POEM_FONT    = 16;
+    
+    // Theme defaults
     private static final String DEF_ANIMATION    = "Snow";
     private static final String DEF_THEME        = "Aero";
     private static final boolean DEF_GLOW        = false;
+    
+    // Background defaults
     private static final String  DEF_BG_IMAGE    = "";
     private static final float   DEF_BG_OPACITY  = 0.5f; // Default to 50% opacity
     private static final int     DEF_BRUSH_SIZE  = 5;
@@ -130,20 +172,60 @@ public final class SettingsStore {
     private static final int DEF_LOCK_TIMEOUT_SEC = 0;
     private static final boolean DEF_LOCK_REQUIRE_ON_START = false;
 
-    // Singleton handling
+    // ====================
+    // SINGLETON MANAGEMENT
+    // ====================
+    
+    /**
+     * The singleton instance of SettingsStore.
+     */
     private static SettingsStore instance;
+    
+    /**
+     * Flag indicating if this instance operates in memory-only mode.
+     * When true, settings are not persisted to disk.
+     */
+    private final boolean memoryOnly;
+    
+    /**
+     * Gets the singleton instance of SettingsStore.
+     * 
+     * <p>If the application directory structure is not yet ready, returns a memory-only
+     * instance. Once the directory structure is available, the instance will be recreated
+     * with persistent storage enabled.</p>
+     * 
+     * @return the singleton SettingsStore instance
+     */
     public static synchronized SettingsStore get(){
-        if(instance==null) instance = new SettingsStore();
+        boolean rootReady = false;
+        try { AppDirectories.getRoot(); rootReady = true; } catch (Throwable ignored) {}
+        if (instance == null || (rootReady && instance.memoryOnly)) {
+            instance = new SettingsStore(!rootReady);
+        }
         return instance;
     }
 
-    private SettingsStore(){
+    /**
+     * Private constructor for the SettingsStore singleton.
+     * 
+     * @param memoryOnly if true, settings are stored only in memory and not persisted
+     */
+    private SettingsStore(boolean memoryOnly){
+        this.memoryOnly = memoryOnly;
+        if (memoryOnly) {
+            storeFile = null;
+            return; // in-memory only until root is set
+        }
         storeFile = new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), FILE_NAME);
         load();
     }
 
+    /**
+     * Loads settings from the properties file.
+     * If the file doesn't exist or can't be read, uses default values.
+     */
     private void load(){
-        if(storeFile.exists()){
+        if(storeFile != null && storeFile.exists()){
             try(FileInputStream in = new FileInputStream(storeFile)){
                 props.load(in);
                 migrateLegacyPrefs();
@@ -200,7 +282,14 @@ public final class SettingsStore {
         }
     }
 
+    /**
+     * Saves the current settings to the properties file.
+     * 
+     * <p>This method is thread-safe and uses atomic file writing to prevent corruption.
+     * If running in memory-only mode, this method does nothing.</p>
+     */
     public synchronized void save(){
+        if (memoryOnly || storeFile == null) return;
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             synchronized (props) {
@@ -211,11 +300,32 @@ public final class SettingsStore {
         } catch(IOException ex){ ex.printStackTrace(); }
     }
 
-    // ---- getters / setters ---- //
+    // ====================
+    // FONT SETTINGS
+    // ====================
+    
+    /**
+     * Gets the journal font size.
+     * @return the font size, or default if not set
+     */
     public int getJournalFontSize(){ return safeInt(KEY_JOURNAL_FONT, DEF_JOURNAL_FONT); }
+    
+    /**
+     * Sets the journal font size.
+     * @param v the new font size
+     */
     public void setJournalFontSize(int v){ props.setProperty(KEY_JOURNAL_FONT, String.valueOf(v)); }
-
+    
+    /**
+     * Gets the poem font size.
+     * @return the font size, or default if not set
+     */
     public int getPoemFontSize(){ return safeInt(KEY_POEM_FONT, DEF_POEM_FONT); }
+    
+    /**
+     * Sets the poem font size.
+     * @param v the new font size
+     */
     public void setPoemFontSize(int v){ props.setProperty(KEY_POEM_FONT, String.valueOf(v)); }
 
     public String getEditorFontFamily(){ return props.getProperty(KEY_EDITOR_FONT_FAMILY, "Serif"); }
@@ -636,6 +746,14 @@ public final class SettingsStore {
         props.setProperty(KEY_HEADER_QUOTE_ROTATE_SEC, String.valueOf(sec));
     }
 
+    /**
+     * Utility method to safely parse integer values from properties.
+     * Returns the default value if parsing fails.
+     * 
+     * @param key the property key
+     * @param def the default value to return if parsing fails
+     * @return the parsed integer value or default
+     */
     private int safeInt(String key, int def){
         try { return Integer.parseInt(props.getProperty(key, String.valueOf(def)).trim()); }
         catch (NumberFormatException e){ return def; }

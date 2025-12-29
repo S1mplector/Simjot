@@ -39,7 +39,7 @@ public class ToolbarIconButton extends JButton {
     private float glowPhase=0f;
     private float iconOpacity = 1f; // 0..1 alpha multiplier for icon only
 
-    private static boolean globalGlow = main.core.service.SettingsStore.get().isGlowEnabled();
+    private static boolean globalGlow = false;
     private static final java.util.List<ToolbarIconButton> INSTANCES = new java.util.ArrayList<>();
 
     public ToolbarIconButton(String iconId){
@@ -52,6 +52,8 @@ public class ToolbarIconButton extends JButton {
         this.resourcePath = (mapped != null) ? mapped : ("img/" + id + ".png");
 
         INSTANCES.add(this);
+        // Lazy-load glow preference only after settings are available
+        ensureGlowInitialized();
         setGlow(globalGlow);
     }
 
@@ -81,6 +83,16 @@ public class ToolbarIconButton extends JButton {
         for(ToolbarIconButton b: INSTANCES){ b.setGlow(enabled); }
     }
     public static boolean isGlowEnabled(){ return globalGlow; }
+
+    private static void ensureGlowInitialized() {
+        // Avoid early SettingsStore access before AppDirectories is ready.
+        if (globalGlow) return;
+        try {
+            globalGlow = main.core.service.SettingsStore.get().isGlowEnabled();
+        } catch (Throwable ignored) {
+            // keep default false until settings become available
+        }
+    }
 
     @Override
     protected void paintComponent(Graphics g){

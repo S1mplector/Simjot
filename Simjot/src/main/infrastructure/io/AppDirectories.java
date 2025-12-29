@@ -39,11 +39,13 @@ public final class AppDirectories {
     }
 
     public static File getRoot() {
+        ensureRootInitialized();
         if(root == null) throw new IllegalStateException("Root folder not initialised yet");
         return root;
     }
 
     public static File folder(Type t) {
+        ensureRootInitialized();
         if(root == null) throw new IllegalStateException("Root folder not initialised yet");
         File f = new File(root, t.folderName());
         // Do not auto-create legacy folders we no longer use.
@@ -59,4 +61,20 @@ public final class AppDirectories {
                 return f;
         }
     }
-} 
+
+    private static void ensureRootInitialized() {
+        if (root != null) return;
+        try {
+            File cfg = new File(System.getProperty("user.home"), ".simjournal_config.txt");
+            if (!cfg.exists()) return;
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(cfg))) {
+                String path = reader.readLine();
+                if (path == null || path.isBlank()) return;
+                File folder = new File(path.trim());
+                if (folder.exists() && folder.isDirectory()) {
+                    root = folder;
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+}

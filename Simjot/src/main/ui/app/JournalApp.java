@@ -1,6 +1,5 @@
 package main.ui.app;
 
-// AWT imports
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -84,73 +83,271 @@ import main.ui.util.AccentColorUtil;
 
 /**
  * The main application window for Simjot.
- * Manages the UI and handles the lifecycle of the application.
+ * <p>This class serves as the primary entry point and UI controller for the Simjot journaling application.
+ * It manages the main JFrame, handles navigation between different panels using a CardLayout,
+ * and coordinates the lifecycle of various application components including:</p>
+ * 
+ * <ul>
+ *   <li><strong>UI Navigation:</strong> CardLayout-based panel switching with fade transitions</li>
+ *   <li><strong>Notebook Management:</strong> Dynamic creation and management of notebook panels</li>
+ *   <li><strong>Editor Management:</strong> Factory-based creation and tracking of open editors</li>
+ *   <li><strong>Sim Integration:</strong> AI assistant overlay and brain components</li>
+ *   <li><strong>Backup Service:</strong> Automatic and manual backup operations</li>
+ *   <li><strong>Security:</strong> Lock screen and notebook encryption</li>
+ *   <li><strong>Global Hotkeys:</strong> Quick capture and other shortcuts</li>
+ * </ul>
+ * 
+ * <p>The application follows a singleton-like pattern for the main window and uses lazy loading
+ * for many UI components to optimize startup performance. All major operations are performed
+ * on the Event Dispatch Thread (EDT) with proper synchronization for background tasks.</p>
+ * 
+ * <p><strong>Key Features:</strong></p>
+ * <ul>
+ *   <li>Aero-themed UI with glass-morphism effects</li>
+ *   <li>Smooth fade transitions between panels</li>
+ *   <li>Comprehensive splash screen with startup progress</li>
+ *   <li>Graceful shutdown with backup and cleanup</li>
+ *   <li>Template-based journal entry creation</li>
+ *   <li>Quick capture functionality with global hotkeys</li>
+ * </ul>
+ * 
  * @author S1mplector
+ * @see ui, infrastructure and core submodules
+ * @version 0.1.0
  */
 public class JournalApp extends JFrame {
+    /**
+     * Serialization version for compatibility.
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Global journal font size used across all journal entry editors.
+     * This value is loaded from settings during initialization.
+     */
     public static int globalJournalFontSize = 14; // For journal entries
 
+    /**
+     * CardLayout manager for switching between different UI panels.
+     */
     private CardLayout cardLayout;
+    
+    /**
+     * Main container panel that holds all UI cards.
+     */
     private JPanel cardPanel;
+    
+    /**
+     * Root folder where all Simjot data is stored.
+     */
     private File rootFolder;
 
-    // Config file to store the journal folder path
+    /**
+     * Configuration file storing the journal folder path.
+     * Located in user's home directory for persistence across sessions.
+     */
     private File configFile;
+    
+    /**
+     * Filename for the configuration file.
+     */
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
+    
+    /**
+     * Timeout for the exit watchdog thread to force application termination.
+     * Ensures the application doesn't hang indefinitely during shutdown.
+     */
     private static final long EXIT_WATCHDOG_TIMEOUT_MS = 25_000L;
+    
+    /**
+     * Minimum time to show the startup splash screen.
+     * Provides visual consistency and allows background tasks to complete.
+     */
     private static final int STARTUP_MIN_SPLASH_MS = 6500;
+    
+    /**
+     * Minimum time to show the exit splash screen.
+     * Ensures users see the exit animation even for quick shutdowns.
+     */
     private static final int EXIT_MIN_SPLASH_MS = 5500;
+    
+    /**
+     * Interval for updating the exit splash screen status messages.
+     * Provides dynamic feedback during shutdown operations.
+     */
     private static final long EXIT_PULSE_MS = 1200L;
+    
+    /**
+     * Command line arguments passed to the application.
+     * Used for relaunch functionality and debugging.
+     */
     private static String[] launchArgs = new String[0];
 
-    // Card identifiers
+    // ====================
+    // CARD IDENTIFIERS
+    // ====================
+    
+    /**
+     * Card identifier for the main menu panel.
+     */
     public static final String MAIN_MENU = "Main Menu";
+    
+    /**
+     * Card identifier for new journal entry creation.
+     */
     public static final String NEW_ENTRY = "New Entry";
+    
+    /**
+     * Card identifier for mood chart visualization.
+     */
     public static final String MOOD_CHART = "Mood Chart";
+    
+    /**
+     * Card identifier for new poem creation.
+     */
     public static final String NEW_POEM = "New Poem";
+    
+    /**
+     * Card identifier for application settings panel.
+     */
     public static final String SETTINGS = "Settings";
+    
+    /**
+     * Card identifier for drawing gallery.
+     */
     public static final String GALLERY = "Gallery";
+    
+    /**
+     * Card identifier for notebook management interface.
+     */
     public static final String NOTEBOOK_MANAGER = "Notebook Manager";
 
-    // Additional references for panels that might need referencing
+    // ====================
+    // UI COMPONENT REFERENCES
+    // ====================
+    
+    /**
+     * Reference to the settings panel for dynamic updates.
+     */
     private SettingsPanel settingsPanel;
+    
+    /**
+     * RAM monitoring panel for system resource tracking.
+     */
     private RamMonitor ramUsagePanel;
+    
+    /**
+     * Gallery panel for managing drawings and wallpapers.
+     */
     private GalleryPanel galleryPanel;
 
+    /**
+     * Flag to track if the first panel switch has occurred.
+     * Used to disable animations for the initial switch to improve performance.
+     */
     private boolean firstSwitchDone = false;
 
+    /**
+     * Reference to the main menu panel for dynamic updates.
+     */
     private JPanel mainMenuPanel;
 
-    // Keeps track of dynamically created entry manager panels for notebooks
+    // ====================
+    // DYNAMIC PANEL MANAGEMENT
+    // ====================
+    
+    /**
+     * Map of dynamically created notebook entry panels.
+     * Key: card identifier, Value: NotebookEntriesPanel instance.
+     * Allows for lazy creation and reuse of notebook panels.
+     */
     private final java.util.Map<String, NotebookEntriesPanel> notebookPanels = new java.util.HashMap<>();
 
-    // Added for openExistingEntryEditor method
+    /**
+     * Map of all dynamically created cards for quick lookup.
+     * Used to prevent duplicate card creation and enable fast navigation.
+     */
     private final java.util.Map<String, JPanel> cardMap = new java.util.HashMap<>();
 
-    // Track open editors so we can save on exit
+    /**
+     * List of currently open editors for save-on-exit functionality.
+     * Tracks all active NotebookEditor instances to ensure proper cleanup.
+     */
     private final java.util.List<main.ui.features.entries.NotebookEditor> openEditors = new java.util.ArrayList<>();
 
-    // Factory/DI for editors
+    /**
+     * Factory for creating notebook editors with proper dependency injection.
+     * Centralizes editor creation logic and ensures consistent configuration.
+     */
     private NotebookEditorFactory editorFactory;
 
-    // Quick capture tracking
+    // ====================
+    // QUICK CAPTURE FUNCTIONALITY
+    // ====================
+    
+    /**
+     * The last active notebook for quick capture operations.
+     * Persists across quick capture sessions to improve user experience.
+     */
     private NotebookInfo lastActiveNotebook;
+    
+    /**
+     * Key event dispatcher for in-app quick capture hotkey.
+     * Used when global hotkey registration fails.
+     */
     private KeyEventDispatcher quickCaptureDispatcher;
 
-    // Track which static cards have been created lazily
+    /**
+     * Set of static card identifiers that have been created.
+     * Used for lazy loading to optimize startup performance.
+     */
     private final java.util.Set<String> createdStaticCards = new java.util.HashSet<>();
 
-    // Sim components
+    // ====================
+    // SIM AI ASSISTANT COMPONENTS
+    // ====================
+    
+    /**
+     * Visual overlay component for the Sim AI assistant.
+     * Provides chat interface and AI interaction capabilities.
+     */
     private SimOverlay simOverlay;
+    
+    /**
+     * Core AI brain component for Sim.
+     * Handles reasoning, memory, and response generation.
+     */
     private SimBrain simBrain;
+    
+    /**
+     * Scheduler for proactive Sim interactions.
+     * Manages timed events and context-aware responses.
+     */
     private SimScheduler simScheduler;
+    
+    /**
+     * Atomic flag to prevent re-entrant shutdown operations.
+     * Ensures graceful shutdown occurs only once.
+     */
     private final AtomicBoolean exitInProgress = new AtomicBoolean(false);
 
+    /**
+     * Constructs the main application window.
+     * 
+     * <p>This constructor performs the following initialization steps:</p>
+     * <ol>
+     *   <li>Sets up the JFrame with application title and icons</li>
+     *   <li>Loads or prompts for the root journal folder</li>
+     *   <li>Initializes the UI if the root folder is successfully established</li>
+     *   <li>Exits the application if setup fails</li>
+     * </ol>
+     * 
+     * <p>The constructor uses DO_NOTHING_ON_CLOSE to enable graceful shutdown
+     * with proper backup and cleanup operations.</p>
+     */
     public JournalApp() {
         super(AppInfo.fullTitle());
-        // Set the application icon
+        // Set the application icon using the AppIcon utility
         setIconImages(AppIcon.generateIconImages());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         loadOrChooseRootFolder();
@@ -159,12 +356,28 @@ public class JournalApp extends JFrame {
         } else {
             System.exit(0);
         }
-
     }
 
-    // Sim runtime control
+    // ===========================
+    // SIM AI ASSISTANT MANAGEMENT
+    // ===========================
+    
+    /**
+     * Enables and initializes Sim AI assistant features.
+     * 
+     * <p>This method creates and configures all Sim components:
+     * <ul>
+     *   <li>SimOverlay: Visual chat interface overlay</li>
+     *   <li>SimBrain: Core AI reasoning engine</li>
+     *   <li>SimScheduler: Proactive interaction scheduler</li>
+     * </ul>
+     * 
+     * <p>Components are created lazily and restarted with current settings
+     * to ensure configuration changes take effect immediately.</p>
+     */
     public void enableSimFeatures() {
         try {
+            // Create overlay if not exists
             if (simOverlay == null) {
                 simOverlay = new SimOverlay();
                 JLayeredPane lp = getLayeredPane();
@@ -172,11 +385,13 @@ public class JournalApp extends JFrame {
                 simOverlay.setBounds(16, 16, pref.width, pref.height);
                 lp.add(simOverlay, JLayeredPane.POPUP_LAYER);
             }
+            // Create AI brain if not exists
             if (simBrain == null) {
                 SimSettings simSettings = SimSettings.get();
                 SimPersonality personality = new SimPersonality(simSettings.getPersonality());
                 simBrain = new SimBrain(simSettings, personality, SimDataGateway.get());
             }
+            // Create scheduler if not exists
             if (simScheduler == null) {
                 simScheduler = new SimScheduler();
             }
@@ -191,6 +406,19 @@ public class JournalApp extends JFrame {
         } catch (Throwable ignored) {}
     }
 
+    /**
+     * Disables and shuts down Sim AI assistant features.
+     * 
+     * <p>This method performs graceful shutdown of all Sim components:
+     * <ul>
+     *   <li>Stops the AI brain and releases resources</li>
+     *   <li>Stops the proactive scheduler</li>
+     *   <li>Disposes of the visual overlay</li>
+     * </ul>
+     * 
+     * <p>All operations are wrapped in try-catch blocks to ensure
+     * shutdown continues even if individual components fail.</p>
+     */
     public void disableSimFeatures() {
         try {
             if (simBrain != null) {
@@ -211,6 +439,24 @@ public class JournalApp extends JFrame {
         } catch (Throwable ignored) {}
     }
 
+    // =======================
+    // CONFIGURATION AND SETUP  
+    // =======================
+    
+    /**
+     * Loads the root journal folder from configuration or prompts user to choose one.
+     * 
+     * <p>This method follows these steps:
+     * <ol>
+     *   <li>Attempts to read the configuration file from user's home directory</li>
+     *   <li>Validates that the stored path exists and is a directory</li>
+     *   <li>Sets up required subdirectories if valid folder found</li>
+     *   <li>Shows setup wizard if no valid configuration exists</li>
+     *   <li>Saves the chosen folder path to configuration file</li>
+     * </ol>
+     * 
+     * <p>Cleanup of temporary files is performed when loading an existing root folder.</p>
+     */
     private void loadOrChooseRootFolder() {
         configFile = new File(System.getProperty("user.home"), CONFIG_FILENAME);
         if (configFile.exists()) {
@@ -242,6 +488,21 @@ public class JournalApp extends JFrame {
         }
     }
 
+    /**
+     * Utility method to safely run a task on the Event Dispatch Thread with timeout.
+     * 
+     * <p>This method provides robust EDT execution with the following features:</p>
+     * <ul>
+     *   <li>Immediate execution if already on EDT</li>
+     *   <li>Timeout protection to prevent indefinite blocking</li>
+     *   <li>Error reporting for both execution failures and timeouts</li>
+     *   <li>Proper interrupt handling</li>
+     * </ul>
+     * 
+     * @param task the Runnable to execute on EDT
+     * @param timeoutMs maximum time to wait for completion (ms)
+     * @return true if task completed successfully, false if timed out or failed
+     */
     private static boolean runOnEdtWithTimeout(Runnable task, long timeoutMs) {
         if (task == null) return true;
         try {
@@ -286,6 +547,12 @@ public class JournalApp extends JFrame {
         return ok;
     }
 
+    /**
+     * Saves the selected journal folder path to the configuration file.
+     * 
+     * <p>Writes the absolute path of the chosen root folder to the config file
+     * in the user's home directory. This ensures persistence across application sessions.</p>
+     */
     private void saveJournalFolderConfig() {
         try (PrintWriter writer = new PrintWriter(new FileWriter(configFile))) {
             writer.println(rootFolder.getAbsolutePath());
@@ -815,6 +1082,9 @@ public class JournalApp extends JFrame {
 
     private static Color deriveAccentColorSafe() {
         Color fallback = AccentColorUtil.defaultAccent();
+        // If the app root isn't initialized yet (e.g., before setup completes), bail fast.
+        try { main.infrastructure.io.AppDirectories.getRoot(); } catch (Throwable t) { return fallback; }
+
         try {
             SettingsStore store = SettingsStore.get();
             int cached = store.getMainMenuAccentRGB();

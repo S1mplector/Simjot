@@ -1,17 +1,23 @@
 package main.ui.components.slider;
 
-import java.awt.*;
-import javax.swing.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.RenderingHints;
+
+import javax.swing.JComponent;
+import javax.swing.JSlider;
 import javax.swing.plaf.basic.BasicSliderUI;
 
 /**
  * A horizontal slider that lets the user pick their mood on a 0-100 scale.
  * The track shows a cool→neutral→warm gradient and the thumb is a plain
- * circular knob (no emoji rendering).
+ * circular knob.
  */
 public class MoodSlider extends JSlider {
-    private static final Color FROST_BG = new Color(245, 245, 245, 200);
-
     public MoodSlider() {
         super(0, 100, 50);
         setOpaque(false);
@@ -19,8 +25,6 @@ public class MoodSlider extends JSlider {
         setPreferredSize(new Dimension(220, 40));
         // Help prevent painting artifacts by leveraging Swing's double buffering
         setDoubleBuffered(true);
-        // Ensure background matches frosted toolbar glass when we clear repaint regions
-        setBackground(FROST_BG);
         // Install custom UI
         setUI(new MoodSliderUI(this));
     }
@@ -61,17 +65,18 @@ public class MoodSlider extends JSlider {
             int trackLeft = trackRect.x;
             int trackTop = trackRect.y + (trackRect.height - TRACK_HEIGHT) / 2;
             int trackWidth = trackRect.width;
-
-            // Clear the repaint region using the exact toolbar color (#e7e7e7)
-            // instead of relying on parent background, for visual consistency.
-            Shape clip = g2.getClip();
-            if (clip != null) {
-                Rectangle cb = clip.getBounds();
-                Color old = g2.getColor();
-                g2.setColor(FROST_BG);
-                g2.fillRect(cb.x, cb.y, cb.width, cb.height);
-                g2.setColor(old);
+            if (trackWidth <= 0) {
+                g2.dispose();
+                return;
             }
+
+            // Glassy backdrop behind the track
+            int plateH = TRACK_HEIGHT + 10;
+            int plateTop = trackTop - 5;
+            g2.setPaint(new Color(255, 255, 255, 110));
+            g2.fillRoundRect(trackLeft, plateTop, trackWidth, plateH, plateH, plateH);
+            g2.setColor(new Color(0, 0, 0, 35));
+            g2.drawRoundRect(trackLeft, plateTop, trackWidth, plateH, plateH, plateH);
 
             // Build gradient: blue (0) → grey (50) → orange (100)
             LinearGradientPaint paint = new LinearGradientPaint(
@@ -84,6 +89,8 @@ public class MoodSlider extends JSlider {
                     });
             g2.setPaint(paint);
             g2.fillRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
+            g2.setColor(new Color(255, 255, 255, 120));
+            g2.drawRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
             g2.dispose();
         }
 
@@ -92,11 +99,19 @@ public class MoodSlider extends JSlider {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            // Thumb circle
-            g2.setColor(Color.WHITE);
-            g2.fillOval(thumbRect.x, thumbRect.y, THUMB_SIZE, THUMB_SIZE);
-            g2.setColor(new Color(130, 130, 130, 140));
-            g2.drawOval(thumbRect.x, thumbRect.y, THUMB_SIZE - 1, THUMB_SIZE - 1);
+            int cx = thumbRect.x;
+            int cy = thumbRect.y;
+            // Soft shadow
+            g2.setColor(new Color(0, 0, 0, 50));
+            g2.fillOval(cx + 1, cy + 2, THUMB_SIZE - 2, THUMB_SIZE - 2);
+            // Glass thumb
+            g2.setPaint(new GradientPaint(0, cy, new Color(255, 255, 255, 245),
+                    0, cy + THUMB_SIZE, new Color(235, 235, 235, 215)));
+            g2.fillOval(cx, cy, THUMB_SIZE, THUMB_SIZE);
+            g2.setColor(new Color(160, 160, 160, 160));
+            g2.drawOval(cx, cy, THUMB_SIZE - 1, THUMB_SIZE - 1);
+            g2.setColor(new Color(255, 255, 255, 180));
+            g2.drawOval(cx + 1, cy + 1, THUMB_SIZE - 3, THUMB_SIZE - 3);
             g2.dispose();
         }
 
