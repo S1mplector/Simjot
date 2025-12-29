@@ -406,6 +406,7 @@ public final class ImageIconRenderer {
             case "forward" -> "forward";
             case "search" -> "search";
             case "clock" -> "clock";
+            case "rescan", "refreshsizes", "refresh_sizes" -> "Rescan";
             case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "fullscreen";
             case "save" -> "save";
             case "load", "restore" -> "restore";

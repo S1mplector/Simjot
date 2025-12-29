@@ -33,7 +33,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -69,6 +68,7 @@ import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.export.PoemExportDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
@@ -94,7 +94,7 @@ public class PoemPanel extends AbstractEditorPanel {
      */
 
     // Components for poem writing
-    protected JTextField poemTitleField;
+    protected TitleDividerField poemTitleField;
     protected JTextPane poemEditor;
 
     private final String[] INSPIRATIONAL_WORDS = {

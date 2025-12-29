@@ -54,6 +54,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
 import main.core.service.NotebookStore;
+import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
@@ -61,6 +62,7 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
@@ -603,19 +605,34 @@ public class NotebookManagerPanel extends JPanel {
             FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(12,12), 16);
             panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
 
-            // Title with notebook info
-            JPanel header = new JPanel(new BorderLayout());
+            // Title with notebook info (match entry/poem title styling)
+            JPanel header = new JPanel();
             header.setOpaque(false);
-            JLabel title = new JLabel("Edit: " + nb.getName(), SwingConstants.LEFT);
-            title.setForeground(Color.DARK_GRAY);
-            title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-            header.add(title, BorderLayout.WEST);
-            
+            header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+            header.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+
+            TitleDividerField titleField = new TitleDividerField(24);
+            titleField.setText(nb.getName());
+            titleField.setPlaceholder(null);
+            titleField.setEditable(false);
+            titleField.setFocusable(false);
+            titleField.setAlignmentX(Component.LEFT_ALIGNMENT);
+            try {
+                String family = SettingsStore.get().getEditorFontFamily();
+                int size = SettingsStore.get().getJournalFontSize();
+                titleField.setFont(new Font(family, Font.PLAIN, size));
+            } catch (Throwable ignored) {
+                titleField.setFont(titleField.getFont().deriveFont(Font.PLAIN, 16f));
+            }
+            header.add(titleField);
+
             long daysAgo = (System.currentTimeMillis() - nb.getCreatedMillis()) / 86400000L;
             JLabel info = new JLabel("Created " + daysAgo + " days ago • " + countEntries(nb) + " entries");
             info.setForeground(new Color(120, 120, 120));
             info.setFont(info.getFont().deriveFont(12f));
-            header.add(info, BorderLayout.SOUTH);
+            info.setAlignmentX(Component.LEFT_ALIGNMENT);
+            header.add(Box.createVerticalStrut(6));
+            header.add(info);
             panel.add(header, BorderLayout.NORTH);
 
             // Center content

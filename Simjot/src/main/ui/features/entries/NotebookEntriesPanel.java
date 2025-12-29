@@ -10,6 +10,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.GradientPaint;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -155,12 +156,12 @@ public class NotebookEntriesPanel extends JPanel {
     private static class EntryCardRenderer extends JPanel implements ListCellRenderer<File> {
         private final JLabel title = new JLabel();
         private final JLabel meta = new JLabel();
-        private final Color cardBg = new Color(248, 249, 252);
-        private final Color cardBorder = new Color(210, 216, 228);
+        private final Color cardBg = new Color(252, 253, 255);
+        private final Color cardBorder = new Color(190, 200, 214);
         private final Color metaColor = new Color(105, 110, 120);
         private final Color accent = new Color(88, 133, 255);
-        private final Color selectedBg = new Color(235, 240, 255);
-        private final Color selectedBorder = new Color(88, 133, 255);
+        private final Color selectedBg = new Color(236, 244, 255);
+        private final Color selectedBorder = new Color(110, 160, 255);
         private boolean selected;
         private float reorderGlow = 0f;
 
@@ -268,39 +269,58 @@ public class NotebookEntriesPanel extends JPanel {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int arc = 14;
+            int arc = 16;
             int w = getWidth(), h = getHeight();
-            // Clip to card shape and draw background image with reduced opacity
-            RoundRectangle2D.Float shape = new RoundRectangle2D.Float(3, 2, w - 6, h - 4, arc, arc);
+            RoundRectangle2D.Float shape = new RoundRectangle2D.Float(4, 3, w - 8, h - 6, arc, arc);
+
+            // Soft shadow for depth
+            g2.setColor(new Color(0, 0, 0, 22));
+            g2.fillRoundRect(6, 5, w - 8, h - 8, arc, arc);
+
+            // Base glass gradient
+            Color top = selected ? new Color(241, 248, 255) : cardBg;
+            Color bottom = selected ? new Color(228, 236, 248) : new Color(235, 240, 248);
+            g2.setPaint(new GradientPaint(0, 3, top, 0, h - 3, bottom));
+            g2.fill(shape);
+
+            // Subtle background texture
             java.awt.Shape oldClip = g2.getClip();
             g2.setClip(shape);
-            BufferedImage bg = getBg(Math.max(1, w - 6), Math.max(1, h - 4));
+            BufferedImage bg = getBg(Math.max(1, w - 8), Math.max(1, h - 6));
             if (bg != null) {
                 Composite old = g2.getComposite();
-                g2.setComposite(AlphaComposite.SrcOver.derive(0.28f));
-                g2.drawImage(bg, 3, 2, null);
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.12f));
+                g2.drawImage(bg, 4, 3, null);
                 g2.setComposite(old);
-            } else {
-                // Fallback solid fill if image missing
-                g2.setColor(selected ? selectedBg : cardBg);
-                g2.fill(shape);
             }
-            // Overlay a soft veil to keep text readable and selected state visible
-            g2.setComposite(AlphaComposite.SrcOver.derive(selected ? 0.30f : 0.20f));
-            g2.setColor(selected ? selectedBg : Color.WHITE);
-            g2.fill(shape);
+
+            // Glass highlight
+            int glossH = Math.max(10, (int) ((h - 6) * 0.55f));
+            g2.setPaint(new GradientPaint(0, 3, new Color(255, 255, 255, 150), 0, 3 + glossH, new Color(255, 255, 255, 0)));
+            g2.fill(new RoundRectangle2D.Float(4, 3, w - 8, glossH, arc, arc));
+
             if (reorderGlow > 0f) {
-                float a = Math.max(0f, Math.min(0.35f, reorderGlow * 0.35f));
+                float a = Math.max(0f, Math.min(0.18f, reorderGlow * 0.18f));
                 g2.setComposite(AlphaComposite.SrcOver.derive(a));
                 g2.setColor(accent);
                 g2.fill(shape);
+                g2.setComposite(AlphaComposite.SrcOver);
             }
-            g2.setComposite(AlphaComposite.SrcOver);
             g2.setClip(oldClip);
-            g2.setColor(accent);
-            g2.fillRoundRect(6, 8, 6, h - 16, 6, 6);
+
+            // Accent bar
+            g2.setPaint(new GradientPaint(0, 8, new Color(102, 168, 255), 0, h - 8, new Color(70, 120, 240)));
+            g2.fillRoundRect(6, 9, 6, h - 18, 6, 6);
+
+            // Borders
+            if (selected) {
+                g2.setColor(new Color(120, 170, 255, 90));
+                g2.drawRoundRect(3, 2, w - 6, h - 4, arc + 2, arc + 2);
+            }
             g2.setColor(selected ? selectedBorder : cardBorder);
-            g2.drawRoundRect(3, 2, w - 6, h - 4, arc, arc);
+            g2.drawRoundRect(4, 3, w - 8, h - 6, arc, arc);
+            g2.setColor(new Color(255, 255, 255, 140));
+            g2.drawRoundRect(5, 4, w - 10, h - 8, arc - 1, arc - 1);
             g2.dispose();
             super.paintComponent(g);
         }

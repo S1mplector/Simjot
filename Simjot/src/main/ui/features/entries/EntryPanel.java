@@ -59,7 +59,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
@@ -97,6 +96,7 @@ import main.ui.components.popup.AnimatedGlassPopup;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.slider.MoodSlider;
 import main.ui.components.util.EditorUIUtils;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
@@ -109,7 +109,7 @@ public class EntryPanel extends AbstractEditorPanel {
     // inherited: app, journalFolder, cardLayout, cardPanel
 
     // UI components for the entry
-    protected JTextField titleField;
+    protected TitleDividerField titleField;
     protected JTextPane contentArea;
     protected MoodSlider moodSlider;
     private DetailedMoodPanel detailedMoodPanel; // collapsible detailed mood panel

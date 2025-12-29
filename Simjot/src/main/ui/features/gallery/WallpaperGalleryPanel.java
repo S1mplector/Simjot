@@ -224,9 +224,9 @@ private JPanel buttonPanel;
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         buttonPanel.setOpaque(false);
         IconMenuButton selectBtn = new IconMenuButton("Select", "save");
-        IconMenuButton refreshBtn = new IconMenuButton("Refresh", "refreshsizes");
-        IconMenuButton openFolderBtn = new IconMenuButton("Open", "explorer");
-        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
+        IconMenuButton refreshBtn = new IconMenuButton("Refresh", "rescan");
+        IconMenuButton openFolderBtn = new IconMenuButton("Open", "open_folder");
+        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
 
         selectBtn.setToolTipText("Apply selected wallpaper");
         refreshBtn.setToolTipText("Refresh wallpaper list");
@@ -272,7 +272,14 @@ private JPanel buttonPanel;
         SwingWorker<Void, WallpaperItem> worker = new SwingWorker<>(){
             @Override protected Void doInBackground(){
                 // Built-in season-themed wallpapers
-                String[] builtIn = {"img/background/spring.png","img/background/summer.png","img/background/fall.jpg","img/background/winter.png"};
+                String[] builtIn = {
+                    "img/background/spring.png",
+                    "img/background/summer.png",
+                    "img/background/fall.jpg",
+                    "img/background/winter.png",
+                    "img/background/b&w.png",
+                    "img/background/b&w2.png"
+                };
                 for (String res : builtIn) {
                     try {
                         Image img = ResourceLoader.createImage("Simjot/" + res);
@@ -354,9 +361,10 @@ private JPanel buttonPanel;
         // Season-themed wallpapers
         String[] builtInWallpapers = {
             "img/background/spring.png",
-            "img/background/summer.png", 
+            "img/background/summer.png",
             "img/background/fall.jpg",
-            "img/background/winter.png"
+            "img/background/winter.png",
+            "img/background/b&w2.png"
         };
         for (String wallpaperPath : builtInWallpapers) {
             try {
