@@ -29,13 +29,12 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.AeroScrollBarUI;
-import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.features.splash.AeroSplashScreen;
-import main.ui.theme.aero.AeroPainters;
-import main.ui.theme.aero.AeroTheme;
+import main.ui.features.splash.SettingsSaveSplash;
+import main.ui.scaling.UIScalingManager;
 import main.ui.theme.Theme;
 import main.ui.theme.ThemePalette;
-import main.ui.scaling.UIScalingManager;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 public class SettingsPanel extends JPanel {
 
@@ -143,21 +142,37 @@ public class SettingsPanel extends JPanel {
     }
 
     private void saveAll(){
-        final AeroSplashScreen splash = new AeroSplashScreen();
-        splash.setStatus("Saving settings…");
+        final SettingsSaveSplash splash = new SettingsSaveSplash();
         splash.setVisible(true);
 
         new javax.swing.SwingWorker<Void, String>() {
             @Override protected Void doInBackground() {
-                publish("Saving preferences…");
+                publish("Applying settings…");
                 try { pages.values().forEach(SettingsPage::apply); } catch (Throwable ignored) {}
-                try { SettingsStore.get().save(); } catch (Throwable ignored) {}
+
+                publish("Writing preferences to disk…");
+                // Robust save: attempt multiple times if needed
+                SettingsStore store = SettingsStore.get();
+                boolean saved = false;
+                for (int attempt = 1; attempt <= 3 && !saved; attempt++) {
+                    try {
+                        store.save();
+                        // Verify the save by forcing a sync
+                        Thread.sleep(50);
+                        saved = true;
+                    } catch (Throwable ex) {
+                        if (attempt == 3) {
+                            System.err.println("Failed to save settings after 3 attempts: " + ex.getMessage());
+                        }
+                        try { Thread.sleep(100); } catch (InterruptedException ie) { break; }
+                    }
+                }
 
                 publish("Updating look & feel…");
                 try {
                     javax.swing.SwingUtilities.invokeAndWait(() -> {
                         try { ThemePalette.refresh(); } catch (Throwable ignored) {}
-                        try { UIScalingManager.updateScale(Theme.densityToScale(SettingsStore.get().getLayoutDensity())); } catch (Throwable ignored) {}
+                        try { UIScalingManager.updateScale(Theme.densityToScale(store.getLayoutDensity())); } catch (Throwable ignored) {}
                         try { javax.swing.SwingUtilities.updateComponentTreeUI(app); } catch (Throwable ignored) {}
                     });
                 } catch (Throwable ignored) {}
@@ -169,6 +184,10 @@ public class SettingsPanel extends JPanel {
                         try { app.updateWidgetPanelVisibility(); } catch (Throwable ignored) {}
                     });
                 } catch (Throwable ignored) {}
+
+                publish("Finalizing…");
+                // Final sync to ensure all writes are flushed
+                try { Thread.sleep(100); } catch (InterruptedException ignored) {}
                 return null;
             }
             @Override protected void process(java.util.List<String> chunks) {
