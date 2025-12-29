@@ -324,17 +324,13 @@ public class NotebookEntriesPanel extends JPanel {
 
         ToolbarIconButton delNbBtn = new ToolbarIconButton("trash");
         delNbBtn.addActionListener(e->deleteNotebook());
-        
-        ToolbarIconButton calendarBtn = new ToolbarIconButton("calendar");
-        calendarBtn.setToolTipText("Filter by date");
-        calendarBtn.addActionListener(e->showDateFilter());
 
         top.add(backBtn);
         top.add(new JLabel(nb.getName()));
         top.add(Box.createHorizontalStrut(20));
         top.add(new JLabel("Search:")); top.add(searchField);
         top.add(new JLabel("Sort:")); top.add(sortBox);
-        top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn); top.add(calendarBtn);
+        top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn);
         add(top,BorderLayout.NORTH);
 
         // Debounce search updates to avoid frequent resorting/filtering while typing

@@ -1,29 +1,75 @@
 package main.ui.components.icons;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Paint;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.font.GlyphVector;
-import java.awt.geom.*;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Generates a Windows 7 style, smooth, vector-rendered application icon.
- * No raster assets required. Produces multiple sizes for best OS integration.
+ * Utility class for generating vector-rendered application icons.
+ * No raster assets required if desired. Produces multiple sizes for best OS integration.
+ * @author S1mplector
  */
 public final class AppIcon {
     private AppIcon() {}
 
     /**
      * Create a list of images at multiple sizes suitable for JFrame.setIconImages().
+     * Tries to load from simjot.png first, falls back to programmatic rendering.
      */
     public static List<Image> generateIconImages() {
         int[] sizes = new int[] {16, 24, 32, 48, 64, 128, 256};
         List<Image> images = new ArrayList<>(sizes.length);
+        
+        // Try to load the PNG icon first
+        Image pngIcon = loadPngIcon();
+        if (pngIcon != null) {
+            for (int sz : sizes) {
+                images.add(pngIcon.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
+            }
+            return images;
+        }
+        
+        // Fallback to programmatic rendering
         for (int sz : sizes) {
             images.add(render(sz));
         }
         return images;
+    }
+    
+    /**
+     * Load the simjot.png icon from resources.
+     */
+    private static Image loadPngIcon() {
+        try {
+            // Try multiple paths for the icon
+            String[] paths = {
+                "Simjot/img/icons/simjot.png",
+                "img/icons/simjot.png",
+                "/img/icons/simjot.png"
+            };
+            for (String path : paths) {
+                java.net.URL url = AppIcon.class.getClassLoader().getResource(path);
+                if (url != null) {
+                    return javax.imageio.ImageIO.read(url);
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     /**
