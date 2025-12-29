@@ -116,11 +116,6 @@ java -jar Simjot.jar
 - Windows: `dist/Simjot/Simjot.exe`
 - macOS: `build/macos-installer/Simjot.app`
 
-### Setting Up Sim AI (Optional)
-1. Install [Ollama](https://ollama.ai)
-2. Pull the Deepseek model: `ollama pull deepseek-coder:6.7b` (or your preferred model)
-3. Enable Sim in Simjot Settings → Sim
-
 ## Usage Guide
 
 ### First Launch
