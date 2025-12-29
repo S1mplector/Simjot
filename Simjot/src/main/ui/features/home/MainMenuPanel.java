@@ -84,7 +84,9 @@ public class MainMenuPanel extends JPanel {
         for (String id : ids) {
             String label = readStickyTitle(id);
             if (label == null) continue;
-            JButton b = new JButton(label, new ImageIcon(ImageIconRenderer.get("img/icons/sticky_widget.png", 16, false)));
+            String res = ImageIconRenderer.mapIdToResource("sticky_widget");
+            java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, 16, false) : null;
+            JButton b = new JButton(label, img != null ? new ImageIcon(img) : null);
             b.setFocusPainted(false);
             b.setOpaque(false);
             b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -152,7 +154,10 @@ public class MainMenuPanel extends JPanel {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                    java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/notebooks_mainmenu.png", 18, false);
+                    String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
+                    java.awt.image.BufferedImage img = res != null
+                            ? main.ui.components.icons.ImageIconRenderer.get(res, 18, false)
+                            : null;
                     if (img != null) {
                         g2.drawImage(img, 0, 0, null);
                     }
@@ -514,7 +519,10 @@ public class MainMenuPanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/about_settings.png", 18, false);
+                String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("about_settings");
+                java.awt.image.BufferedImage img = res != null
+                        ? main.ui.components.icons.ImageIconRenderer.get(res, 18, false)
+                        : null;
                 if (img != null) {
                     g2.drawImage(img, 0, 0, null);
                 }

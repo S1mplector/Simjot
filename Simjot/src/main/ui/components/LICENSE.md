@@ -21,7 +21,7 @@ These Components may be **freely used** in any Java Swing project, including:
 - **Modification**: You may modify the Components for your specific needs
 - **Distribution**: You may distribute the Components as part of your application
 - **Compilation**: You may compile the Components into your application binaries
-- **Commercial Use**: You may use these Components in commercial products without fees
+- **Commercial Use**: You may use these Components in commercial products without any fees
 - **Reverse Engineering**: You may (and it is encouraged!) reverse engineer the Components for the purpose of creating a competing library 
 
 

@@ -29,7 +29,7 @@ public final class AppIcon {
 
     /**
      * Create a list of images at multiple sizes suitable for JFrame.setIconImages().
-     * Tries to load from simjot.png first, falls back to programmatic rendering.
+     * Tries to load simjot.png first, then Streamline icons, then falls back to programmatic rendering.
      */
     public static List<Image> generateIconImages() {
         int[] sizes = new int[] {16, 24, 32, 48, 64, 128, 256};
@@ -42,6 +42,19 @@ public final class AppIcon {
                 images.add(pngIcon.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
             }
             return images;
+        }
+
+        String res = ImageIconRenderer.mapIdToResource("sticky_widget");
+        if (res != null) {
+            boolean loaded = false;
+            for (int sz : sizes) {
+                BufferedImage img = ImageIconRenderer.get(res, sz, false);
+                if (img != null) {
+                    images.add(img);
+                    loaded = true;
+                }
+            }
+            if (loaded) return images;
         }
         
         // Fallback to programmatic rendering

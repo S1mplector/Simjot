@@ -12,24 +12,65 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * PoetryUtils - Overhauled poetry utilities with improved accuracy.
+ * Comprehensive utility class for poetry analysis and text processing.
  * 
- * Features:
- * - Enhanced syllable counting with exception handling
- * - Multiple rhyme types (exact, near, slant)
- * - Phonetic similarity detection
- * - Stress pattern estimation
+ * <p>This class provides a wide range of poetry-related utilities including enhanced
+ * syllable counting, rhyme detection, stress pattern estimation, and text analysis.
+ * It uses multiple heuristics and exception handling to provide accurate results
+ * for English poetry analysis.</p>
+ * 
+ * <p><strong>Key Features:</strong></p>
+ * <ul>
+ *   <li><strong>Enhanced Syllable Counting</strong> - Multiple algorithms with exception handling</li>
+ *   <li><strong>Rhyme Detection</strong> - Exact, near, and slant rhyme matching</li>
+ *   <li><strong>Stress Pattern Analysis</strong> - Iambic and trochaic pattern detection</li>
+ *   <li><strong>Text Processing</strong> - Line splitting, word extraction, and end-word detection</li>
+ *   <li><strong>Phonetic Analysis</strong> - Rhyme key generation and similarity detection</li>
+ * </ul>
+ * 
+ * <p><strong>Usage Example:</strong></p>
+ * <pre>{@code
+ * // Count syllables in a line
+ * String line = "The sun sets slowly on the horizon";
+ * int syllables = PoetryUtils.countSyllablesInLine(line);
+ * 
+ * // Check for rhymes
+ * boolean rhymes = PoetryUtils.rhymes("day", "say");
+ * 
+ * // Detect meter pattern
+ * boolean iambic = PoetryUtils.isIambic("To be or not to be");
+ * }</pre>
+ * 
+ * @author Simjot Development Team
+ * @since 1.0.0
  */
 public final class PoetryUtils {
-    private PoetryUtils() {}
-
+    
+    /**
+     * Regular expression pattern for matching vowel groups in words.
+     * Used for syllable counting algorithms.
+     */
     private static final Pattern VOWEL_GROUPS = Pattern.compile("[aeiouy]+", Pattern.CASE_INSENSITIVE);
+    
+    /**
+     * Regular expression pattern for extracting words from text.
+     * Matches alphabetic characters and apostrophes only.
+     */
     private static final Pattern WORD_PATTERN = Pattern.compile("[A-Za-z']+");
+    
+    /**
+     * Set of words that are exceptions to the silent 'e' rule.
+     * These words keep the final 'e' sound even though it would normally be silent.
+     */
     private static final Set<String> SILENT_E_EXCEPTIONS = new HashSet<>(Arrays.asList(
         "be", "he", "me", "we", "she", "the", "cafe", "forte", "finale", "recipe",
         "adobe", "coyote", "karate", "maybe", "sesame", "simile", "apostrophe"
     ));
     
+    /**
+     * Known syllable counts for common irregular words.
+     * This map provides overrides for words that don't follow standard syllable rules.
+     */
     // Known syllable counts for common irregular words
     private static final Map<String, Integer> SYLLABLE_OVERRIDES = new HashMap<>();
     static {
@@ -69,6 +110,15 @@ public final class PoetryUtils {
         SYLLABLE_OVERRIDES.put("naive", 2); SYLLABLE_OVERRIDES.put("cafe", 2);
     }
 
+    /** Private constructor to prevent instantiation of utility class. */
+    private PoetryUtils() {}
+
+    /**
+     * Splits text into individual lines, handling both Unix and Windows line endings.
+     * 
+     * @param text The text to split into lines. May be null or empty.
+     * @return A list of lines. Empty if input is null or empty.
+     */
     public static List<String> splitLines(String text) {
         List<String> lines = new ArrayList<>();
         if (text == null || text.isEmpty()) return lines;
@@ -76,6 +126,15 @@ public final class PoetryUtils {
         return lines;
     }
 
+    /**
+     * Extracts all words from a line of text.
+     * 
+     * <p>Words are defined as sequences of alphabetic characters and apostrophes.
+     * Punctuation and other symbols are ignored.</p>
+     * 
+     * @param line The line to extract words from. May be null.
+     * @return A list of words found in the line. Empty if input is null.
+     */
     public static List<String> wordsInLine(String line) {
         List<String> words = new ArrayList<>();
         if (line == null) return words;
@@ -84,13 +143,33 @@ public final class PoetryUtils {
         return words;
     }
 
+    /**
+     * Gets the last word in a line of text.
+     * 
+     * <p>Useful for rhyme analysis and end-word processing.</p>
+     * 
+     * @param line The line to analyze. May be null.
+     * @return The last word in the line, or null if no words are found.
+     */
     public static String endWord(String line) {
         List<String> words = wordsInLine(line);
         return words.isEmpty() ? null : words.get(words.size()-1);
     }
 
     /**
-     * Enhanced syllable counting with multiple heuristics.
+     * Counts syllables in a word using multiple heuristics and exception handling.
+     * 
+     * <p>This method uses a sophisticated algorithm that includes:
+     * <ul>
+     *   <li>Known word overrides for irregular words</li>
+     *   <li>Vowel group counting with adjacency rules</li>
+     *   <li>Silent 'e' detection with exceptions</li>
+     *   <li>Special suffix handling (-le, -ed, -tion, etc.)</li>
+     *   <li>Diphthong and special combination handling</li>
+     * </ul></p>
+     * 
+     * @param word The word to analyze. May be null or empty.
+     * @return The estimated syllable count (minimum 1 for non-empty words).
      */
     public static int countSyllables(String word) {
         if (word == null || word.isEmpty()) return 0;
@@ -150,10 +229,24 @@ public final class PoetryUtils {
         return Math.max(1, count);
     }
     
+    /**
+     * Checks if a character is a vowel.
+     * 
+     * @param c The character to check.
+     * @return true if the character is a vowel (a, e, i, o, u, y).
+     */
     private static boolean isVowel(char c) {
         return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' || c == 'y';
     }
 
+    /**
+     * Counts total syllables in a line of text.
+     * 
+     * <p>Sums the syllable counts of all words in the line.</p>
+     * 
+     * @param line The line to analyze. May be null or empty.
+     * @return Total syllable count for the line.
+     */
     public static int countSyllablesInLine(String line) {
         int total = 0;
         for (String w : wordsInLine(line)) total += countSyllables(w);
@@ -161,7 +254,13 @@ public final class PoetryUtils {
     }
 
     /**
-     * Get the primary rhyme key (last stressed vowel + following sounds).
+     * Generates a rhyme key for a word based on its last stressed vowel and following sounds.
+     * 
+     * <p>The rhyme key represents the phonetic ending of the word that determines
+     * rhyming patterns. It includes the last vowel group and all subsequent consonants.</p>
+     * 
+     * @param word The word to generate a rhyme key for. May be null.
+     * @return The rhyme key, or null if input is null or empty.
      */
     public static String rhymeKey(String word) {
         if (word == null) return null;
@@ -177,7 +276,13 @@ public final class PoetryUtils {
     }
     
     /**
-     * Get a near-rhyme key (more lenient matching).
+     * Generates a near-rhyme key for more lenient rhyme matching.
+     * 
+     * <p>Near rhymes use the last 2-3 characters of the word, allowing for
+     * slant rhymes and approximate sound matches.</p>
+     * 
+     * @param word The word to generate a near-rhyme key for. May be null.
+     * @return The near-rhyme key, or null if input is null or empty.
      */
     public static String nearRhymeKey(String word) {
         if (word == null) return null;
@@ -189,7 +294,13 @@ public final class PoetryUtils {
     }
     
     /**
-     * Check if two words rhyme (exact match).
+     * Checks if two words rhyme exactly.
+     * 
+     * <p>Words rhyme if they have the same rhyme key but are not identical words.</p>
+     * 
+     * @param word1 The first word to compare. May be null.
+     * @param word2 The second word to compare. May be null.
+     * @return true if the words rhyme exactly, false otherwise.
      */
     public static boolean rhymes(String word1, String word2) {
         if (word1 == null || word2 == null) return false;
@@ -200,7 +311,14 @@ public final class PoetryUtils {
     }
     
     /**
-     * Check if two words are near-rhymes (slant rhymes).
+     * Checks if two words are near-rhymes (slant rhymes).
+     * 
+     * <p>Near rhymes allow for more flexible matching based on similar endings
+     * or shared phonetic characteristics.</p>
+     * 
+     * @param word1 The first word to compare. May be null.
+     * @param word2 The second word to compare. May be null.
+     * @return true if the words are near-rhymes, false otherwise.
      */
     public static boolean nearRhymes(String word1, String word2) {
         if (word1 == null || word2 == null) return false;
@@ -211,14 +329,27 @@ public final class PoetryUtils {
                !word1.equalsIgnoreCase(word2);
     }
     
+    /**
+     * Checks if two strings share the same ending characters.
+     * 
+     * @param s1 The first string to compare.
+     * @param s2 The second string to compare.
+     * @param chars The number of ending characters to compare.
+     * @return true if both strings share the specified number of ending characters.
+     */
     private static boolean shareEnding(String s1, String s2, int chars) {
         if (s1.length() < chars || s2.length() < chars) return false;
         return s1.substring(s1.length() - chars).equals(s2.substring(s2.length() - chars));
     }
     
     /**
-     * Estimate the stress pattern of a word (0 = unstressed, 1 = stressed).
-     * Returns a simplified pattern based on syllable count.
+     * Estimates the stress pattern of a word.
+     * 
+     * <p>Returns a binary pattern where 1 represents stressed syllables and 0 represents
+     * unstressed syllables. The estimation uses common English stress patterns.</p>
+     * 
+     * @param word The word to analyze. May be null or empty.
+     * @return An array representing the stress pattern (1=stressed, 0=unstressed).
      */
     public static int[] estimateStressPattern(String word) {
         int syllables = countSyllables(word);
@@ -236,9 +367,14 @@ public final class PoetryUtils {
     }
 
     /**
-     * Estimate a binary stress pattern for a whole line. This is intentionally simple:
-     * - Split into words, estimate stress per word, then flatten.
-     * - Clamp to the syllable count we already calculated to avoid drift.
+     * Estimates the stress pattern for an entire line of text.
+     * 
+     * <p>This method combines the stress patterns of individual words to create
+     * a line-level stress pattern. The result is intentionally simplified for
+     * practical meter analysis.</p>
+     * 
+     * @param line The line to analyze. May be null or empty.
+     * @return An array representing the line's stress pattern.
      */
     public static int[] estimateLineStressPattern(String line) {
         if (line == null || line.isBlank()) return new int[0];
@@ -253,7 +389,12 @@ public final class PoetryUtils {
     }
     
     /**
-     * Check if a line follows iambic pattern (unstressed-stressed).
+     * Checks if a line follows iambic meter pattern (unstressed-stressed).
+     * 
+     * <p>Iambic pattern: da-DUM da-DUM da-DUM (0-1-0-1-0-1)</p>
+     * 
+     * @param line The line to analyze. May be null or empty.
+     * @return true if the line follows iambic pattern, false otherwise.
      */
     public static boolean isIambic(String line) {
         List<String> words = wordsInLine(line);
@@ -273,7 +414,12 @@ public final class PoetryUtils {
     }
     
     /**
-     * Check if a line follows trochaic pattern (stressed-unstressed).
+     * Checks if a line follows trochaic meter pattern (stressed-unstressed).
+     * 
+     * <p>Trochaic pattern: DUM-da DUM-da DUM-da (1-0-1-0-1-0)</p>
+     * 
+     * @param line The line to analyze. May be null or empty.
+     * @return true if the line follows trochaic pattern, false otherwise.
      */
     public static boolean isTrochaic(String line) {
         List<String> words = wordsInLine(line);

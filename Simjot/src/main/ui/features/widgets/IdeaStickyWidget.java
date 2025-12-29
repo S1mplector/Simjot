@@ -263,7 +263,7 @@ public class IdeaStickyWidget implements Widget {
         String id = switch (name) {
             case "close" -> "close";
             case "settings", "gear" -> "general_settings";
-            case "+", "plus", "new" -> "write"; // existing plus/write icon
+            case "+", "plus", "new" -> "new";
             case "save" -> "save";
             case "list" -> "list";
             case "delete" -> "delete_entry";
@@ -337,7 +337,8 @@ public class IdeaStickyWidget implements Widget {
                 boolean pinned = main.core.service.SettingsStore.get().isStickyPinned(n.id);
                 lbl.setText(n.toString());
                 if (pinned) {
-                    java.awt.image.BufferedImage img = ImageIconRenderer.get("img/icons/sticky_widget.png", 14, false);
+                    String res = ImageIconRenderer.mapIdToResource("sticky_widget");
+                    java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, 14, false) : null;
                     lbl.setIcon(img != null ? new ImageIcon(img) : null);
                 } else {
                     lbl.setIcon(null);

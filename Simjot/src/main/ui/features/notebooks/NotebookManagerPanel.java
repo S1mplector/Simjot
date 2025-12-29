@@ -782,7 +782,10 @@ public class NotebookManagerPanel extends JPanel {
 
                 // Center PNG icon for creating a new notebook
                 int iconSize = 42;
-                java.awt.image.BufferedImage img = main.ui.components.icons.ImageIconRenderer.get("img/icons/newnotebook.png", iconSize, true);
+                String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("new");
+                java.awt.image.BufferedImage img = res != null
+                        ? main.ui.components.icons.ImageIconRenderer.get(res, iconSize, true)
+                        : null;
                 if (img != null) {
                     int x = (getWidth() - iconSize) / 2;
                     int y = (getHeight() - iconSize) / 2;

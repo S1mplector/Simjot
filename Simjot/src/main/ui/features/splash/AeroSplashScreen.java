@@ -5,7 +5,6 @@ import java.awt.Component;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Image;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -18,8 +17,8 @@ import javax.swing.SwingConstants;
 import javax.swing.Timer;
 
 import main.core.AppInfo;
-import main.infrastructure.io.ResourceLoader;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -51,10 +50,11 @@ public class AeroSplashScreen extends JWindow {
         // Icon + title row
         JLabel icon = new JLabel();
         icon.setAlignmentY(Component.CENTER_ALIGNMENT);
-        Image img = ResourceLoader.createImage("img/icons/simjot.png");
+        int size = 48;
+        String res = ImageIconRenderer.mapIdToResource("sticky_widget");
+        java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, size, false) : null;
         if (img != null) {
-            int size = 48;
-            icon.setIcon(new ImageIcon(img.getScaledInstance(size, size, Image.SCALE_SMOOTH)));
+            icon.setIcon(new ImageIcon(img));
         }
 
         title.setForeground(AeroTheme.TEXT_PRIMARY);

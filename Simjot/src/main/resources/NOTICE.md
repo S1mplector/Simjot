@@ -1,8 +1,17 @@
-# NOTICE
+# NOTICE - Third-Party Dependencies and Assets
 
-## Third-Party Dependencies
+## Comprehensive Documentation
 
-This notice specifically addresses the Simple English Dictionary data.
+For detailed information about all third-party assets, libraries, and resources used in Simjot, please see the **DOCUMENTATION_INDEX.md** file in this directory.
+
+## Quick Reference
+
+- **Third-Party Libraries**: See `THIRD_PARTY_LIBRARIES_NOTICE.md`
+- **Icons**: See `STREAMLINE_ICONS_NOTICE.md`
+- **Background Images**: See `img/background/BACKGROUND_IMAGES_NOTICE.md`
+- **Generated Assets**: See `img/NOTICE`
+- **Quotes**: See `quotes/NOTICE`
+- **Dictionary Data**: See `simple-english-dictionary/README.md`
 
 ## Simple English Dictionary
 
@@ -17,7 +26,18 @@ We extend our gratitude to the Simple English Dictionary project for providing t
 
 ## Image Assets
 
-All other images, icons, graphics, and visual assets used in this application are the exclusive property of S1mplector.
+### Streamline Icons
+
+This application includes icons from the Streamline Ultimate Light (Free) icon set.
+
+**Source:** https://www.streamlinehq.com  
+**License:** Streamline Free License (https://streamlinehq.com/license)  
+**Owner:** Streamline  
+**Description:** Open source icon set used for application and UI iconography.
+
+### Proprietary Assets
+
+All other images, icons, graphics, and visual assets used in this application, excluding the Streamline icons listed above, are the exclusive property of S1mplector.
 
 **Owner:** S1mplector  
 **Rights Reserved:** All rights reserved  

@@ -9,27 +9,66 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * LineBreakEngine - Production-ready line break suggestions based on meter and meaning.
+ * Advanced line break analysis engine for poetry formatting and prose-to-poetry conversion.
  * 
- * Features:
- * - Suggests optimal line breaks for prose-to-poetry conversion
- * - Meter-aware break suggestions
- * - Meaning-based break detection (clause boundaries, breath pauses)
- * - Enjambment detection and suggestions
- * - Stanza break recommendations
- * - Multiple formatting options (short lines, long lines, mixed)
+ * <p>This sophisticated engine analyzes text to suggest optimal line breaks based on multiple
+ * factors including meter, meaning, breath pauses, and poetic structure. It supports various
+ * formatting styles and can convert prose into poetic form while maintaining readability and
+ * aesthetic appeal.</p>
+ * 
+ * <p><strong>Key Capabilities:</strong></p>
+ * <ul>
+ *   <li><strong>Meter-Aware Breaking</strong> - Suggests breaks that maintain poetic meter</li>
+ *   <li><strong>Semantic Analysis</strong> - Detects clause boundaries and natural pause points</li>
+ *   <li><strong>Enjambment Detection</strong> - Identifies opportunities for line continuation</li>
+ *   <li><strong>Stanza Organization</strong> - Groups lines into coherent stanzas</li>
+ *   <li><strong>Multiple Styles</strong> - Supports various poetic forms and formatting preferences</li>
+ * </ul>
+ * 
+ * <p><strong>Usage Example:</strong></p>
+ * <pre>{@code
+ * // Analyze text for line breaks
+ * LineBreakEngine engine = new LineBreakEngine();
+ * LineBreakEngine.BreakConfig config = LineBreakEngine.BreakConfig.defaultConfig();
+ * LineBreakEngine.BreakAnalysis analysis = engine.analyze(text, config);
+ * 
+ * // Get reformatted poetry
+ * String formattedPoem = analysis.reformattedText;
+ * List<BreakSuggestion> suggestions = analysis.suggestions;
+ * }</pre>
+ * 
+ * @author Simjot Development Team
+ * @since 1.0.0
  */
 public class LineBreakEngine {
     
     /**
-     * Line break suggestion result.
+     * Represents a single line break suggestion with detailed metadata.
+     * 
+     * <p>Each suggestion includes the position, type, confidence score, and reasoning
+     * for why this particular break point was recommended.</p>
      */
     public static class BreakSuggestion {
-        public final int position; // Character position in original text
+        /** Character position in the original text where the break should occur. */
+        public final int position;
+        
+        /** The type of break being suggested (line break, stanza break, etc.). */
         public final BreakType type;
+        
+        /** Confidence score from 0.0 to 1.0 indicating how strongly this break is recommended. */
         public final double confidence;
+        
+        /** Human-readable explanation of why this break was suggested. */
         public final String reason;
         
+        /**
+         * Creates a new break suggestion.
+         * 
+         * @param position Character position in original text (0-based index)
+         * @param type The type of break being suggested
+         * @param confidence Confidence score (0.0 to 1.0)
+         * @param reason Explanation for the suggestion
+         */
         public BreakSuggestion(int position, BreakType type, double confidence, String reason) {
             this.position = position;
             this.type = type;
@@ -39,29 +78,71 @@ public class LineBreakEngine {
     }
     
     /**
-     * Types of line breaks.
+     * Enumeration of different types of line breaks that can be suggested.
+     * 
+     * <p>Each break type represents a different poetic structure or formatting decision,
+     * from simple line breaks to complex stanza divisions and enjambment opportunities.</p>
      */
     public enum BreakType {
+        /** Standard line break ending a line of poetry. */
         LINE_BREAK("Line break"),
+        
+        /** Break between stanzas, typically with additional spacing. */
         STANZA_BREAK("Stanza break"),
+        
+        /** Mid-line pause (caesura) for dramatic effect or breath. */
         CAESURA("Mid-line pause"),
+        
+        /** Opportunity for enjambment (continuation of thought without punctuation). */
         ENJAMBMENT("Enjambment opportunity");
         
+        /** Human-readable description of the break type. */
         public final String description;
+        
+        /**
+         * Creates a new break type with description.
+         * 
+         * @param description Human-readable description
+         */
         BreakType(String description) { this.description = description; }
     }
     
     /**
-     * Line break analysis result.
+     * Complete analysis result containing all suggestions and reformatted text.
+     * 
+     * <p>This class encapsulates the full output of the line break analysis process,
+     * including the original text, all suggestions, and a reformatted version with
+     * the suggested breaks applied.</p>
      */
     public static class BreakAnalysis {
+        /** The original text that was analyzed. */
         public final String originalText;
+        
+        /** Immutable list of all break suggestions, sorted by position. */
         public final List<BreakSuggestion> suggestions;
+        
+        /** The reformatted text with suggested breaks applied. */
         public final String reformattedText;
+        
+        /** Total number of lines suggested in the reformatted text. */
         public final int suggestedLineCount;
+        
+        /** Total number of stanzas suggested in the reformatted text. */
         public final int suggestedStanzaCount;
+        
+        /** The target meter pattern that was used or detected. */
         public final String meterTarget;
         
+        /**
+         * Creates a new break analysis result.
+         * 
+         * @param originalText The original text that was analyzed
+         * @param suggestions List of break suggestions (will be copied to immutable list)
+         * @param reformattedText The reformatted text with breaks applied
+         * @param suggestedLineCount Number of lines in reformatted text
+         * @param suggestedStanzaCount Number of stanzas in reformatted text
+         * @param meterTarget The meter pattern used for analysis
+         */
         public BreakAnalysis(String originalText, List<BreakSuggestion> suggestions,
                             String reformattedText, int suggestedLineCount,
                             int suggestedStanzaCount, String meterTarget) {
@@ -75,15 +156,36 @@ public class LineBreakEngine {
     }
     
     /**
-     * Configuration for line break suggestions.
+     * Configuration object controlling how line break analysis is performed.
+     * 
+     * <p>This class allows fine-tuning of the analysis process including syllable targets,
+     * formatting preferences, and structural constraints.</p>
      */
     public static class BreakConfig {
-        public final int targetSyllables; // 0 = auto-detect
-        public final int minSyllables;
-        public final int maxSyllables;
-        public final boolean preferEndStopped; // Prefer lines ending with punctuation
-        public final int linesPerStanza; // 0 = auto
+        /** Target syllables per line (0 = auto-detect from text). */
+        public final int targetSyllables;
         
+        /** Minimum syllables allowed per line. */
+        public final int minSyllables;
+        
+        /** Maximum syllables allowed per line. */
+        public final int maxSyllables;
+        
+        /** Whether to prefer lines ending with punctuation (end-stopped lines). */
+        public final boolean preferEndStopped;
+        
+        /** Number of lines per stanza (0 = auto-detect based on content). */
+        public final int linesPerStanza;
+        
+        /**
+         * Creates a new break configuration.
+         * 
+         * @param targetSyllables Target syllables per line (0 for auto-detect)
+         * @param minSyllables Minimum syllables per line
+         * @param maxSyllables Maximum syllables per line
+         * @param preferEndStopped Whether to prefer end-stopped lines
+         * @param linesPerStanza Lines per stanza (0 for auto-detect)
+         */
         public BreakConfig(int targetSyllables, int minSyllables, int maxSyllables,
                           boolean preferEndStopped, int linesPerStanza) {
             this.targetSyllables = targetSyllables;
@@ -93,10 +195,20 @@ public class LineBreakEngine {
             this.linesPerStanza = linesPerStanza;
         }
         
+        /**
+         * Creates a default configuration suitable for most poetry.
+         * 
+         * @return Default configuration with 10 target syllables, 6-14 range, end-stopped preference, 4-line stanzas
+         */
         public static BreakConfig defaultConfig() {
             return new BreakConfig(10, 6, 14, true, 4);
         }
         
+        /**
+         * Creates a configuration optimized for free verse poetry.
+         * 
+         * @return Free verse configuration with flexible syllable counts and stanza structure
+         */
         public static BreakConfig freeVerse() {
             return new BreakConfig(0, 3, 20, false, 0);
         }

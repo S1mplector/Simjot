@@ -7,18 +7,20 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.swing.ImageIcon;
 
-import main.core.service.SettingsStore;
+import org.apache.batik.transcoder.TranscoderInput;
+import org.apache.batik.transcoder.TranscoderOutput;
+import org.apache.batik.transcoder.image.ImageTranscoder;
+
 import main.infrastructure.io.ResourceLoader;
-import main.ui.features.gallery.GeneratedWallpapers;
-import main.ui.util.AccentColorUtil;
 
 /**
- * Central PNG icon loader/renderer with high-quality scaling and in-memory caching.
+ * Central SVG/PNG icon loader/renderer with high-quality scaling and in-memory caching.
  * Supports optional subtle shadow for light backgrounds.
  */
 public final class ImageIconRenderer {
@@ -34,21 +36,17 @@ public final class ImageIconRenderer {
     }
 
     private static final Map<Key, BufferedImage> CACHE = new ConcurrentHashMap<>();
-    private static volatile Color sAccentTint = null;
+    private static final String STREAMLINE_SVG_DIR = "img/icons/streamline-ultimate-light---free--24x24-SVG/";
+    private static final String STREAMLINE_PNG_DIR = "img/icons/streamline-ultimate-light---free--24x24-PNG/";
+
     public static void setAccentTint(Color c) {
-        int before = tintSignature();
-        sAccentTint = c;
-        int after = tintSignature();
-        if (before != after) {
-            CACHE.clear();
-        }
+        // Tinting disabled for Streamline icon set.
     }
 
     public static void clearCaches() {
-        sAccentTint = null;
         CACHE.clear();
     }
-    private static int tintSignature() { Color c = sAccentTint; return c == null ? 0 : c.getRGB(); }
+    private static int tintSignature() { return 0; }
 
     public static BufferedImage get(String resourcePath, int size, boolean shadow){
         if (resourcePath == null) return null;
@@ -56,7 +54,6 @@ public final class ImageIconRenderer {
         if (resourcePath.startsWith("Simjot/")) {
             resourcePath = resourcePath.substring("Simjot/".length());
         }
-        ensureAccentTintInitialized();
         Key key = new Key(resourcePath, size, shadow, tintSignature());
         return CACHE.computeIfAbsent(key, k -> build(k.path, k.size, k.shadow));
     }
@@ -81,20 +78,31 @@ public final class ImageIconRenderer {
     }
 
     private static BufferedImage build(String path, int size, boolean withShadow){
-        Image imgRaw = ResourceLoader.createImage("Simjot/" + path);
-        if (imgRaw == null) return null;
-
         int target = Math.max(1, size);
-        // Realize source into a BufferedImage
-        ImageIcon icon = new ImageIcon(imgRaw);
-        int srcW = icon.getIconWidth();
-        int srcH = icon.getIconHeight();
+        BufferedImage scaled = loadAndScale(path, target);
+        if (scaled == null) return null;
+
+        // Accent recolor is intentionally disabled for the new icon set.
+        BufferedImage tinted = recolorToAccentIfEnabled(scaled);
+        return applyShadow(tinted, target, withShadow);
+    }
+
+    private static BufferedImage buildWithAccent(String path, int size, boolean withShadow, Color customAccent){
+        int target = Math.max(1, size);
+        BufferedImage scaled = loadAndScale(path, target);
+        if (scaled == null) return null;
+
+        BufferedImage tinted = recolorWithAccent(scaled, customAccent);
+        return applyShadow(tinted, target, withShadow);
+    }
+
+    private static BufferedImage loadAndScale(String path, int target){
+        BufferedImage src = loadSourceImage(path, target);
+        if (src == null) return null;
+        int srcW = src.getWidth();
+        int srcH = src.getHeight();
         if (srcW <= 0 || srcH <= 0) return null;
-        BufferedImage src = new BufferedImage(srcW, srcH, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D gsrc = src.createGraphics();
-        gsrc.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        gsrc.drawImage(imgRaw, 0, 0, null);
-        gsrc.dispose();
+        if (srcW == target && srcH == target) return src;
 
         // Progressive downscale for better sharpness when shrinking a lot
         BufferedImage current = src;
@@ -112,7 +120,6 @@ public final class ImageIconRenderer {
             current = tmp; cw = nw; ch = nh;
         }
 
-        // Final precise resize to exact target with bicubic
         BufferedImage scaled = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = scaled.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -122,33 +129,25 @@ public final class ImageIconRenderer {
         g.drawImage(current, 0, 0, target, target, null);
         g.dispose();
         if (current != src) current.flush();
-
-        // Optional accent recolor (blue-hue -> accent hue)
-        BufferedImage tinted = recolorToAccentIfEnabled(scaled);
-
-        if (!withShadow) return tinted;
-        BufferedImage shadow = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D gSh = shadow.createGraphics();
-        gSh.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        gSh.drawImage(tinted, 0, 0, null);
-        gSh.setComposite(AlphaComposite.SrcAtop);
-        gSh.setColor(new Color(0,0,0,80));
-        gSh.fillRect(0, 0, target, target);
-        gSh.dispose();
-
-        BufferedImage out = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D gOut = out.createGraphics();
-        gOut.drawImage(shadow, 1, 1, null);
-        gOut.drawImage(tinted, 0, 0, null);
-        gOut.dispose();
-        return out;
+        return scaled;
     }
 
-    private static BufferedImage buildWithAccent(String path, int size, boolean withShadow, Color customAccent){
+    private static BufferedImage loadSourceImage(String path, int target){
+        if (path == null) return null;
+        if (isSvg(path)) {
+            BufferedImage svg = renderSvg(path, target);
+            if (svg != null) return svg;
+            String fallback = toPngFallback(path);
+            if (fallback != null) return loadRasterImage(fallback);
+            return null;
+        }
+        return loadRasterImage(path);
+    }
+
+    private static BufferedImage loadRasterImage(String path){
         Image imgRaw = ResourceLoader.createImage("Simjot/" + path);
         if (imgRaw == null) return null;
 
-        int target = Math.max(1, size);
         ImageIcon icon = new ImageIcon(imgRaw);
         int srcW = icon.getIconWidth();
         int srcH = icon.getIconHeight();
@@ -158,37 +157,29 @@ public final class ImageIconRenderer {
         gsrc.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         gsrc.drawImage(imgRaw, 0, 0, null);
         gsrc.dispose();
+        return src;
+    }
 
-        BufferedImage current = src;
-        int cw = srcW, ch = srcH;
-        while (cw / 2 >= target && ch / 2 >= target) {
-            int nw = Math.max(target, cw / 2);
-            int nh = Math.max(target, ch / 2);
-            BufferedImage tmp = new BufferedImage(nw, nh, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2 = tmp.createGraphics();
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2.drawImage(current, 0, 0, nw, nh, null);
-            g2.dispose();
-            if (current != src) current.flush();
-            current = tmp; cw = nw; ch = nh;
+    private static BufferedImage renderSvg(String path, int target){
+        try (InputStream in = ResourceLoader.getResourceAsStream("Simjot/" + path)) {
+            if (in == null) return null;
+            TranscoderInput input = new TranscoderInput(in);
+            BufferedImageTranscoder t = new BufferedImageTranscoder();
+            t.addTranscodingHint(ImageTranscoder.KEY_WIDTH, (float) target);
+            t.addTranscodingHint(ImageTranscoder.KEY_HEIGHT, (float) target);
+            t.transcode(input, null);
+            return t.getImage();
+        } catch (Exception ignored) {
+            return null;
         }
+    }
 
-        BufferedImage scaled = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = scaled.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.drawImage(current, 0, 0, target, target, null);
-        g.dispose();
-        if (current != src) current.flush();
-
-        // Apply custom accent tint
-        BufferedImage tinted = recolorWithAccent(scaled, customAccent);
-
-        if (!withShadow) return tinted;
+    private static BufferedImage applyShadow(BufferedImage base, int target, boolean withShadow){
+        if (!withShadow || base == null) return base;
         BufferedImage shadow = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gSh = shadow.createGraphics();
-        gSh.drawImage(tinted, 0, 0, null);
+        gSh.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        gSh.drawImage(base, 0, 0, null);
         gSh.setComposite(AlphaComposite.SrcAtop);
         gSh.setColor(new Color(0,0,0,80));
         gSh.fillRect(0, 0, target, target);
@@ -197,137 +188,99 @@ public final class ImageIconRenderer {
         BufferedImage out = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gOut = out.createGraphics();
         gOut.drawImage(shadow, 1, 1, null);
-        gOut.drawImage(tinted, 0, 0, null);
+        gOut.drawImage(base, 0, 0, null);
         gOut.dispose();
         return out;
     }
 
-    private static BufferedImage recolorWithAccent(BufferedImage src, Color accentColor){
-        if (accentColor == null) return src;
-        float[] tgtHSB = Color.RGBtoHSB(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), null);
-        float tgtHue = tgtHSB[0];
-        float tgtSat = Math.max(0.35f, tgtHSB[1]);
+    private static boolean isSvg(String path){
+        return path.toLowerCase().endsWith(".svg");
+    }
 
-        int w = src.getWidth(), height = src.getHeight();
-        BufferedImage out = new BufferedImage(w, height, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<height; y++){
-            for (int x=0; x<w; x++){
-                int argb = src.getRGB(x, y);
-                int a = (argb >>> 24) & 0xFF;
-                if (a == 0) { out.setRGB(x, y, 0); continue; }
-                int r = (argb >>> 16) & 0xFF;
-                int g = (argb >>> 8) & 0xFF;
-                int b = (argb) & 0xFF;
-                float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
-                if (lum < 0.06f || lum > 0.97f) { out.setRGB(x, y, argb); continue; }
-                float v = clamp01(lum * 1.0f);
-                int rgb = Color.HSBtoRGB(tgtHue, tgtSat, v);
-                out.setRGB(x, y, (a << 24) | (rgb & 0x00FFFFFF));
-            }
+    private static String toPngFallback(String svgPath){
+        if (!svgPath.startsWith(STREAMLINE_SVG_DIR) || !svgPath.endsWith(".svg")) return null;
+        String stem = svgPath.substring(STREAMLINE_SVG_DIR.length(), svgPath.length() - 4);
+        return STREAMLINE_PNG_DIR + stem + ".png";
+    }
+
+    private static final class BufferedImageTranscoder extends ImageTranscoder {
+        private BufferedImage image;
+
+        @Override
+        public BufferedImage createImage(int w, int h) {
+            return new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         }
-        return out;
+
+        @Override
+        public void writeImage(BufferedImage img, TranscoderOutput out) {
+            this.image = img;
+        }
+
+        BufferedImage getImage() {
+            return image;
+        }
+    }
+
+    private static BufferedImage recolorWithAccent(BufferedImage src, Color accentColor){
+        return src;
     }
 
     // Recolor by remapping pixel luminance to the accent hue (monochrome colorize),
     // preserving near-black strokes and near-white highlights.
     private static BufferedImage recolorToAccentIfEnabled(BufferedImage src){
-        Color target = sAccentTint;
-        if (target == null) return src;
-        float[] tgtHSB = Color.RGBtoHSB(target.getRed(), target.getGreen(), target.getBlue(), null);
-        float tgtHue = tgtHSB[0];
-        float tgtSat = Math.max(0.35f, tgtHSB[1]); // ensure enough color presence
-
-        int w = src.getWidth(), height = src.getHeight();
-        BufferedImage out = new BufferedImage(w, height, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<height; y++){
-            for (int x=0; x<w; x++){
-                int argb = src.getRGB(x, y);
-                int a = (argb >>> 24) & 0xFF;
-                if (a == 0) { out.setRGB(x, y, 0); continue; }
-                int r = (argb >>> 16) & 0xFF;
-                int g = (argb >>> 8) & 0xFF;
-                int b = (argb) & 0xFF;
-                // Relative luminance (sRGB) to preserve shading
-                float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
-                // Preserve near-black strokes and near-white highlights (often borders/gloss)
-                if (lum < 0.06f || lum > 0.97f) { out.setRGB(x, y, argb); continue; }
-                float v = clamp01(lum * 1.0f); // direct luminance -> value
-                int rgb = Color.HSBtoRGB(tgtHue, tgtSat, v);
-                out.setRGB(x, y, (a << 24) | (rgb & 0x00FFFFFF));
-            }
-        }
-        return out;
+        return src;
     }
 
-    private static float clamp01(float v){ return (v < 0f ? 0f : (v > 1f ? 1f : v)); }
-
-    private static void ensureAccentTintInitialized(){
-        if (sAccentTint != null) return;
-        try {
-            Color accent = AccentColorUtil.defaultAccent();
-            try {
-                int saved = SettingsStore.get().getWidgetAccentRGB();
-                if (saved != Integer.MIN_VALUE) {
-                    accent = new Color(saved, false);
-                }
-            } catch (Throwable ignored) {}
-            String bgPath = SettingsStore.get().getBackgroundImage();
-            if (bgPath != null && !bgPath.isEmpty()) {
-                Image img = null;
-                if (bgPath.startsWith("gen:")) {
-                    img = GeneratedWallpapers.render(bgPath, 1280, 720);
-                } else if (bgPath.startsWith("res:")) {
-                    img = ResourceLoader.createImage("Simjot/" + bgPath.substring(4));
-                } else {
-                    img = new ImageIcon(bgPath).getImage();
-                }
-                if (img != null) accent = AccentColorUtil.extractAccent(img);
-            }
-            setAccentTint(accent);
-        } catch (Throwable ignored) {}
+    private static String iconSvg(String name){
+        return STREAMLINE_SVG_DIR + name + "--Streamline-Ultimate.svg";
     }
 
     // Convenience mapping for common IDs used across the app
     public static String mapIdToResource(String id){
         if (id == null) return null;
         return switch (id.toLowerCase()) {
-            case "notebook" -> "img/icons/notebooks_mainmenu.png";
-            case "smile" -> "img/icons/moodchart_mainmenu.png";
-            case "chart", "stats", "analysis" -> "img/icons/list.png";
-            case "wrench", "settings", "options" -> "img/icons/settings.png";
-            case "trash" -> "img/icons/trash.png";
-            case "new", "write", "plus" -> "img/icons/write.png";
-            case "brush" -> "img/icons/brush.png";
-            case "delete", "delete_entry" -> "img/icons/delete_entry.png";
-            case "back" -> "img/icons/back.png";
-            case "list" -> "img/icons/list.png";
-            case "close" -> "img/icons/close.png";
-            case "saveandexit", "save_and_exit" -> "img/icons/saveandexit.png";
-            case "check", "select", "apply" -> "img/icons/select.png";
-            case "save" -> "img/icons/save.png";
-            case "load" -> "img/icons/load.png";
-            case "backgroundoptions" -> "img/icons/backgroundoptions.png";
-            case "gallery", "gallerypicker" -> "img/icons/backgroundoptions copy.png";
+            case "notebook" -> iconSvg("Bookmarks-Document");
+            case "smile" -> iconSvg("Graph-Stats-Circle");
+            case "chart", "stats", "analysis" -> iconSvg("Graph-Stats-Descend");
+            case "wrench", "settings", "options" -> iconSvg("Cog");
+            case "trash" -> iconSvg("Bin-1");
+            case "new", "plus" -> iconSvg("Add-Circle-Bold");
+            case "write" -> iconSvg("Pen-Write");
+            case "brush", "pencil" -> iconSvg("Pencil-1");
+            case "delete", "delete_entry" -> iconSvg("Delete-2");
+            case "back" -> iconSvg("Go-Backward-30-Control");
+            case "list", "lines" -> iconSvg("List-Numbers");
+            case "close" -> iconSvg("Remove-Bold");
+            case "saveandexit", "save_and_exit" -> iconSvg("Login-1");
+            case "check", "select", "apply", "tick" -> iconSvg("Check");
+            case "save" -> iconSvg("Check-Badge");
+            case "load" -> iconSvg("Move-Down-1");
+            case "backgroundoptions" -> iconSvg("Settings-Slider-Desktop-Horizontal");
+            case "gallery", "gallerypicker" -> iconSvg("Layout-11");
+            case "image" -> iconSvg("Cell-Border-Frame");
+            case "clock" -> iconSvg("Time-Clock-Circle");
+            case "calendar" -> iconSvg("Calendar-3");
             // View / window controls
-            case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "img/icons/fullscreen.png";
-            case "export", "share", "download" -> "img/icons/export.png";
-            case "rhyme", "rhymes", "rhyme_dock" -> "img/icons/rhyme.png";
+            case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> iconSvg("Expand-Full");
+            case "export", "share", "download" -> iconSvg("Direction-Button-3");
+            case "rhyme", "rhymes", "rhyme_dock" -> iconSvg("Arrange-Letter");
             // Storage actions
-            case "explorer", "open_in_explorer" -> "img/icons/explorer.png";
-            case "refreshsizes", "refresh_sizes" -> "img/icons/refreshsizes.png";
-            case "revealselected", "reveal_selected" -> "img/icons/revealselected.png";
+            case "explorer", "open_in_explorer" -> iconSvg("Layout-Content");
+            case "refreshsizes", "refresh_sizes" -> iconSvg("Button-Loop");
+            case "revealselected", "reveal_selected" -> iconSvg("Cursor-Target-1");
             // Sim guidance
-            case "sim_guidance", "simguidance", "guidance" -> "img/icons/simguidance.png";
+            case "sim_guidance", "simguidance", "guidance" -> iconSvg("Help-Question-Network");
             // Settings sidebar categories
-            case "general_settings", "settings_general" -> "img/icons/general_settings.png";
-            case "appearance_settings", "settings_appearance" -> "img/icons/appearance_settings.png";
-            case "storage_settings", "settings_storage" -> "img/icons/storage_settings.png";
-            case "sim_settings", "settings_sim" -> "img/icons/sim_settings.png";
-            case "about_settings", "settings_about" -> "img/icons/about_settings.png";
+            case "general_settings", "settings_general" -> iconSvg("Layout-Dashboard");
+            case "appearance_settings", "settings_appearance" -> iconSvg("Brightness");
+            case "storage_settings", "settings_storage" -> iconSvg("Layout");
+            case "sim_settings", "settings_sim" -> iconSvg("Laptop-Help-Message");
+            case "about_settings", "settings_about" -> iconSvg("Information-Circle");
+            case "security", "security_settings" -> iconSvg("Lock-5");
             // Widget buttons
-            case "breathing_widget", "widget_breathing" -> "img/icons/breathing_widget.png";
-            case "pomodoro_widget", "widget_pomodoro" -> "img/icons/pomodoro_widget.png";
-            case "sticky_widget", "widget_sticky" -> "img/icons/sticky_widget.png";
+            case "breathing_widget", "widget_breathing", "breath" -> iconSvg("Gauge-Dashboard");
+            case "pomodoro_widget", "widget_pomodoro" -> iconSvg("Alarm-Bell-Ring");
+            case "sticky_widget", "widget_sticky" -> iconSvg("Paper-Write");
             default -> null;
         };
     }

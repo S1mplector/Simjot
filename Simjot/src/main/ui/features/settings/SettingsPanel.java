@@ -209,11 +209,17 @@ public class SettingsPanel extends JPanel {
         
         static {
             // Load icons for each settings section
-            SECTION_ICONS.put("General", new ImageIcon(ImageIconRenderer.get("img/icons/general_settings.png", 18, false)));
-            SECTION_ICONS.put("Appearance", new ImageIcon(ImageIconRenderer.get("img/icons/appearance_settings.png", 18, false)));
-            SECTION_ICONS.put("Storage", new ImageIcon(ImageIconRenderer.get("img/icons/storage_settings.png", 18, false)));
-            SECTION_ICONS.put("Security", new ImageIcon(ImageIconRenderer.get("img/icons/settings.png", 18, false)));
-            SECTION_ICONS.put("About", new ImageIcon(ImageIconRenderer.get("img/icons/about_settings.png", 18, false)));
+            SECTION_ICONS.put("General", loadSectionIcon("general_settings"));
+            SECTION_ICONS.put("Appearance", loadSectionIcon("appearance_settings"));
+            SECTION_ICONS.put("Storage", loadSectionIcon("storage_settings"));
+            SECTION_ICONS.put("Security", loadSectionIcon("security"));
+            SECTION_ICONS.put("About", loadSectionIcon("about_settings"));
+        }
+
+        private static Icon loadSectionIcon(String id) {
+            String res = ImageIconRenderer.mapIdToResource(id);
+            java.awt.image.BufferedImage img = res != null ? ImageIconRenderer.get(res, 18, false) : null;
+            return img != null ? new ImageIcon(img) : null;
         }
         
         SidebarCellRenderer(){
