@@ -43,17 +43,20 @@ jlink --add-modules "$MODULES" \
       --strip-debug --no-header-files --no-man-pages --compress=2 \
       --output "$RUNTIME_DIR"
 
-# Generate app.icns from the PNG source icon
-ICON_PNG="src/main/resources/img/icons/simjot.png"
+# Prefer bundled .icns icon; fallback to generating from PNG if needed.
+ICON_ICNS_SRC="src/main/resources/img/icons/original/simjot.icns"
+ICON_PNG="src/main/resources/img/icons/original/simjot.png"
 ICON_ICNS="packaging/app.icns"
 ICON_FLAG=()
 
-if [[ -f "$ICON_PNG" ]]; then
+if [[ -f "$ICON_ICNS_SRC" ]]; then
+  ICON_FLAG=(--icon "$ICON_ICNS_SRC")
+elif [[ -f "$ICON_PNG" ]]; then
   echo "Converting $ICON_PNG to $ICON_ICNS..."
   ICONSET_DIR="packaging/app.iconset"
   rm -rf "$ICONSET_DIR"
   mkdir -p "$ICONSET_DIR"
-  
+
   # Generate all required icon sizes for macOS
   sips -z 16 16     "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16.png" >/dev/null
   sips -z 32 32     "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16@2x.png" >/dev/null
@@ -65,15 +68,15 @@ if [[ -f "$ICON_PNG" ]]; then
   sips -z 512 512   "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256@2x.png" >/dev/null
   sips -z 512 512   "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512.png" >/dev/null
   sips -z 1024 1024 "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512@2x.png" >/dev/null
-  
+
   # Convert iconset to icns
   iconutil -c icns "$ICONSET_DIR" -o "$ICON_ICNS"
   rm -rf "$ICONSET_DIR"
   echo "Generated $ICON_ICNS"
-fi
 
-if [[ -f "$ICON_ICNS" ]]; then
-  ICON_FLAG=(--icon "$ICON_ICNS")
+  if [[ -f "$ICON_ICNS" ]]; then
+    ICON_FLAG=(--icon "$ICON_ICNS")
+  fi
 fi
 
 # Create DMG with jpackage

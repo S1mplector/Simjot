@@ -25,6 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build/macos-installer"
 ICONSET_DIR="$BUILD_DIR/AppIcon.iconset"
+CUSTOM_ICON_ICNS="$ROOT_DIR/src/main/resources/img/icons/original/simjot.icns"
 DIST_DIR="$ROOT_DIR/dist"
 
 # Colors for output
@@ -144,9 +145,13 @@ log_ok "JAR built: $SHADED_JAR"
 # ============================================================================
 log_info "Generating application icon..."
 
-# Compile and run the icon exporter
-ICON_EXPORTER="$SCRIPT_DIR/IconExporter.java"
-if [[ -f "$ICON_EXPORTER" ]]; then
+if [[ -f "$CUSTOM_ICON_ICNS" ]]; then
+    ICNS_PATH="$CUSTOM_ICON_ICNS"
+    log_ok "Using bundled icon: $ICNS_PATH"
+else
+    # Compile and run the icon exporter
+    ICON_EXPORTER="$SCRIPT_DIR/IconExporter.java"
+    if [[ -f "$ICON_EXPORTER" ]]; then
     log_info "  Compiling IconExporter..."
     javac -d "$BUILD_DIR" "$ICON_EXPORTER"
     
@@ -179,15 +184,16 @@ if [[ -f "$ICON_EXPORTER" ]]; then
     
     # Also copy to packaging folder for future use
     cp "$ICNS_PATH" "$SCRIPT_DIR/app.icns"
-    log_ok "Icon created: app.icns"
-else
-    log_warn "IconExporter.java not found, checking for existing icon..."
-    if [[ -f "$SCRIPT_DIR/app.icns" ]]; then
-        ICNS_PATH="$SCRIPT_DIR/app.icns"
-        log_ok "Using existing icon: $ICNS_PATH"
+        log_ok "Icon created: app.icns"
     else
-        log_warn "No icon found - app will use default Java icon"
-        ICNS_PATH=""
+        log_warn "IconExporter.java not found, checking for existing icon..."
+        if [[ -f "$SCRIPT_DIR/app.icns" ]]; then
+            ICNS_PATH="$SCRIPT_DIR/app.icns"
+            log_ok "Using existing icon: $ICNS_PATH"
+        else
+            log_warn "No icon found - app will use default Java icon"
+            ICNS_PATH=""
+        fi
     fi
 fi
 

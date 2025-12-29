@@ -403,6 +403,7 @@ public final class ImageIconRenderer {
             case "notebook_nopen" -> "notebook_nopen";
             case "notebook" -> "notebook";
             case "back" -> "back";
+            case "forward" -> "forward";
             case "search" -> "search";
             case "clock" -> "clock";
             case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "fullscreen";

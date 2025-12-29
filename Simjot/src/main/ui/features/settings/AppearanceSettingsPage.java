@@ -42,17 +42,27 @@ import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadingButton;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.calendars.CircularCalendar;
+import main.ui.components.calendars.DotMatrixCalendar;
 import main.ui.components.calendars.GlassCalendar;
 import main.ui.components.calendars.MinimalistCalendar;
+import main.ui.components.calendars.NeonCalendar;
 import main.ui.components.calendars.PostItCalendar;
+import main.ui.components.calendars.RetroCalendar;
+import main.ui.components.calendars.StampCalendar;
 import main.ui.components.calendars.TornPageCalendar;
+import main.ui.components.calendars.VerticalCalendar;
 import main.ui.components.checkbox.ModernCheckBoxUI;
+import main.ui.components.clocks.BinaryClock;
+import main.ui.components.clocks.FlipClock;
 import main.ui.components.clocks.MinimalistClock;
 import main.ui.components.clocks.NeonClock;
+import main.ui.components.clocks.OrbitalClock;
 import main.ui.components.clocks.PolarClock;
+import main.ui.components.clocks.RadarClock;
 import main.ui.components.clocks.SegmentClock;
 import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
+import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.features.gallery.WallpaperGalleryPanel;
@@ -76,8 +86,8 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     // Clock and Calendar style selection
     private String selectedClockStyle;
     private String selectedCalendarStyle;
-    private static final String[] CLOCK_STYLES = {"Classic", "Minimalist", "Neon", "Swiss", "Sunburst", "Segment", "Polar"};
-    private static final String[] CALENDAR_STYLES = {"Classic", "Minimalist", "TornPage", "Circular", "PostIt", "Glass"};
+    private static final String[] CLOCK_STYLES = {"Classic", "Minimalist", "Neon", "Swiss", "Sunburst", "Segment", "Polar", "Binary", "Flip", "Orbital", "Radar", "Word"};
+    private static final String[] CALENDAR_STYLES = {"Classic", "Minimalist", "TornPage", "Circular", "PostIt", "Glass", "Vertical", "DotMatrix", "Stamp", "Retro", "Neon"};
 
     AppearanceSettingsPage() {
         setLayout(new GridBagLayout());
@@ -269,6 +279,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             case "Sunburst" -> new SunburstClock();
             case "Segment" -> new SegmentClock();
             case "Polar" -> new PolarClock();
+            case "Binary" -> new BinaryClock();
+            case "Flip" -> new FlipClock();
+            case "Orbital" -> new OrbitalClock();
+            case "Radar" -> new RadarClock();
+            case "Word" -> new WordClock();
             default -> new AnalogClockPanel();
         };
     }
@@ -280,6 +295,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             case "Circular" -> new CircularCalendar();
             case "PostIt" -> new PostItCalendar();
             case "Glass" -> new GlassCalendar();
+            case "Vertical" -> new VerticalCalendar();
+            case "DotMatrix" -> new DotMatrixCalendar();
+            case "Stamp" -> new StampCalendar();
+            case "Retro" -> new RetroCalendar();
+            case "Neon" -> new NeonCalendar();
             default -> new TodayCalendarPanel();
         };
     }
@@ -494,11 +514,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             center.add(indexLabel);
 
             add(center, BorderLayout.CENTER);
-
-            // Right arrow
-            JButton nextBtn = createArrowButton("forward");
-            nextBtn.addActionListener(e -> cycle(1));
-            add(nextBtn, BorderLayout.EAST);
 
             updatePreview();
         }
