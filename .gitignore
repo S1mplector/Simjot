@@ -198,6 +198,7 @@ Simjot/target/surefire-reports/TEST-main.core.security.crypto.ContentTypeTest$Ma
 Simjot/target/surefire-reports/TEST-main.core.security.crypto.CryptoConfigTest.xml
 Simjot/target/surefire-reports/TEST-main.core.security.crypto.CryptoConfigTest$DefaultConfigTests.xml
 Simjot/target/surefire-reports/TEST-main.core.security.crypto.CryptoConfigTest$FactoryMethodTests.xml
+Simjot/src/main/native/build/
 Simjot/target/surefire-reports/TEST-main.core.security.crypto.CryptoConfigTest$FluentApiTests.xml
 Simjot/target/surefire-reports/TEST-main.core.security.crypto.CryptoConfigTest$SecurityLevelTests.xml
 Simjot/target/surefire-reports/TEST-main.core.security.crypto.CryptoHeaderTest.xml

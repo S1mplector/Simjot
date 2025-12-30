@@ -7,6 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HexFormat;
 
@@ -115,7 +116,14 @@ public final class NativeLibrary implements AutoCloseable {
     public static Path defaultLibraryPath() {
         String projectPath = System.getProperty("user.dir");
         String libName = System.mapLibraryName("simjot_native");
-        return Path.of(projectPath, "src", "main", "native", libName);
+        Path inSource = Path.of(projectPath, "src", "main", "native", libName);
+        Path inBuild = Path.of(projectPath, "src", "main", "native", "build", libName);
+        Path inBuildDebug = Path.of(projectPath, "src", "main", "native", "build", "Debug", libName);
+        Path inBuildRelease = Path.of(projectPath, "src", "main", "native", "build", "Release", libName);
+        if (Files.exists(inBuild)) return inBuild;
+        if (Files.exists(inBuildDebug)) return inBuildDebug;
+        if (Files.exists(inBuildRelease)) return inBuildRelease;
+        return inSource;
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
