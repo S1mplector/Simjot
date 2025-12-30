@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Immutable-ish result for meter/rhyme sidebar rendering.
+ * Immutable result for meter/rhyme sidebar rendering.
  * 
  * @author S1mplector
  * @version 1.0.0
