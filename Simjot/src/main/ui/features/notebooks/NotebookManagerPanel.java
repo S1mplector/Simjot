@@ -649,10 +649,21 @@ public class NotebookManagerPanel extends JPanel {
 
             // Enable Create only when name entered
             nameField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
-                private void upd(){ okBtn.setEnabled(!nameField.getText().trim().isEmpty()); }
+                private void upd(){ 
+                    SwingUtilities.invokeLater(() -> okBtn.setEnabled(!nameField.getText().trim().isEmpty())); 
+                }
                 public void insertUpdate(javax.swing.event.DocumentEvent e){ upd(); }
                 public void removeUpdate(javax.swing.event.DocumentEvent e){ upd(); }
                 public void changedUpdate(javax.swing.event.DocumentEvent e){ upd(); }
+            });
+            
+            // Enter key to submit
+            nameField.addActionListener(e -> {
+                if (!nameField.getText().trim().isEmpty()) {
+                    accepted = true;
+                    setVisible(false);
+                    dispose();
+                }
             });
 
             // Default selection

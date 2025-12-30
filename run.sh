@@ -103,4 +103,4 @@ if [[ -z "${JAR_PATH}" || ! -f "${JAR_PATH}" ]]; then
   exit 1
 fi
 
-exec "${JAVA_HOME}/bin/java" -Xmx1G -jar "${JAR_PATH}" "${RUN_ARGS[@]}"
+exec "${JAVA_HOME}/bin/java" -Xmx1G -jar "${JAR_PATH}" ${RUN_ARGS[@]+"${RUN_ARGS[@]}"}

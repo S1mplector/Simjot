@@ -510,7 +510,6 @@ main/core/sim/critic/CriticPromptDecorator.class
 main/core/sim/memory/MemoryStore.class
 main/ui/features/settings/StorageSettingsPage$2.class
 main/ui/features/drawing/DrawingChooserDialog.class
-main/ui/features/settings/AppearanceSettingsPage$1.class
 main/ui/components/combobox/ModernComboBoxRenderer.class
 main/ui/components/editor/RichTextStyler.class
 main/ui/features/widgets/IdeaStickyWidget$8.class

@@ -1,10 +1,21 @@
 package main.ui.components.buttons;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
+
 import javax.swing.JButton;
+
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroTheme;
@@ -38,7 +49,7 @@ public class IconMenuButton extends JButton {
         setMaximumSize(new Dimension(Integer.MAX_VALUE, h + 10));
 
         addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { hovering = true; repaint(); }
+            @Override public void mouseEntered(MouseEvent e) { if (isEnabled()) { hovering = true; repaint(); } }
             @Override public void mouseExited(MouseEvent e) { hovering = false; repaint(); }
         });
     }
@@ -50,9 +61,16 @@ public class IconMenuButton extends JButton {
         int w = getWidth();
         int h = getHeight();
 
-        // Background plate (subtle only on hover/press)
+        boolean enabled = isEnabled();
+        
+        // When disabled, apply transparency to the whole component
+        if (!enabled) {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.35f));
+        }
+
+        // Background plate (subtle only on hover/press, and only when enabled)
         boolean pressed = getModel().isArmed() && getModel().isPressed();
-        if (hovering || pressed) {
+        if (enabled && (hovering || pressed)) {
             Color overlay = pressed ? new Color(240, 244, 249, 120) : new Color(248, 251, 255, 110);
             Shape plate = new RoundRectangle2D.Float(6, 6, w - 12, h - 26, 16, 16);
             g2.setColor(overlay);
@@ -64,7 +82,7 @@ public class IconMenuButton extends JButton {
         // Icon
         int iconSize = Math.min(w - 18, 48);
         int iconX = (w - iconSize) / 2;
-        int iconY = 12 + (hovering ? 0 : 4); // nudge down a bit when idle
+        int iconY = 12 + ((enabled && hovering) ? 0 : 4); // nudge down a bit when idle
         boolean drawn = false;
         String resPath = ImageIconRenderer.mapIdToResource(iconId);
         if (resPath != null) {
@@ -75,8 +93,8 @@ public class IconMenuButton extends JButton {
             VectorIconPainter.paint(g2, iconId, iconX, iconY, iconSize);
         }
 
-        // Caption (only when hovered)
-        if (hovering) {
+        // Caption (only when hovered and enabled)
+        if (enabled && hovering) {
             g2.setColor(getForeground());
             g2.setFont(getFont());
             FontMetrics fm = g2.getFontMetrics();
@@ -87,5 +105,15 @@ public class IconMenuButton extends JButton {
         }
 
         g2.dispose();
+    }
+    
+    @Override
+    public void setEnabled(boolean enabled) {
+        super.setEnabled(enabled);
+        if (!enabled) {
+            hovering = false;
+        }
+        setCursor(enabled ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+        repaint();
     }
 }
