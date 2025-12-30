@@ -3,16 +3,19 @@ package main.ui.dialog.security;
 import main.core.security.EncryptionManager;
 import main.core.security.LockUtil;
 import main.core.service.SettingsStore;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.input.AeroPasswordField;
+import main.ui.theme.aero.AeroTheme;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 
 import javax.swing.*;
 import java.awt.*;
 
 public class SetEncryptionPasswordDialog extends JDialog {
-    private final JPasswordField oldPw = new JPasswordField(16);
-    private final JPasswordField newPw = new JPasswordField(16);
-    private final JPasswordField confirmPw = new JPasswordField(16);
+    private final AeroPasswordField oldPw = new AeroPasswordField(18);
+    private final AeroPasswordField newPw = new AeroPasswordField(18);
+    private final AeroPasswordField confirmPw = new AeroPasswordField(18);
 
     public SetEncryptionPasswordDialog(Frame owner) {
         super(owner, "Set Encryption Password", true);
@@ -25,12 +28,12 @@ public class SetEncryptionPasswordDialog extends JDialog {
     }
 
     private void buildUI(){
-        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(), 16);
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(0, 10), 16);
         root.setBorder(BorderFactory.createEmptyBorder(14,14,14,14));
 
         JLabel title = new JLabel("Set or change the encryption password", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-        title.setForeground(new Color(30,30,30));
+        title.setFont(AeroTheme.defaultBoldFont(16f));
+        title.setForeground(AeroTheme.TEXT_PRIMARY);
         root.add(title, BorderLayout.NORTH);
 
         JPanel form = new JPanel(new GridBagLayout());
@@ -38,37 +41,54 @@ public class SetEncryptionPasswordDialog extends JDialog {
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(6, 8, 6, 8);
         gc.gridx = 0; gc.gridy = 0; gc.anchor = GridBagConstraints.EAST;
-        form.add(new JLabel("Current:"), gc);
+        form.add(styledLabel("Current:"), gc);
         gc.gridx = 1; gc.anchor = GridBagConstraints.WEST;
-        oldPw.setEchoChar('•');
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+        oldPw.setPreferredSize(new Dimension(220, 30));
         form.add(oldPw, gc);
 
         gc.gridx = 0; gc.gridy++; gc.anchor = GridBagConstraints.EAST;
-        form.add(new JLabel("New:"), gc);
+        gc.fill = GridBagConstraints.NONE;
+        gc.weightx = 0;
+        form.add(styledLabel("New:"), gc);
         gc.gridx = 1; gc.anchor = GridBagConstraints.WEST;
-        newPw.setEchoChar('•');
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+        newPw.setPreferredSize(new Dimension(220, 30));
         form.add(newPw, gc);
 
         gc.gridx = 0; gc.gridy++; gc.anchor = GridBagConstraints.EAST;
-        form.add(new JLabel("Confirm:"), gc);
+        gc.fill = GridBagConstraints.NONE;
+        gc.weightx = 0;
+        form.add(styledLabel("Confirm:"), gc);
         gc.gridx = 1; gc.anchor = GridBagConstraints.WEST;
-        confirmPw.setEchoChar('•');
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+        confirmPw.setPreferredSize(new Dimension(220, 30));
         form.add(confirmPw, gc);
         root.add(form, BorderLayout.CENTER);
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         btns.setOpaque(false);
-        JButton remove = new JButton("Remove Password");
+        JButton remove = new RoundedButton("Remove Password");
         remove.addActionListener(e -> doRemove());
-        JButton ok = new JButton("Save");
+        JButton ok = new RoundedButton("Save");
         ok.addActionListener(e -> doSave());
-        JButton cancel = new JButton("Cancel");
+        JButton cancel = new RoundedButton("Cancel");
         cancel.addActionListener(e -> { setVisible(false); dispose(); });
         btns.add(remove); btns.add(ok); btns.add(cancel);
         root.add(btns, BorderLayout.SOUTH);
 
         setContentPane(root);
         getRootPane().setDefaultButton(ok);
+    }
+
+    private JLabel styledLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        label.setForeground(AeroTheme.TEXT_PRIMARY);
+        return label;
     }
 
     private void doRemove(){

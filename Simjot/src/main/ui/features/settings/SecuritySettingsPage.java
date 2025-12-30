@@ -1,14 +1,28 @@
 package main.ui.features.settings;
 
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+
+import javax.swing.BorderFactory;
+import javax.swing.JCheckBox;
+import javax.swing.JComponent;
+import javax.swing.JFormattedTextField;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+
 import main.core.security.EncryptionManager;
 import main.core.service.SettingsStore;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-
-import javax.swing.*;
-import java.awt.*;
 
 public class SecuritySettingsPage implements SettingsPage {
     private final JPanel root = new JPanel(new GridBagLayout());
@@ -18,7 +32,7 @@ public class SecuritySettingsPage implements SettingsPage {
     private final JSpinner timeoutMinutes = new JSpinner(new SpinnerNumberModel(0, 0, 240, 1));
     private final JCheckBox enableEncryption = new JCheckBox("Enable encryption for entries, poems, and backups");
     private final JLabel encryptionStatus = new JLabel();
-    private final RoundedButton setEncryptionPw = new RoundedButton("Set / Change Encryption Password…");
+    private final IconMenuButton setEncryptionPw = new IconMenuButton("Set", "set_password");
 
     public SecuritySettingsPage() {
         root.setOpaque(true);
@@ -59,7 +73,8 @@ public class SecuritySettingsPage implements SettingsPage {
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2;
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         buttons.setOpaque(false);
-        RoundedButton setPw = new RoundedButton("Set / Change Password…");
+        IconMenuButton setPw = new IconMenuButton("Set", "set_password");
+        setPw.setToolTipText("Set / Change Password…");
         setPw.addActionListener(e -> openSetPasswordDialog());
         buttons.add(setPw);
         root.add(buttons, gc);
@@ -80,6 +95,7 @@ public class SecuritySettingsPage implements SettingsPage {
         gc.gridy = 8; gc.gridwidth = 2;
         JPanel encButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         encButtons.setOpaque(false);
+        setEncryptionPw.setToolTipText("Set / Change Encryption Password…");
         setEncryptionPw.addActionListener(e -> openSetEncryptionPasswordDialog());
         encButtons.add(setEncryptionPw);
         root.add(encButtons, gc);
