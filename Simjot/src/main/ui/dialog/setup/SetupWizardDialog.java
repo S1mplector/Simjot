@@ -315,10 +315,16 @@ public class SetupWizardDialog extends JDialog {
             "Recommended for most users",
             "open_folder",
             () -> {
-                String docsPath = javax.swing.filechooser.FileSystemView.getFileSystemView()
-                        .getDefaultDirectory().getPath();
-                rootFolder = new File(docsPath, "Simjot");
-                updateSelectedPath();
+                File docs = javax.swing.filechooser.FileSystemView.getFileSystemView().getDefaultDirectory();
+                if (docs == null) {
+                    String home = System.getProperty("user.home");
+                    if (home != null && !home.isBlank()) {
+                        docs = new File(home);
+                    }
+                }
+                if (docs != null) {
+                    selectRootFolder(docs, false);
+                }
             }
         );
         locationButtons.add(docsBtn);
@@ -333,8 +339,7 @@ public class SetupWizardDialog extends JDialog {
                 dirDlg.setVisible(true);
                 File chosen = dirDlg.getSelectedDirectory();
                 if (chosen != null) {
-                    rootFolder = new File(chosen, "Simjot");
-                    updateSelectedPath();
+                    selectRootFolder(chosen, true);
                 }
             }
         );
@@ -376,12 +381,7 @@ public class SetupWizardDialog extends JDialog {
         
         nextButton = new RoundedButton("Continue");
         nextButton.setEnabled(false);
-        nextButton.addActionListener(e -> {
-            if (rootFolder != null) {
-                showStep(2);
-                startInitialization();
-            }
-        });
+        nextButton.addActionListener(e -> proceedFromLocation());
         navPanel.add(nextButton);
         
         panel.add(navPanel);
@@ -426,7 +426,7 @@ public class SetupWizardDialog extends JDialog {
         subtitleLabel.setCursor(hand);
 
         MouseAdapter clicker = new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) { iconBtn.doClick(); }
+            @Override public void mousePressed(MouseEvent e) { iconBtn.doClick(); }
         };
         row.addMouseListener(clicker);
         text.addMouseListener(clicker);
@@ -452,6 +452,22 @@ public class SetupWizardDialog extends JDialog {
             selectedPathLabel.setText(path);
             selectedPathLabel.setForeground(SUCCESS_COLOR);
             nextButton.setEnabled(true);
+        }
+    }
+
+    private void selectRootFolder(File baseFolder, boolean autoProceed) {
+        if (baseFolder == null) return;
+        rootFolder = new File(baseFolder, "Simjot");
+        updateSelectedPath();
+        if (autoProceed) {
+            proceedFromLocation();
+        }
+    }
+
+    private void proceedFromLocation() {
+        if (rootFolder != null) {
+            showStep(2);
+            startInitialization();
         }
     }
     
