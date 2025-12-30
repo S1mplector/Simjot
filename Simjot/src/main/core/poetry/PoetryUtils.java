@@ -202,11 +202,6 @@ public final class PoetryUtils {
             }
         }
         
-        // Words ending in "le" preceded by consonant add syllable
-        if (len > 2 && w.endsWith("le") && !isVowel(w.charAt(len - 3))) {
-            count++;
-        }
-        
         // "-ed" endings: silent if preceded by t or d
         if (w.endsWith("ed") && len > 3) {
             char prev = w.charAt(len - 3);
@@ -266,13 +261,30 @@ public final class PoetryUtils {
         if (word == null) return null;
         String w = word.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
         if (w.isEmpty()) return null;
+
+        // Remove silent trailing 'e' for rhyme purposes (except exceptions)
+        if (w.endsWith("e") && w.length() > 2 && !SILENT_E_EXCEPTIONS.contains(w)) {
+            char prev = w.charAt(w.length() - 2);
+            if (!isVowel(prev) && prev != 'l') {
+                w = w.substring(0, w.length() - 1);
+            }
+        }
         
         // Find last vowel group
         Matcher m = VOWEL_GROUPS.matcher(w);
         int start = -1;
         while (m.find()) { start = m.start(); }
         if (start == -1) return w.length() >= 2 ? w.substring(Math.max(0, w.length()-2)) : w;
-        return w.substring(start);
+        String key = w.substring(start);
+
+        // Heuristic normalizations for common rhyme variants
+        if (key.startsWith("ea") && key.length() > 2 && key.charAt(2) == 'r') {
+            key = key.substring(1);
+        }
+        if (key.startsWith("y")) {
+            key = "i" + key.substring(1);
+        }
+        return key;
     }
     
     /**

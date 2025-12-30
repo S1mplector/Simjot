@@ -10,6 +10,8 @@ import java.time.format.DateTimeParseException;
 public final class DateFormatUtil {
     private DateFormatUtil() {}
 
+    private static final String ALLOWED_PATTERN_CHARS = "yYuMLdDEeaHhmsS";
+
     /** Common date patterns shown in the Settings UI. */
     public static String[] getCommonPatterns() {
         return new String[] {
@@ -25,6 +27,12 @@ public final class DateFormatUtil {
     /** Returns true if the pattern can be used to build a formatter. */
     public static boolean isValidPattern(String pattern) {
         if (pattern == null || pattern.trim().isEmpty()) return false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char ch = pattern.charAt(i);
+            if (Character.isLetter(ch) && ALLOWED_PATTERN_CHARS.indexOf(ch) < 0) {
+                return false;
+            }
+        }
         try {
             DateTimeFormatter.ofPattern(pattern);
             return true;

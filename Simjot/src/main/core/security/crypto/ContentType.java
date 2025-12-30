@@ -29,6 +29,11 @@ public enum ContentType {
      * Poem content (poetry text, styling, metadata)
      */
     POEM((byte) 0x02, "Poem"),
+
+    /**
+     * Notebook metadata and structure
+     */
+    NOTEBOOK((byte) 0x08, "Notebook"),
     
     /**
      * Full backup archive (compressed, multi-file)

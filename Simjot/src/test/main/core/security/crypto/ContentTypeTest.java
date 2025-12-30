@@ -30,9 +30,10 @@ class ContentTypeTest {
         void shouldHaveAllExpectedContentTypes() {
             ContentType[] types = ContentType.values();
             
-            assertEquals(7, types.length);
+            assertEquals(8, types.length);
             assertNotNull(ContentType.ENTRY);
             assertNotNull(ContentType.POEM);
+            assertNotNull(ContentType.NOTEBOOK);
             assertNotNull(ContentType.BACKUP);
             assertNotNull(ContentType.SETTINGS);
             assertNotNull(ContentType.BINARY);
@@ -82,6 +83,12 @@ class ContentTypeTest {
         @DisplayName("BACKUP should have marker 0x03")
         void backupShouldHaveCorrectMarker() {
             assertEquals((byte) 0x03, ContentType.BACKUP.getMarker());
+        }
+
+        @Test
+        @DisplayName("NOTEBOOK should have marker 0x08")
+        void notebookShouldHaveCorrectMarker() {
+            assertEquals((byte) 0x08, ContentType.NOTEBOOK.getMarker());
         }
 
         @Test

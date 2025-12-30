@@ -299,4 +299,53 @@ public final class CryptoConfig {
                 .withCompression(false)  // Compression can leak patterns
                 .withMetadata(false);    // Minimize metadata
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BUILDER
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Creates a builder for fluent configuration construction.
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private SecurityLevel securityLevel = SecurityLevel.STANDARD;
+        private boolean compressBeforeEncrypt = true;
+        private boolean includeMetadata = true;
+        private String customIdentifier = null;
+
+        private Builder() {}
+
+        public Builder securityLevel(SecurityLevel level) {
+            this.securityLevel = level == null ? SecurityLevel.STANDARD : level;
+            return this;
+        }
+
+        public Builder compressBeforeEncrypt(boolean compress) {
+            this.compressBeforeEncrypt = compress;
+            return this;
+        }
+
+        public Builder includeMetadata(boolean include) {
+            this.includeMetadata = include;
+            return this;
+        }
+
+        public Builder customIdentifier(String identifier) {
+            this.customIdentifier = identifier;
+            return this;
+        }
+
+        public CryptoConfig build() {
+            CryptoConfig config = new CryptoConfig();
+            config.securityLevel = this.securityLevel;
+            config.compressBeforeEncrypt = this.compressBeforeEncrypt;
+            config.includeMetadata = this.includeMetadata;
+            config.customIdentifier = this.customIdentifier;
+            return config;
+        }
+    }
 }

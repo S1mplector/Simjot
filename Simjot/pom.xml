@@ -15,7 +15,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>24</maven.compiler.release>
+        <maven.compiler.release>22</maven.compiler.release>
     </properties>
 
     <dependencies>
@@ -75,8 +75,9 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <release>24</release>
+                    <release>22</release>
                     <encoding>UTF-8</encoding>
+                    <useModulePath>true</useModulePath>
                 </configuration>
             </plugin>
 
