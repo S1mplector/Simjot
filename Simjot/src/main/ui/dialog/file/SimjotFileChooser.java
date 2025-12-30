@@ -7,7 +7,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -16,7 +15,6 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.RoundRectangle2D;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -44,6 +42,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
@@ -54,6 +53,9 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 
 import main.infrastructure.ffi.NativeAccess;
+import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.input.AeroTextField;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 
 /**
  * <h1>Simjot File Chooser</h1>
@@ -118,11 +120,9 @@ public class SimjotFileChooser extends JDialog {
     }
     
     // Colors matching Simjot's aesthetic
-    private static final Color BG_COLOR = new Color(248, 248, 250);
-    private static final Color SIDEBAR_BG = new Color(240, 240, 245);
     private static final Color SELECTED_BG = new Color(66, 133, 244, 40);
     private static final Color SELECTED_BORDER = new Color(66, 133, 244);
-    private static final Color HOVER_BG = new Color(0, 0, 0, 15);
+    private static final Color HOVER_BG = new Color(200, 220, 245, 140);
     private static final Color TEXT_PRIMARY = new Color(33, 33, 33);
     private static final Color TEXT_SECONDARY = new Color(100, 100, 100);
     private static final Color BORDER_COLOR = new Color(220, 220, 225);
@@ -300,8 +300,7 @@ public class SimjotFileChooser extends JDialog {
         setLocationRelativeTo(getOwner());
         
         // Main container with frosted glass effect
-        JPanel mainPanel = new FrostedPanel();
-        mainPanel.setLayout(new BorderLayout(0, 0));
+        FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(0, 8), 18);
         mainPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
         
         // Top navigation bar
@@ -335,9 +334,8 @@ public class SimjotFileChooser extends JDialog {
     }
     
     private JPanel createNavigationBar() {
-        JPanel nav = new JPanel(new BorderLayout(8, 0));
-        nav.setOpaque(false);
-        nav.setBorder(new EmptyBorder(0, 0, 8, 0));
+        FrostedGlassPanel nav = new FrostedGlassPanel(new BorderLayout(8, 0), 14);
+        nav.setBorder(new EmptyBorder(6, 8, 10, 8));
         
         // Back/Forward/Up buttons
         JPanel navButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
@@ -372,12 +370,8 @@ public class SimjotFileChooser extends JDialog {
         nav.add(breadcrumbScroll, BorderLayout.CENTER);
         
         // Search field
-        searchField = new JTextField(15);
+        searchField = new AeroTextField(15);
         searchField.putClientProperty("JTextField.placeholderText", "Search...");
-        searchField.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(4, 8, 4, 8)
-        ));
         searchField.addKeyListener(new KeyAdapter() {
             private Timer searchTimer;
             @Override
@@ -399,11 +393,13 @@ public class SimjotFileChooser extends JDialog {
     }
     
     private JPanel createSidebar() {
-        JPanel sidebar = new JPanel();
+        FrostedGlassPanel sidebar = new FrostedGlassPanel(14);
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
-        sidebar.setBackground(SIDEBAR_BG);
         sidebar.setPreferredSize(new Dimension(SIDEBAR_WIDTH, 0));
-        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
+        sidebar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(0, 0, 0, 25)),
+            new EmptyBorder(8, 8, 8, 8)
+        ));
         
         sidebar.add(Box.createVerticalStrut(8));
         sidebar.add(createSidebarSection("Favorites"));
@@ -493,15 +489,16 @@ public class SimjotFileChooser extends JDialog {
     }
     
     private JPanel createFileListPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setOpaque(false);
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(), 14);
+        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         
         fileListModel = new DefaultListModel<>();
         fileList = new JList<>(fileListModel);
         fileList.setCellRenderer(new FileListCellRenderer());
         fileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         fileList.setFixedCellHeight(ROW_HEIGHT);
-        fileList.setBackground(Color.WHITE);
+        fileList.setOpaque(false);
+        fileList.setBackground(new Color(255, 255, 255, 0));
         
         fileList.addMouseListener(new MouseAdapter() {
             @Override
@@ -519,8 +516,19 @@ public class SimjotFileChooser extends JDialog {
         });
         
         JScrollPane scrollPane = new JScrollPane(fileList);
-        scrollPane.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+        JScrollBar vbar = scrollPane.getVerticalScrollBar();
+        vbar.setUI(new ModernScrollBarUI());
+        vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
+        vbar.setOpaque(false);
+        vbar.setUnitIncrement(16);
+        JScrollBar hbar = scrollPane.getHorizontalScrollBar();
+        hbar.setUI(new ModernScrollBarUI());
+        hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
+        hbar.setOpaque(false);
+        hbar.setUnitIncrement(16);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
@@ -528,10 +536,9 @@ public class SimjotFileChooser extends JDialog {
     }
     
     private JPanel createPreviewPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(new Color(250, 250, 252));
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(), 14);
         panel.setPreferredSize(new Dimension(PREVIEW_WIDTH, 0));
-        panel.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, BORDER_COLOR));
+        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         
         previewLabel = new JLabel("", SwingConstants.CENTER);
         previewLabel.setVerticalAlignment(SwingConstants.CENTER);
@@ -544,9 +551,8 @@ public class SimjotFileChooser extends JDialog {
     }
     
     private JPanel createBottomPanel() {
-        JPanel panel = new JPanel(new BorderLayout(12, 8));
-        panel.setOpaque(false);
-        panel.setBorder(new EmptyBorder(12, 0, 0, 0));
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(12, 8), 14);
+        panel.setBorder(new EmptyBorder(8, 8, 8, 8));
         
         // Filename field (visible for SAVE mode)
         JPanel filenamePanel = new JPanel(new BorderLayout(8, 0));
@@ -555,11 +561,7 @@ public class SimjotFileChooser extends JDialog {
         JLabel filenameLabel = new JLabel("Name:");
         filenameLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         
-        filenameField = new JTextField();
-        filenameField.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(6, 10, 6, 10)
-        ));
+        filenameField = new AeroTextField(18);
         
         filenamePanel.add(filenameLabel, BorderLayout.WEST);
         filenamePanel.add(filenameField, BorderLayout.CENTER);
@@ -1040,16 +1042,16 @@ public class SimjotFileChooser extends JDialog {
                 int index, boolean isSelected, boolean cellHasFocus) {
             
             JPanel panel = new JPanel(new BorderLayout(8, 0));
+            panel.setOpaque(false);
             panel.setBorder(new EmptyBorder(4, 8, 4, 8));
             
             if (isSelected) {
+                panel.setOpaque(true);
                 panel.setBackground(SELECTED_BG);
                 panel.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(SELECTED_BORDER, 1),
                     new EmptyBorder(3, 7, 3, 7)
                 ));
-            } else {
-                panel.setBackground(Color.WHITE);
             }
             
             FileItem item = (FileItem) value;
@@ -1084,41 +1086,6 @@ public class SimjotFileChooser extends JDialog {
             panel.add(infoLabel, BorderLayout.EAST);
             
             return panel;
-        }
-    }
-    
-    /**
-     * Frosted glass background panel.
-     */
-    private static class FrostedPanel extends JPanel {
-        FrostedPanel() {
-            super(new BorderLayout());
-            setOpaque(false);
-        }
-        
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            int w = getWidth();
-            int h = getHeight();
-            if (w <= 0 || h <= 0) return;
-            
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            // Soft gradient background
-            GradientPaint gp = new GradientPaint(
-                0, 0, new Color(252, 252, 254),
-                0, h, new Color(245, 245, 248)
-            );
-            g2.setPaint(gp);
-            g2.fillRoundRect(0, 0, w, h, 12, 12);
-            
-            // Subtle border
-            g2.setColor(new Color(0, 0, 0, 20));
-            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, 12, 12));
-            
-            g2.dispose();
         }
     }
 }

@@ -1,26 +1,82 @@
 package main.ui.dialog.setup;
 
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.geom.RoundRectangle2D;
 import java.io.File;
-import javax.swing.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
+
+import main.core.AppInfo;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
-import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinner;
-import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.theme.aero.AeroTheme;
 
 /**
- * Simple first-launch wizard that guides the user through choosing where the
- * Simjot root folder should live.  After the user picks a location we create
- * the standard sub-folders and expose the chosen root via {@link #getRootFolder()}.
+ * Enhanced first-launch wizard with multi-step flow, progress indicators,
+ * and detailed validation. Guides the user through setting up their Simjot
+ * data folder with visual feedback at each step.
+ * 
+ * @author S1mplector
  */
 public class SetupWizardDialog extends JDialog {
+    
+    private static final int DIALOG_WIDTH = 560;
+    private static final int DIALOG_HEIGHT = 520;
+    private static final Color ACCENT_COLOR = new Color(0, 120, 215);
+    private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
+    private static final Color PENDING_COLOR = new Color(158, 158, 158);
+    private static final Color TEXT_SECONDARY = new Color(100, 100, 100);
+    
     private File rootFolder;
+    private int currentStep = 0;
+    private CardLayout cardLayout;
+    private JPanel cardPanel;
+    private StepIndicator stepIndicator;
+    
+    // Step panels
+    private JPanel welcomePanel;
+    private JPanel locationPanel;
+    private JPanel initializingPanel;
+    private JPanel completePanel;
+    
+    // Location step components
+    private JLabel selectedPathLabel;
+    private RoundedButton nextButton;
+    
+    // Initialization step components
+    private List<SetupTask> setupTasks;
+    private JPanel tasksPanel;
 
     public SetupWizardDialog(JFrame owner) {
-        super(owner, "Simjot – First-time setup", true);
+        super(owner, "Simjot – First-time Setup", true);
         initUI();
     }
 
@@ -29,185 +85,706 @@ public class SetupWizardDialog extends JDialog {
     }
 
     private void initUI() {
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setLayout(new BorderLayout(10,10));
-        FrostedGlassPanel content = new FrostedGlassPanel(16);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
-
-        JLabel title = new JLabel("Welcome to Simjot!", JLabel.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        title.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel desc = new JLabel("Choose where you would like Simjot to create its root folder.");
-        desc.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        // Explain what the chosen root folder is used for and how to back it up
-        String overview = "<html><div style='width:420px'>" +
-                "<div style='margin-top:4px;margin-bottom:6px'>" +
-                "Simjot will create a <b>Simjot</b> folder at the location you pick. " +
-                "Everything you create is stored inside this folder, so it's easy to move or back up." +
-                "</div>" +
-                "<ul style='margin-top:0'>" +
-                "<li>Inside it we'll create sub‑folders for your data: <i>entries</i>, <i>poems</i>, <i>mood data</i>, <i>settings</i>, and <i>images</i>.</li>" +
-                "<li>You can keep it safe like any normal folder:</li>" +
-                "<ul>" +
-                "<li>Place it inside a cloud‑sync location (e.g. iCloud Drive, Dropbox, OneDrive) to sync across devices.</li>" +
-                "<li>Or include it in system backups (e.g. Time Machine) or copy it to an external drive.</li>" +
-                "</ul>" +
-                "<li>If a <b>Simjot</b> folder already exists there, we'll reuse it.</li>" +
-                "</ul>" +
-                "</div></html>";
-        JLabel featuresLabel = new JLabel(overview);
-        featuresLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        RoundedButton chooseBtn = new RoundedButton("Choose Location…");
-        chooseBtn.setPreferredSize(new Dimension(160, 36));
-
-        RoundedButton docsBtn = new RoundedButton("Use Documents Folder");
-        docsBtn.setPreferredSize(new Dimension(180, 36));
-
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        buttonPanel.add(docsBtn);
-        buttonPanel.add(chooseBtn);
-        buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        ModernSpinner spinner = new ModernSpinner(36, new Color(0,120,215));
-        spinner.setAlignmentX(Component.CENTER_ALIGNMENT);
-        spinner.setVisible(false);
-
-        chooseBtn.addActionListener(e -> {
-            spinner.setVisible(true);
-            DirectoryChooserDialog dirDlg = new DirectoryChooserDialog((JFrame) SwingUtilities.getWindowAncestor(SetupWizardDialog.this));
-            dirDlg.setVisible(true);
-            File chosen = dirDlg.getSelectedDirectory();
-            if (chosen != null) {
-                rootFolder = new File(chosen, "Simjot");
-                SwingUtilities.invokeLater(() -> performInitialSetup(spinner));
-            } else {
-                spinner.setVisible(false);
-            }
-        });
-
-        docsBtn.addActionListener(e -> {
-            spinner.setVisible(true);
-            String documentsPath = javax.swing.filechooser.FileSystemView.getFileSystemView().getDefaultDirectory().getPath();
-            rootFolder = new File(documentsPath, "Simjot");
-            SwingUtilities.invokeLater(() -> performInitialSetup(spinner));
-        });
-
-        content.add(Box.createVerticalStrut(10));
-        content.add(title);
-        content.add(Box.createVerticalStrut(8));
-        content.add(desc);
-        content.add(Box.createVerticalStrut(12));
-        content.add(featuresLabel);
-        content.add(Box.createVerticalStrut(12));
-        content.add(buttonPanel);
-        content.add(Box.createVerticalStrut(12));
-        content.add(spinner);
-        content.add(Box.createVerticalStrut(10));
-
-        add(content, BorderLayout.CENTER);
-        pack();
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        setUndecorated(true);
+        setSize(DIALOG_WIDTH, DIALOG_HEIGHT);
         setLocationRelativeTo(getOwner());
+        
+        // Make dialog rounded
+        setBackground(new Color(0, 0, 0, 0));
+        
+        // Main container with rounded corners
+        JPanel mainPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(250, 250, 252));
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 20, 20));
+                g2.setColor(new Color(200, 200, 200));
+                g2.draw(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, 20, 20));
+                g2.dispose();
+            }
+        };
+        mainPanel.setOpaque(false);
+        mainPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
+        
+        // Header with step indicator
+        JPanel headerPanel = createHeaderPanel();
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Card panel for step content
+        cardLayout = new CardLayout();
+        cardPanel = new JPanel(cardLayout);
+        cardPanel.setOpaque(false);
+        cardPanel.setBorder(new EmptyBorder(0, 24, 24, 24));
+        
+        // Create step panels
+        welcomePanel = createWelcomePanel();
+        locationPanel = createLocationPanel();
+        initializingPanel = createInitializingPanel();
+        completePanel = createCompletePanel();
+        
+        cardPanel.add(welcomePanel, "welcome");
+        cardPanel.add(locationPanel, "location");
+        cardPanel.add(initializingPanel, "initializing");
+        cardPanel.add(completePanel, "complete");
+        
+        mainPanel.add(cardPanel, BorderLayout.CENTER);
+        
+        setContentPane(mainPanel);
+        
+        // Start at welcome
+        showStep(0);
     }
-
-    private void performInitialSetup(ModernSpinner spinner) {
-        // Ensure directories exist
-        if (!rootFolder.exists()) rootFolder.mkdirs();
-        AppDirectories.setRoot(rootFolder);
-        for (AppDirectories.Type t : AppDirectories.Type.values()) {
-            AppDirectories.folder(t);
+    
+    private JPanel createHeaderPanel() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                // Gradient header background
+                GradientPaint gp = new GradientPaint(0, 0, new Color(245, 247, 250),
+                        0, getHeight(), new Color(238, 240, 245));
+                g2.setPaint(gp);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight() + 10, 20, 20));
+                // Bottom border
+                g2.setColor(new Color(220, 222, 228));
+                g2.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setPreferredSize(new Dimension(DIALOG_WIDTH, 90));
+        header.setBorder(new EmptyBorder(16, 24, 12, 24));
+        
+        // Title row
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+        
+        JLabel titleLabel = new JLabel("Simjot Setup");
+        titleLabel.setFont(AeroTheme.defaultBoldFont(20f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        titleRow.add(titleLabel, BorderLayout.WEST);
+        
+        JLabel versionLabel = new JLabel("v" + AppInfo.VERSION);
+        versionLabel.setFont(AeroTheme.defaultFont().deriveFont(11f));
+        versionLabel.setForeground(TEXT_SECONDARY);
+        titleRow.add(versionLabel, BorderLayout.EAST);
+        
+        header.add(titleRow, BorderLayout.NORTH);
+        
+        // Step indicator
+        stepIndicator = new StepIndicator(new String[]{"Welcome", "Location", "Setup", "Ready"});
+        header.add(stepIndicator, BorderLayout.CENTER);
+        
+        return header;
+    }
+    
+    private JPanel createWelcomePanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        
+        panel.add(Box.createVerticalStrut(20));
+        
+        // Welcome message
+        JLabel welcomeLabel = new JLabel("Welcome to Simjot!");
+        welcomeLabel.setFont(AeroTheme.defaultBoldFont(24f));
+        welcomeLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        welcomeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(welcomeLabel);
+        
+        panel.add(Box.createVerticalStrut(12));
+        
+        JLabel subtitleLabel = new JLabel("Your personal journaling companion");
+        subtitleLabel.setFont(AeroTheme.defaultFont().deriveFont(14f));
+        subtitleLabel.setForeground(TEXT_SECONDARY);
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(subtitleLabel);
+        
+        panel.add(Box.createVerticalStrut(32));
+        
+        // Feature highlights
+        String[] features = {
+            "📓  Organize your thoughts in beautiful notebooks",
+            "✍️  Write journal entries and poetry with rich formatting",
+            "📊  Track your mood and visualize patterns over time",
+            "🔒  Keep your data safe with encryption",
+            "☁️  Sync across devices with cloud storage"
+        };
+        
+        JPanel featuresPanel = new JPanel();
+        featuresPanel.setLayout(new BoxLayout(featuresPanel, BoxLayout.Y_AXIS));
+        featuresPanel.setOpaque(false);
+        featuresPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        for (String feature : features) {
+            JLabel featureLabel = new JLabel(feature);
+            featureLabel.setFont(AeroTheme.defaultFont().deriveFont(13f));
+            featureLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+            featureLabel.setBorder(new EmptyBorder(6, 0, 6, 0));
+            featureLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            featuresPanel.add(featureLabel);
         }
-
-        // Optionally create desktop shortcut (Windows-only)
-        if (System.getProperty("os.name").toLowerCase().contains("win")) {
-            boolean yes = CustomConfirmDialog.confirm(this, "Create Shortcut", "Would you like a Simjot shortcut on your Desktop?");
-            if(yes){
-                try{
-                    createDesktopShortcut();
-                }catch(Exception ex){ 
-                    System.err.println("Failed to create desktop shortcut: " + ex.getMessage());
+        
+        // Center the features panel
+        JPanel featureWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        featureWrapper.setOpaque(false);
+        featureWrapper.add(featuresPanel);
+        panel.add(featureWrapper);
+        
+        panel.add(Box.createVerticalGlue());
+        
+        // Get Started button
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.setOpaque(false);
+        
+        RoundedButton getStartedBtn = new RoundedButton("Get Started");
+        getStartedBtn.setPreferredSize(new Dimension(160, 40));
+        getStartedBtn.addActionListener(e -> showStep(1));
+        buttonPanel.add(getStartedBtn);
+        
+        panel.add(buttonPanel);
+        panel.add(Box.createVerticalStrut(16));
+        
+        return panel;
+    }
+    
+    private JPanel createLocationPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        
+        panel.add(Box.createVerticalStrut(16));
+        
+        // Title
+        JLabel titleLabel = new JLabel("Choose Data Location");
+        titleLabel.setFont(AeroTheme.defaultBoldFont(18f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(titleLabel);
+        
+        panel.add(Box.createVerticalStrut(8));
+        
+        JLabel descLabel = new JLabel("Where should Simjot store your journals and data?");
+        descLabel.setFont(AeroTheme.defaultFont().deriveFont(13f));
+        descLabel.setForeground(TEXT_SECONDARY);
+        descLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(descLabel);
+        
+        panel.add(Box.createVerticalStrut(24));
+        
+        // Info box
+        FrostedGlassPanel infoBox = new FrostedGlassPanel(12);
+        infoBox.setLayout(new BorderLayout());
+        infoBox.setBorder(new EmptyBorder(14, 16, 14, 16));
+        infoBox.setMaximumSize(new Dimension(480, 120));
+        infoBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        String infoHtml = "<html><div style='width:420px;'>" +
+                "<b>💡 Tip:</b> Choose a cloud-synced folder (iCloud, Dropbox, OneDrive) " +
+                "to access your journals from multiple devices.<br><br>" +
+                "A <b>Simjot</b> folder will be created at your chosen location containing " +
+                "all your notebooks, settings, and mood data." +
+                "</div></html>";
+        JLabel infoLabel = new JLabel(infoHtml);
+        infoLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        infoBox.add(infoLabel, BorderLayout.CENTER);
+        
+        panel.add(infoBox);
+        
+        panel.add(Box.createVerticalStrut(20));
+        
+        // Location buttons
+        JPanel locationButtons = new JPanel(new GridLayout(2, 1, 0, 10));
+        locationButtons.setOpaque(false);
+        locationButtons.setMaximumSize(new Dimension(360, 100));
+        locationButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        RoundedButton docsBtn = createLocationButton(
+            "Documents Folder", 
+            "Recommended for most users",
+            () -> {
+                String docsPath = javax.swing.filechooser.FileSystemView.getFileSystemView()
+                        .getDefaultDirectory().getPath();
+                rootFolder = new File(docsPath, "Simjot");
+                updateSelectedPath();
+            }
+        );
+        locationButtons.add(docsBtn);
+        
+        RoundedButton customBtn = createLocationButton(
+            "Choose Custom Location…",
+            "Select any folder on your computer",
+            () -> {
+                DirectoryChooserDialog dirDlg = new DirectoryChooserDialog(
+                    (JFrame) SwingUtilities.getWindowAncestor(this));
+                dirDlg.setVisible(true);
+                File chosen = dirDlg.getSelectedDirectory();
+                if (chosen != null) {
+                    rootFolder = new File(chosen, "Simjot");
+                    updateSelectedPath();
                 }
             }
-        }
-
-        // Default to no wallpaper on first setup. The user can choose one later
-        // from the appearance settings. No prompts shown here to streamline setup.
-        SettingsStore.get().setBackgroundImage("");
-        SettingsStore.get().save();
-
-        spinner.setVisible(false);
-        dispose(); // close dialog; caller will read rootFolder
-    }
-
-    // Creates a simple .url Internet Shortcut which launches the installed exe/jar
-    private void createDesktopShortcut() throws Exception {
-        // Determine exe or jar path
-        String execPath;
-        java.net.URI uri = SetupWizardDialog.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-        execPath = new java.io.File(uri).getAbsolutePath();
-
-        // If we are running from a jpackage installation "Simjot.exe" might be in same dir.
-        // Otherwise point to the jar.
-        String desktopPath = System.getProperty("user.home") + File.separator + "Desktop";
-        File shortcut = new File(desktopPath, "Simjot.url");
-        try(java.io.PrintWriter pw = new java.io.PrintWriter(shortcut)){
-            pw.println("[InternetShortcut]");
-            pw.println("URL=file:///" + execPath.replace("\\","/"));
-            pw.println("IconFile=" + execPath.replace("\\","/"));
-            pw.println("IconIndex=0");
-        }
-    }
-
-    /**
-     * Wallpaper chooser dialog that allows the user to select from a set of
-     * predefined wallpapers or choose no wallpaper at all.
-     * This dialog displays a grid of buttons
-     * with thumbnail images of available wallpapers.
-     * The user can click a button to select a wallpaper,
-     * or click "No wallpaper" to clear the background.
-     */
-    private static class WallpaperChooser extends JDialog {
-        private static final String[] BUILTIN = {
-                "img/wallpapers/bg1.jpg",
-                "img/wallpapers/bg2.jpg",
-                "img/wallpapers/bg3.jpg"
-        };
-
-        WallpaperChooser(Dialog owner){
-            super(owner, "Choose a wallpaper", true);
-            setLayout(new BorderLayout(10,10));
-
-            JPanel grid = new JPanel(new FlowLayout(FlowLayout.CENTER,10,10));
-            for(String res : BUILTIN){
-                Image img = ResourceLoader.createImage("Simjot/"+res);
-                if(img==null) continue;
-                Image thumb = img.getScaledInstance(200,112, Image.SCALE_SMOOTH);
-                JButton btn = new JButton(new ImageIcon(thumb));
-                btn.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY,2));
-                btn.addActionListener(e->{
-                    SettingsStore.get().setBackgroundImage("res:"+res);
-                    dispose();
-                });
-                grid.add(btn);
+        );
+        locationButtons.add(customBtn);
+        
+        panel.add(locationButtons);
+        
+        panel.add(Box.createVerticalStrut(16));
+        
+        // Selected path display
+        JPanel pathPanel = new JPanel(new BorderLayout());
+        pathPanel.setOpaque(false);
+        pathPanel.setMaximumSize(new Dimension(480, 50));
+        pathPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel pathTitle = new JLabel("Selected location:");
+        pathTitle.setFont(AeroTheme.defaultFont().deriveFont(11f));
+        pathTitle.setForeground(TEXT_SECONDARY);
+        pathPanel.add(pathTitle, BorderLayout.NORTH);
+        
+        selectedPathLabel = new JLabel("No location selected");
+        selectedPathLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        selectedPathLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        selectedPathLabel.setBorder(new EmptyBorder(4, 0, 0, 0));
+        pathPanel.add(selectedPathLabel, BorderLayout.CENTER);
+        
+        panel.add(pathPanel);
+        
+        panel.add(Box.createVerticalGlue());
+        
+        // Navigation buttons
+        JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        navPanel.setOpaque(false);
+        
+        RoundedButton backBtn = new RoundedButton("Back");
+        backBtn.setPreferredSize(new Dimension(100, 36));
+        backBtn.addActionListener(e -> showStep(0));
+        navPanel.add(backBtn);
+        
+        nextButton = new RoundedButton("Continue");
+        nextButton.setPreferredSize(new Dimension(120, 36));
+        nextButton.setEnabled(false);
+        nextButton.addActionListener(e -> {
+            if (rootFolder != null) {
+                showStep(2);
+                startInitialization();
             }
-
-            RoundedButton none = new RoundedButton("No wallpaper");
-            none.addActionListener(e->{
+        });
+        navPanel.add(nextButton);
+        
+        panel.add(navPanel);
+        panel.add(Box.createVerticalStrut(16));
+        
+        return panel;
+    }
+    
+    private RoundedButton createLocationButton(String title, String subtitle, Runnable action) {
+        RoundedButton btn = new RoundedButton("<html><center><b>" + title + "</b><br>" +
+                "<span style='font-size:10px;color:#666;'>" + subtitle + "</span></center></html>");
+        btn.setPreferredSize(new Dimension(340, 44));
+        btn.addActionListener(e -> action.run());
+        return btn;
+    }
+    
+    private void updateSelectedPath() {
+        if (rootFolder != null) {
+            String path = rootFolder.getAbsolutePath();
+            if (path.length() > 50) {
+                path = "..." + path.substring(path.length() - 47);
+            }
+            selectedPathLabel.setText("📁 " + path);
+            selectedPathLabel.setForeground(SUCCESS_COLOR);
+            nextButton.setEnabled(true);
+        }
+    }
+    
+    private JPanel createInitializingPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        
+        panel.add(Box.createVerticalStrut(20));
+        
+        // Title
+        JLabel titleLabel = new JLabel("Setting Up Simjot");
+        titleLabel.setFont(AeroTheme.defaultBoldFont(18f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(titleLabel);
+        
+        panel.add(Box.createVerticalStrut(8));
+        
+        JLabel descLabel = new JLabel("Please wait while we prepare everything for you…");
+        descLabel.setFont(AeroTheme.defaultFont().deriveFont(13f));
+        descLabel.setForeground(TEXT_SECONDARY);
+        descLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(descLabel);
+        
+        panel.add(Box.createVerticalStrut(32));
+        
+        // Tasks panel
+        tasksPanel = new JPanel();
+        tasksPanel.setLayout(new BoxLayout(tasksPanel, BoxLayout.Y_AXIS));
+        tasksPanel.setOpaque(false);
+        tasksPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        tasksPanel.setMaximumSize(new Dimension(400, 300));
+        
+        // Initialize task list
+        setupTasks = new ArrayList<>();
+        setupTasks.add(new SetupTask("Creating Simjot folder", () -> {
+            if (!rootFolder.exists()) {
+                return rootFolder.mkdirs();
+            }
+            return rootFolder.isDirectory();
+        }));
+        setupTasks.add(new SetupTask("Setting up notebooks directory", () -> {
+            AppDirectories.setRoot(rootFolder);
+            File f = AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
+            return f.exists() && f.isDirectory();
+        }));
+        setupTasks.add(new SetupTask("Creating mood data folder", () -> {
+            File f = AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
+            return f.exists() && f.isDirectory();
+        }));
+        setupTasks.add(new SetupTask("Setting up settings directory", () -> {
+            File f = AppDirectories.folder(AppDirectories.Type.SETTINGS);
+            return f.exists() && f.isDirectory();
+        }));
+        setupTasks.add(new SetupTask("Creating wallpapers folder", () -> {
+            File f = AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+            return f.exists() && f.isDirectory();
+        }));
+        setupTasks.add(new SetupTask("Initializing preferences", () -> {
+            try {
                 SettingsStore.get().setBackgroundImage("");
-                dispose();
-            });
-            JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
-            south.setOpaque(false);
-            south.add(none);
-
-            add(new JScrollPane(grid), BorderLayout.CENTER);
-            add(south, BorderLayout.SOUTH);
-
-            pack();
-            setLocationRelativeTo(owner);
+                SettingsStore.get().save();
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }));
+        setupTasks.add(new SetupTask("Validating setup", () -> {
+            // Final validation
+            return rootFolder.exists() && rootFolder.isDirectory();
+        }));
+        
+        // Create task UI components
+        for (SetupTask task : setupTasks) {
+            tasksPanel.add(task.createPanel());
+            tasksPanel.add(Box.createVerticalStrut(8));
+        }
+        
+        JPanel taskWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        taskWrapper.setOpaque(false);
+        taskWrapper.add(tasksPanel);
+        panel.add(taskWrapper);
+        
+        panel.add(Box.createVerticalGlue());
+        
+        return panel;
+    }
+    
+    private void startInitialization() {
+        // Reset all tasks to pending
+        for (SetupTask task : setupTasks) {
+            task.reset();
+        }
+        
+        // Run tasks sequentially with delays for visual feedback
+        SwingWorker<Void, Integer> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                for (int i = 0; i < setupTasks.size(); i++) {
+                    SetupTask task = setupTasks.get(i);
+                    
+                    // Small delay before starting each task
+                    Thread.sleep(300);
+                    
+                    // Update to in-progress
+                    // Mark task in progress
+                    SwingUtilities.invokeLater(() -> task.setInProgress());
+                    
+                    // Execute the task
+                    Thread.sleep(400 + (int)(Math.random() * 300)); // Simulate work
+                    boolean success = task.execute();
+                    
+                    // Update status
+                    SwingUtilities.invokeLater(() -> task.setComplete(success));
+                    
+                    if (!success) {
+                        // Task failed, stop here
+                        return null;
+                    }
+                }
+                return null;
+            }
+            
+            @Override
+            protected void done() {
+                // Check if all tasks succeeded
+                boolean allSuccess = setupTasks.stream().allMatch(t -> t.isSuccess());
+                if (allSuccess) {
+                    // Small delay before showing complete screen
+                    Timer timer = new Timer(500, e -> showStep(3));
+                    timer.setRepeats(false);
+                    timer.start();
+                }
+            }
+        };
+        worker.execute();
+    }
+    
+    private JPanel createCompletePanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        
+        panel.add(Box.createVerticalStrut(40));
+        
+        // Success icon
+        JLabel checkLabel = new JLabel("✓");
+        checkLabel.setFont(new Font("Segoe UI", Font.BOLD, 64));
+        checkLabel.setForeground(SUCCESS_COLOR);
+        checkLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(checkLabel);
+        
+        panel.add(Box.createVerticalStrut(20));
+        
+        // Title
+        JLabel titleLabel = new JLabel("You're All Set!");
+        titleLabel.setFont(AeroTheme.defaultBoldFont(24f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(titleLabel);
+        
+        panel.add(Box.createVerticalStrut(12));
+        
+        JLabel descLabel = new JLabel("Simjot is ready to use. Start writing!");
+        descLabel.setFont(AeroTheme.defaultFont().deriveFont(14f));
+        descLabel.setForeground(TEXT_SECONDARY);
+        descLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(descLabel);
+        
+        panel.add(Box.createVerticalStrut(32));
+        
+        // Summary box
+        FrostedGlassPanel summaryBox = new FrostedGlassPanel(12);
+        summaryBox.setLayout(new BorderLayout());
+        summaryBox.setBorder(new EmptyBorder(16, 20, 16, 20));
+        summaryBox.setMaximumSize(new Dimension(400, 100));
+        summaryBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel summaryLabel = new JLabel("<html><div style='width:340px;'>" +
+                "<b>Your data will be stored in:</b><br>" +
+                "<span style='color:#0078D7;'>" + 
+                (rootFolder != null ? rootFolder.getAbsolutePath() : "Documents/Simjot") + 
+                "</span>" +
+                "</div></html>");
+        summaryLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        summaryBox.add(summaryLabel, BorderLayout.CENTER);
+        
+        panel.add(summaryBox);
+        
+        panel.add(Box.createVerticalGlue());
+        
+        // Start button
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.setOpaque(false);
+        
+        RoundedButton startBtn = new RoundedButton("Start Using Simjot");
+        startBtn.setPreferredSize(new Dimension(180, 42));
+        startBtn.addActionListener(e -> dispose());
+        buttonPanel.add(startBtn);
+        
+        panel.add(buttonPanel);
+        panel.add(Box.createVerticalStrut(24));
+        
+        return panel;
+    }
+    
+    private void showStep(int step) {
+        currentStep = step;
+        stepIndicator.setCurrentStep(step);
+        
+        String[] cards = {"welcome", "location", "initializing", "complete"};
+        cardLayout.show(cardPanel, cards[step]);
+        
+        // Refresh complete panel with actual path
+        if (step == 3 && rootFolder != null) {
+            cardPanel.remove(completePanel);
+            completePanel = createCompletePanel();
+            cardPanel.add(completePanel, "complete");
+            cardLayout.show(cardPanel, "complete");
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INNER CLASSES
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Visual step indicator showing progress through the wizard.
+     */
+    private static class StepIndicator extends JPanel {
+        private final String[] steps;
+        private int currentStep = 0;
+        
+        StepIndicator(String[] steps) {
+            this.steps = steps;
+            setOpaque(false);
+            setPreferredSize(new Dimension(400, 36));
+        }
+        
+        void setCurrentStep(int step) {
+            this.currentStep = step;
+            repaint();
+        }
+        
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+            
+            int w = getWidth();
+            int h = getHeight();
+            int stepWidth = w / steps.length;
+            int dotSize = 10;
+            int lineY = h / 2;
+            
+            // Draw connecting lines
+            g2.setStroke(new BasicStroke(2));
+            for (int i = 0; i < steps.length - 1; i++) {
+                int x1 = (i * stepWidth) + (stepWidth / 2) + dotSize / 2 + 4;
+                int x2 = ((i + 1) * stepWidth) + (stepWidth / 2) - dotSize / 2 - 4;
+                g2.setColor(i < currentStep ? SUCCESS_COLOR : new Color(200, 200, 200));
+                g2.drawLine(x1, lineY, x2, lineY);
+            }
+            
+            // Draw step dots and labels
+            g2.setFont(AeroTheme.defaultFont().deriveFont(10f));
+            FontMetrics fm = g2.getFontMetrics();
+            
+            for (int i = 0; i < steps.length; i++) {
+                int cx = (i * stepWidth) + (stepWidth / 2);
+                
+                // Dot
+                if (i < currentStep) {
+                    g2.setColor(SUCCESS_COLOR);
+                    g2.fillOval(cx - dotSize / 2, lineY - dotSize / 2, dotSize, dotSize);
+                    // Checkmark
+                    g2.setColor(Color.WHITE);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 8));
+                    g2.drawString("✓", cx - 3, lineY + 3);
+                    g2.setFont(AeroTheme.defaultFont().deriveFont(10f));
+                } else if (i == currentStep) {
+                    g2.setColor(ACCENT_COLOR);
+                    g2.fillOval(cx - dotSize / 2, lineY - dotSize / 2, dotSize, dotSize);
+                } else {
+                    g2.setColor(new Color(200, 200, 200));
+                    g2.fillOval(cx - dotSize / 2, lineY - dotSize / 2, dotSize, dotSize);
+                }
+                
+                // Label
+                g2.setColor(i <= currentStep ? AeroTheme.TEXT_PRIMARY : TEXT_SECONDARY);
+                int labelWidth = fm.stringWidth(steps[i]);
+                g2.drawString(steps[i], cx - labelWidth / 2, lineY + dotSize + 12);
+            }
+            
+            g2.dispose();
+        }
+    }
+    
+    /**
+     * Represents a single setup task with visual state.
+     */
+    private static class SetupTask {
+        private final String name;
+        private final java.util.function.BooleanSupplier action;
+        private JPanel panel;
+        private JLabel statusIcon;
+        private JLabel nameLabel;
+        private ModernSpinner spinner;
+        private boolean success = false;
+        
+        SetupTask(String name, java.util.function.BooleanSupplier action) {
+            this.name = name;
+            this.action = action;
+        }
+        
+        JPanel createPanel() {
+            panel = new JPanel(new BorderLayout(8, 0));
+            panel.setOpaque(false);
+            panel.setMaximumSize(new Dimension(380, 28));
+            
+            // Status icon (pending dot initially)
+            statusIcon = new JLabel("○");
+            statusIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            statusIcon.setForeground(PENDING_COLOR);
+            statusIcon.setPreferredSize(new Dimension(24, 24));
+            statusIcon.setHorizontalAlignment(SwingConstants.CENTER);
+            panel.add(statusIcon, BorderLayout.WEST);
+            
+            // Task name
+            nameLabel = new JLabel(name);
+            nameLabel.setFont(AeroTheme.defaultFont().deriveFont(13f));
+            nameLabel.setForeground(PENDING_COLOR);
+            panel.add(nameLabel, BorderLayout.CENTER);
+            
+            // Spinner (hidden initially)
+            spinner = new ModernSpinner(18, ACCENT_COLOR);
+            spinner.setVisible(false);
+            panel.add(spinner, BorderLayout.EAST);
+            
+            return panel;
+        }
+        
+        void reset() {
+            success = false;
+            statusIcon.setText("○");
+            statusIcon.setForeground(PENDING_COLOR);
+            nameLabel.setForeground(PENDING_COLOR);
+            spinner.setVisible(false);
+        }
+        
+        void setInProgress() {
+            statusIcon.setText("");
+            spinner.setVisible(true);
+            nameLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        }
+        
+        boolean execute() {
+            try {
+                success = action.getAsBoolean();
+                return success;
+            } catch (Exception e) {
+                success = false;
+                return false;
+            }
+        }
+        
+        void setComplete(boolean success) {
+            this.success = success;
+            spinner.setVisible(false);
+            spinner.stop();
+            if (success) {
+                statusIcon.setText("✓");
+                statusIcon.setForeground(SUCCESS_COLOR);
+                nameLabel.setForeground(SUCCESS_COLOR);
+            } else {
+                statusIcon.setText("✗");
+                statusIcon.setForeground(new Color(244, 67, 54));
+                nameLabel.setForeground(new Color(244, 67, 54));
+            }
+        }
+        
+        boolean isSuccess() {
+            return success;
         }
     }
 }

@@ -3,7 +3,7 @@ package main.ui.dialog.security;
 import main.core.security.EncryptionManager;
 import main.core.security.LockUtil;
 import main.core.service.SettingsStore;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroPasswordField;
 import main.ui.theme.aero.AeroTheme;
@@ -71,11 +71,14 @@ public class SetEncryptionPasswordDialog extends JDialog {
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         btns.setOpaque(false);
-        JButton remove = new RoundedButton("Remove Password");
+        ToolbarMenuIconButton remove = new ToolbarMenuIconButton("Remove", "trash");
+        remove.setToolTipText("Remove Password");
         remove.addActionListener(e -> doRemove());
-        JButton ok = new RoundedButton("Save");
+        ToolbarMenuIconButton ok = new ToolbarMenuIconButton("Save", "save");
+        ok.setToolTipText("Save Password");
         ok.addActionListener(e -> doSave());
-        JButton cancel = new RoundedButton("Cancel");
+        ToolbarMenuIconButton cancel = new ToolbarMenuIconButton("Exit", "exit");
+        cancel.setToolTipText("Cancel");
         cancel.addActionListener(e -> { setVisible(false); dispose(); });
         btns.add(remove); btns.add(ok); btns.add(cancel);
         root.add(btns, BorderLayout.SOUTH);
