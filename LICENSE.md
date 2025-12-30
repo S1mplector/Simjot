@@ -269,7 +269,7 @@ This notice must be retained in all copies or substantial portions of the Softwa
 
 ### 5.1 Simjot Cryptographic Engine
 
-The Simjot Cryptographic Engine (`main.core.security.crypto` package) is subject to additional restrictions under the **Simjot Cryptographic Engine License**. This component:
+The Simjot Cryptographic Engine (`main.core.security.crypto` package) is subject to additional restrictions under the **Simjot Cryptographic Engine Proprietary License**. This component:
 
 - May only be used within the official Simjot Application
 - May NOT be incorporated into any other project
