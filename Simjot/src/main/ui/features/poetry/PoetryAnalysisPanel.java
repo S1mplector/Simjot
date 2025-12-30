@@ -16,9 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -28,6 +28,8 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
@@ -50,6 +52,17 @@ import main.ui.theme.aero.AeroTheme;
 /**
  * Panel displaying comprehensive poetry analysis results.
  * Shows prosodic, phonetic, structural, lexical, and sentiment analysis.
+ * 
+ * Features:
+ * - Real-time analysis with background processing
+ * - Responsive UI with loading states
+ * - Error handling and display
+ * - Comprehensive analysis results
+ * 
+ * Uses PoetryAnalyzer for core analysis.
+ * 
+ * @author S1mplector
+ * @version 1.0.0
  */
 public class PoetryAnalysisPanel extends JPanel {
     
@@ -68,6 +81,7 @@ public class PoetryAnalysisPanel extends JPanel {
     private final JTabbedPane tabbedPane;
     private final AeroTabStrip tabStrip;
     private PoemAnalysis currentAnalysis;
+    private SwingWorker<PoemAnalysis, Void> analysisWorker;
     
     public PoetryAnalysisPanel() {
         setLayout(new BorderLayout());
@@ -123,13 +137,42 @@ public class PoetryAnalysisPanel extends JPanel {
      * Analyzes and displays results for a poem.
      */
     public void analyzePoem(String title, String text) {
+        analyzePoemAsync(title, text);
+    }
+
+    /**
+     * Analyze in the background so the dialog stays responsive.
+     */
+    public void analyzePoemAsync(String title, String text) {
+        if (analysisWorker != null) {
+            analysisWorker.cancel(true);
+            analysisWorker = null;
+        }
         if (text == null || text.isBlank()) {
             showEmptyState();
             return;
         }
-        
-        currentAnalysis = PoetryAnalyzer.analyze(title, text);
-        displayAnalysis();
+        showLoadingState();
+        analysisWorker = new SwingWorker<>() {
+            @Override
+            protected PoemAnalysis doInBackground() {
+                return PoetryAnalyzer.analyze(title, text);
+            }
+
+            @Override
+            protected void done() {
+                if (isCancelled()) return;
+                try {
+                    currentAnalysis = get();
+                    displayAnalysis();
+                } catch (Exception ex) {
+                    showErrorState(ex);
+                } finally {
+                    analysisWorker = null;
+                }
+            }
+        };
+        analysisWorker.execute();
     }
     
     /**
@@ -191,6 +234,35 @@ public class PoetryAnalysisPanel extends JPanel {
         msg.setHorizontalAlignment(SwingConstants.CENTER);
         empty.add(msg);
         tabbedPane.addTab("Analysis", empty);
+    }
+
+    private void showLoadingState() {
+        tabbedPane.removeAll();
+        tabStrip.setTabs(new String[0]);
+        tabStrip.setVisible(false);
+        JPanel loading = new JPanel(new GridBagLayout());
+        loading.setOpaque(false);
+        JLabel msg = new JLabel("<html><center><font size='4' color='gray'>Analyzing...</font><br><br>" +
+                "<font size='3' color='#999'>Crunching meter, rhyme, and structure</font></center></html>");
+        msg.setHorizontalAlignment(SwingConstants.CENTER);
+        loading.add(msg);
+        tabbedPane.addTab("Analysis", loading);
+        SwingUtilities.invokeLater(this::repaint);
+    }
+
+    private void showErrorState(Exception ex) {
+        tabbedPane.removeAll();
+        tabStrip.setTabs(new String[0]);
+        tabStrip.setVisible(false);
+        JPanel error = new JPanel(new GridBagLayout());
+        error.setOpaque(false);
+        String message = (ex == null || ex.getMessage() == null) ? "Unknown error" : ex.getMessage();
+        JLabel msg = new JLabel("<html><center><font size='4' color='gray'>Analysis failed</font><br><br>" +
+                "<font size='3' color='#999'>" + escapeHtml(message) + "</font></center></html>");
+        msg.setHorizontalAlignment(SwingConstants.CENTER);
+        error.add(msg);
+        tabbedPane.addTab("Analysis", error);
+        SwingUtilities.invokeLater(this::repaint);
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
@@ -738,6 +810,11 @@ public class PoetryAnalysisPanel extends JPanel {
     
     private Icon createIcon(String emoji) {
         return null; // Icons handled by tabs themselves
+    }
+
+    private static String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     private static final class AeroTabStrip extends FrostedGlassPanel {

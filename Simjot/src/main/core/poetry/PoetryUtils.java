@@ -12,7 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Comprehensive utility class for poetry analysis and text processing.
+ * Utility class for poetry analysis and text processing.
  * 
  * <p>This class provides a wide range of poetry-related utilities including enhanced
  * syllable counting, rhyme detection, stress pattern estimation, and text analysis.

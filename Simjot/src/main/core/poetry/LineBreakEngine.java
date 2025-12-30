@@ -9,9 +9,9 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Advanced line break analysis engine for poetry formatting and prose-to-poetry conversion.
+ * Line break analysis engine for poetry formatting and prose-to-poetry conversion.
  * 
- * <p>This sophisticated engine analyzes text to suggest optimal line breaks based on multiple
+ * <p>This engine analyzes text to suggest optimal line breaks based on multiple
  * factors including meter, meaning, breath pauses, and poetic structure. It supports various
  * formatting styles and can convert prose into poetic form while maintaining readability and
  * aesthetic appeal.</p>
@@ -37,8 +37,8 @@ import java.util.TreeSet;
  * List<BreakSuggestion> suggestions = analysis.suggestions;
  * }</pre>
  * 
- * @author Simjot Development Team
- * @since 1.0.0
+ * @author S1mplector
+ * @version 1.0.0
  */
 public class LineBreakEngine {
     

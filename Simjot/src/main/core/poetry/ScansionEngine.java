@@ -11,7 +11,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * ScansionEngine - Production-ready scansion analysis for poetry.
+ * ScansionEngine 
+ * 
+ * Scansion analysis for poetry.
  * 
  * Features:
  * - Syllable-by-syllable stress marking (stressed/unstressed)

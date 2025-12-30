@@ -16,7 +16,9 @@ import java.util.regex.Pattern;
 import main.infrastructure.io.ResourceLoader;
 
 /**
- * PoetryDictionary - serves as a centralized dictionary service for poetry analysis.
+ * PoetryDictionary utility class
+ * 
+ * Serves as a centralized dictionary service for poetry analysis.
  * 
  * Loads from the simple-english-dictionary resource and provides:
  * - Part of speech lookup

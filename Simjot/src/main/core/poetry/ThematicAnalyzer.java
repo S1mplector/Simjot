@@ -11,7 +11,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * ThematicAnalyzer - Production-ready thematic analysis with keyword clustering.
+ * ThematicAnalyzer 
+ * 
+ * Thematic analysis with keyword clustering.
  * 
  * Features:
  * - Theme detection based on semantic clustering

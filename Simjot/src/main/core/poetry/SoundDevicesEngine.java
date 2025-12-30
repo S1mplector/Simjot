@@ -15,7 +15,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * SoundDevicesEngine - Production-ready detection of alliteration, assonance, and consonance.
+ * SoundDevicesEngine 
+ * 
+ * Sound devices detection of alliteration, assonance, and consonance.
  * 
  * Features:
  * - Alliteration detection (repeated initial consonant sounds)

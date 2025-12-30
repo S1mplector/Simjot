@@ -9,10 +9,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * MeterScanner - Enhanced poetry analysis engine.
+ * MeterScanner utility 
  * 
  * Computes per-line syllable counts, rhyme labels, stanza separators, tooltips,
  * and detects common poetic forms and meter patterns.
+ * 
+ * @author S1mplector
+ * @version 1.0.0
  */
 public class MeterScanner {
 

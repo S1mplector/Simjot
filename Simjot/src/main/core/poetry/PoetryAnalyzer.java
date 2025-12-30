@@ -14,9 +14,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * <h1>Academic-Level Poetry Analysis Engine</h1>
+ * <h1>Simjot Poetry Analysis Engine v1.0.0</h1>
  * 
- * <p>A comprehensive poetry analysis engine providing professional-grade analysis
+ * <p>A poetry analysis engine providing professional-grade analysis
  * for prosody, phonetics, structure, rhetorical devices, lexical patterns, and sentiment.</p>
  * 
  * <h2>Analysis Categories</h2>
@@ -41,9 +41,8 @@ import java.util.stream.Collectors;
  *   <li>Derek Attridge's "Poetic Rhythm: An Introduction"</li>
  * </ul>
  * 
- * @author Simjot
- * @version 2.1.0
- * @since 1.0.0
+ * @author S1mplector
+ * @version 1.0.0
  */
 public final class PoetryAnalyzer {
     
@@ -786,7 +785,7 @@ public final class PoetryAnalyzer {
         "warm", "sweet", "dream", "heaven", "angel", "bliss", "delight", "wonder", "grace",
         "golden", "glory", "bloom", "shine", "smile", "tender", "pure", "serene", "radiant",
         "cherish", "treasure", "embrace", "adore", "enchant", "bless", "harmony", "paradise",
-        "eternal", "divine", "sacred", "gentle", "kind", "faith", "trust", "comfort", "heal"
+        "eternal", "divine", "sacred", "kind", "faith", "trust", "comfort", "heal"
     );
     
     private static final Set<String> NEGATIVE = Set.of(

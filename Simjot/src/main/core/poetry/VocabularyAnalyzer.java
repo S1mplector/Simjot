@@ -10,7 +10,9 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * VocabularyAnalyzer - Production-ready word frequency analysis and vocabulary richness metrics.
+ * VocabularyAnalyzer
+ * 
+ * Vocabulary analysis with word frequency analysis and vocabulary richness metrics.
  * 
  * Features:
  * - Word frequency analysis with ranking

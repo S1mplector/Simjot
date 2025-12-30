@@ -103,7 +103,7 @@
  *   <li><b>Free Verse</b> - Irregular structure</li>
  * </ul>
  * 
- * @since 1.0
- * @version 2.0
+ * @author S1mplector
+ * @version 1.0.0
  */
 package main.core.poetry;

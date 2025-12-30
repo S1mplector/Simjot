@@ -5,6 +5,9 @@ import java.util.List;
 
 /**
  * Immutable-ish result for meter/rhyme sidebar rendering.
+ * 
+ * @author S1mplector
+ * @version 1.0.0
  */
 public class MeterAnalysis {
     public final List<String> displayRows;
