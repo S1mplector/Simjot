@@ -491,8 +491,7 @@ public class NotebookManagerPanel extends JPanel {
     /* Create dialog with customization options */
     private static class CreateNotebookDialog extends JDialog{
         private boolean accepted=false;
-        private final ModernTextField nameField = new ModernTextField(20);
-        private final ModernTextField descField = new ModernTextField(20);
+        private final TitleDividerField nameField = new TitleDividerField(24);
         private NotebookInfo.Type selectedType = NotebookInfo.Type.POETRY;
         private TypeCard poetryCard, journalCard;
 
@@ -605,42 +604,33 @@ public class NotebookManagerPanel extends JPanel {
             center.add(typeCards);
             center.add(Box.createVerticalStrut(16));
 
-            // Name field
-            JLabel nameLabel = new JLabel("Name");
-            nameLabel.setForeground(new Color(80, 80, 80));
-            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
-            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            center.add(nameLabel);
-            center.add(Box.createVerticalStrut(6));
+            // Name field (title-style divider)
             nameField.setToolTipText("Enter notebook name");
             nameField.setAlignmentX(Component.LEFT_ALIGNMENT);
-            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            nameField.setPlaceholder("Notebook name");
+            try {
+                String family = SettingsStore.get().getEditorFontFamily();
+                int size = SettingsStore.get().getJournalFontSize();
+                nameField.setFont(new Font(family, Font.PLAIN, size));
+            } catch (Throwable ignored) {
+                nameField.setFont(nameField.getFont().deriveFont(Font.PLAIN, 16f));
+            }
             center.add(nameField);
-            center.add(Box.createVerticalStrut(12));
-
-            // Description field
-            JLabel descLabel = new JLabel("Description (optional)");
-            descLabel.setForeground(new Color(80, 80, 80));
-            descLabel.setFont(descLabel.getFont().deriveFont(Font.BOLD, 12f));
-            descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            center.add(descLabel);
             center.add(Box.createVerticalStrut(6));
-            descField.setToolTipText("Brief description of this notebook");
-            descField.setAlignmentX(Component.LEFT_ALIGNMENT);
-            descField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-            center.add(descField);
 
             panel.add(center, BorderLayout.CENTER);
 
             // Buttons
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
             btns.setOpaque(false);
-            RoundedButton cancel = new RoundedButton("Cancel");
-            cancel.setForeground(new Color(100, 100, 100));
-            cancel.setPreferredSize(new Dimension(100, 36));
+            IconMenuButton cancel = new IconMenuButton("Cancel", "exit");
+            cancel.setToolTipText("Cancel");
+            cancel.setPreferredSize(new Dimension(84, 80));
             cancel.addActionListener(e -> { accepted = false; setVisible(false); dispose(); });
-            RoundedButton okBtn = new RoundedButton("Create");
-            okBtn.setPreferredSize(new Dimension(100, 36));
+            IconMenuButton okBtn = new IconMenuButton("Create", "save");
+            okBtn.setToolTipText("Create");
+            okBtn.setPreferredSize(new Dimension(84, 80));
             okBtn.setEnabled(false);
             okBtn.addActionListener(e -> { accepted = true; setVisible(false); dispose(); });
             btns.add(cancel);
@@ -660,7 +650,7 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(440, 340);
+            setSize(440, 300);
             setLocationRelativeTo(parent);
         }
 
@@ -672,7 +662,7 @@ public class NotebookManagerPanel extends JPanel {
 
         boolean isAccepted(){ return accepted; }
         String getNotebookName(){ return nameField.getText().trim(); }
-        String getDescription(){ return descField.getText().trim(); }
+        String getDescription(){ return ""; }
         NotebookInfo.Type getNotebookType(){ return selectedType; }
 
         /** Card component for notebook type selection */
