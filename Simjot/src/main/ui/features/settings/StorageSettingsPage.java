@@ -52,6 +52,9 @@ import main.infrastructure.backup.BackupService;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.infrastructure.backup.BackupManager;
 import main.ui.components.scrollbar.AeroScrollBarUI;
+import main.core.security.EncryptionManager;
+import main.ui.dialog.security.EncryptionUnlockDialog;
+import java.util.Arrays;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
@@ -230,14 +233,20 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
         backupNowBtn.addActionListener(e -> {
             backupNowBtn.setEnabled(false);
-            new SwingWorker<Void, Void>() {
-                @Override protected Void doInBackground() {
-                    try { main.infrastructure.backup.BackupService.get().triggerNow(); } catch (Throwable ignored) {}
-                    return null;
+            new SwingWorker<Boolean, Void>() {
+                @Override protected Boolean doInBackground() {
+                    try { return main.infrastructure.backup.BackupService.get().triggerNow(StorageSettingsPage.this); } catch (Throwable ignored) {}
+                    return false;
                 }
                 @Override protected void done() {
                     backupNowBtn.setEnabled(true);
-                    try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
+                    boolean ok = false;
+                    try { ok = get(); } catch (Throwable ignored) {}
+                    if (ok) {
+                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
+                    } else {
+                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Backup", "Backup failed or was canceled.", true); } catch (Throwable ignored) {}
+                    }
                 }
             }.execute();
         });
@@ -499,27 +508,71 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             String d = backupDestField.getText();
             File defaultRoot = (d==null || d.isBlank()) ? new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "backups") : new File(d);
             JFileChooser fc = new JFileChooser(defaultRoot);
-            fc.setDialogTitle("Choose a backup folder to restore");
-            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            fc.setDialogTitle("Choose a backup folder or .sjbackup file to restore");
+            fc.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
             int res = fc.showOpenDialog(this);
             if (res != JFileChooser.APPROVE_OPTION) return;
             File selected = fc.getSelectedFile();
-            if (selected == null || !selected.isDirectory()) return;
-            boolean looksBackup = new File(selected, "notebooks").exists() || new File(selected, "notebooks.json").exists();
-            if (!looksBackup) {
-                try { main.ui.dialog.message.CustomMessageDialog.display(this, "Restore", "This folder does not look like a Simjot backup.", true); } catch (Throwable ignored) {}
+            if (selected == null || (!selected.isDirectory() && !selected.isFile())) return;
+            boolean isEncryptedFile = selected.isFile() && selected.getName().toLowerCase().endsWith(".sjbackup");
+            if (selected.isDirectory()) {
+                boolean looksBackup = new File(selected, "notebooks").exists() || new File(selected, "notebooks.json").exists();
+                if (!looksBackup) {
+                    try { main.ui.dialog.message.CustomMessageDialog.display(this, "Restore", "This folder does not look like a Simjot backup.", true); } catch (Throwable ignored) {}
+                    return;
+                }
+            } else if (!isEncryptedFile) {
+                try { main.ui.dialog.message.CustomMessageDialog.display(this, "Restore", "This file does not look like a Simjot backup.", true); } catch (Throwable ignored) {}
                 return;
             }
             boolean ok = CustomConfirmDialog.confirm(SwingUtilities.getWindowAncestor(this), "Restore Backup",
                     "This will overwrite your current data with the selected backup. Continue?");
             if (!ok) return;
-            new SwingWorker<Void, Void>() {
-                @Override protected Void doInBackground() {
-                    try { BackupManager.restoreFromBackup(selected, AppDirectories.getRoot()); } catch (Throwable ignored) {}
+            final char[] restorePassword;
+            final boolean rememberPassword;
+            if (isEncryptedFile) {
+                if (EncryptionManager.hasPasswordSet()) {
+                    String pw = EncryptionManager.getPasswordForUse(this, true);
+                    if (pw == null || pw.isBlank()) return;
+                    restorePassword = pw.toCharArray();
+                    rememberPassword = false;
+                } else {
+                    EncryptionUnlockDialog.Result resPass = EncryptionUnlockDialog.prompt(this);
+                    if (resPass == null || resPass.password == null || resPass.password.length == 0) return;
+                    restorePassword = Arrays.copyOf(resPass.password, resPass.password.length);
+                    rememberPassword = resPass.remember;
+                    Arrays.fill(resPass.password, '\0');
+                }
+            } else {
+                restorePassword = null;
+                rememberPassword = false;
+            }
+
+            new SwingWorker<Throwable, Void>() {
+                @Override protected Throwable doInBackground() {
+                    try {
+                        if (isEncryptedFile) {
+                            BackupManager.restoreFromBackup(selected, AppDirectories.getRoot(), new String(restorePassword));
+                        } else {
+                            BackupManager.restoreFromBackup(selected, AppDirectories.getRoot());
+                        }
+                    } catch (Throwable t) {
+                        return t;
+                    }
                     return null;
                 }
                 @Override protected void done() {
-                    try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Restore", "Restore completed.", false); } catch (Throwable ignored) {}
+                    Throwable err = null;
+                    try { err = get(); } catch (Throwable ignored) {}
+                    if (err == null) {
+                        if (isEncryptedFile && rememberPassword && restorePassword != null) {
+                            EncryptionManager.cacheSessionPassword(restorePassword);
+                        }
+                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Restore", "Restore completed.", false); } catch (Throwable ignored) {}
+                    } else {
+                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Restore", "Restore failed: " + err.getMessage(), true); } catch (Throwable ignored) {}
+                    }
+                    if (restorePassword != null) Arrays.fill(restorePassword, '\0');
                 }
             }.execute();
         } catch (Throwable ignored) {}

@@ -120,6 +120,10 @@ public final class SettingsStore {
     private static final String KEY_LOCK_PW_SALT = "lock.passwordSalt";
     private static final String KEY_LOCK_NB_PREFIX = "lock.nb.";
     private static final String KEY_LOCK_ENTRY_PREFIX = "lock.entry.";
+    // Encryption settings
+    private static final String KEY_ENCRYPT_ENABLED = "encrypt.enabled";
+    private static final String KEY_ENCRYPT_PW_HASH = "encrypt.passwordHash";
+    private static final String KEY_ENCRYPT_PW_SALT = "encrypt.passwordSalt";
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
@@ -715,6 +719,19 @@ public final class SettingsStore {
         if (path == null) return;
         props.setProperty(KEY_LOCK_ENTRY_PREFIX + path, String.valueOf(locked));
     }
+
+    // -------------- Encryption -------------- //
+    public boolean isEncryptionEnabled() {
+        return Boolean.parseBoolean(props.getProperty(KEY_ENCRYPT_ENABLED, String.valueOf(false)));
+    }
+    public void setEncryptionEnabled(boolean enabled) {
+        props.setProperty(KEY_ENCRYPT_ENABLED, String.valueOf(enabled));
+    }
+
+    public String getEncryptionPasswordHash() { return props.getProperty(KEY_ENCRYPT_PW_HASH, ""); }
+    public void setEncryptionPasswordHash(String h) { if (h == null || h.isBlank()) props.remove(KEY_ENCRYPT_PW_HASH); else props.setProperty(KEY_ENCRYPT_PW_HASH, h); }
+    public String getEncryptionPasswordSalt() { return props.getProperty(KEY_ENCRYPT_PW_SALT, ""); }
+    public void setEncryptionPasswordSalt(String s) { if (s == null || s.isBlank()) props.remove(KEY_ENCRYPT_PW_SALT); else props.setProperty(KEY_ENCRYPT_PW_SALT, s); }
 
     // -------- Header quotes (customization) -------- //
     public String[] getHeaderCustomQuotes(){

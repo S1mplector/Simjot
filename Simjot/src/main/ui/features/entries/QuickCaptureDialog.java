@@ -25,6 +25,11 @@ import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 
+import main.core.security.EncryptionManager;
+import main.core.security.crypto.ContentType;
+import main.core.security.crypto.CryptoConfig;
+import main.core.security.crypto.CryptoException;
+import main.core.security.crypto.EncryptedMetadata;
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
@@ -119,6 +124,25 @@ public class QuickCaptureDialog extends JDialog {
             File out = new File(folder, filename);
 
             byte[] data = buildPayload(title, body, notebook);
+            if (EncryptionManager.isEncryptionEnabled()) {
+                String password = EncryptionManager.getPasswordForUse(this, true);
+                if (password == null || password.isBlank()) {
+                    CustomMessageDialog.display(this, "Encryption", "Encryption password required to save.", true);
+                    return;
+                }
+                int words = countWords(body);
+                CryptoConfig config = (notebook != null && notebook.getType() == NotebookInfo.Type.POETRY)
+                        ? CryptoConfig.forPoems().withIdentifier(EncryptedMetadata.encodePoem(title, System.currentTimeMillis(), words))
+                        : CryptoConfig.forEntries().withIdentifier(EncryptedMetadata.encodeEntry(title, -1, false, null, System.currentTimeMillis(), words));
+                try {
+                    ContentType type = (notebook != null && notebook.getType() == NotebookInfo.Type.POETRY)
+                            ? ContentType.POEM : ContentType.ENTRY;
+                    data = EncryptionManager.encrypt(data, password, type, config);
+                } catch (CryptoException ex) {
+                    CustomMessageDialog.display(this, "Encryption", ex.getUserMessage(), true);
+                    return;
+                }
+            }
             FileIO.ensureSpace(out.toPath(), data.length + 4096L, "quick capture");
             FileIO.atomicWrite(out.toPath(), data, true, true);
 
@@ -165,5 +189,12 @@ public class QuickCaptureDialog extends JDialog {
         }
         writer.flush();
         return baos.toByteArray();
+    }
+
+    private static int countWords(String text) {
+        if (text == null) return 0;
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) return 0;
+        return trimmed.split("\\s+").length;
     }
 }

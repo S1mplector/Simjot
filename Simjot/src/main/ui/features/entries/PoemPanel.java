@@ -3,6 +3,7 @@ package main.ui.features.entries;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -12,10 +13,12 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.Window;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
@@ -46,6 +49,11 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.StyledEditorKit;
 
+import main.core.security.EncryptionManager;
+import main.core.security.crypto.ContentType;
+import main.core.security.crypto.CryptoConfig;
+import main.core.security.crypto.CryptoException;
+import main.core.security.crypto.EncryptedMetadata;
 import main.core.export.PoemExporter;
 import main.core.poetry.ScansionEngine;
 import main.core.poetry.SoundDevicesEngine;
@@ -74,6 +82,7 @@ import main.ui.dialog.export.PoemExportDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
+import main.ui.features.poetry.PoetryAnalysisPanel;
 import main.ui.features.poetry.RhymesDockPanel;
 import main.ui.features.poetry.StatsSidebarPanel;
 
@@ -243,8 +252,13 @@ public class PoemPanel extends AbstractEditorPanel {
         ToolbarMenuIconButton exportBtn = new ToolbarMenuIconButton("Export", "export");
         exportBtn.setToolTipText("Export poem (Markdown/HTML/TXT/PNG)");
         exportBtn.addActionListener(e -> exportPoem());
+        // Analysis button - opens detailed poetry analysis panel
+        ToolbarMenuIconButton analyzeBtn = new ToolbarMenuIconButton("Analyze", "analyze");
+        analyzeBtn.setToolTipText("Open Detailed Poetry Analysis");
+        analyzeBtn.addActionListener(e -> showPoemAnalysis());
         rightToolbar.add(statsToggle);
         rightToolbar.add(rhymesToggle);
+        rightToolbar.add(analyzeBtn);
         rightToolbar.add(exportBtn);
         rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
@@ -811,6 +825,23 @@ public class PoemPanel extends AbstractEditorPanel {
             writer.println(content);
             writer.flush();
             byte[] data = baos.toByteArray();
+            int wordCount = countWords(new String(data, java.nio.charset.StandardCharsets.UTF_8));
+            if (EncryptionManager.isEncryptionEnabled()) {
+                String password = EncryptionManager.getPasswordForUse(this, !isAutosaving);
+                if (password == null || password.isBlank()) {
+                    if (saveIndicator != null) saveIndicator.setError("Encryption locked");
+                    return;
+                }
+                CryptoConfig config = CryptoConfig.forPoems()
+                        .withIdentifier(EncryptedMetadata.encodePoem(title, System.currentTimeMillis(), wordCount));
+                try {
+                    data = EncryptionManager.encrypt(data, password, ContentType.POEM, config);
+                } catch (CryptoException ex) {
+                    if (saveIndicator != null) saveIndicator.setError("Encrypt failed");
+                    SwingUtilities.invokeLater(() -> CustomMessageDialog.display(this, "Encryption", ex.getUserMessage(), true));
+                    return;
+                }
+            }
             FileIO.ensureSpace(poemFile.toPath(), data.length + 4096L, "poem save");
             FileIO.atomicWrite(poemFile.toPath(), data, true, true);
 
@@ -1021,7 +1052,8 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Load an existing poem file into the editor fields
     private void loadExistingPoem(File poemFile) {
-        try (BufferedReader reader = new BufferedReader(new FileReader(poemFile))) {
+        try (BufferedReader reader = openPoemReader(poemFile)) {
+            if (reader == null) return;
             String title = reader.readLine();
             if (title == null) title = "";
             poemTitleField.setText(title);
@@ -1044,6 +1076,8 @@ public class PoemPanel extends AbstractEditorPanel {
                     } catch (Throwable ignored) {}
                 });
             } catch (Throwable ignored) {}
+        } catch (CryptoException ex) {
+            CustomMessageDialog.display(this, "Encryption", ex.getUserMessage(), true);
         } catch (IOException ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading poem.", true).showDialog();
@@ -1070,6 +1104,19 @@ public class PoemPanel extends AbstractEditorPanel {
         poemTitleField.setText("");
         poemEditor.setText("");
         if (saveIndicator != null) saveIndicator.clear();
+    }
+
+    private BufferedReader openPoemReader(File file) throws IOException, CryptoException {
+        byte[] data = EncryptionManager.readFileMaybeDecrypt(file, this, true);
+        if (data == null) return null;
+        return new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data), java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static int countWords(String text) {
+        if (text == null) return 0;
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) return 0;
+        return trimmed.split("\\s+").length;
     }
 
     private void updateSaveIndicatorFromCurrentFile() {
@@ -1155,6 +1202,38 @@ public class PoemPanel extends AbstractEditorPanel {
             poemEditor.getHighlighter().removeHighlight(currentWordHighlight);
             currentWordHighlight = null;
         }
+    }
+    
+    /**
+     * Opens the detailed poetry analysis dialog.
+     */
+    private void showPoemAnalysis() {
+        String title = poemTitleField != null ? poemTitleField.getText() : "";
+        String text = poemEditor != null ? poemEditor.getText() : "";
+        
+        if (text == null || text.isBlank()) {
+            javax.swing.JOptionPane.showMessageDialog(
+                SwingUtilities.getWindowAncestor(this),
+                "Please write some poetry first to analyze.",
+                "No Content",
+                javax.swing.JOptionPane.INFORMATION_MESSAGE
+            );
+            return;
+        }
+        
+        // Create analysis dialog
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(owner, "Poetry Analysis", Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setSize(700, 600);
+        dialog.setLocationRelativeTo(this);
+        
+        // Create and populate the analysis panel
+        PoetryAnalysisPanel analysisPanel = new PoetryAnalysisPanel();
+        analysisPanel.analyzePoem(title, text);
+        
+        dialog.add(analysisPanel);
+        dialog.setVisible(true);
     }
     
     /**

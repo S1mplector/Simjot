@@ -1,10 +1,12 @@
 package main.infrastructure.backup;
 
+import java.awt.Component;
 import java.io.File;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import main.core.security.EncryptionManager;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
@@ -68,7 +70,7 @@ public final class BackupService {
                 default -> Long.MAX_VALUE;
             };
             if (now - last >= interval) {
-                runBackupNow();
+                runBackupNow(false, null);
             }
         } catch (Throwable t) {
             logWarn("checkAndRunIfDue failed", t);
@@ -81,7 +83,7 @@ public final class BackupService {
             SettingsStore store = SettingsStore.get();
             boolean always = store.isBackupOnExitAlways();
             if (always) {
-                runBackupNow();
+                runBackupNow(false, null);
                 return;
             }
             if (BackupManager.parseFrequency(store.getBackupFrequency()) == BackupManager.Frequency.OFF) return;
@@ -93,7 +95,7 @@ public final class BackupService {
                     "Monthly".equalsIgnoreCase(freqStr) ? ONE_MONTH_MS : ONE_DAY_MS
             );
             if (now - last >= interval) {
-                runBackupNow();
+                runBackupNow(false, null);
             }
         } catch (Throwable t) {
             logWarn("triggerOnExit failed", t);
@@ -102,10 +104,15 @@ public final class BackupService {
 
     /** Manual trigger regardless of frequency setting. Useful for "Backup Now" button. */
     public void triggerNow() {
-        try { runBackupNow(); } catch (Throwable t) { logWarn("triggerNow failed", t); }
+        try { runBackupNow(true, null); } catch (Throwable t) { logWarn("triggerNow failed", t); }
     }
 
-    private void runBackupNow() {
+    /** Manual trigger with optional parent for password prompts. */
+    public boolean triggerNow(Component parent) {
+        try { return runBackupNow(true, parent); } catch (Throwable t) { logWarn("triggerNow failed", t); return false; }
+    }
+
+    private boolean runBackupNow(boolean allowPrompt, Component parent) {
         try {
             File src = AppDirectories.getRoot();
             SettingsStore store = SettingsStore.get();
@@ -119,6 +126,15 @@ public final class BackupService {
             boolean includeSettings = store.isBackupIncludeSettings();
             boolean includeWallpapers = store.isBackupIncludeWallpapers();
             boolean verify = store.isBackupVerify();
+            boolean encrypt = EncryptionManager.isEncryptionEnabled();
+            String password = null;
+            if (encrypt) {
+                password = EncryptionManager.getPasswordForUse(parent, allowPrompt);
+                if (password == null || password.isBlank()) {
+                    logWarn("backup skipped: encryption password unavailable", null);
+                    return false;
+                }
+            }
 
             if (!backupRoot.exists()) backupRoot.mkdirs();
             long estimated = BackupManager.estimateBackupSize(src, includeMood, includeSettings, includeWallpapers);
@@ -131,13 +147,17 @@ public final class BackupService {
                     includeMood,
                     includeSettings,
                     includeWallpapers,
-                    verify
+                    verify,
+                    encrypt,
+                    password
             );
 
             store.setLastBackupEpochMillis(System.currentTimeMillis());
             store.save();
+            return true;
         } catch (Throwable t) {
             logWarn("runBackupNow failed", t);
+            return false;
         }
     }
 

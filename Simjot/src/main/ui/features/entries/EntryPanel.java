@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.channels.FileLock;
@@ -74,6 +75,11 @@ import javax.swing.text.StyledDocument;
 import javax.swing.text.StyledEditorKit;
 import javax.swing.text.rtf.RTFEditorKit;
 
+import main.core.security.EncryptionManager;
+import main.core.security.crypto.ContentType;
+import main.core.security.crypto.CryptoConfig;
+import main.core.security.crypto.CryptoException;
+import main.core.security.crypto.EncryptedMetadata;
 import main.core.service.LastSaveTracker;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
@@ -240,9 +246,12 @@ public class EntryPanel extends AbstractEditorPanel {
             return;
         }
         hideRecoveryBanner();
-        try (BufferedReader reader = new BufferedReader(new FileReader(fileToEdit))) {
+        try (BufferedReader reader = openEntryReader(fileToEdit)) {
+            if (reader == null) return;
             String firstLine = reader.readLine();
             applyEntryContent(reader, firstLine);
+        } catch (CryptoException ex) {
+            CustomMessageDialog.display(this, "Encryption", ex.getUserMessage(), true);
         } catch (Exception ex) {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error loading journal entry.", true).showDialog();
@@ -1414,8 +1423,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void updateWordCount() {
         String text = contentArea.getText();
-        String[] words = text.trim().split("\\s+");
-        int count = text.trim().isEmpty() ? 0 : words.length;
+        int count = countWords(text);
 
         // Find the word count label and update it
         // This is a bit of a workaround, but effective for this structure
@@ -1564,6 +1572,30 @@ public class EntryPanel extends AbstractEditorPanel {
             }
 
             byte[] data = baos.toByteArray();
+            int wordCount = countWords(new String(data, StandardCharsets.UTF_8));
+            if (EncryptionManager.isEncryptionEnabled()) {
+                String password = EncryptionManager.getPasswordForUse(this, !isAutosaving);
+                if (password == null || password.isBlank()) {
+                    if (saveIndicator != null) saveIndicator.setError("Encryption locked");
+                    return;
+                }
+                CryptoConfig config = CryptoConfig.forEntries()
+                        .withIdentifier(EncryptedMetadata.encodeEntry(
+                                meta.title,
+                                meta.mood,
+                                meta.guided,
+                                meta.template,
+                                meta.savedAt,
+                                wordCount
+                        ));
+                try {
+                    data = EncryptionManager.encrypt(data, password, ContentType.ENTRY, config);
+                } catch (CryptoException ex) {
+                    if (saveIndicator != null) saveIndicator.setError("Encrypt failed");
+                    SwingUtilities.invokeLater(() -> CustomMessageDialog.display(this, "Encryption", ex.getUserMessage(), true));
+                    return;
+                }
+            }
             try {
                 FileIO.ensureSpace(file.toPath(), data.length + 4096L, "entry save");
                 FileIO.atomicWrite(file.toPath(), data, true, true);
@@ -1760,6 +1792,19 @@ public class EntryPanel extends AbstractEditorPanel {
     private void applyImageManifest(StyledDocument doc, String manifest) {
         // Current strategy relies on tokens in the RTF; the header is informational only.
         restoreIconsFromTokens(doc, manifest);
+    }
+
+    private BufferedReader openEntryReader(File file) throws IOException, CryptoException {
+        byte[] data = EncryptionManager.readFileMaybeDecrypt(file, this, true);
+        if (data == null) return null;
+        return new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data), StandardCharsets.UTF_8));
+    }
+
+    private static int countWords(String text) {
+        if (text == null) return 0;
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) return 0;
+        return trimmed.split("\\s+").length;
     }
 
     private static BufferedImage scaleToWidth(BufferedImage src, int targetW) {

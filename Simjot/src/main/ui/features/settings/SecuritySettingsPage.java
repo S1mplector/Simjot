@@ -1,9 +1,11 @@
 package main.ui.features.settings;
 
+import main.core.security.EncryptionManager;
 import main.core.service.SettingsStore;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
 
 import javax.swing.*;
 import java.awt.*;
@@ -14,6 +16,9 @@ public class SecuritySettingsPage implements SettingsPage {
     private final JCheckBox enableLock = new JCheckBox("Enable App Lock");
     private final JCheckBox requireOnStart = new JCheckBox("Require password on startup");
     private final JSpinner timeoutMinutes = new JSpinner(new SpinnerNumberModel(0, 0, 240, 1));
+    private final JCheckBox enableEncryption = new JCheckBox("Enable encryption for entries, poems, and backups");
+    private final JLabel encryptionStatus = new JLabel();
+    private final RoundedButton setEncryptionPw = new RoundedButton("Set / Change Encryption Password…");
 
     public SecuritySettingsPage() {
         root.setOpaque(true);
@@ -59,6 +64,28 @@ public class SecuritySettingsPage implements SettingsPage {
         buttons.add(setPw);
         root.add(buttons, gc);
 
+        // Encryption section
+        gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2;
+        root.add(SettingsUi.header("Encryption", "Protect entries, poems, and backups with a separate password"), gc);
+        gc.gridwidth = 1;
+
+        enableEncryption.setUI(new ModernCheckBoxUI());
+        enableEncryption.setBackground(new Color(0,0,0,0));
+        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; root.add(enableEncryption, gc);
+
+        encryptionStatus.setForeground(new Color(0,0,0,120));
+        encryptionStatus.setFont(encryptionStatus.getFont().deriveFont(11f));
+        gc.gridy = 7; root.add(encryptionStatus, gc);
+
+        gc.gridy = 8; gc.gridwidth = 2;
+        JPanel encButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        encButtons.setOpaque(false);
+        setEncryptionPw.addActionListener(e -> openSetEncryptionPasswordDialog());
+        encButtons.add(setEncryptionPw);
+        root.add(encButtons, gc);
+
+        enableEncryption.addActionListener(e -> onToggleEncryption());
+
         load();
     }
 
@@ -69,12 +96,53 @@ public class SecuritySettingsPage implements SettingsPage {
         int sec = s.getLockTimeoutSec();
         int min = Math.max(0, sec / 60);
         timeoutMinutes.setValue(min);
+        enableEncryption.setSelected(s.isEncryptionEnabled());
+        updateEncryptionStatus();
     }
 
     private void openSetPasswordDialog(){
         java.awt.Window w = SwingUtilities.getWindowAncestor(root);
         java.awt.Frame owner = (w instanceof java.awt.Frame) ? (java.awt.Frame) w : null;
         new main.ui.dialog.security.SetPasswordDialog(owner).setVisible(true);
+    }
+
+    private void openSetEncryptionPasswordDialog() {
+        java.awt.Window w = SwingUtilities.getWindowAncestor(root);
+        java.awt.Frame owner = (w instanceof java.awt.Frame) ? (java.awt.Frame) w : null;
+        new main.ui.dialog.security.SetEncryptionPasswordDialog(owner).setVisible(true);
+        updateEncryptionStatus();
+    }
+
+    private void onToggleEncryption() {
+        SettingsStore s = SettingsStore.get();
+        if (enableEncryption.isSelected()) {
+            if (!EncryptionManager.hasPasswordSet()) {
+                openSetEncryptionPasswordDialog();
+                if (!EncryptionManager.hasPasswordSet()) {
+                    enableEncryption.setSelected(false);
+                    return;
+                }
+            }
+        } else {
+            boolean ok = CustomConfirmDialog.confirm(root, "Disable Encryption",
+                    "Encrypted entries will remain encrypted and require the password to open. Continue?");
+            if (!ok) {
+                enableEncryption.setSelected(true);
+                return;
+            }
+            EncryptionManager.clearSessionPassword();
+        }
+        s.setEncryptionEnabled(enableEncryption.isSelected());
+        s.save();
+        updateEncryptionStatus();
+    }
+
+    private void updateEncryptionStatus() {
+        if (EncryptionManager.hasPasswordSet()) {
+            encryptionStatus.setText("Encryption password set.");
+        } else {
+            encryptionStatus.setText("No encryption password set.");
+        }
     }
 
     @Override
@@ -89,5 +157,9 @@ public class SecuritySettingsPage implements SettingsPage {
         int sec = Math.max(0, min) * 60;
         s.setLockTimeoutSec(sec);
         // Password is managed via dialog; nothing to do here
+        if (enableEncryption.isSelected() && !EncryptionManager.hasPasswordSet()) {
+            enableEncryption.setSelected(false);
+        }
+        s.setEncryptionEnabled(enableEncryption.isSelected());
     }
 }

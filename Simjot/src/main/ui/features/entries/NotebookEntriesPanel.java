@@ -59,6 +59,8 @@ import javax.swing.SwingWorker;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import main.core.security.EncryptionManager;
+import main.core.security.crypto.EncryptedMetadata;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
@@ -702,6 +704,11 @@ public class NotebookEntriesPanel extends JPanel {
         if (f.length() > 1_500_000L) {
             return 0;
         }
+        if (EncryptionManager.isEncrypted(f)) {
+            EncryptedMetadata.Meta meta = EncryptionManager.readMetadata(f);
+            if (meta != null && meta.words >= 0) return meta.words;
+            return 0;
+        }
         int count = 0;
         try(Scanner sc=new Scanner(f)){
             while(sc.hasNext()){
@@ -714,6 +721,11 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private String extractTitle(File f){
+        if (EncryptionManager.isEncrypted(f)) {
+            EncryptedMetadata.Meta meta = EncryptionManager.readMetadata(f);
+            if (meta != null && meta.title != null) return meta.title.trim();
+            return "";
+        }
         String nm = f.getName();
         String lower = nm.toLowerCase();
         if(lower.endsWith(".note")||lower.endsWith(".poem")||lower.endsWith(".txt")||lower.endsWith(".rtf")||lower.endsWith(".ntk")){

@@ -11,6 +11,7 @@ import java.awt.GridLayout;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -21,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,6 +44,8 @@ import javax.swing.text.StyledDocument;
 import javax.swing.text.rtf.RTFEditorKit;
 
 import main.core.service.NotebookStore;
+import main.core.security.EncryptionManager;
+import main.core.security.crypto.CryptoException;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
@@ -196,13 +200,14 @@ public class GlobalSearchDialog extends JDialog {
         worker = new SwingWorker<>() {
             @Override protected Void doInBackground() {
                 List<NotebookInfo> notebooks = new NotebookStore().list();
+                AtomicBoolean skipEncrypted = new AtomicBoolean(false);
                 for (NotebookInfo nb : notebooks) {
                     if (isCancelled()) break;
                     File[] files = listEntryFiles(nb);
                     if (files == null) continue;
                     for (File f : files) {
                         if (isCancelled()) break;
-                        EntryData data = readEntryData(f);
+                        EntryData data = readEntryData(f, GlobalSearchDialog.this, skipEncrypted);
                         if (data == null) continue;
                         if (!query.matches(data)) continue;
                         SearchResult res = new SearchResult(nb, f, data);
@@ -267,56 +272,71 @@ public class GlobalSearchDialog extends JDialog {
         });
     }
 
-    private static EntryData readEntryData(File f) {
+    private static EntryData readEntryData(File f, Component parent, AtomicBoolean skipEncrypted) {
         if (f == null) return null;
         String name = f.getName().toLowerCase(Locale.ROOT);
-        try (BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)) {
-            String first = br.readLine();
-            if (first == null) return null;
-            EntryData data = new EntryData();
-            data.savedAt = f.lastModified();
-            if (name.endsWith(".poem")) {
-                data.title = first.trim();
-                br.readLine();
+        try {
+            byte[] raw;
+            if (EncryptionManager.isEncrypted(f)) {
+                if (skipEncrypted != null && skipEncrypted.get()) return null;
+                try {
+                    raw = EncryptionManager.readFileMaybeDecrypt(f, parent, true);
+                } catch (CryptoException ex) {
+                    if (skipEncrypted != null) skipEncrypted.set(true);
+                    return null;
+                }
+            } else {
+                raw = Files.readAllBytes(f.toPath());
+            }
+            if (raw == null) return null;
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8))) {
+                String first = br.readLine();
+                if (first == null) return null;
+                EntryData data = new EntryData();
+                data.savedAt = f.lastModified();
+                if (name.endsWith(".poem")) {
+                    data.title = first.trim();
+                    br.readLine();
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line).append('\n');
+                    }
+                    data.text = sb.toString();
+                    data.tags = extractTags(data.text);
+                    data.mood = -1;
+                    return data;
+                }
+
+                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
+                String title = "";
+                String firstContentLine;
+                if (meta != null) {
+                    title = meta.title == null ? "" : meta.title;
+                    data.mood = meta.mood;
+                    if (meta.savedAt > 0) data.savedAt = meta.savedAt;
+                    firstContentLine = br.readLine();
+                    if (firstContentLine != null && firstContentLine.isBlank()) {
+                        firstContentLine = br.readLine();
+                    }
+                } else {
+                    title = first.trim();
+                    br.readLine();
+                    firstContentLine = br.readLine();
+                }
+                data.title = title;
+
                 StringBuilder sb = new StringBuilder();
+                if (firstContentLine != null) sb.append(firstContentLine).append('\n');
                 String line;
                 while ((line = br.readLine()) != null) {
                     sb.append(line).append('\n');
                 }
-                data.text = sb.toString();
+                String body = stripImageManifest(sb.toString());
+                data.text = rtfToPlain(body);
                 data.tags = extractTags(data.text);
-                data.mood = -1;
                 return data;
             }
-
-            EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
-            String title = "";
-            String firstContentLine;
-            if (meta != null) {
-                title = meta.title == null ? "" : meta.title;
-                data.mood = meta.mood;
-                if (meta.savedAt > 0) data.savedAt = meta.savedAt;
-                firstContentLine = br.readLine();
-                if (firstContentLine != null && firstContentLine.isBlank()) {
-                    firstContentLine = br.readLine();
-                }
-            } else {
-                title = first.trim();
-                br.readLine();
-                firstContentLine = br.readLine();
-            }
-            data.title = title;
-
-            StringBuilder sb = new StringBuilder();
-            if (firstContentLine != null) sb.append(firstContentLine).append('\n');
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append('\n');
-            }
-            String body = stripImageManifest(sb.toString());
-            data.text = rtfToPlain(body);
-            data.tags = extractTags(data.text);
-            return data;
         } catch (Exception ignored) {
             return null;
         }
