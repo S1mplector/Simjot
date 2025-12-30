@@ -30,8 +30,6 @@ This License is designed to:
 - Protect the intellectual property and commercial interests of the copyright holder
 - Prevent unauthorized distribution, commercial exploitation, and derivative works
 
-**IMPORTANT:** This is NOT an open-source license. The Software is proprietary, and most rights are reserved by the copyright holder. Please read this License carefully before accessing, downloading, or using the Software.
-
 ---
 
 ## Table of Contents
