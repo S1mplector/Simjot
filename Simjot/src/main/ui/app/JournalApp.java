@@ -1535,11 +1535,18 @@ public class JournalApp extends JFrame {
                     javax.swing.Timer wait = new javax.swing.Timer(40, ev -> {
                         java.awt.Window[] wins = java.awt.Window.getWindows();
                         boolean otherVisible = false;
+                        boolean setupVisible = false;
                         for (java.awt.Window w : wins) {
-                            if (w != splash && w.isShowing()) { otherVisible = true; break; }
+                            if (w != splash && w.isShowing()) {
+                                otherVisible = true;
+                                if (w instanceof main.ui.dialog.setup.SetupWizardDialog) {
+                                    setupVisible = true;
+                                }
+                            }
                         }
                         long elapsedMs = (System.nanoTime() - splashShownAt) / 1_000_000L;
-                        if (otherVisible && elapsedMs >= minMs) {
+                        int requiredMs = setupVisible ? 900 : minMs;
+                        if (otherVisible && elapsedMs >= requiredMs) {
                             ((javax.swing.Timer) ev.getSource()).stop();
                             splash.dispose();
                         }

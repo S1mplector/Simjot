@@ -39,6 +39,7 @@ import main.core.AppInfo;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinner;
 import main.ui.theme.aero.AeroTheme;
@@ -75,7 +76,7 @@ public class SetupWizardDialog extends JDialog {
     
     // Location step components
     private JLabel selectedPathLabel;
-    private IconMenuButton nextButton;
+    private RoundedButton nextButton;
     
     // Initialization step components
     private List<SetupTask> setupTasks;
@@ -247,7 +248,7 @@ public class SetupWizardDialog extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setOpaque(false);
         
-        IconMenuButton getStartedBtn = createNavButton("Get Started", "write");
+        IconMenuButton getStartedBtn = createNavButton("Get Started", "install");
         getStartedBtn.setPreferredSize(new Dimension(140, 84));
         getStartedBtn.addActionListener(e -> showStep(1));
         buttonPanel.add(getStartedBtn);
@@ -310,7 +311,7 @@ public class SetupWizardDialog extends JDialog {
         locationButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
         
         JComponent docsBtn = createLocationButton(
-            "Documents Folder",
+            "Documents",
             "Recommended for most users",
             "open_folder",
             () -> {
@@ -323,7 +324,7 @@ public class SetupWizardDialog extends JDialog {
         locationButtons.add(docsBtn);
         
         JComponent customBtn = createLocationButton(
-            "Choose Custom Location…",
+            "Custom...",
             "Select any folder on your computer",
             "folder_open",
             () -> {
@@ -373,8 +374,7 @@ public class SetupWizardDialog extends JDialog {
         backBtn.addActionListener(e -> showStep(0));
         navPanel.add(backBtn);
         
-        nextButton = createNavButton("Continue", "forward");
-        nextButton.setPreferredSize(new Dimension(120, 84));
+        nextButton = new RoundedButton("Continue");
         nextButton.setEnabled(false);
         nextButton.addActionListener(e -> {
             if (rootFolder != null) {
