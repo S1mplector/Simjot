@@ -91,12 +91,12 @@ import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.popup.AnimatedGlassPopup;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.slider.MoodSlider;
 import main.ui.components.util.EditorUIUtils;
-import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.EntryBackgroundDialog;
@@ -667,6 +667,9 @@ public class EntryPanel extends AbstractEditorPanel {
                 () -> new File(journalFolder, "attachments"),
                 800 // max width in pixels for inserted images
         );
+
+        // Enable link detection and styling on paste (deferred until displayable)
+        LinkManager.installWhenReady(contentArea);
 
         // Keep formatting toggles in sync with caret/selection changes
         contentArea.addCaretListener(e -> updateFormattingToggleState());

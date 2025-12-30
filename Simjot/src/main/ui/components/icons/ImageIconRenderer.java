@@ -409,10 +409,12 @@ public final class ImageIconRenderer {
             case "rescan", "refreshsizes", "refresh_sizes" -> "Rescan";
             case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> "fullscreen";
             case "save" -> "save";
+            case "export", "share", "download" -> "save";
             case "load", "restore" -> "restore";
             case "new", "plus", "new_entry" -> "new_entry";
             case "exit" -> "exit";
             case "stats", "analysis", "chart" -> "poetry_metering";
+            case "rhyme", "rhymes", "rhyme_dock" -> "poetry_rhymes";
             case "delete_entry", "delete" -> "delete_entry";
             case "delete_notebook" -> "delete_notebook";
             case "trash" -> "delete_default";

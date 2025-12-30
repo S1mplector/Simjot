@@ -65,10 +65,10 @@ import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.TranslucentPanel;
 import main.ui.components.editor.ImagePasteManager;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.util.EditorUIUtils;
-import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.export.PoemExportDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.utils.PoemBackgroundDialog;
@@ -337,6 +337,9 @@ public class PoemPanel extends AbstractEditorPanel {
                 800 // max width in pixels for inserted images
         );
 
+        // Enable link detection and styling on paste (deferred until displayable)
+        LinkManager.installWhenReady(poemEditor);
+
         JScrollPane scrollPane = new JScrollPane(poemEditor);
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
@@ -588,6 +591,7 @@ public class PoemPanel extends AbstractEditorPanel {
         row.add(formPresetBox);
 
         JButton rescanBtn = new RoundedButton("Rescan");
+        rescanBtn.putClientProperty("iconId", "rescan");
         rescanBtn.setFocusable(false);
         rescanBtn.setToolTipText("Refresh meter detection");
         rescanBtn.addActionListener(e -> {

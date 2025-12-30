@@ -206,7 +206,8 @@ rm -rf "$RUNTIME_DIR"
 
 # Detect required modules
 log_info "  Analyzing module dependencies..."
-MODULES=$(jdeps --multi-release 17 --ignore-missing-deps --print-module-deps "$JAR_PATH" 2>/dev/null || echo "java.base,java.desktop,java.logging,java.prefs,java.sql")
+# Filter out warning lines from jdeps output (split package warnings go to stdout)
+MODULES=$(jdeps --multi-release 17 --ignore-missing-deps --print-module-deps "$JAR_PATH" 2>/dev/null | grep -v "^Warning:" | tail -1 || echo "java.base,java.desktop,java.logging,java.prefs,java.sql")
 
 # Add modules that might be missed but are commonly needed for Swing apps
 EXTRA_MODULES="jdk.unsupported,java.naming,java.management"
