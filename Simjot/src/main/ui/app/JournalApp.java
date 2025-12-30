@@ -97,7 +97,7 @@ import main.ui.util.AccentColorUtil;
  *   <li><strong>Global Hotkeys:</strong> Quick capture and other shortcuts</li>
  * </ul>
  * 
- * <p>The application follows a singleton-like pattern for the main window and uses lazy loading
+ * <p>The application is a singleton for the main window and uses lazy loading
  * for many UI components to optimize startup performance. All major operations are performed
  * on the Event Dispatch Thread (EDT) with proper synchronization for background tasks.</p>
  * 
