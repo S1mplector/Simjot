@@ -57,7 +57,6 @@ import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
-import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.TitleDividerField;
@@ -79,7 +78,7 @@ public class NotebookManagerPanel extends JPanel {
         // Top toolbar matching other panels
         JPanel topBar = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
         topBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-        ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("Back", "back");
+        ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("", "back");
         backBtn.setToolTipText("Back to Main Menu");
         backBtn.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
 
@@ -150,7 +149,7 @@ public class NotebookManagerPanel extends JPanel {
         header.add(clusterLabel, BorderLayout.WEST);
         
         // Cluster actions - notebook delete icon button
-        ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("Disband", "delete_notebook");
+        ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("", "delete_notebook");
         disbandBtn.setToolTipText("Disband cluster");
         disbandBtn.addActionListener(e -> {
             boolean confirm = CustomConfirmDialog.confirm(this, 

@@ -7,10 +7,10 @@ import java.awt.Component;
 import java.awt.Composite;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.GradientPaint;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -337,16 +337,16 @@ public class NotebookEntriesPanel extends JPanel {
         JPanel top = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
         top.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         // Replace text back button with PNG back icon button
-        ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("Back", "back");
+        ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("", "back");
         backBtn.setToolTipText("Back to Notebooks");
         backBtn.addActionListener(e->app.switchCard(JournalApp.NOTEBOOK_MANAGER));
 
-        ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("New", "new");
+        ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("", "new");
         newBtn.addActionListener(e->createNew());
-        ToolbarMenuIconButton deleteBtn = new ToolbarMenuIconButton("Entry", "delete");
+        ToolbarMenuIconButton deleteBtn = new ToolbarMenuIconButton("", "delete");
         deleteBtn.addActionListener(e->deleteSelected());
 
-        ToolbarMenuIconButton delNbBtn = new ToolbarMenuIconButton("Notebook", "delete_notebook");
+        ToolbarMenuIconButton delNbBtn = new ToolbarMenuIconButton("", "delete_notebook");
         delNbBtn.addActionListener(e->deleteNotebook());
 
         top.add(backBtn);
@@ -666,7 +666,7 @@ public class NotebookEntriesPanel extends JPanel {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttons.setOpaque(false);
         
-        ToolbarMenuIconButton clearBtn = new ToolbarMenuIconButton("Clear", "delete");
+        ToolbarMenuIconButton clearBtn = new ToolbarMenuIconButton("", "delete");
         clearBtn.setToolTipText("Clear filter");
         clearBtn.addActionListener(e -> {
             filterStartDate = null;
@@ -675,7 +675,7 @@ public class NotebookEntriesPanel extends JPanel {
             update();
         });
         
-        ToolbarMenuIconButton applyBtn = new ToolbarMenuIconButton("Apply", "check");
+        ToolbarMenuIconButton applyBtn = new ToolbarMenuIconButton("", "check");
         applyBtn.setToolTipText("Apply filter");
         applyBtn.addActionListener(e -> {
             filterStartDate = fromPicker.getSelectedDate();

@@ -1,16 +1,29 @@
 package main.ui.dialog.security;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+
+import javax.swing.BorderFactory;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+
 import main.core.security.EncryptionManager;
 import main.core.security.LockUtil;
 import main.core.service.SettingsStore;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroPasswordField;
-import main.ui.theme.aero.AeroTheme;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-
-import javax.swing.*;
-import java.awt.*;
+import main.ui.theme.aero.AeroTheme;
 
 public class SetEncryptionPasswordDialog extends JDialog {
     private final AeroPasswordField oldPw = new AeroPasswordField(18);
@@ -71,13 +84,13 @@ public class SetEncryptionPasswordDialog extends JDialog {
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         btns.setOpaque(false);
-        ToolbarMenuIconButton remove = new ToolbarMenuIconButton("Remove", "trash");
+        ToolbarMenuIconButton remove = new ToolbarMenuIconButton("", "trash");
         remove.setToolTipText("Remove Password");
         remove.addActionListener(e -> doRemove());
-        ToolbarMenuIconButton ok = new ToolbarMenuIconButton("Save", "save");
+        ToolbarMenuIconButton ok = new ToolbarMenuIconButton("", "save");
         ok.setToolTipText("Save Password");
         ok.addActionListener(e -> doSave());
-        ToolbarMenuIconButton cancel = new ToolbarMenuIconButton("Exit", "exit");
+        ToolbarMenuIconButton cancel = new ToolbarMenuIconButton("", "exit");
         cancel.setToolTipText("Cancel");
         cancel.addActionListener(e -> { setVisible(false); dispose(); });
         btns.add(remove); btns.add(ok); btns.add(cancel);

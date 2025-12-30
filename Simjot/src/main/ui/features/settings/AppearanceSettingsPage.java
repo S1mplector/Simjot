@@ -14,7 +14,6 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
-import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
@@ -25,21 +24,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.JScrollBar;
-import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
-import javax.swing.SwingUtilities;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
-import javax.swing.plaf.basic.BasicComboPopup;
-import javax.swing.text.MutableAttributeSet;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
 
 import main.core.service.SettingsStore;
-import main.infrastructure.monitoring.AppPerf;
-import main.ui.animations.transitions.FadingButton;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.calendars.CircularCalendar;
 import main.ui.components.calendars.DotMatrixCalendar;
@@ -64,25 +50,16 @@ import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
-import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.TodayCalendarPanel;
 
 class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final IconMenuButton backgroundOptionsBtn;
-    private final JComboBox<String> themeBox;
     private final JComboBox<String> densityBox;
     private final JComboBox<AccentOption> accentBox;
-    private final JCheckBox glowChk;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
-    private final JCheckBox lowPowerChk;
-    // Editor Font settings
-    private final JComboBox<String> fontFamilyBox;
-    private final JComboBox<Integer> fontSizeBox;
-    private final JComboBox<String> lineSpacingBox;
-    private final JTextPane fontPreview;
     // Clock and Calendar style selection
     private String selectedClockStyle;
     private String selectedCalendarStyle;
@@ -102,24 +79,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridwidth = 1;
 
         SettingsStore store = SettingsStore.get();
-        String[] themes = {"Aero", "Light", "Sepia"};
-        themeBox = new JComboBox<>(themes);
-        themeBox.setUI(new ModernComboBoxUI());
-        themeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        {
-            String saved = store.getTheme();
-            String sel = "Aero";
-            if (saved != null) {
-                String s = saved.trim();
-                if (s.equalsIgnoreCase("Plain White") || s.equalsIgnoreCase("Plain") || s.equalsIgnoreCase("White") || s.equalsIgnoreCase("Light")) sel = "Light";
-                else if (s.equalsIgnoreCase("Sepia")) sel = "Sepia";
-                else if (s.equalsIgnoreCase("Dark")) sel = "Light"; // legacy mapping
-                else if (s.equalsIgnoreCase("Aero")) sel = "Aero";
-                else sel = "Aero";
-            }
-            themeBox.setSelectedItem(sel);
-        }
-
         densityBox = new JComboBox<>(new String[]{"Minimal", "Balanced", "Information-dense"});
         densityBox.setUI(new ModernComboBoxUI());
         densityBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
@@ -145,10 +104,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             }
         }
 
-        glowChk = new JCheckBox("Enable button glow", store.isGlowEnabled());
-        glowChk.setUI(new ModernCheckBoxUI());
-        glowChk.setBackground(new Color(0, 0, 0, 0));
-
         disableAnimationsChk = new JCheckBox("Disable transition animations", store.isAnimationsDisabled());
         disableAnimationsChk.setUI(new ModernCheckBoxUI());
         disableAnimationsChk.setBackground(new Color(0, 0, 0, 0));
@@ -156,10 +111,6 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         disableMainMenuAnimationsChk = new JCheckBox("Disable main menu animations", store.isMainMenuAnimationsDisabled());
         disableMainMenuAnimationsChk.setUI(new ModernCheckBoxUI());
         disableMainMenuAnimationsChk.setBackground(new Color(0, 0, 0, 0));
-
-        lowPowerChk = new JCheckBox("Low Power Mode (battery saver)", store.isLowPowerMode());
-        lowPowerChk.setUI(new ModernCheckBoxUI());
-        lowPowerChk.setBackground(new Color(0, 0, 0, 0));
 
         backgroundOptionsBtn = new IconMenuButton("Set BG", "backgroundoptions");
         backgroundOptionsBtn.setToolTipText("Background Options");
@@ -172,92 +123,32 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         add(backgroundOptionsBtn, gc);
         gc.fill = GridBagConstraints.HORIZONTAL;
         gc.anchor = GridBagConstraints.CENTER;
-        gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Theme:"), gc);
-        gc.gridx = 1; add(themeBox, gc);
-        gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("Layout density:"), gc);
+        gc.gridx = 0; gc.gridy = 2; add(SettingsUi.label("Layout density:"), gc);
         gc.gridx = 1; add(densityBox, gc);
-        gc.gridx = 0; gc.gridy = 4; add(SettingsUi.label("Widget accent:"), gc);
+        gc.gridx = 0; gc.gridy = 3; add(SettingsUi.label("Widget accent:"), gc);
         gc.gridx = 1; add(accentBox, gc);
-        gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(glowChk, gc);
-        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(disableAnimationsChk, gc);
-        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
-        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(lowPowerChk, gc);
-
-        // Editor Font section
-        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2;
-        gc.insets = new Insets(20, 5, 5, 5);
-        add(SettingsUi.header("Editor Font", "Font style for journals and poems"), gc);
-        gc.insets = new Insets(5, 5, 5, 5);
-        gc.gridwidth = 1;
-
-        String[] fonts = {"Serif", "Georgia", "Garamond", "Baskerville",
-                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand",
-                "Segoe Print", "Marker Felt", "Noteworthy", "Chalkboard", "Chalkboard SE",
-                "Apple Chancery", "Snell Roundhand", "Zapfino", "Brush Script MT",
-                "Lucida Calligraphy", "Papyrus", "Cursive"};
-        fontFamilyBox = new JComboBox<>(fonts);
-        fontFamilyBox.setUI(new ModernComboBoxUI());
-        fontFamilyBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        fontFamilyBox.setSelectedItem(store.getEditorFontFamily());
-        fontFamilyBox.addActionListener(e -> updateFontPreview());
-        installPopupScrollbar(fontFamilyBox);
-
-        Integer[] sizes = {12, 14, 16, 18, 20, 22, 24, 28};
-        fontSizeBox = new JComboBox<>(sizes);
-        fontSizeBox.setUI(new ModernComboBoxUI());
-        fontSizeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        fontSizeBox.setSelectedItem(store.getJournalFontSize());
-        fontSizeBox.addActionListener(e -> updateFontPreview());
-
-        lineSpacingBox = new JComboBox<>(new String[]{"1.0", "1.2", "1.5"});
-        lineSpacingBox.setUI(new ModernComboBoxUI());
-        lineSpacingBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        lineSpacingBox.setSelectedItem(store.getEditorLineSpacing());
-        lineSpacingBox.addActionListener(e -> updateFontPreview());
-
-        gc.gridx = 0; gc.gridy = 10; add(SettingsUi.label("Font:"), gc);
-        gc.gridx = 1; add(fontFamilyBox, gc);
-        gc.gridx = 0; gc.gridy = 11; add(SettingsUi.label("Size:"), gc);
-        gc.gridx = 1; add(fontSizeBox, gc);
-        gc.gridx = 0; gc.gridy = 12; add(SettingsUi.label("Line spacing:"), gc);
-        gc.gridx = 1; add(lineSpacingBox, gc);
-
-        // Live preview panel
-        fontPreview = new JTextPane();
-        fontPreview.setText("The quick brown fox jumps over the lazy dog.\nHow vexingly quick daft zebras jump!");
-        fontPreview.setEditable(false);
-        fontPreview.setBackground(new Color(252, 252, 250));
-        fontPreview.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(200, 200, 200)),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
-        fontPreview.setPreferredSize(new Dimension(300, 80));
-        updateFontPreview();
-
-        gc.gridx = 0; gc.gridy = 13; gc.gridwidth = 2;
-        gc.fill = GridBagConstraints.BOTH;
-        add(fontPreview, gc);
-        gc.fill = GridBagConstraints.HORIZONTAL;
-        gc.gridwidth = 1;
+        gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
+        gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
 
         // Clock & Calendar Style section
-        gc.gridx = 0; gc.gridy = 14; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2;
         gc.insets = new Insets(20, 5, 5, 5);
         add(SettingsUi.header("Clock & Calendar", "Style for main menu widgets"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
 
         // Clock style selection
-        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2;
         add(SettingsUi.label("Clock style:"), gc);
 
         selectedClockStyle = store.getClockStyle();
         StyleCycler clockCycler = new StyleCycler(CLOCK_STYLES, selectedClockStyle, true);
         clockCycler.setOnChange(style -> selectedClockStyle = style);
-        gc.gridx = 0; gc.gridy = 16; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(clockCycler, gc);
 
         // Calendar style selection
-        gc.gridx = 0; gc.gridy = 17; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2;
         gc.insets = new Insets(10, 5, 5, 5);
         add(SettingsUi.label("Calendar style:"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
@@ -265,7 +156,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         selectedCalendarStyle = store.getCalendarStyle();
         StyleCycler calendarCycler = new StyleCycler(CALENDAR_STYLES, selectedCalendarStyle, false);
         calendarCycler.setOnChange(style -> selectedCalendarStyle = style);
-        gc.gridx = 0; gc.gridy = 18; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(calendarCycler, gc);
         gc.gridwidth = 1;
@@ -304,60 +195,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         };
     }
 
-    private static void installPopupScrollbar(JComboBox<?> comboBox) {
-        comboBox.addPopupMenuListener(new PopupMenuListener() {
-            @Override public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-                SwingUtilities.invokeLater(() -> applyPopupScrollbar(comboBox));
-            }
-            @Override public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
-            @Override public void popupMenuCanceled(PopupMenuEvent e) {}
-        });
-    }
-
-    private static void applyPopupScrollbar(JComboBox<?> comboBox) {
-        try {
-            Object child = comboBox.getUI().getAccessibleChild(comboBox, 0);
-            if (child instanceof BasicComboPopup popup) {
-                JList<?> list = popup.getList();
-                JScrollPane scroller = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, list);
-                if (scroller == null) return;
-                JScrollBar vbar = scroller.getVerticalScrollBar();
-                vbar.setUI(new ModernScrollBarUI());
-                vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
-                vbar.setOpaque(false);
-                JScrollBar hbar = scroller.getHorizontalScrollBar();
-                hbar.setUI(new ModernScrollBarUI());
-                hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
-                hbar.setOpaque(false);
-            }
-        } catch (Throwable ignored) {}
-    }
-
-    private void updateFontPreview() {
-        String family = (String) fontFamilyBox.getSelectedItem();
-        Integer size = (Integer) fontSizeBox.getSelectedItem();
-        String spacingStr = (String) lineSpacingBox.getSelectedItem();
-        if (family == null) family = "Serif";
-        if (size == null) size = 16;
-        float spacing = switch (spacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
-
-        fontPreview.setFont(new Font(family, Font.PLAIN, size));
-        try {
-            StyledDocument doc = fontPreview.getStyledDocument();
-            MutableAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setLineSpacing(attrs, spacing);
-            doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
-        } catch (Exception ignored) {}
-    }
 
     @Override public JComponent getComponent() { return this; }
 
     @Override public void apply() {
         SettingsStore store = SettingsStore.get();
-        String theme = (String) themeBox.getSelectedItem();
-        store.setTheme(theme);
-        // Theme is applied live via SettingsPanel.saveAll() -> AeroLookAndFeel.apply()
-
         String density = (String) densityBox.getSelectedItem();
         store.setLayoutDensity(density == null ? "Balanced" : density);
 
@@ -370,29 +212,9 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             store.clearMainMenuAccent();
         }
 
-        boolean glow = glowChk.isSelected();
-        store.setGlowEnabled(glow);
-        FadingButton.setGlowEnabled(glow);
-        main.ui.components.buttons.ToolbarIconButton.setGlowEnabled(glow);
-
         store.setAnimationsDisabled(disableAnimationsChk.isSelected());
 
         store.setMainMenuAnimationsDisabled(disableMainMenuAnimationsChk.isSelected());
-
-        boolean lp = lowPowerChk.isSelected();
-        store.setLowPowerMode(lp);
-        AppPerf.setLowPowerMode(lp);
-
-        // Editor Font settings
-        String fontFamily = (String) fontFamilyBox.getSelectedItem();
-        Integer fontSize = (Integer) fontSizeBox.getSelectedItem();
-        String lineSpacing = (String) lineSpacingBox.getSelectedItem();
-        if (fontFamily != null) store.setEditorFontFamily(fontFamily);
-        if (fontSize != null) {
-            store.setJournalFontSize(fontSize);
-            store.setPoemFontSize(fontSize);
-        }
-        if (lineSpacing != null) store.setEditorLineSpacing(lineSpacing);
 
         // Clock and Calendar styles
         if (selectedClockStyle != null) store.setClockStyle(selectedClockStyle);

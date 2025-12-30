@@ -529,23 +529,23 @@ public class EntryPanel extends AbstractEditorPanel {
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightToolbar.setOpaque(false);
         if (supportsClockButton()) {
-            ToolbarMenuIconButton clockBtn = new ToolbarMenuIconButton("Time", "clock");
+            ToolbarMenuIconButton clockBtn = new ToolbarMenuIconButton("", "clock");
             clockBtn.setToolTipText("Insert time snapshot");
             clockBtn.addActionListener(e -> insertClockSnapshot());
             rightToolbar.add(clockBtn);
             rightToolbar.add(Box.createHorizontalStrut(6));
         }
-        ToolbarMenuIconButton restoreBtn = new ToolbarMenuIconButton("Restore", "load");
+        ToolbarMenuIconButton restoreBtn = new ToolbarMenuIconButton("", "load");
         restoreBtn.setToolTipText("Restore previous version");
         restoreBtn.addActionListener(e -> showRestoreDialog());
         rightToolbar.add(restoreBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
-        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("Fullscreen", "fullscreen");
+        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("", "fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());
         rightToolbar.add(dfBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
-        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("Background", "backgroundoptions");
+        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("", "backgroundoptions");
         settingsBtn.setToolTipText("Background Settings");
         settingsBtn.addActionListener(e -> {
             EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
@@ -619,7 +619,7 @@ public class EntryPanel extends AbstractEditorPanel {
         dfHeader.setOpaque(false);
         dfHeader.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         // Use the standard back icon, but here it exits fullscreen
-        ToolbarMenuIconButton dfBack = new ToolbarMenuIconButton("Exit", "back");
+        ToolbarMenuIconButton dfBack = new ToolbarMenuIconButton("", "back");
         dfBack.setToolTipText("Exit Fullscreen");
         dfBack.addActionListener(e -> toggleDistractionFree());
         dfHeader.add(dfBack);

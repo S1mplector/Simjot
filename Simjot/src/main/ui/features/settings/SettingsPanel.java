@@ -95,7 +95,7 @@ public class SettingsPanel extends JPanel {
         GeneralSettingsPage general = new GeneralSettingsPage();
         addPage("General", general);
 
-        // Appearance (theme, glow, background)
+        // Appearance (background, density, accent, widgets)
         AppearanceSettingsPage appearance = new AppearanceSettingsPage();
         addPage("Appearance", appearance);
 
