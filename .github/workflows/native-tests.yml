@@ -1,0 +1,23 @@
+name: Native Tests
+
+on:
+  push:
+    paths:
+      - "Simjot/src/main/native/**"
+      - ".github/workflows/native-tests.yml"
+  pull_request:
+    paths:
+      - "Simjot/src/main/native/**"
+      - ".github/workflows/native-tests.yml"
+
+jobs:
+  native-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S Simjot/src/main/native -B Simjot/src/main/native/build
+      - name: Build
+        run: cmake --build Simjot/src/main/native/build
+      - name: Test
+        run: ctest --test-dir Simjot/src/main/native/build --output-on-failure

@@ -23,4 +23,7 @@ if (SIMJOT_NATIVE_BUILD_TESTS)
     elseif(UNIX)
         set_target_properties(simjot_native_cli PROPERTIES BUILD_RPATH "\$ORIGIN")
     endif()
+
+    enable_testing()
+    add_test(NAME simjot_native_cli COMMAND simjot_native_cli)
 endif()

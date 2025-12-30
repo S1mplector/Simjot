@@ -263,6 +263,8 @@ public final class PoetryUtils {
      */
     public static String rhymeKey(String word) {
         if (word == null) return null;
+        String nativeKey = NativeAccess.rhymeKey(word);
+        if (nativeKey != null) return nativeKey;
         String w = word.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
         if (w.isEmpty()) return null;
 
@@ -302,6 +304,8 @@ public final class PoetryUtils {
      */
     public static String nearRhymeKey(String word) {
         if (word == null) return null;
+        String nativeKey = NativeAccess.nearRhymeKey(word);
+        if (nativeKey != null) return nativeKey;
         String w = word.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
         if (w.isEmpty()) return null;
         

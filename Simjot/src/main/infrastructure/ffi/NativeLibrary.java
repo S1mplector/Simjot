@@ -7,6 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HexFormat;
@@ -36,6 +37,8 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle countSyllablesHandle;
     private final MethodHandle atomicWriteHandle;
     private final MethodHandle ensureSpaceHandle;
+    private final MethodHandle rhymeKeyHandle;
+    private final MethodHandle nearRhymeKeyHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -76,6 +79,18 @@ public final class NativeLibrary implements AutoCloseable {
         this.countSyllablesHandle = linker.downcallHandle(
             lookup.find("simjot_count_syllables").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_rhyme_key(const char* word, char* out, int32_t outLen)
+        this.rhymeKeyHandle = linker.downcallHandle(
+            lookup.find("simjot_rhyme_key").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+
+        // int32_t simjot_near_rhyme_key(const char* word, char* out, int32_t outLen)
+        this.nearRhymeKeyHandle = linker.downcallHandle(
+            lookup.find("simjot_near_rhyme_key").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
         );
 
         // int32_t simjot_atomic_write(const char* target, const uint8_t* data, int32_t len, int32_t fsyncFile, int32_t fsyncDir)
@@ -207,6 +222,44 @@ public final class NativeLibrary implements AutoCloseable {
             return (int) countSyllablesHandle.invokeExact(cWord);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_count_syllables", t);
+        }
+    }
+
+    /**
+     * Generate a rhyme key via native call.
+     */
+    public String rhymeKey(String word) {
+        if (word == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int outLen = Math.max(8, word.length() + 1);
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            MemorySegment out = tempArena.allocate(outLen);
+            int len = (int) rhymeKeyHandle.invokeExact(cWord, out, outLen);
+            if (len <= 0) return null;
+            byte[] bytes = new byte[len];
+            out.asByteBuffer().get(bytes);
+            return new String(bytes, StandardCharsets.US_ASCII);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_rhyme_key", t);
+        }
+    }
+
+    /**
+     * Generate a near-rhyme key via native call.
+     */
+    public String nearRhymeKey(String word) {
+        if (word == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int outLen = Math.max(8, word.length() + 1);
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            MemorySegment out = tempArena.allocate(outLen);
+            int len = (int) nearRhymeKeyHandle.invokeExact(cWord, out, outLen);
+            if (len <= 0) return null;
+            byte[] bytes = new byte[len];
+            out.asByteBuffer().get(bytes);
+            return new String(bytes, StandardCharsets.US_ASCII);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_near_rhyme_key", t);
         }
     }
 

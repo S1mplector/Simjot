@@ -78,6 +78,26 @@ int main(void) {
     expect_int("simjot_count_syllables(the)", simjot_count_syllables("the"), 1);
     expect_int("simjot_count_syllables(a)", simjot_count_syllables("a"), 1);
 
+    char rhyme[32] = {0};
+    if (simjot_rhyme_key("day", rhyme, (int32_t)sizeof(rhyme)) > 0) {
+        expect_str("simjot_rhyme_key(day)", rhyme, "ay");
+    } else {
+        fprintf(stderr, "[FAIL] simjot_rhyme_key(day): call failed\n");
+        failures++;
+    }
+    if (simjot_rhyme_key("hear", rhyme, (int32_t)sizeof(rhyme)) > 0) {
+        expect_str("simjot_rhyme_key(hear)", rhyme, "ar");
+    } else {
+        fprintf(stderr, "[FAIL] simjot_rhyme_key(hear): call failed\n");
+        failures++;
+    }
+    if (simjot_near_rhyme_key("thing", rhyme, (int32_t)sizeof(rhyme)) > 0) {
+        expect_str("simjot_near_rhyme_key(thing)", rhyme, "ing");
+    } else {
+        fprintf(stderr, "[FAIL] simjot_near_rhyme_key(thing): call failed\n");
+        failures++;
+    }
+
     char tmp_path[L_tmpnam];
     if (make_temp_path(tmp_path, sizeof(tmp_path))) {
         if (write_file(tmp_path, "abc")) {

@@ -50,6 +50,28 @@ public final class NativeAccess {
         }
     }
 
+    public static String rhymeKey(String word) {
+        NativeLibrary lib = library();
+        if (lib == null || word == null) return null;
+        try {
+            return lib.rhymeKey(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-rhyme-key", "Native rhyme key failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static String nearRhymeKey(String word) {
+        NativeLibrary lib = library();
+        if (lib == null || word == null) return null;
+        try {
+            return lib.nearRhymeKey(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-near-rhyme", "Native near-rhyme key failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
     public static Boolean atomicWrite(Path target, byte[] data, boolean fsyncFile, boolean fsyncDir) {
         NativeLibrary lib = library();
         if (lib == null || target == null || data == null) return null;
