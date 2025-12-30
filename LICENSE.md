@@ -8,7 +8,7 @@
 
 # Simjot Source-Available Personal Use License
 
-### Version 1.0.0
+### Version 1.1.0
 
 **Effective Date: December 2024**
 
