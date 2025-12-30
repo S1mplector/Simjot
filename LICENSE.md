@@ -280,7 +280,18 @@ The Simjot Cryptographic Engine (`main.core.security.crypto` package) is subject
 
 See the LICENSE file within the crypto package for complete terms.
 
-### 5.2 Proprietary File Formats
+### 5.2 Simjot Poetry Engine
+
+The Simjot Poetry Engine (`main.core.poetry` package) is subject to additional restrictions under the **Simjot Poetry Engine Proprietary License**. This component:
+
+- May only be used within the official Simjot Application
+- May NOT be incorporated into any other project
+- May NOT be used to implement compatible poetry analysis
+- Is provided for inspection and research purposes only
+
+See the LICENSE file within the poetry package for complete terms.
+
+### 5.3 Proprietary File Formats
 
 The following file formats are proprietary to Simjot:
 
@@ -293,7 +304,7 @@ The following file formats are proprietary to Simjot:
 
 You may NOT implement readers, writers, parsers, or compatible tools for these formats without explicit written permission.
 
-### 5.3 Trade Secrets
+### 5.4 Trade Secrets
 
 Certain aspects of the Software constitute trade secrets, including but not limited to:
 - Encryption implementation details

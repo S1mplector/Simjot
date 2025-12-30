@@ -1,0 +1,201 @@
+================================================================================
+                     SIMJOT POETRY ENGINE PROPRIETARY LICENSE
+                           Version 1.0, December 2024
+================================================================================
+
+                         PROPRIETARY SOURCE-AVAILABLE LICENSE
+
+Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+
+================================================================================
+                              PREAMBLE
+================================================================================
+
+This license governs the use of the Simjot Poetry Engine ("the Engine"), which includes
+all source code, algorithms, data structures, and specifications contained within
+the `main.core.poetry` package and its subpackages.
+
+The Engine implements proprietary natural language processing and poetry analysis
+technology exclusively designed for use within the Simjot journaling application.
+This license permits inspection and study of the source code while prohibiting
+incorporation into other projects.
+
+================================================================================
+                         TERMS AND CONDITIONS
+================================================================================
+
+1. DEFINITIONS
+
+   1.1 "Engine" refers to the Simjot Poetry Engine, including but not limited to:
+       - PoetryAnalyzer.java and all analysis implementations
+       - SyllableCounter.java and phonetic analysis classes
+       - RhymeEngine.java and rhyme detection algorithms
+       - MeterAnalyzer.java and poetic meter analysis
+       - PoeticForm.java and form recognition classes
+       - Any documentation, comments, or specifications within these files
+       - The proprietary poetry analysis algorithms and data structures
+
+   1.2 "Simjot Application" refers to the Simjot journaling software and any
+       official derivatives, updates, or versions thereof.
+
+   1.3 "Inspection" refers to reading, studying, and analyzing the source code
+       for educational, research, or auditing purposes.
+
+   1.4 "Use" refers to compiling, executing, integrating, or incorporating the
+       Engine or any portion thereof into any software system.
+
+2. GRANT OF RIGHTS
+
+   2.1 INSPECTION RIGHTS
+       You are granted the non-exclusive, non-transferable right to:
+       
+       (a) Read and study the source code for educational purposes
+       (b) Analyze the poetry analysis algorithms for research purposes
+       (c) Audit the code for accuracy and report findings responsibly
+       (d) Reference the algorithms in academic papers with proper attribution
+
+   2.2 NO USE RIGHTS
+       You are NOT granted the right to:
+       
+       (a) Use, compile, or execute the Engine OUTSIDE of the Simjot Application
+       (b) Incorporate any portion of the Engine into OTHER projects
+       (c) Create derivative works based on the Engine
+       (d) Distribute the Engine as part of any OTHER application
+       (e) Use the proprietary algorithms in COMPETING products
+       (f) Implement compatible poetry analysis in other applications
+
+3. RESTRICTIONS
+
+   3.1 PROHIBITION ON EXTERNAL USE
+       The Engine may ONLY be used as an integrated component of the official
+       Simjot Application. Any use outside of this context is strictly prohibited.
+
+   3.2 PROHIBITION ON COPYING
+       You may not copy, reproduce, or duplicate the Engine or substantial
+       portions thereof for any purpose other than personal study.
+
+   3.3 PROHIBITION ON MODIFICATION
+       You may not modify, adapt, translate, or create derivative works of the
+       Engine without explicit written permission from the copyright holder.
+
+   3.4 PROHIBITION ON DISTRIBUTION
+       You may not distribute, sublicense, lease, rent, or lend the Engine
+       separately from the Simjot Application.
+
+   3.5 PROHIBITION ON REVERSE ENGINEERING
+       You may not reverse engineer, decompile, or disassemble any compiled
+       versions of the Engine, except as permitted by applicable law for
+       interoperability purposes with the Simjot Application only.
+
+   3.6 PROHIBITION ON ALGORITHM USAGE
+       The poetry analysis algorithms, including but not limited to:
+       - Syllable counting algorithms
+       - Rhyme detection methods
+       - Meter analysis techniques
+       - Poetic form recognition
+       are proprietary. You may not implement these or compatible algorithms
+       without explicit written permission.
+
+4. INTELLECTUAL PROPERTY
+
+   4.1 OWNERSHIP
+       The Engine and all intellectual property rights therein remain the
+       exclusive property of Ilgaz Mehmetoğlu.
+
+   4.2 TRADEMARKS
+       "Simjot Poetry Engine" and related names are trademarks of Ilgaz Mehmetoğlu.
+       This license does not grant any rights to use these trademarks.
+
+   4.3 PATENTS
+       This license does not grant any rights under any patents that may cover
+       the Engine or its implementations.
+
+5. RESEARCH AND ACADEMIC USE
+
+   5.1 RESPONSIBLE DISCLOSURE
+       If you discover inaccuracies or improvements in the Engine during your
+       inspection, you agree to:
+       
+       (a) Report the findings privately to the copyright holder
+       (b) Allow reasonable time for the findings to be addressed
+       (c) Not publicly disclose proprietary algorithms without permission
+       (d) Not exploit the algorithms for competitive products
+
+   5.2 ATTRIBUTION
+       Researchers who reference the Engine in academic work must provide
+       proper attribution to the copyright holder.
+
+6. DISCLAIMER OF WARRANTIES
+
+   THE ENGINE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+   THE COPYRIGHT HOLDER MAKES NO WARRANTY THAT THE ENGINE WILL BE ERROR-FREE,
+   ACCURATE, OR SUITABLE FOR ANY PARTICULAR PURPOSE.
+
+   POETRY ANALYSIS SOFTWARE IS INHERENTLY COMPLEX. NO GUARANTEE IS MADE REGARDING
+   THE ACCURACY, RELIABILITY, OR CORRECTNESS OF THE ANALYSIS IMPLEMENTATIONS.
+
+7. LIMITATION OF LIABILITY
+
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY DIRECT, INDIRECT,
+   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+   OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF OR INABILITY
+   TO USE THE ENGINE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+8. TERMINATION
+
+   8.1 AUTOMATIC TERMINATION
+       This license automatically terminates if you violate any of its terms.
+       Upon termination, you must cease all use and destroy all copies.
+
+   8.2 SURVIVAL
+       Sections 4, 6, 7, and 9 survive termination of this license.
+
+9. GENERAL PROVISIONS
+
+   9.1 ENTIRE AGREEMENT
+       This license constitutes the entire agreement between you and the
+       copyright holder regarding the Engine.
+
+   9.2 SEVERABILITY
+       If any provision of this license is held to be unenforceable, the
+       remaining provisions shall continue in full force and effect.
+
+   9.3 WAIVER
+       Failure to enforce any provision of this license shall not constitute
+       a waiver of future enforcement of that or any other provision.
+
+   9.4 GOVERNING LAW
+       This license shall be governed by and construed in accordance with
+       applicable copyright and intellectual property laws.
+
+   9.5 AMENDMENTS
+       This license may only be amended by a written document signed by the
+       copyright holder.
+
+================================================================================
+                              SUMMARY
+================================================================================
+
+   ✓ You MAY:
+     - Read and study the source code
+     - Analyze algorithms for research purposes
+     - Audit and report findings responsibly
+     - Reference in academic works with attribution
+
+   ✗ You may NOT:
+     - Use this code in any other project
+     - Create derivative works
+     - Distribute separately from Simjot
+     - Implement the algorithms elsewhere
+     - Modify or adapt the code
+     - Use for competing poetry analysis products
+
+================================================================================
+
+END OF LICENSE

@@ -1,6 +1,15 @@
+/*
+ * SIMJOT POETRY ENGINE - PROPRIETARY
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * 
+ * This source code is licensed under the Simjot Poetry Engine Proprietary License.
+ * You may inspect this code for educational and research purposes only.
+ * Use, modification, or incorporation into other projects is strictly prohibited.
+ * 
+ * See LICENSE file in this package for full terms.
+ */
 package main.core.poetry;
-
-import main.infrastructure.ffi.NativeAccess;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,6 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import main.infrastructure.ffi.NativeAccess;
 
 /**
  * Utility class for poetry analysis and text processing.
