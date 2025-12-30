@@ -105,6 +105,53 @@ xcrun stapler staple dist/Simjot-1.0.0.pkg
 
 ---
 
+## Linux Installer (.deb)
+
+### Quick Start
+
+```bash
+cd packaging
+./build-linux-deb.sh
+```
+
+This creates a `.deb` package in `dist/`.
+
+### Requirements
+
+- **Java 17+** with `jpackage`, `jdeps`, and `jlink`
+- **Maven** (`mvn`)
+- **dpkg-deb** and **fakeroot**
+
+On Debian/Ubuntu:
+```bash
+sudo apt-get install -y fakeroot dpkg-dev
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--clean` | Clean build directories before starting |
+| `--tests` | Run tests before packaging |
+| `--verbose` | Verbose `jpackage` output |
+
+### What It Does
+
+1. **Builds** the shaded JAR with Maven
+2. **Creates** a custom runtime image with `jlink`
+3. **Packages** the app into a `.deb` using `jpackage`
+
+### Output Files
+
+After running the script:
+
+```
+dist/
+└── simjot_0.1.0-1_amd64.deb
+```
+
+---
+
 ## Other Scripts
 
 ### `make-dist.sh`

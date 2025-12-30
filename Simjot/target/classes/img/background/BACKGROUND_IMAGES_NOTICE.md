@@ -2,16 +2,28 @@
 
 ## Image Generation and Sources
 
-All background images in this directory are:
+All background images in this directory are either:
+1. **Original photography** by the project maintainer
 2. **AI-generated** using Google's Gemini LLM
+3. **Public domain** or appropriately licensed stock photography
 
 ## Image Credits
+
+### Original Photography
+- **Photographer**: S1mplector (project maintainer)
+- **License**: All rights reserved, exclusive use in Simjot
+- **Usage**: Background textures and seasonal themes
 
 ### AI-Generated Images
 - **Model**: Google Gemini LLM
 - **Generation Date**: 2024-2025
 - **License**: Project-owned (generated with proper authorization)
 - **Usage**: Decorative backgrounds and artistic elements
+
+### Public Domain/Stock
+- **Source**: Various public domain and free stock photography sources
+- **License**: Public domain or Creative Commons Zero (CC0)
+- **Usage**: Seasonal backgrounds (fall, winter, spring, summer)
 
 ## File List
 

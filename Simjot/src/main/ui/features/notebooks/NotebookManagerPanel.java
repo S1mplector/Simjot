@@ -38,12 +38,10 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 
-import main.ui.dialog.file.SimjotFileChooser;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
-import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -61,10 +59,10 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
-import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
 
@@ -495,7 +493,12 @@ public class NotebookManagerPanel extends JPanel {
         private boolean accepted=false;
         private final ModernTextField nameField = new ModernTextField(20);
         private final ModernTextField descField = new ModernTextField(20);
-        private final JComboBox<NotebookInfo.Type> typeBox = new JComboBox<>(new NotebookInfo.Type[]{ NotebookInfo.Type.POETRY, NotebookInfo.Type.JOURNAL });
+        private NotebookInfo.Type selectedType = NotebookInfo.Type.POETRY;
+        private TypeCard poetryCard, journalCard;
+
+        // Type-specific colors
+        private static final Color POETRY_COLOR = new Color(147, 112, 219);
+        private static final Color JOURNAL_COLOR = new Color(100, 149, 237);
 
         CreateNotebookDialog(Frame parent){
             super(parent, "Create Notebook", true);
@@ -503,68 +506,148 @@ public class NotebookManagerPanel extends JPanel {
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
 
-            FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(12,12), 16);
-            panel.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
+            FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(0, 16), 18);
+            panel.setBorder(BorderFactory.createEmptyBorder(24, 24, 20, 24));
 
-            // Title
-            JLabel title = new JLabel("Create Notebook", SwingConstants.LEFT);
-            title.setForeground(Color.DARK_GRAY);
-            title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-            panel.add(title, BorderLayout.NORTH);
+            // Header with icon and title
+            JPanel header = new JPanel(new BorderLayout(12, 0));
+            header.setOpaque(false);
+            
+            // Decorative notebook icon
+            JPanel iconPanel = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int s = Math.min(getWidth(), getHeight()) - 4;
+                    int x = (getWidth() - s) / 2;
+                    int y = (getHeight() - s) / 2;
+                    // Draw a stylized notebook
+                    g2.setColor(new Color(100, 149, 237, 40));
+                    g2.fillRoundRect(x, y, s, s, 8, 8);
+                    g2.setColor(new Color(100, 149, 237));
+                    g2.setStroke(new BasicStroke(1.5f));
+                    g2.drawRoundRect(x + 2, y + 2, s - 4, s - 4, 6, 6);
+                    // Lines inside
+                    g2.setStroke(new BasicStroke(1f));
+                    int lineY = y + s / 3;
+                    g2.drawLine(x + 6, lineY, x + s - 6, lineY);
+                    g2.drawLine(x + 6, lineY + 6, x + s - 10, lineY + 6);
+                    g2.drawLine(x + 6, lineY + 12, x + s - 14, lineY + 12);
+                    g2.dispose();
+                }
+            };
+            iconPanel.setOpaque(false);
+            iconPanel.setPreferredSize(new Dimension(40, 40));
+            header.add(iconPanel, BorderLayout.WEST);
+            
+            JPanel titlePanel = new JPanel();
+            titlePanel.setOpaque(false);
+            titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+            JLabel title = new JLabel("Create New Notebook");
+            title.setForeground(new Color(40, 40, 40));
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+            title.setAlignmentX(Component.LEFT_ALIGNMENT);
+            JLabel subtitle = new JLabel("Choose a type and give it a name");
+            subtitle.setForeground(new Color(120, 120, 120));
+            subtitle.setFont(subtitle.getFont().deriveFont(12f));
+            subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+            titlePanel.add(title);
+            titlePanel.add(Box.createVerticalStrut(2));
+            titlePanel.add(subtitle);
+            header.add(titlePanel, BorderLayout.CENTER);
+            
+            panel.add(header, BorderLayout.NORTH);
 
             // Center content
-            JPanel center = new JPanel(new GridBagLayout());
+            JPanel center = new JPanel();
             center.setOpaque(false);
-            GridBagConstraints gc = new GridBagConstraints();
-            gc.gridx=0; gc.gridy=0; gc.anchor=GridBagConstraints.WEST; gc.fill=GridBagConstraints.HORIZONTAL; gc.weightx=1.0; gc.insets=new Insets(4,2,4,2);
+            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
 
-            // Name field with label
-            JLabel nameLabel = new JLabel("Name:");
-            nameLabel.setForeground(Color.DARK_GRAY);
-            center.add(nameLabel, gc);
-            gc.gridy++;
-            nameField.setToolTipText("Notebook name");
-            center.add(nameField, gc);
+            // Type selection cards
+            JLabel typeLabel = new JLabel("Notebook Type");
+            typeLabel.setForeground(new Color(80, 80, 80));
+            typeLabel.setFont(typeLabel.getFont().deriveFont(Font.BOLD, 12f));
+            typeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(typeLabel);
+            center.add(Box.createVerticalStrut(8));
+
+            JPanel typeCards = new JPanel(new GridBagLayout());
+            typeCards.setOpaque(false);
+            GridBagConstraints gc = new GridBagConstraints();
+            gc.fill = GridBagConstraints.BOTH;
+            gc.weightx = 1.0;
+            gc.weighty = 1.0;
+            gc.insets = new Insets(0, 0, 0, 8);
+
+            poetryCard = new TypeCard(
+                "Poetry",
+                "For poems, verses, and creative writing",
+                POETRY_COLOR,
+                NotebookInfo.Type.POETRY
+            );
+            journalCard = new TypeCard(
+                "Journal",
+                "For diary entries and personal reflections",
+                JOURNAL_COLOR,
+                NotebookInfo.Type.JOURNAL
+            );
+
+            gc.gridx = 0;
+            typeCards.add(poetryCard, gc);
+            gc.gridx = 1;
+            gc.insets = new Insets(0, 8, 0, 0);
+            typeCards.add(journalCard, gc);
+
+            typeCards.setAlignmentX(Component.LEFT_ALIGNMENT);
+            typeCards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
+            center.add(typeCards);
+            center.add(Box.createVerticalStrut(16));
+
+            // Name field
+            JLabel nameLabel = new JLabel("Name");
+            nameLabel.setForeground(new Color(80, 80, 80));
+            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
+            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(nameLabel);
+            center.add(Box.createVerticalStrut(6));
+            nameField.setToolTipText("Enter notebook name");
+            nameField.setAlignmentX(Component.LEFT_ALIGNMENT);
+            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+            center.add(nameField);
+            center.add(Box.createVerticalStrut(12));
 
             // Description field
-            gc.gridy++;
-            JLabel descLabel = new JLabel("Description (optional):");
-            descLabel.setForeground(Color.DARK_GRAY);
-            center.add(descLabel, gc);
-            gc.gridy++;
+            JLabel descLabel = new JLabel("Description (optional)");
+            descLabel.setForeground(new Color(80, 80, 80));
+            descLabel.setFont(descLabel.getFont().deriveFont(Font.BOLD, 12f));
+            descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(descLabel);
+            center.add(Box.createVerticalStrut(6));
             descField.setToolTipText("Brief description of this notebook");
-            center.add(descField, gc);
-
-            // Notebook type
-            gc.gridy++;
-            JLabel typeLabel = new JLabel("Type:");
-            typeLabel.setForeground(Color.DARK_GRAY);
-            center.add(typeLabel, gc);
-            gc.gridy++;
-            typeBox.setToolTipText("Notebook type");
-            typeBox.setUI(new ModernComboBoxUI());
-            typeBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-            center.add(typeBox, gc);
-
-            // Default to poetry type
-            typeBox.setSelectedItem(NotebookInfo.Type.POETRY);
+            descField.setAlignmentX(Component.LEFT_ALIGNMENT);
+            descField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+            center.add(descField);
 
             panel.add(center, BorderLayout.CENTER);
 
             // Buttons
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT,10,0));
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             btns.setOpaque(false);
-            RoundedButton okBtn = new RoundedButton("Create");
-            okBtn.setPreferredSize(new Dimension(110,36));
-            okBtn.setEnabled(false);
-            okBtn.addActionListener(e->{ accepted=true; setVisible(false); dispose(); });
             RoundedButton cancel = new RoundedButton("Cancel");
-            cancel.setForeground(Color.DARK_GRAY); cancel.setPreferredSize(new Dimension(110,36));
-            cancel.addActionListener(e->{ accepted=false; setVisible(false); dispose(); });
-            btns.add(okBtn); btns.add(cancel);
+            cancel.setForeground(new Color(100, 100, 100));
+            cancel.setPreferredSize(new Dimension(100, 36));
+            cancel.addActionListener(e -> { accepted = false; setVisible(false); dispose(); });
+            RoundedButton okBtn = new RoundedButton("Create");
+            okBtn.setPreferredSize(new Dimension(100, 36));
+            okBtn.setEnabled(false);
+            okBtn.addActionListener(e -> { accepted = true; setVisible(false); dispose(); });
+            btns.add(cancel);
+            btns.add(okBtn);
             panel.add(btns, BorderLayout.SOUTH);
 
-            // enable Create only when name entered
+            // Enable Create only when name entered
             nameField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
                 private void upd(){ okBtn.setEnabled(!nameField.getText().trim().isEmpty()); }
                 public void insertUpdate(javax.swing.event.DocumentEvent e){ upd(); }
@@ -572,16 +655,119 @@ public class NotebookManagerPanel extends JPanel {
                 public void changedUpdate(javax.swing.event.DocumentEvent e){ upd(); }
             });
 
+            // Default selection
+            updateTypeSelection(NotebookInfo.Type.POETRY);
+
             add(panel);
             pack();
-            setSize(380, 280);
+            setSize(440, 340);
             setLocationRelativeTo(parent);
+        }
+
+        private void updateTypeSelection(NotebookInfo.Type type) {
+            selectedType = type;
+            poetryCard.setSelected(type == NotebookInfo.Type.POETRY);
+            journalCard.setSelected(type == NotebookInfo.Type.JOURNAL);
         }
 
         boolean isAccepted(){ return accepted; }
         String getNotebookName(){ return nameField.getText().trim(); }
         String getDescription(){ return descField.getText().trim(); }
-        NotebookInfo.Type getNotebookType(){ return (NotebookInfo.Type)typeBox.getSelectedItem(); }
+        NotebookInfo.Type getNotebookType(){ return selectedType; }
+
+        /** Card component for notebook type selection */
+        private class TypeCard extends JPanel {
+            private final NotebookInfo.Type type;
+            private final Color accentColor;
+            private boolean selected = false;
+            private boolean hovered = false;
+
+            TypeCard(String title, String description, Color accent, NotebookInfo.Type type) {
+                this.type = type;
+                this.accentColor = accent;
+                setOpaque(false);
+                setLayout(new BorderLayout(8, 4));
+                setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+                JPanel textPanel = new JPanel();
+                textPanel.setOpaque(false);
+                textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+
+                JLabel titleLbl = new JLabel(title);
+                titleLbl.setFont(titleLbl.getFont().deriveFont(Font.BOLD, 13f));
+                titleLbl.setForeground(new Color(50, 50, 50));
+                titleLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                JLabel descLbl = new JLabel("<html><body style='width:140px'>" + description + "</body></html>");
+                descLbl.setFont(descLbl.getFont().deriveFont(11f));
+                descLbl.setForeground(new Color(110, 110, 110));
+                descLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                textPanel.add(titleLbl);
+                textPanel.add(Box.createVerticalStrut(3));
+                textPanel.add(descLbl);
+                add(textPanel, BorderLayout.CENTER);
+
+                addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        updateTypeSelection(type);
+                    }
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        hovered = true;
+                        repaint();
+                    }
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        hovered = false;
+                        repaint();
+                    }
+                });
+            }
+
+            void setSelected(boolean sel) {
+                this.selected = sel;
+                repaint();
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int arc = 12;
+                // Background
+                if (selected) {
+                    g2.setColor(new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 25));
+                } else if (hovered) {
+                    g2.setColor(new Color(240, 242, 248));
+                } else {
+                    g2.setColor(new Color(250, 251, 253));
+                }
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+
+                // Border
+                if (selected) {
+                    g2.setColor(accentColor);
+                    g2.setStroke(new BasicStroke(2f));
+                } else {
+                    g2.setColor(hovered ? new Color(200, 205, 215) : new Color(220, 225, 235));
+                    g2.setStroke(new BasicStroke(1f));
+                }
+                g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, arc, arc);
+
+                // Accent stripe on left when selected
+                if (selected) {
+                    g2.setColor(accentColor);
+                    g2.fillRoundRect(0, 4, 4, getHeight() - 8, 2, 2);
+                }
+
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        }
     }
 
     /* Options dialog for editing existing notebooks */
