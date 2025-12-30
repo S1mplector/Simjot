@@ -7,6 +7,7 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsConfiguration;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -16,10 +17,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.awt.geom.AffineTransform;
 
-import javax.swing.ImageIcon;
 import javax.swing.Icon;
+import javax.swing.ImageIcon;
 
 import main.infrastructure.io.ResourceLoader;
 
@@ -419,6 +419,7 @@ public final class ImageIconRenderer {
             case "delete_entry", "delete" -> "delete_entry";
             case "delete_notebook" -> "delete_notebook";
             case "trash" -> "delete_default";
+            case "open_folder", "folder", "folder_open" -> "open_folder";
             default -> null;
         };
         if (alias == null) return null;

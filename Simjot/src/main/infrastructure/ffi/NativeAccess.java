@@ -29,6 +29,15 @@ public final class NativeAccess {
         return !"false".equalsIgnoreCase(System.getProperty(PROP_ENABLED, "true"));
     }
 
+    private static boolean isFfmSupported() {
+        try {
+            int feature = Runtime.version().feature();
+            if (feature >= 22) return true;
+            if (feature == 21 && Boolean.getBoolean("simjot.native.preview")) return true;
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
     public static boolean isAvailable() {
         return library() != null;
     }
@@ -142,7 +151,7 @@ public final class NativeAccess {
     }
 
     private static NativeLibrary library() {
-        if (!isEnabled()) return null;
+        if (!isEnabled() || !isFfmSupported()) return null;
         if (library != null || attempted) return library;
         synchronized (LOCK) {
             if (library != null || attempted) return library;

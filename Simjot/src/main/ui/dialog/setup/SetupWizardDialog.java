@@ -44,6 +44,8 @@ import main.ui.theme.aero.AeroTheme;
  * and detailed validation. Guides the user through setting up their Simjot
  * data folder with visual feedback at each step.
  * 
+ * @since 1.0.0
+ * @version 1.0.0
  * @author S1mplector
  */
 public class SetupWizardDialog extends JDialog {
@@ -303,32 +305,28 @@ public class SetupWizardDialog extends JDialog {
         locationButtons.setMaximumSize(new Dimension(360, 100));
         locationButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
         
-        RoundedButton docsBtn = createLocationButton(
-            "Documents Folder", 
-            "Recommended for most users",
-            () -> {
-                String docsPath = javax.swing.filechooser.FileSystemView.getFileSystemView()
-                        .getDefaultDirectory().getPath();
-                rootFolder = new File(docsPath, "Simjot");
-                updateSelectedPath();
-            }
-        );
+        RoundedButton docsBtn = new RoundedButton("Documents Folder");
+        docsBtn.setPreferredSize(new Dimension(340, 44));
+        docsBtn.addActionListener(e -> {
+            String docsPath = javax.swing.filechooser.FileSystemView.getFileSystemView()
+                    .getDefaultDirectory().getPath();
+            rootFolder = new File(docsPath, "Simjot");
+            updateSelectedPath();
+        });
         locationButtons.add(docsBtn);
         
-        RoundedButton customBtn = createLocationButton(
-            "Choose Custom Location…",
-            "Select any folder on your computer",
-            () -> {
-                DirectoryChooserDialog dirDlg = new DirectoryChooserDialog(
-                    (JFrame) SwingUtilities.getWindowAncestor(this));
-                dirDlg.setVisible(true);
-                File chosen = dirDlg.getSelectedDirectory();
-                if (chosen != null) {
-                    rootFolder = new File(chosen, "Simjot");
-                    updateSelectedPath();
-                }
+        RoundedButton customBtn = new RoundedButton("Choose Custom Location…");
+        customBtn.setPreferredSize(new Dimension(340, 44));
+        customBtn.addActionListener(e -> {
+            DirectoryChooserDialog dirDlg = new DirectoryChooserDialog(
+                (JFrame) SwingUtilities.getWindowAncestor(this));
+            dirDlg.setVisible(true);
+            File chosen = dirDlg.getSelectedDirectory();
+            if (chosen != null) {
+                rootFolder = new File(chosen, "Simjot");
+                updateSelectedPath();
             }
-        );
+        });
         locationButtons.add(customBtn);
         
         panel.add(locationButtons);
@@ -380,14 +378,6 @@ public class SetupWizardDialog extends JDialog {
         panel.add(Box.createVerticalStrut(16));
         
         return panel;
-    }
-    
-    private RoundedButton createLocationButton(String title, String subtitle, Runnable action) {
-        RoundedButton btn = new RoundedButton("<html><center><b>" + title + "</b><br>" +
-                "<span style='font-size:10px;color:#666;'>" + subtitle + "</span></center></html>");
-        btn.setPreferredSize(new Dimension(340, 44));
-        btn.addActionListener(e -> action.run());
-        return btn;
     }
     
     private void updateSelectedPath() {
