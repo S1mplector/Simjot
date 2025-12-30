@@ -16,6 +16,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
+import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.message.UIMessage;
@@ -255,21 +256,21 @@ public class DrawingPanel extends JPanel {
     }
 
     private void loadBackgroundImage() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Select Background Image");
-        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File selected = chooser.getSelectedFile();
-            backgroundMapPath = selected.getAbsolutePath();
-            try {
-                backgroundMap = ImageIO.read(selected);
-                repaint();
-            } catch (IOException ex) {
-                UIMessage.error(this,
-                        "Error Loading Image",
-                        "We couldn't open that image.",
-                        "Pick a different image file (PNG/JPG) and try again.",
-                        ex);
-            }
+        SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Select Background Image");
+        chooser.setMode(SimjotFileChooser.Mode.OPEN);
+        chooser.addFileFilter("Images", "png", "jpg", "jpeg", "gif");
+        File selected = chooser.showDialog();
+        if (selected == null) return;
+        backgroundMapPath = selected.getAbsolutePath();
+        try {
+            backgroundMap = ImageIO.read(selected);
+            repaint();
+        } catch (IOException ex) {
+            UIMessage.error(this,
+                    "Error Loading Image",
+                    "We couldn't open that image.",
+                    "Pick a different image file (PNG/JPG) and try again.",
+                    ex);
         }
     }
 
@@ -946,4 +947,3 @@ public class DrawingPanel extends JPanel {
         }
     }
 }
-

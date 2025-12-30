@@ -32,12 +32,13 @@ import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
 import javax.swing.SwingWorker;
 import javax.swing.SwingConstants;
-import javax.swing.JFileChooser;
 import javax.swing.JTextField;
 import javax.swing.JCheckBox;
 import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
+
+import main.ui.dialog.file.SimjotFileChooser;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import main.infrastructure.io.AppDirectories;
@@ -259,12 +260,15 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         backupDestField.setColumns(24);
         javax.swing.JButton chooseDest = new RoundedButton("Choose…");
         chooseDest.addActionListener(ev -> {
-            JFileChooser fc = new JFileChooser();
-            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-            if (!backupDestField.getText().isBlank()) fc.setCurrentDirectory(new File(backupDestField.getText()));
-            int res = fc.showOpenDialog(StorageSettingsPage.this);
-            if (res == JFileChooser.APPROVE_OPTION && fc.getSelectedFile()!=null) {
-                backupDestField.setText(fc.getSelectedFile().getAbsolutePath());
+            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(StorageSettingsPage.this), "Select Backup Destination");
+            chooser.setMode(SimjotFileChooser.Mode.DIRECTORY);
+            if (!backupDestField.getText().isBlank()) {
+                File current = new File(backupDestField.getText());
+                if (current.isDirectory()) chooser.setCurrentDirectory(current);
+            }
+            File selected = chooser.showDialog();
+            if (selected != null) {
+                backupDestField.setText(selected.getAbsolutePath());
             }
         });
         destRow.add(backupDestField, BorderLayout.CENTER);
@@ -507,12 +511,12 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         try {
             String d = backupDestField.getText();
             File defaultRoot = (d==null || d.isBlank()) ? new File(AppDirectories.folder(AppDirectories.Type.SETTINGS), "backups") : new File(d);
-            JFileChooser fc = new JFileChooser(defaultRoot);
-            fc.setDialogTitle("Choose a backup folder or .sjbackup file to restore");
-            fc.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
-            int res = fc.showOpenDialog(this);
-            if (res != JFileChooser.APPROVE_OPTION) return;
-            File selected = fc.getSelectedFile();
+            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Choose a backup folder or .sjbackup file to restore");
+            chooser.setMode(SimjotFileChooser.Mode.OPEN);
+            if (defaultRoot.isDirectory()) {
+                chooser.setCurrentDirectory(defaultRoot);
+            }
+            File selected = chooser.showDialog();
             if (selected == null || (!selected.isDirectory() && !selected.isFile())) return;
             boolean isEncryptedFile = selected.isFile() && selected.getName().toLowerCase().endsWith(".sjbackup");
             if (selected.isDirectory()) {

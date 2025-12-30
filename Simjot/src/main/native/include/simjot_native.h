@@ -20,6 +20,8 @@ int32_t simjot_near_rhyme_key(const char* word, char* out, int32_t out_len);
 
 int32_t simjot_atomic_write(const char* target_path, const uint8_t* data, int32_t data_len, int32_t fsync_file, int32_t fsync_dir);
 int32_t simjot_ensure_space(const char* path, uint64_t bytes_needed);
+int32_t simjot_list_dir_size(const char* path, int32_t include_hidden);
+int32_t simjot_list_dir(const char* path, int32_t include_hidden, uint8_t* out, int32_t out_len);
 
 #ifdef __cplusplus
 }

@@ -8,6 +8,7 @@
 #ifndef _WIN32
 #include <sys/statvfs.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 static int failures = 0;
@@ -48,6 +49,25 @@ static void bytes_to_hex(const uint8_t* in, size_t len, char* out) {
     out[len * 2] = '\0';
 }
 
+static int list_contains(const uint8_t* data, int32_t len, const char* name, int expect_dir) {
+    int32_t offset = 0;
+    while (offset + 8 <= len) {
+        uint32_t name_len = 0;
+        memcpy(&name_len, data + offset, sizeof(uint32_t));
+        offset += 4;
+        int is_dir = data[offset++];
+        int is_hidden = data[offset++];
+        (void)is_hidden;
+        offset += 2; // padding
+        if (offset + (int32_t)name_len > len) return 0;
+        if (name_len == strlen(name) && memcmp(data + offset, name, name_len) == 0) {
+            return (is_dir ? 1 : 0) == (expect_dir ? 1 : 0);
+        }
+        offset += (int32_t)name_len;
+    }
+    return 0;
+}
+
 static int make_temp_path(char* out, size_t size) {
 #ifdef _WIN32
     (void)size;
@@ -59,6 +79,17 @@ static int make_temp_path(char* out, size_t size) {
     if (fd < 0) return 0;
     close(fd);
     return 1;
+#endif
+}
+
+static int make_temp_dir(char* out, size_t size) {
+#ifdef _WIN32
+    (void)size;
+    return tmpnam(out) != NULL;
+#else
+    if (size < 1) return 0;
+    snprintf(out, size, "/tmp/simjot_native_dir_XXXXXX");
+    return mkdtemp(out) != NULL;
 #endif
 }
 
@@ -119,6 +150,63 @@ int main(void) {
         fprintf(stderr, "[FAIL] tmpnam failed for sha256 test\n");
         failures++;
     }
+
+#ifndef _WIN32
+    char dir_path[64];
+    if (make_temp_dir(dir_path, sizeof(dir_path))) {
+        char file_path[96];
+        char subdir_path[96];
+        snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, "alpha.txt");
+        snprintf(subdir_path, sizeof(subdir_path), "%s/%s", dir_path, "subdir");
+        if (!write_file(file_path, "x")) {
+            fprintf(stderr, "[FAIL] write temp file for list dir test\n");
+            failures++;
+        }
+        if (mkdir(subdir_path, 0700) != 0) {
+            fprintf(stderr, "[FAIL] mkdir for list dir test\n");
+            failures++;
+        }
+        int size = simjot_list_dir_size(dir_path, 1);
+        if (size > 0) {
+            uint8_t* data = (uint8_t*)malloc((size_t)size);
+            if (data) {
+                int written = simjot_list_dir(dir_path, 1, data, size);
+                if (written > 0) {
+                    if (!list_contains(data, written, "alpha.txt", 0)) {
+                        fprintf(stderr, "[FAIL] simjot_list_dir missing alpha.txt\n");
+                        failures++;
+                    } else {
+                        printf("[OK] simjot_list_dir file\n");
+                    }
+                    if (!list_contains(data, written, "subdir", 1)) {
+                        fprintf(stderr, "[FAIL] simjot_list_dir missing subdir\n");
+                        failures++;
+                    } else {
+                        printf("[OK] simjot_list_dir dir\n");
+                    }
+                } else {
+                    fprintf(stderr, "[FAIL] simjot_list_dir: call failed\n");
+                    failures++;
+                }
+                free(data);
+            } else {
+                fprintf(stderr, "[FAIL] simjot_list_dir: alloc failed\n");
+                failures++;
+            }
+        } else {
+            fprintf(stderr, "[FAIL] simjot_list_dir_size: %d\n", size);
+            failures++;
+        }
+        remove(file_path);
+        rmdir(subdir_path);
+        rmdir(dir_path);
+    } else {
+        fprintf(stderr, "[FAIL] mkdtemp failed for list dir test\n");
+        failures++;
+    }
+#else
+    printf("[SKIP] simjot_list_dir (Windows stub)\n");
+#endif
 
 #ifndef _WIN32
     if (make_temp_path(tmp_path, sizeof(tmp_path))) {

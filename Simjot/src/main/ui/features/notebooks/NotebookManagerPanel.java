@@ -38,6 +38,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 
+import main.ui.dialog.file.SimjotFileChooser;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -763,11 +764,12 @@ public class NotebookManagerPanel extends JPanel {
         }
         
         private void chooseCustomIcon() {
-            javax.swing.JFileChooser fc = new javax.swing.JFileChooser();
-            fc.setDialogTitle("Choose Notebook Icon");
-            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Images", "png", "jpg", "jpeg", "gif"));
-            if (fc.showOpenDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
-                customIconPath = fc.getSelectedFile().getAbsolutePath();
+            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Choose Notebook Icon");
+            chooser.setMode(SimjotFileChooser.Mode.OPEN);
+            chooser.addFileFilter("Images", "png", "jpg", "jpeg", "gif");
+            File selected = chooser.showDialog();
+            if (selected != null) {
+                customIconPath = selected.getAbsolutePath();
                 iconPreview.repaint();
             }
         }

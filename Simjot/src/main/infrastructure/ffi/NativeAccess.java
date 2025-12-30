@@ -1,6 +1,11 @@
 package main.infrastructure.ffi;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import main.infrastructure.io.IoLog;
 
@@ -93,6 +98,46 @@ public final class NativeAccess {
         } catch (Throwable t) {
             IoLog.warn("native-space", "Native space check failed; falling back to Java.", t);
             return null;
+        }
+    }
+
+    public static List<NativeDirEntry> listDirectory(Path dir, boolean includeHidden) {
+        NativeLibrary lib = library();
+        if (lib == null || dir == null) return null;
+        try {
+            byte[] data = lib.listDirectory(dir, includeHidden);
+            if (data == null || data.length == 0) return null;
+            ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.nativeOrder());
+            List<NativeDirEntry> entries = new ArrayList<>();
+            while (buf.remaining() >= 8) {
+                int nameLen = buf.getInt();
+                if (nameLen <= 0 || nameLen > buf.remaining() - 4) break;
+                int isDir = buf.get() & 0xFF;
+                int isHidden = buf.get() & 0xFF;
+                buf.get();
+                buf.get();
+                if (nameLen > buf.remaining()) break;
+                byte[] nameBytes = new byte[nameLen];
+                buf.get(nameBytes);
+                String name = new String(nameBytes, StandardCharsets.UTF_8);
+                entries.add(new NativeDirEntry(name, isDir != 0, isHidden != 0));
+            }
+            return entries;
+        } catch (Throwable t) {
+            IoLog.warn("native-list-dir", "Native directory listing failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static final class NativeDirEntry {
+        public final String name;
+        public final boolean isDirectory;
+        public final boolean isHidden;
+
+        public NativeDirEntry(String name, boolean isDirectory, boolean isHidden) {
+            this.name = name;
+            this.isDirectory = isDirectory;
+            this.isHidden = isHidden;
         }
     }
 

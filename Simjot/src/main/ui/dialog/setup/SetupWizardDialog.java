@@ -8,7 +8,6 @@ import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.icons.ModernFileIcons;
 import main.ui.components.spinner.ModernSpinner;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 
@@ -79,77 +78,7 @@ public class SetupWizardDialog extends JDialog {
 
         chooseBtn.addActionListener(e -> {
             spinner.setVisible(true);
-            // --- Modernize JFileChooser appearance and bottom section ---
-            UIManager.put("Button.background", new Color(245, 245, 245));
-            UIManager.put("Button.font", new Font("Segoe UI", Font.PLAIN, 15));
-            UIManager.put("Button.border", BorderFactory.createLineBorder(new Color(220,220,220), 1, true));
-            UIManager.put("Button.focus", new Color(0,120,215,60));
-            UIManager.put("FileChooser.cancelButtonText", "Cancel");
-            UIManager.put("FileChooser.openButtonText", "Select");
-            UIManager.put("FileChooser.saveButtonText", "Save");
-            UIManager.put("FileChooser.updateButtonText", "Update");
-            UIManager.put("FileChooser.font", new Font("Segoe UI", Font.PLAIN, 15));
-            UIManager.put("FileChooser.background", Color.WHITE);
-            UIManager.put("Panel.background", Color.WHITE);
-
-            // Modernize JFileChooser dropdown (combobox) UI
-            UIManager.put("ComboBox.background", Color.WHITE);
-            UIManager.put("ComboBox.foreground", Color.DARK_GRAY);
-            UIManager.put("ComboBox.selectionBackground", new Color(230, 240, 255));
-            UIManager.put("ComboBox.selectionForeground", Color.BLACK);
-            UIManager.put("ComboBox.border", BorderFactory.createLineBorder(new Color(220,220,220), 1, true));
-            UIManager.put("ComboBox.font", new Font("Segoe UI", Font.PLAIN, 15));
-            UIManager.put("ComboBox.buttonBackground", new Color(245, 245, 245));
-            UIManager.put("ComboBox.buttonHighlight", new Color(230, 240, 255));
-            UIManager.put("ComboBox.buttonDarkShadow", new Color(200, 200, 200));
-            UIManager.put("ComboBox.buttonShadow", new Color(220, 220, 220));
-            UIManager.put("ComboBox.buttonForeground", new Color(120, 120, 120));
-
-            // Modernize JFileChooser scrollbar UI
-            UIManager.put("ScrollBar.thumb", new Color(210, 225, 245));
-            UIManager.put("ScrollBar.thumbHighlight", new Color(180, 200, 230));
-            UIManager.put("ScrollBar.thumbDarkShadow", new Color(180, 200, 230));
-            UIManager.put("ScrollBar.thumbShadow", new Color(180, 200, 230));
-            UIManager.put("ScrollBar.track", new Color(245, 245, 245));
-            UIManager.put("ScrollBar.trackHighlight", new Color(230, 240, 255));
-            UIManager.put("ScrollBar.background", Color.WHITE);
-            UIManager.put("ScrollBar.foreground", new Color(120, 120, 120));
-            UIManager.put("ScrollBar.width", 12);
-            UIManager.put("ScrollBar.thumbHeight", 32);
-            UIManager.put("ScrollBar.thumbBorder", BorderFactory.createLineBorder(new Color(180, 200, 230), 1, true));
-
-            // Custom icons for JFileChooser
-            UIManager.put("FileView.directoryIcon", new javax.swing.ImageIcon(ModernFileIcons.createFolderIcon()));
-            UIManager.put("FileView.fileIcon", new javax.swing.ImageIcon(ModernFileIcons.createFileIcon()));
-            UIManager.put("FileChooser.upFolderIcon", new javax.swing.ImageIcon(ModernFileIcons.createUpIcon()));
-            UIManager.put("FileChooser.homeFolderIcon", new javax.swing.ImageIcon(ModernFileIcons.createHomeIcon()));
-            UIManager.put("FileChooser.newFolderIcon", new javax.swing.ImageIcon(ModernFileIcons.createNewFolderIcon()));
-
-            // --- Custom ScrollBarUI for modern, round, smooth scrollbars ---
-            UIManager.put("ScrollBarUI", "main.ui.components.scrollbar.ModernScrollBarUI");
-
-            // --- Modernize bottom section (folder name, file type) ---
-            UIManager.put("FileChooser.textFieldBackground", Color.WHITE);
-            UIManager.put("FileChooser.textFieldForeground", Color.DARK_GRAY);
-            UIManager.put("FileChooser.textFieldBorder", BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(220,220,220), 1, true),
-                    BorderFactory.createEmptyBorder(6, 10, 6, 10)));
-            UIManager.put("FileChooser.textFieldFont", new Font("Segoe UI", Font.PLAIN, 15));
-            UIManager.put("FileChooser.labelForeground", new Color(80, 80, 80));
-            UIManager.put("FileChooser.labelFont", new Font("Segoe UI", Font.PLAIN, 14));
-            UIManager.put("FileChooser.usesSingleFilePane", Boolean.TRUE); // Use single pane layout for more control
-
-            // --- Custom rendering for bottom section (folder name, file type) ---
-            // This is a hack: after dialog is shown, walk the component tree and adjust spacing/padding
-            DirectoryChooserDialog dirDlg = new DirectoryChooserDialog((JFrame) SwingUtilities.getWindowAncestor(SetupWizardDialog.this)) {
-                @Override
-                public void setVisible(boolean b) {
-                    super.setVisible(b);
-                    if (b) {
-                        SetupWizardDialog.updateFileChooserBottomSection(this);
-                    }
-                }
-            };
+            DirectoryChooserDialog dirDlg = new DirectoryChooserDialog((JFrame) SwingUtilities.getWindowAncestor(SetupWizardDialog.this));
             dirDlg.setVisible(true);
             File chosen = dirDlg.getSelectedDirectory();
             if (chosen != null) {
@@ -182,31 +111,6 @@ public class SetupWizardDialog extends JDialog {
         add(content, BorderLayout.CENTER);
         pack();
         setLocationRelativeTo(getOwner());
-    }
-
-    /**
-     * Recursively update the bottom section of a JFileChooser/DirectoryChooserDialog for modern look.
-     * Applies padding, font, and border to text fields, combo boxes, and labels.
-     */
-    public static void updateFileChooserBottomSection(Container chooser) {
-        Font modernFont = new Font("Segoe UI", Font.PLAIN, 15);
-        for (Component c : chooser.getComponents()) {
-            if (c instanceof JTextField tf) {
-                tf.setFont(modernFont);
-                tf.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(220,220,220), 1, true),
-                        BorderFactory.createEmptyBorder(6, 8, 6, 8)));
-            } else if (c instanceof JComboBox<?> cb) {
-                cb.setFont(modernFont);
-                cb.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(220,220,220), 1, true),
-                        BorderFactory.createEmptyBorder(2, 8, 2, 8)));
-            } else if (c instanceof JLabel lbl) {
-                lbl.setFont(modernFont);
-            } else if (c instanceof Container cont) {
-                updateFileChooserBottomSection(cont);
-            }
-        }
     }
 
     private void performInitialSetup(ModernSpinner spinner) {

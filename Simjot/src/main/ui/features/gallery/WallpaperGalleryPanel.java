@@ -162,7 +162,7 @@ public class WallpaperGalleryPanel extends JDialog {
             private final JLabel source = new JLabel();
             Cell(){
                 setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-                setOpaque(true);
+                setOpaque(false);
                 setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
                 img.setHorizontalAlignment(SwingConstants.CENTER);
                 img.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -192,7 +192,12 @@ public class WallpaperGalleryPanel extends JDialog {
                     source.setText(v.getSource());
                     setToolTipText(v.getName() + " (" + v.getSource() + ")");
                 }
-                setBackground(isSelected ? new Color(0, 120, 215, 70) : new Color(255, 255, 255, 180));
+                if (isSelected) {
+                    setOpaque(true);
+                    setBackground(new Color(0, 120, 215, 70));
+                } else {
+                    setOpaque(false);
+                }
                 return this;
             }
         }

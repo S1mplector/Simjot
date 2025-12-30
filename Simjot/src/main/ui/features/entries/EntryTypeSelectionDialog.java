@@ -27,8 +27,8 @@ import javax.swing.SwingUtilities;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
-import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.AeroPanel;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.RoundedPanel;
@@ -46,7 +46,7 @@ public class EntryTypeSelectionDialog extends JDialog {
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private java.util.List<JournalTemplateManager.JournalTemplate> allTemplates;
     private JTextField searchField;
-    private RoundedButton useBtn;
+    private ToolbarMenuIconButton useBtn;
     private int currentCols = 2;
 
 
@@ -145,10 +145,10 @@ public class EntryTypeSelectionDialog extends JDialog {
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 12));
         bottomPanel.setOpaque(false);
 
-        useBtn = new RoundedButton("Use Template");
-        useBtn.setPreferredSize(new Dimension(140, 36));
-        useBtn.setForeground(new Color(30, 30, 30));
+        useBtn = new ToolbarMenuIconButton("", "write");
+        useBtn.setToolTipText("Use Template");
         useBtn.setEnabled(false);
+        useBtn.setIconOpacity(0.4f);
         useBtn.addActionListener(e -> {
             if (selectedTemplate != null) {
                 accepted = true;
@@ -157,9 +157,8 @@ public class EntryTypeSelectionDialog extends JDialog {
             }
         });
 
-        RoundedButton cancelBtn = new RoundedButton("Cancel");
-        cancelBtn.setPreferredSize(new Dimension(100, 36));
-        cancelBtn.setForeground(Color.DARK_GRAY);
+        ToolbarMenuIconButton cancelBtn = new ToolbarMenuIconButton("", "exit");
+        cancelBtn.setToolTipText("Cancel");
         cancelBtn.addActionListener(e -> {
             accepted = false;
             setVisible(false);
@@ -258,6 +257,7 @@ public class EntryTypeSelectionDialog extends JDialog {
             public void mouseClicked(MouseEvent e) {
                 selectedTemplate = template;
                 useBtn.setEnabled(true);
+                useBtn.setIconOpacity(1f);
                 // Double-click to accept immediately
                 if (e.getClickCount() >= 2) {
                     accepted = true;

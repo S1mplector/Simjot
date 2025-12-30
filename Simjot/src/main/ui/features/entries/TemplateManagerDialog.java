@@ -306,18 +306,22 @@ public class TemplateManagerDialog extends JDialog {
         private final JLabel roLabel;
 
         TemplateEditorPanel() {
-            setLayout(new BorderLayout(16, 16));
+            setLayout(new BorderLayout(12, 12));
             setOpaque(false);
 
+            AeroPanel header = new AeroPanel(14);
+            header.setLayout(new BorderLayout());
+            header.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
             JLabel hdr = new JLabel("Template Editor");
-            hdr.setFont(hdr.getFont().deriveFont(Font.BOLD, 18f));
+            hdr.setFont(hdr.getFont().deriveFont(Font.BOLD, 17f));
             hdr.setForeground(new Color(40,40,40));
-            add(hdr, BorderLayout.NORTH);
+            header.add(hdr, BorderLayout.WEST);
+            add(header, BorderLayout.NORTH);
 
             JPanel formPanel = new JPanel(new GridBagLayout());
             formPanel.setOpaque(false);
             GridBagConstraints gc = new GridBagConstraints();
-            gc.insets = new Insets(8, 8, 8, 8);
+            gc.insets = new Insets(6, 8, 6, 8);
             gc.fill = GridBagConstraints.HORIZONTAL;
 
             gc.gridx = 0; gc.gridy = 0; gc.weightx = 0;
@@ -348,6 +352,10 @@ public class TemplateManagerDialog extends JDialog {
             questionList.setFont(questionList.getFont().deriveFont(14f));
             JScrollPane qScroll = new JScrollPane(questionList);
             qScroll.setBorder(BorderFactory.createLineBorder(new Color(210,216,228)));
+            qScroll.setOpaque(false);
+            qScroll.getViewport().setOpaque(false);
+            questionList.setOpaque(true);
+            questionList.setBackground(new Color(255, 255, 255, 210));
             qScroll.setPreferredSize(new Dimension(480, 200));
             try {
                 JScrollBar vbar = qScroll.getVerticalScrollBar();
@@ -397,6 +405,7 @@ public class TemplateManagerDialog extends JDialog {
             // Read-only hint label
             roLabel = new JLabel("Built-in template (read-only). Duplicate to customize.");
             roLabel.setForeground(new Color(120, 120, 120));
+            roLabel.setFont(roLabel.getFont().deriveFont(Font.PLAIN, 12f));
             roLabel.setVisible(false);
             gc.gridy = 6; gc.gridwidth = 2;
             formPanel.add(roLabel, gc);
@@ -404,7 +413,9 @@ public class TemplateManagerDialog extends JDialog {
             // Enable drag-reorder of questions
             installReorderDnD(questionList, questionModel);
 
-            add(formPanel, BorderLayout.CENTER);
+            FrostedGlassPanel body = new FrostedGlassPanel(new BorderLayout(12, 12), 16);
+            body.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+            body.add(formPanel, BorderLayout.CENTER);
 
             JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             bottomPanel.setOpaque(false);
@@ -416,7 +427,8 @@ public class TemplateManagerDialog extends JDialog {
             cancelBtn.addActionListener(e -> { if (onCancel != null) onCancel.run(); });
             bottomPanel.add(saveBtn);
             bottomPanel.add(cancelBtn);
-            add(bottomPanel, BorderLayout.SOUTH);
+            body.add(bottomPanel, BorderLayout.SOUTH);
+            add(body, BorderLayout.CENTER);
         }
 
         void setOnSave(java.util.function.Consumer<JournalTemplateManager.JournalTemplate> cb) { this.onSave = cb; }

@@ -3,6 +3,7 @@ package main.ui.features.entries;
 import main.ui.app.JournalApp;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
+import main.ui.dialog.file.SimjotFileChooser;
 
 import javax.swing.*;
 import javax.swing.text.MutableAttributeSet;
@@ -655,12 +656,15 @@ public class NotetakingPanel extends EntryPanel {
     private void exportSnapshotToImage() {
         java.awt.image.BufferedImage img = renderSnapshotImage();
         if (img == null) return;
-        JFileChooser ch = new JFileChooser(currentFile != null ? currentFile.getParentFile() : null);
-        ch.setDialogTitle("Export Snapshot");
         String base = (titleField != null && titleField.getText() != null && !titleField.getText().isBlank()) ? titleField.getText().trim().replaceAll("[^a-zA-Z0-9-_]+","_") : "note";
-        ch.setSelectedFile(new File(base + "_snapshot.png"));
-        if (ch.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File out = ch.getSelectedFile();
+        SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Export Snapshot");
+        chooser.setMode(SimjotFileChooser.Mode.SAVE);
+        if (currentFile != null && currentFile.getParentFile() != null) {
+            chooser.setCurrentDirectory(currentFile.getParentFile());
+        }
+        chooser.setSuggestedFileName(base + "_snapshot.png");
+        File out = chooser.showDialog();
+        if (out != null) {
             try { javax.imageio.ImageIO.write(img, "png", out); } catch (IOException ignored) {}
         }
     }
@@ -668,12 +672,15 @@ public class NotetakingPanel extends EntryPanel {
     private void exportSnapshotToPdf() {
         java.awt.image.BufferedImage img = renderSnapshotImage();
         if (img == null) return;
-        JFileChooser ch = new JFileChooser(currentFile != null ? currentFile.getParentFile() : null);
-        ch.setDialogTitle("Export PDF");
         String base = (titleField != null && titleField.getText() != null && !titleField.getText().isBlank()) ? titleField.getText().trim().replaceAll("[^a-zA-Z0-9-_]+","_") : "note";
-        ch.setSelectedFile(new File(base + "_snapshot.pdf"));
-        if (ch.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File out = ch.getSelectedFile();
+        SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Export PDF");
+        chooser.setMode(SimjotFileChooser.Mode.SAVE);
+        if (currentFile != null && currentFile.getParentFile() != null) {
+            chooser.setCurrentDirectory(currentFile.getParentFile());
+        }
+        chooser.setSuggestedFileName(base + "_snapshot.pdf");
+        File out = chooser.showDialog();
+        if (out != null) {
             try (org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
                 org.apache.pdfbox.pdmodel.common.PDRectangle rect = new org.apache.pdfbox.pdmodel.common.PDRectangle(img.getWidth(), img.getHeight());
                 org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage(rect);

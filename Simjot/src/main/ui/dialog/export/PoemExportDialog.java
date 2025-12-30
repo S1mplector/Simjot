@@ -6,6 +6,7 @@ import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.dialog.file.SimjotFileChooser;
 
 import javax.swing.*;
 import java.awt.*;
@@ -106,12 +107,14 @@ public class PoemExportDialog extends JDialog {
     public PoemExporter.Format getSelectedFormat() { return (PoemExporter.Format) formatBox.getSelectedItem(); }
 
     private void openFileChooser() {
-        JFileChooser chooser = new JFileChooser(initialDir);
-        chooser.setDialogTitle("Choose export location");
-        chooser.setSelectedFile(new File(getSuggestedFileNameForCurrentFormat()));
-        int res = chooser.showSaveDialog(this);
-        if (res == JFileChooser.APPROVE_OPTION) {
-            File f = chooser.getSelectedFile();
+        SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Choose export location");
+        chooser.setMode(SimjotFileChooser.Mode.SAVE);
+        if (initialDir != null && initialDir.isDirectory()) {
+            chooser.setCurrentDirectory(initialDir);
+        }
+        chooser.setSuggestedFileName(getSuggestedFileNameForCurrentFormat());
+        File f = chooser.showDialog();
+        if (f != null) {
             pathField.setText(f.getAbsolutePath());
         }
     }

@@ -53,6 +53,8 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * <h1>Simjot File Chooser</h1>
  * 
@@ -740,33 +742,42 @@ public class SimjotFileChooser extends JDialog {
         
         fileLoader.submit(() -> {
             loadingCancelled = false;
-            
-            File[] files = directory.listFiles();
-            if (files == null || loadingCancelled) return;
-            
+
             List<FileItem> items = new ArrayList<>();
-            
-            for (File file : files) {
-                if (loadingCancelled) return;
-                
-                // Filter hidden files
-                if (!showHiddenFiles && file.isHidden()) continue;
-                if (!showHiddenFiles && file.getName().startsWith(".")) continue;
-                
-                // Filter by mode
-                if (mode == Mode.DIRECTORY && !file.isDirectory()) continue;
-                
-                // Filter by extension
-                if (activeFilter != null && !file.isDirectory()) {
-                    if (!activeFilter.accepts(file)) continue;
+            List<NativeAccess.NativeDirEntry> nativeEntries = NativeAccess.listDirectory(directory.toPath(), showHiddenFiles);
+            if (nativeEntries != null) {
+                for (NativeAccess.NativeDirEntry entry : nativeEntries) {
+                    if (loadingCancelled) return;
+                    if (!showHiddenFiles && entry.isHidden) continue;
+                    if (entry.name == null || entry.name.isEmpty()) continue;
+                    if (mode == Mode.DIRECTORY && !entry.isDirectory) continue;
+                    File file = new File(directory, entry.name);
+                    if (activeFilter != null && !entry.isDirectory) {
+                        if (!activeFilter.accepts(file)) continue;
+                    }
+                    items.add(new FileItem(file, entry.isDirectory));
                 }
-                
-                items.add(new FileItem(file));
+            } else {
+                File[] files = directory.listFiles();
+                if (files == null || loadingCancelled) return;
+                for (File file : files) {
+                    if (loadingCancelled) return;
+                    // Filter hidden files
+                    if (!showHiddenFiles && file.isHidden()) continue;
+                    if (!showHiddenFiles && file.getName().startsWith(".")) continue;
+                    // Filter by mode
+                    if (mode == Mode.DIRECTORY && !file.isDirectory()) continue;
+                    // Filter by extension
+                    if (activeFilter != null && !file.isDirectory()) {
+                        if (!activeFilter.accepts(file)) continue;
+                    }
+                    items.add(new FileItem(file));
+                }
             }
             
             // Sort: directories first, then alphabetically
             items.sort(Comparator
-                .comparing((FileItem f) -> !f.file.isDirectory())
+                .comparing((FileItem f) -> !f.isDirectory)
                 .thenComparing(f -> f.file.getName().toLowerCase())
             );
             
@@ -978,6 +989,12 @@ public class SimjotFileChooser extends JDialog {
             this.file = file;
             this.displayName = file.getName();
             this.isDirectory = file.isDirectory();
+        }
+
+        FileItem(File file, boolean isDirectory) {
+            this.file = file;
+            this.displayName = file.getName();
+            this.isDirectory = isDirectory;
         }
         
         @Override

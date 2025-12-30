@@ -39,6 +39,8 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle ensureSpaceHandle;
     private final MethodHandle rhymeKeyHandle;
     private final MethodHandle nearRhymeKeyHandle;
+    private final MethodHandle listDirSizeHandle;
+    private final MethodHandle listDirHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -91,6 +93,18 @@ public final class NativeLibrary implements AutoCloseable {
         this.nearRhymeKeyHandle = linker.downcallHandle(
             lookup.find("simjot_near_rhyme_key").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+
+        // int32_t simjot_list_dir_size(const char* path, int32_t includeHidden)
+        this.listDirSizeHandle = linker.downcallHandle(
+            lookup.find("simjot_list_dir_size").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+
+        // int32_t simjot_list_dir(const char* path, int32_t includeHidden, uint8_t* out, int32_t outLen)
+        this.listDirHandle = linker.downcallHandle(
+            lookup.find("simjot_list_dir").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
         );
 
         // int32_t simjot_atomic_write(const char* target, const uint8_t* data, int32_t len, int32_t fsyncFile, int32_t fsyncDir)
@@ -260,6 +274,32 @@ public final class NativeLibrary implements AutoCloseable {
             return new String(bytes, StandardCharsets.US_ASCII);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_near_rhyme_key", t);
+        }
+    }
+
+    /**
+     * List a directory into a packed binary buffer via native call.
+     */
+    public byte[] listDirectory(Path path, boolean includeHidden) {
+        if (path == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(path.toString());
+            int size = (int) listDirSizeHandle.invokeExact(cPath, includeHidden ? 1 : 0);
+            if (size <= 0) return null;
+            MemorySegment out = tempArena.allocate(size);
+            int written = (int) listDirHandle.invokeExact(cPath, includeHidden ? 1 : 0, out, size);
+            if (written < 0) {
+                size = (int) listDirSizeHandle.invokeExact(cPath, includeHidden ? 1 : 0);
+                if (size <= 0) return null;
+                out = tempArena.allocate(size);
+                written = (int) listDirHandle.invokeExact(cPath, includeHidden ? 1 : 0, out, size);
+            }
+            if (written <= 0) return null;
+            byte[] data = new byte[written];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_list_dir", t);
         }
     }
 
