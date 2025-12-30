@@ -601,7 +601,14 @@ public class NotebookManagerPanel extends JPanel {
             typeCards.setAlignmentX(Component.LEFT_ALIGNMENT);
             typeCards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
             center.add(typeCards);
-            center.add(Box.createVerticalStrut(16));
+            center.add(Box.createVerticalStrut(12));
+
+            JLabel nameLabel = new JLabel("Name");
+            nameLabel.setForeground(new Color(80, 80, 80));
+            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
+            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(nameLabel);
+            center.add(Box.createVerticalStrut(6));
 
             // Name field (title-style divider)
             nameField.setToolTipText("Enter notebook name");
@@ -620,7 +627,7 @@ public class NotebookManagerPanel extends JPanel {
                 nameField.setFont(nameField.getFont().deriveFont(Font.PLAIN, 16f));
             }
             center.add(nameField);
-            center.add(Box.createVerticalStrut(6));
+            center.add(Box.createVerticalStrut(8));
 
             panel.add(center, BorderLayout.CENTER);
 
@@ -653,8 +660,13 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(440, 300);
+            Dimension minSize = new Dimension(440, 360);
+            int w = Math.max(minSize.width, getWidth());
+            int h = Math.max(minSize.height, getHeight());
+            setSize(w, h);
+            setMinimumSize(new Dimension(w, h));
             setLocationRelativeTo(parent);
+            SwingUtilities.invokeLater(() -> nameField.requestFocusInWindow());
         }
 
         private void updateTypeSelection(NotebookInfo.Type type) {
