@@ -5,6 +5,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -14,6 +15,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.io.File;
 import java.util.ArrayList;
@@ -21,6 +24,7 @@ import java.util.List;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -34,7 +38,7 @@ import javax.swing.border.EmptyBorder;
 import main.core.AppInfo;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinner;
 import main.ui.theme.aero.AeroTheme;
@@ -71,7 +75,7 @@ public class SetupWizardDialog extends JDialog {
     
     // Location step components
     private JLabel selectedPathLabel;
-    private RoundedButton nextButton;
+    private IconMenuButton nextButton;
     
     // Initialization step components
     private List<SetupTask> setupTasks;
@@ -158,7 +162,7 @@ public class SetupWizardDialog extends JDialog {
             }
         };
         header.setOpaque(false);
-        header.setPreferredSize(new Dimension(DIALOG_WIDTH, 90));
+        header.setPreferredSize(new Dimension(DIALOG_WIDTH, 112));
         header.setBorder(new EmptyBorder(16, 24, 12, 24));
         
         // Title row
@@ -210,11 +214,11 @@ public class SetupWizardDialog extends JDialog {
         
         // Feature highlights
         String[] features = {
-            "📓  Organize your thoughts in beautiful notebooks",
-            "✍️  Write journal entries and poetry with rich formatting",
-            "📊  Track your mood and visualize patterns over time",
-            "🔒  Keep your data safe with encryption",
-            "☁️  Sync across devices with cloud storage"
+            "- Organize your thoughts in beautiful notebooks",
+            "- Write journal entries and poetry with rich formatting",
+            "- Track your mood and visualize patterns over time",
+            "- Keep your data safe with encryption",
+            "- Sync across devices with cloud storage"
         };
         
         JPanel featuresPanel = new JPanel();
@@ -243,8 +247,8 @@ public class SetupWizardDialog extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setOpaque(false);
         
-        RoundedButton getStartedBtn = new RoundedButton("Get Started");
-        getStartedBtn.setPreferredSize(new Dimension(160, 40));
+        IconMenuButton getStartedBtn = createNavButton("Get Started", "write");
+        getStartedBtn.setPreferredSize(new Dimension(140, 84));
         getStartedBtn.addActionListener(e -> showStep(1));
         buttonPanel.add(getStartedBtn);
         
@@ -286,7 +290,7 @@ public class SetupWizardDialog extends JDialog {
         infoBox.setAlignmentX(Component.CENTER_ALIGNMENT);
         
         String infoHtml = "<html><div style='width:420px;'>" +
-                "<b>💡 Tip:</b> Choose a cloud-synced folder (iCloud, Dropbox, OneDrive) " +
+                "<b>Tip:</b> Choose a cloud-synced folder (iCloud, Dropbox, OneDrive) " +
                 "to access your journals from multiple devices.<br><br>" +
                 "A <b>Simjot</b> folder will be created at your chosen location containing " +
                 "all your notebooks, settings, and mood data." +
@@ -302,31 +306,37 @@ public class SetupWizardDialog extends JDialog {
         // Location buttons
         JPanel locationButtons = new JPanel(new GridLayout(2, 1, 0, 10));
         locationButtons.setOpaque(false);
-        locationButtons.setMaximumSize(new Dimension(360, 100));
+        locationButtons.setMaximumSize(new Dimension(440, 140));
         locationButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
         
-        RoundedButton docsBtn = new RoundedButton("Documents Folder");
-        docsBtn.setPreferredSize(new Dimension(340, 44));
-        docsBtn.addActionListener(e -> {
-            String docsPath = javax.swing.filechooser.FileSystemView.getFileSystemView()
-                    .getDefaultDirectory().getPath();
-            rootFolder = new File(docsPath, "Simjot");
-            updateSelectedPath();
-        });
-        locationButtons.add(docsBtn);
-        
-        RoundedButton customBtn = new RoundedButton("Choose Custom Location…");
-        customBtn.setPreferredSize(new Dimension(340, 44));
-        customBtn.addActionListener(e -> {
-            DirectoryChooserDialog dirDlg = new DirectoryChooserDialog(
-                (JFrame) SwingUtilities.getWindowAncestor(this));
-            dirDlg.setVisible(true);
-            File chosen = dirDlg.getSelectedDirectory();
-            if (chosen != null) {
-                rootFolder = new File(chosen, "Simjot");
+        JComponent docsBtn = createLocationButton(
+            "Documents Folder",
+            "Recommended for most users",
+            "open_folder",
+            () -> {
+                String docsPath = javax.swing.filechooser.FileSystemView.getFileSystemView()
+                        .getDefaultDirectory().getPath();
+                rootFolder = new File(docsPath, "Simjot");
                 updateSelectedPath();
             }
-        });
+        );
+        locationButtons.add(docsBtn);
+        
+        JComponent customBtn = createLocationButton(
+            "Choose Custom Location…",
+            "Select any folder on your computer",
+            "folder_open",
+            () -> {
+                DirectoryChooserDialog dirDlg = new DirectoryChooserDialog(
+                    (JFrame) SwingUtilities.getWindowAncestor(this));
+                dirDlg.setVisible(true);
+                File chosen = dirDlg.getSelectedDirectory();
+                if (chosen != null) {
+                    rootFolder = new File(chosen, "Simjot");
+                    updateSelectedPath();
+                }
+            }
+        );
         locationButtons.add(customBtn);
         
         panel.add(locationButtons);
@@ -358,13 +368,13 @@ public class SetupWizardDialog extends JDialog {
         JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
         navPanel.setOpaque(false);
         
-        RoundedButton backBtn = new RoundedButton("Back");
-        backBtn.setPreferredSize(new Dimension(100, 36));
+        IconMenuButton backBtn = createNavButton("Back", "back");
+        backBtn.setPreferredSize(new Dimension(110, 84));
         backBtn.addActionListener(e -> showStep(0));
         navPanel.add(backBtn);
         
-        nextButton = new RoundedButton("Continue");
-        nextButton.setPreferredSize(new Dimension(120, 36));
+        nextButton = createNavButton("Continue", "forward");
+        nextButton.setPreferredSize(new Dimension(120, 84));
         nextButton.setEnabled(false);
         nextButton.addActionListener(e -> {
             if (rootFolder != null) {
@@ -379,6 +389,59 @@ public class SetupWizardDialog extends JDialog {
         
         return panel;
     }
+
+    private JComponent createLocationButton(String title, String subtitle, String iconId, Runnable action) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setBorder(new EmptyBorder(6, 10, 6, 10));
+        row.setMaximumSize(new Dimension(420, 90));
+
+        IconMenuButton iconBtn = new IconMenuButton(title, iconId);
+        iconBtn.setPreferredSize(new Dimension(84, 80));
+        iconBtn.setMinimumSize(new Dimension(84, 80));
+        iconBtn.setMaximumSize(new Dimension(96, 90));
+        iconBtn.setToolTipText(title);
+        iconBtn.addActionListener(e -> action.run());
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(AeroTheme.defaultBoldFont(13f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        JLabel subtitleLabel = new JLabel(subtitle);
+        subtitleLabel.setFont(AeroTheme.defaultFont().deriveFont(11f));
+        subtitleLabel.setForeground(TEXT_SECONDARY);
+        text.add(titleLabel);
+        text.add(Box.createVerticalStrut(4));
+        text.add(subtitleLabel);
+
+        row.add(iconBtn, BorderLayout.WEST);
+        row.add(text, BorderLayout.CENTER);
+
+        Cursor hand = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
+        row.setCursor(hand);
+        text.setCursor(hand);
+        titleLabel.setCursor(hand);
+        subtitleLabel.setCursor(hand);
+
+        MouseAdapter clicker = new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { iconBtn.doClick(); }
+        };
+        row.addMouseListener(clicker);
+        text.addMouseListener(clicker);
+        titleLabel.addMouseListener(clicker);
+        subtitleLabel.addMouseListener(clicker);
+
+        return row;
+    }
+
+    private static IconMenuButton createNavButton(String label, String iconId) {
+        IconMenuButton btn = new IconMenuButton(label, iconId);
+        btn.setToolTipText(label);
+        btn.setFont(AeroTheme.defaultBoldFont(13f));
+        return btn;
+    }
     
     private void updateSelectedPath() {
         if (rootFolder != null) {
@@ -386,7 +449,7 @@ public class SetupWizardDialog extends JDialog {
             if (path.length() > 50) {
                 path = "..." + path.substring(path.length() - 47);
             }
-            selectedPathLabel.setText("📁 " + path);
+            selectedPathLabel.setText(path);
             selectedPathLabel.setForeground(SUCCESS_COLOR);
             nextButton.setEnabled(true);
         }
@@ -537,7 +600,7 @@ public class SetupWizardDialog extends JDialog {
         
         // Success icon
         JLabel checkLabel = new JLabel("✓");
-        checkLabel.setFont(new Font("Segoe UI", Font.BOLD, 64));
+        checkLabel.setFont(new Font("SansSerif", Font.BOLD, 64));
         checkLabel.setForeground(SUCCESS_COLOR);
         checkLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         panel.add(checkLabel);
@@ -585,8 +648,8 @@ public class SetupWizardDialog extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setOpaque(false);
         
-        RoundedButton startBtn = new RoundedButton("Start Using Simjot");
-        startBtn.setPreferredSize(new Dimension(180, 42));
+        IconMenuButton startBtn = createNavButton("Start", "check");
+        startBtn.setPreferredSize(new Dimension(150, 90));
         startBtn.addActionListener(e -> dispose());
         buttonPanel.add(startBtn);
         
@@ -626,7 +689,7 @@ public class SetupWizardDialog extends JDialog {
         StepIndicator(String[] steps) {
             this.steps = steps;
             setOpaque(false);
-            setPreferredSize(new Dimension(400, 36));
+            setPreferredSize(new Dimension(460, 60));
         }
         
         void setCurrentStep(int step) {
@@ -645,7 +708,8 @@ public class SetupWizardDialog extends JDialog {
             int h = getHeight();
             int stepWidth = w / steps.length;
             int dotSize = 10;
-            int lineY = h / 2;
+            int labelY = Math.max(18, h - 6);
+            int lineY = Math.max(dotSize + 6, labelY - 18);
             
             // Draw connecting lines
             g2.setStroke(new BasicStroke(2));
@@ -683,7 +747,7 @@ public class SetupWizardDialog extends JDialog {
                 // Label
                 g2.setColor(i <= currentStep ? AeroTheme.TEXT_PRIMARY : TEXT_SECONDARY);
                 int labelWidth = fm.stringWidth(steps[i]);
-                g2.drawString(steps[i], cx - labelWidth / 2, lineY + dotSize + 12);
+                g2.drawString(steps[i], cx - labelWidth / 2, labelY);
             }
             
             g2.dispose();
