@@ -1,5 +1,7 @@
 package main.infrastructure.io;
 
+import main.infrastructure.ffi.NativeAccess;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -21,6 +23,11 @@ public final class FileIO {
         if (dir == null) throw new IOException("Missing parent for " + target);
         long start = System.currentTimeMillis();
         Files.createDirectories(dir);
+        Boolean nativeOk = NativeAccess.atomicWrite(target, data, fsyncFile, fsyncDir);
+        if (Boolean.TRUE.equals(nativeOk)) {
+            IoLog.info("atomic-write", "Wrote " + target.getFileName() + " (" + data.length + " bytes) in " + (System.currentTimeMillis() - start) + "ms");
+            return;
+        }
         Path tmp = dir.resolve(target.getFileName().toString() + ".tmp" + System.nanoTime());
         try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
             ch.write(ByteBuffer.wrap(data));
@@ -44,6 +51,8 @@ public final class FileIO {
     }
 
     public static String sha256(Path path) throws IOException {
+        String nativeHash = NativeAccess.sha256(path);
+        if (nativeHash != null) return nativeHash;
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
@@ -64,6 +73,14 @@ public final class FileIO {
         if (dir == null) return;
         Path p = Files.isDirectory(dir) ? dir : dir.getParent();
         if (p == null) return;
+        Boolean nativeOk = NativeAccess.ensureSpace(p, bytesNeeded);
+        if (nativeOk != null) {
+            if (!nativeOk) {
+                long usable = p.toFile().getUsableSpace();
+                throw new IOException("Insufficient disk space for " + context + ": need " + bytesNeeded + " bytes, have " + usable);
+            }
+            return;
+        }
         long usable = p.toFile().getUsableSpace();
         if (usable < bytesNeeded) {
             throw new IOException("Insufficient disk space for " + context + ": need " + bytesNeeded + " bytes, have " + usable);

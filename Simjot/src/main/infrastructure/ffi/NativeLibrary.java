@@ -8,14 +8,17 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.util.HexFormat;
 
 /**
  * Panama FFM wrapper for native Simjot functions.
- * Requires Java 21+.
+ * Requires Java 22+.
  * 
  * Usage:
  *   NativeLibrary lib = NativeLibrary.load("/path/to/libsimjot_native.dylib");
  *   int result = lib.add(2, 3);  // returns 5
+ * 
+ * @author S1mplector
  */
 public final class NativeLibrary implements AutoCloseable {
     
@@ -28,9 +31,13 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle strlenHandle;
     private final MethodHandle sumArrayHandle;
     private final MethodHandle fibHandle;
+    private final MethodHandle sha256FileHandle;
+    private final MethodHandle countSyllablesHandle;
+    private final MethodHandle atomicWriteHandle;
+    private final MethodHandle ensureSpaceHandle;
     
     private NativeLibrary(Path libraryPath) {
-        this.arena = Arena.ofConfined();
+        this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
         this.lookup = SymbolLookup.libraryLookup(libraryPath, arena);
         
@@ -57,6 +64,35 @@ public final class NativeLibrary implements AutoCloseable {
             lookup.find("simjot_fib").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
         );
+
+        // int32_t simjot_sha256_file(const char* path, uint8_t* out32)
+        this.sha256FileHandle = linker.downcallHandle(
+            lookup.find("simjot_sha256_file").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_count_syllables(const char* word)
+        this.countSyllablesHandle = linker.downcallHandle(
+            lookup.find("simjot_count_syllables").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_atomic_write(const char* target, const uint8_t* data, int32_t len, int32_t fsyncFile, int32_t fsyncDir)
+        this.atomicWriteHandle = linker.downcallHandle(
+            lookup.find("simjot_atomic_write").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT)
+        );
+
+        // int32_t simjot_ensure_space(const char* path, uint64_t bytesNeeded)
+        this.ensureSpaceHandle = linker.downcallHandle(
+            lookup.find("simjot_ensure_space").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
     
     /**
@@ -70,9 +106,16 @@ public final class NativeLibrary implements AutoCloseable {
      * Load from default location (src/main/native/).
      */
     public static NativeLibrary loadDefault() {
+        return load(defaultLibraryPath().toString());
+    }
+
+    /**
+     * Resolve the default native library path for the current OS.
+     */
+    public static Path defaultLibraryPath() {
         String projectPath = System.getProperty("user.dir");
-        String libPath = projectPath + "/src/main/native/libsimjot_native.dylib";
-        return load(libPath);
+        String libName = System.mapLibraryName("simjot_native");
+        return Path.of(projectPath, "src", "main", "native", libName);
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
@@ -125,6 +168,72 @@ public final class NativeLibrary implements AutoCloseable {
             return (long) fibHandle.invokeExact(n);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_fib", t);
+        }
+    }
+
+    /**
+     * Compute SHA-256 for a file path via native call.
+     */
+    public String sha256File(Path path) {
+        if (path == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(path.toString());
+            MemorySegment out = tempArena.allocate(32);
+            int ok = (int) sha256FileHandle.invokeExact(cPath, out);
+            if (ok == 0) return null;
+            byte[] bytes = new byte[32];
+            out.asByteBuffer().get(bytes);
+            return HexFormat.of().formatHex(bytes);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_sha256_file", t);
+        }
+    }
+
+    /**
+     * Count syllables for a word via native call.
+     */
+    public int countSyllables(String word) {
+        if (word == null || word.isEmpty()) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            return (int) countSyllablesHandle.invokeExact(cWord);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_count_syllables", t);
+        }
+    }
+
+    /**
+     * Perform an atomic write via native call.
+     */
+    public boolean atomicWrite(Path target, byte[] data, boolean fsyncFile, boolean fsyncDir) {
+        if (target == null || data == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(target.toString());
+            MemorySegment dataSeg = MemorySegment.ofArray(data);
+            int ok = (int) atomicWriteHandle.invokeExact(
+                cPath,
+                dataSeg,
+                data.length,
+                fsyncFile ? 1 : 0,
+                fsyncDir ? 1 : 0
+            );
+            return ok != 0;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_atomic_write", t);
+        }
+    }
+
+    /**
+     * Check available disk space via native call.
+     * Returns 1 if enough space, 0 if insufficient, -1 on error.
+     */
+    public int ensureSpace(Path dir, long bytesNeeded) {
+        if (dir == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(dir.toString());
+            return (int) ensureSpaceHandle.invokeExact(cPath, bytesNeeded);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_ensure_space", t);
         }
     }
     

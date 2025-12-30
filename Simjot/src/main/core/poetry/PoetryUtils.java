@@ -1,5 +1,7 @@
 package main.core.poetry;
 
+import main.infrastructure.ffi.NativeAccess;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -173,6 +175,8 @@ public final class PoetryUtils {
      */
     public static int countSyllables(String word) {
         if (word == null || word.isEmpty()) return 0;
+        Integer nativeCount = NativeAccess.countSyllables(word);
+        if (nativeCount != null) return nativeCount;
         String w = word.toLowerCase(Locale.ROOT).replaceAll("[^a-z']", "");
         if (w.isEmpty()) return 0;
         
