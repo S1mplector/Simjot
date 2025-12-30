@@ -606,7 +606,11 @@ public class NotebookManagerPanel extends JPanel {
             // Name field (title-style divider)
             nameField.setToolTipText("Enter notebook name");
             nameField.setAlignmentX(Component.LEFT_ALIGNMENT);
-            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            nameField.setEditable(true);
+            nameField.setFocusable(true);
+            nameField.setPreferredSize(new Dimension(360, 36));
+            nameField.setMinimumSize(new Dimension(200, 36));
+            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
             nameField.setPlaceholder("Notebook name");
             try {
                 String family = SettingsStore.get().getEditorFontFamily();
