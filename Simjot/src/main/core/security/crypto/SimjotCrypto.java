@@ -684,6 +684,7 @@ public final class SimjotCrypto {
             
             byte[] headerBytes = signedHeader.toBytes();
             outputStream.write(headerBytes);
+            outputStream.flush(); // Ensure header is written before cipher stream starts
             
             // Initialize cipher
             Cipher cipher = Cipher.getInstance(CryptoConfig.CIPHER_ALGORITHM);

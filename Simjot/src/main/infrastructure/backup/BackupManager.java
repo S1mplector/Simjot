@@ -264,11 +264,16 @@ public final class BackupManager {
                 .withCompression(false)
                 .withIdentifier(identifier);
         SimjotCrypto crypto = new SimjotCrypto();
+        // Important: BufferedOutputStream must be in try-with-resources for proper close ordering
+        // Close order: zos -> buffered -> encStream -> fos (cipher finalization needs proper flush)
         try (FileOutputStream fos = new FileOutputStream(targetFile);
              OutputStream encStream = crypto.createEncryptingStream(
                      fos, password, ContentType.BACKUP, config);
-             ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(encStream))) {
+             BufferedOutputStream buffered = new BufferedOutputStream(encStream);
+             ZipOutputStream zos = new ZipOutputStream(buffered)) {
             writeBackupZip(zos, srcRoot, includeMood, includeSettings, includeWallpapers);
+            zos.finish(); // Explicitly finish zip before streams close
+            buffered.flush(); // Ensure all data is flushed to cipher stream
         } catch (IOException | CryptoException ex) {
             try { Files.deleteIfExists(targetFile.toPath()); } catch (IOException ignored) {}
             throw ex;

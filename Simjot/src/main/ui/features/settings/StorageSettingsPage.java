@@ -1,61 +1,62 @@
 package main.ui.features.settings;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.io.File;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.BasicStroke;
-import java.awt.FontMetrics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
+import java.util.Arrays;
+
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JComboBox;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
-import javax.swing.SwingWorker;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
-import javax.swing.JTextField;
-import javax.swing.JCheckBox;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
-
-import main.ui.dialog.file.SimjotFileChooser;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
-import main.infrastructure.io.AppDirectories;
-import main.ui.components.buttons.RoundedButton;
-import javax.swing.Timer;
-import main.infrastructure.monitoring.AppPerf;
-import main.core.service.SettingsStore;
-import main.ui.components.combobox.ModernComboBoxUI;
-import main.ui.components.spinner.ModernSpinnerUI;
-import main.ui.components.checkbox.ModernCheckBoxUI;
-import main.infrastructure.backup.BackupService;
-import main.ui.dialog.confirmation.CustomConfirmDialog;
-import main.infrastructure.backup.BackupManager;
-import main.ui.components.scrollbar.AeroScrollBarUI;
+
 import main.core.security.EncryptionManager;
+import main.core.service.SettingsStore;
+import main.infrastructure.backup.BackupManager;
+import main.infrastructure.backup.BackupService;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.monitoring.AppPerf;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.checkbox.ModernCheckBoxUI;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.scrollbar.AeroScrollBarUI;
+import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.security.EncryptionUnlockDialog;
-import java.util.Arrays;
 
 class StorageSettingsPage extends JPanel implements SettingsPage {
     private final JLabel pathLbl;
@@ -234,6 +235,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         backupNowBtn = new main.ui.components.buttons.RoundedButton("Backup Now");
         backupNowBtn.addActionListener(e -> {
             backupNowBtn.setEnabled(false);
+            apply(); // Save current settings (including destination) before backup
             new SwingWorker<Boolean, Void>() {
                 @Override protected Boolean doInBackground() {
                     try { return main.infrastructure.backup.BackupService.get().triggerNow(StorageSettingsPage.this); } catch (Throwable ignored) {}
@@ -269,6 +271,9 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             File selected = chooser.showDialog();
             if (selected != null) {
                 backupDestField.setText(selected.getAbsolutePath());
+                // Persist immediately so the path is saved even if user doesn't navigate away
+                SettingsStore.get().setBackupDestinationPath(selected.getAbsolutePath());
+                SettingsStore.get().save();
             }
         });
         destRow.add(backupDestField, BorderLayout.CENTER);
