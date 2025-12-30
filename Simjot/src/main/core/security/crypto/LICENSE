@@ -56,12 +56,12 @@ and study of the source code while prohibiting incorporation into other projects
    2.2 NO USE RIGHTS
        You are NOT granted the right to:
        
-       (a) Use, compile, or execute the Software outside of the Simjot Application
-       (b) Incorporate any portion of the Software into other projects
+       (a) Use, compile, or execute the Software OUTSIDE of the Simjot Application
+       (b) Incorporate any portion of the Software into OTHER projects
        (c) Create derivative works based on the Software
-       (d) Distribute the Software as part of any other application
-       (e) Use the proprietary file format (.sjcrypt) in other applications
-       (f) Implement compatible encryption/decryption in competing products
+       (d) Distribute the Software as part of any OTHER application
+       (e) Use the proprietary file format (.sjcrypt) in OTHER applications
+       (f) Implement compatible encryption/decryption in COMPETING products
 
 3. RESTRICTIONS
 
