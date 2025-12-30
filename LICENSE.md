@@ -325,11 +325,11 @@ Simjot is designed to keep your personal data private and under your control. Yo
 
 ### 6.2 No Data Collection
 
-The Software does not collect, transmit, or share your personal data with the Copyright Holder or any third parties, unless you explicitly enable features that require network connectivity.
+The Software does not collect, transmit, or share your personal data with the Copyright Holder or any third parties. There are NO features that require network connectivity.
 
 ### 6.3 Encryption
 
-When you use encryption features, your data is protected using industry-standard cryptographic algorithms. The Copyright Holder cannot access your encrypted data.
+When you use encryption features, your data is protected using industry-standard cryptographic algorithms. The Copyright Holder cannot access your encrypted data, and your data can only be decrypted by official Simjot binaries within your computer. 
 
 ---
 
@@ -562,8 +562,8 @@ If You do not agree to this License, You must:
 
 ---
 
-*This document was last updated: December 2024*
+*This document was last updated: December 31, 2025*
 
-*License Version: 1.0.0*
+*License Version: 1.1.0*
 
 </div>
