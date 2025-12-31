@@ -2543,6 +2543,57 @@ public final class NativeAccess {
     }
 
     /**
+     * Mood daily stats record.
+     */
+    public record MoodDailyStats(
+        int dateDays,
+        int sampleCount,
+        double average,
+        short min,
+        short max,
+        double avgJoy,
+        double avgCalm,
+        double avgGratitude,
+        double avgEnergy,
+        double avgSadness,
+        double avgAnger,
+        double avgAnxiety,
+        double avgStress
+    ) {}
+
+    /**
+     * Get daily stats by index.
+     * @param index Daily stats index (0 to moodDailyCount()-1)
+     * @return Daily stats or null on error
+     */
+    public static MoodDailyStats moodGetDaily(int index) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            byte[] data = lib.moodGetDaily(index);
+            if (data == null || data.length < 84) return null;
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            int dateDays = buf.getInt();
+            int sampleCount = buf.getInt();
+            double average = buf.getDouble();
+            short min = buf.getShort();
+            short max = buf.getShort();
+            double avgJoy = buf.getDouble();
+            double avgCalm = buf.getDouble();
+            double avgGratitude = buf.getDouble();
+            double avgEnergy = buf.getDouble();
+            double avgSadness = buf.getDouble();
+            double avgAnger = buf.getDouble();
+            double avgAnxiety = buf.getDouble();
+            double avgStress = buf.getDouble();
+            return new MoodDailyStats(dateDays, sampleCount, average, min, max,
+                avgJoy, avgCalm, avgGratitude, avgEnergy, avgSadness, avgAnger, avgAnxiety, avgStress);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
      * Mood analytics summary record.
      */
     public record MoodSummary(
@@ -3004,5 +3055,39 @@ public final class NativeAccess {
         } catch (Throwable t) {
             return -1;
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LZ4 COMPRESSION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get maximum compressed size bound for LZ4.
+     */
+    public static int lz4CompressBound(int srcSize) {
+        NativeLibrary lib = library();
+        if (lib == null) return srcSize + srcSize / 255 + 16;
+        return lib.lz4CompressBound(srcSize);
+    }
+
+    /**
+     * Compress data using native LZ4-style algorithm.
+     * @return compressed data or null on failure
+     */
+    public static byte[] lz4Compress(byte[] src) {
+        NativeLibrary lib = library();
+        if (lib == null || src == null) return null;
+        return lib.lz4Compress(src);
+    }
+
+    /**
+     * Decompress LZ4-compressed data using native code.
+     * @param maxOutputSize maximum expected output size
+     * @return decompressed data or null on failure
+     */
+    public static byte[] lz4Decompress(byte[] src, int maxOutputSize) {
+        NativeLibrary lib = library();
+        if (lib == null || src == null) return null;
+        return lib.lz4Decompress(src, maxOutputSize);
     }
 }

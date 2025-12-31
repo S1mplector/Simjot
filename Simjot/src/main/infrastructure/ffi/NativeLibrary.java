@@ -208,6 +208,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle moodLoadHandle;
     private final MethodHandle moodComputeDailyHandle;
     private final MethodHandle moodComputeSummaryHandle;
+    private final MethodHandle moodGetDailyHandle;
     private final MethodHandle moodGetSummaryHandle;
     private final MethodHandle moodDailyCountHandle;
     private final MethodHandle moodSampleCountHandle;
@@ -259,6 +260,15 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle fileIsDirHandle;
     private final MethodHandle diskAvailableHandle;
     private final MethodHandle dirCountHandle;
+    
+    // LRU Cache handles (handle-based API)
+    private final MethodHandle lruCacheCreateHandle;
+    private final MethodHandle lruCacheDestroyHandle;
+    
+    // LZ4 Compression handles
+    private final MethodHandle lz4CompressHandle;
+    private final MethodHandle lz4DecompressHandle;
+    private final MethodHandle lz4CompressBoundHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -667,6 +677,8 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
         this.moodComputeSummaryHandle = optionalHandle("simjot_mood_compute_summary",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.moodGetDailyHandle = optionalHandle("simjot_mood_get_daily",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.moodGetSummaryHandle = optionalHandle("simjot_mood_get_summary",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.moodDailyCountHandle = optionalHandle("simjot_mood_daily_count",
@@ -724,6 +736,20 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         this.damerauLevenshteinHandle = optionalHandle("simjot_damerau_levenshtein",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        
+        // LRU Cache handles (handle-based API)
+        this.lruCacheCreateHandle = optionalHandle("simjot_lru_cache_create",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
+        this.lruCacheDestroyHandle = optionalHandle("simjot_lru_cache_destroy",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        
+        // LZ4 Compression handles
+        this.lz4CompressHandle = optionalHandle("simjot_lz4_compress",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.lz4DecompressHandle = optionalHandle("simjot_lz4_decompress",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.lz4CompressBoundHandle = optionalHandle("simjot_lz4_compress_bound",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -2911,6 +2937,28 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Get daily stats by index as binary data.
+     * Format: int32 date_days, int32 sample_count, double average, int16 min, int16 max,
+     *         double[8] avg emotions (joy, calm, gratitude, energy, sadness, anger, anxiety, stress)
+     * @param index Daily stats index (0 to moodDailyCount()-1)
+     * @return Binary data or null on error
+     */
+    public byte[] moodGetDaily(int index) {
+        if (moodGetDailyHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int outLen = 128;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) moodGetDailyHandle.invokeExact(index, out, outLen);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
      * Get analytics summary as binary data.
      * Format: 8 doubles (overall_avg, volatility, etc.) + 4 ints (streaks, counts)
      */
@@ -3299,6 +3347,68 @@ public final class NativeLibrary implements AutoCloseable {
     public boolean internContains(String str) { return false; }
     public int internCount() { return 0; }
     public void internClear() {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LZ4 COMPRESSION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get maximum compressed size bound for LZ4.
+     */
+    public int lz4CompressBound(int srcSize) {
+        if (lz4CompressBoundHandle == null) return srcSize + srcSize / 255 + 16;
+        try {
+            return (int) lz4CompressBoundHandle.invokeExact(srcSize);
+        } catch (Throwable t) {
+            return srcSize + srcSize / 255 + 16;
+        }
+    }
+
+    /**
+     * Compress data using LZ4-style algorithm.
+     * @return compressed data or null on failure
+     */
+    public byte[] lz4Compress(byte[] src) {
+        if (lz4CompressHandle == null || src == null || src.length == 0) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int bound = lz4CompressBound(src.length);
+            MemorySegment srcSeg = temp.allocate(src.length);
+            srcSeg.asByteBuffer().put(src);
+            MemorySegment dstSeg = temp.allocate(bound);
+            
+            int compressedLen = (int) lz4CompressHandle.invokeExact(srcSeg, src.length, dstSeg, bound);
+            if (compressedLen <= 0) return null;
+            
+            byte[] result = new byte[compressedLen];
+            dstSeg.asByteBuffer().get(result);
+            return result;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Decompress LZ4-compressed data.
+     * @param maxOutputSize maximum expected output size
+     * @return decompressed data or null on failure
+     */
+    public byte[] lz4Decompress(byte[] src, int maxOutputSize) {
+        if (lz4DecompressHandle == null || src == null || src.length == 0) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment srcSeg = temp.allocate(src.length);
+            srcSeg.asByteBuffer().put(src);
+            MemorySegment dstSeg = temp.allocate(maxOutputSize);
+            
+            int decompressedLen = (int) lz4DecompressHandle.invokeExact(srcSeg, src.length, dstSeg, maxOutputSize);
+            if (decompressedLen <= 0) return null;
+            
+            byte[] result = new byte[decompressedLen];
+            dstSeg.asByteBuffer().get(result);
+            return result;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
     
     @Override
     public void close() {

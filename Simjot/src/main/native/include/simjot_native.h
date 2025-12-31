@@ -600,11 +600,8 @@ char* simjot_text_to_lower(const char* input);
 char* simjot_text_to_upper(const char* input);
 char* simjot_text_title_case(const char* input);
 
-/* Text statistics */
-int32_t simjot_text_word_count(const char* text);
-int32_t simjot_text_char_count(const char* text);
-int32_t simjot_text_line_count(const char* text);
-int32_t simjot_text_sentence_count(const char* text);
+/* Text statistics (alternate signatures) */
+int32_t simjot_text_char_count_nospace(const char* text);
 int32_t simjot_text_syllable_count(const char* word);
 int32_t simjot_text_analyze(const char* text, int32_t* out_stats, int32_t stats_count);
 
@@ -693,6 +690,194 @@ const char* simjot_path_basename(const char* path);
 const char* simjot_path_extension(const char* path);
 char* simjot_path_dirname(const char* path);
 char* simjot_path_join(const char* dir, const char* name);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MOOD ANALYTICS ENGINE
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Daily averages computation */
+int32_t simjot_mood_daily_averages(
+    const int32_t* samples, const int64_t* timestamps, int32_t count,
+    int32_t start_day, int32_t num_days,
+    double* out_averages, int32_t* out_counts);
+
+/* Smoothing (rolling average) */
+int32_t simjot_mood_smooth(const double* values, int32_t count, int32_t window, double* out_smoothed);
+
+/* Volatility (standard deviation) */
+double simjot_mood_volatility(const double* values, int32_t count);
+
+/* Streak detection */
+int32_t simjot_mood_streaks(
+    const double* values, int32_t count, double threshold,
+    int32_t* out_current, int32_t* out_longest_good, int32_t* out_longest_bad);
+
+/* Overall average */
+double simjot_mood_average(const double* values, int32_t count);
+
+/* Complete mood analysis */
+int32_t simjot_mood_analyze(
+    const int32_t* mood_values, const int64_t* timestamps, int32_t sample_count,
+    int32_t days_back, int32_t smoothing_window,
+    double* out_stats, double* out_daily_avgs, double* out_smoothed,
+    int32_t max_days);
+
+/* Trend analysis */
+double simjot_mood_trend(const double* values, int32_t count);
+double simjot_mood_weighted_recent(const double* values, int32_t count, double decay);
+
+/* Correlation and anomaly detection */
+double simjot_mood_correlation(const int32_t* a, const int32_t* b, int32_t count);
+int32_t simjot_mood_anomalies(const double* values, int32_t count, double threshold, int32_t* out_anomalies);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * VOCABULARY ANALYZER
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Word extraction */
+int32_t simjot_vocab_extract_words(const char* text, char* out_words, int32_t out_size, int32_t* out_count);
+
+/* Syllable counting */
+int32_t simjot_vocab_syllables(const char* word);
+
+/* Readability metrics */
+double simjot_vocab_flesch_ease(int32_t words, int32_t sentences, int32_t syllables);
+double simjot_vocab_flesch_kincaid(int32_t words, int32_t sentences, int32_t syllables);
+double simjot_vocab_gunning_fog(int32_t words, int32_t sentences, int32_t complex_words);
+double simjot_vocab_smog(int32_t polysyllabic, int32_t sentences);
+double simjot_vocab_coleman_liau(int32_t words, int32_t sentences, int32_t characters);
+double simjot_vocab_ari(int32_t words, int32_t sentences, int32_t characters);
+
+/* Lexical diversity */
+double simjot_vocab_ttr(int32_t unique_words, int32_t total_words);
+double simjot_vocab_yules_k(const int32_t* freq_spectrum, int32_t max_freq, int32_t total_words);
+double simjot_vocab_simpsons_d(const int32_t* freq_spectrum, int32_t max_freq, int32_t total_words);
+
+/* Comprehensive analysis */
+int32_t simjot_vocab_analyze(const char* text, double* out_stats);
+int32_t simjot_vocab_top_words(const char* text, int32_t n, char* out_words, int32_t* out_counts, int32_t out_size);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FAST SEARCH (SIMD-accelerated)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+int64_t simjot_search_find(const char* haystack, int64_t haystack_len, const char* needle, int64_t needle_len);
+int64_t simjot_search_find_ci(const char* haystack, int64_t haystack_len, const char* needle, int64_t needle_len);
+int32_t simjot_search_count(const char* haystack, int64_t haystack_len, const char* needle, int64_t needle_len);
+int32_t simjot_search_find_all(const char* haystack, int64_t haystack_len, const char* needle, int64_t needle_len, int64_t* out_positions, int32_t max_results);
+
+/* Multi-pattern search (Aho-Corasick) */
+void* simjot_search_ac_build(const char* patterns, int32_t pattern_count);
+int32_t simjot_search_ac_find(void* ac_handle, const char* text, int64_t text_len, int64_t* out_positions, int32_t* out_patterns, int32_t max_results);
+void simjot_search_ac_free(void* ac_handle);
+
+/* Fuzzy search */
+int32_t simjot_search_fuzzy(const char* text, int64_t text_len, const char* pattern, int32_t pattern_len, int32_t max_distance, int64_t* out_positions, int32_t* out_distances, int32_t max_results);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MEMORY POOL ALLOCATORS
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fixed-size block pool (handle-based API) */
+void* simjot_pool_create_ex(int32_t block_size, int32_t block_count);
+void* simjot_pool_alloc_ex(void* pool_handle);
+void simjot_pool_free_ex(void* pool_handle, void* ptr);
+void simjot_pool_stats_ex(void* pool_handle, int32_t* out_total, int32_t* out_allocated, int32_t* out_block_size);
+void simjot_pool_reset_ex(void* pool_handle);
+void simjot_pool_destroy_ex(void* pool_handle);
+
+/* Arena allocator (bump pointer, handle-based API) */
+void* simjot_arena_create_ex(int32_t initial_size);
+void* simjot_arena_alloc_ex(void* arena_handle, int32_t size, int32_t align);
+void* simjot_arena_calloc_ex(void* arena_handle, int32_t count, int32_t size);
+char* simjot_arena_strdup_ex(void* arena_handle, const char* str);
+void simjot_arena_stats_ex(void* arena_handle, int64_t* out_used, int64_t* out_capacity);
+void simjot_arena_reset_ex(void* arena_handle);
+void simjot_arena_destroy_ex(void* arena_handle);
+
+/* Slab allocator (multiple size classes) */
+void* simjot_slab_create(void);
+void* simjot_slab_alloc(void* slab_handle, int32_t size);
+void simjot_slab_free(void* slab_handle, void* ptr, int32_t size);
+void simjot_slab_destroy(void* slab_handle);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LRU CACHE
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+void* simjot_lru_cache_create(int32_t max_entries, int64_t max_memory);
+void simjot_lru_cache_set_destructor(void* cache_handle, void (*destructor)(void*));
+int32_t simjot_lru_cache_put(void* cache_handle, const char* key, void* value, int32_t value_size, int64_t ttl_ms);
+void* simjot_lru_cache_get(void* cache_handle, const char* key, int32_t* out_size);
+int32_t simjot_lru_cache_contains(void* cache_handle, const char* key);
+int32_t simjot_lru_cache_remove(void* cache_handle, const char* key);
+void simjot_lru_cache_clear(void* cache_handle);
+void simjot_lru_cache_stats(void* cache_handle, int64_t* out_hits, int64_t* out_misses, int32_t* out_size, int64_t* out_memory);
+void simjot_lru_cache_destroy(void* cache_handle);
+
+/* String interning */
+void* simjot_interner_create(void);
+const char* simjot_interner_intern(void* interner_handle, const char* str);
+void simjot_interner_stats(void* interner_handle, int64_t* out_count, int64_t* out_saved);
+void simjot_interner_destroy(void* interner_handle);
+
+/* Bloom filter */
+void* simjot_bloom_create(int32_t expected_items, double false_positive_rate);
+void simjot_bloom_add(void* filter_handle, const char* item);
+int32_t simjot_bloom_test(void* filter_handle, const char* item);
+void simjot_bloom_destroy(void* filter_handle);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FAST COMPRESSION
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+int32_t simjot_lz4_compress(const uint8_t* src, int32_t src_size, uint8_t* dst, int32_t dst_capacity);
+int32_t simjot_lz4_decompress(const uint8_t* src, int32_t src_size, uint8_t* dst, int32_t dst_capacity);
+int32_t simjot_lz4_compress_bound(int32_t src_size);
+
+/* RLE compression */
+int32_t simjot_rle_compress(const uint8_t* src, int32_t src_size, uint8_t* dst, int32_t dst_capacity);
+int32_t simjot_rle_decompress(const uint8_t* src, int32_t src_size, uint8_t* dst, int32_t dst_capacity);
+
+/* Delta encoding */
+int32_t simjot_delta_encode_i32(const int32_t* src, int32_t count, int32_t* dst);
+int32_t simjot_delta_decode_i32(const int32_t* src, int32_t count, int32_t* dst);
+int32_t simjot_delta_encode_f64(const double* src, int32_t count, int64_t* dst);
+int32_t simjot_delta_decode_f64(const int64_t* src, int32_t count, double* dst);
+
+/* Zigzag encoding */
+int32_t simjot_zigzag_encode_i32(const int32_t* src, int32_t count, uint32_t* dst);
+int32_t simjot_zigzag_decode_i32(const uint32_t* src, int32_t count, int32_t* dst);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FAST JSON PARSER
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+void* simjot_json_parse(const char* json, int32_t len);
+int32_t simjot_json_type(void* parser);
+const char* simjot_json_get_string_at(void* parser, int32_t index, int32_t* out_len);
+double simjot_json_get_number(void* parser, int32_t index);
+int32_t simjot_json_get_bool(void* parser, int32_t index);
+int32_t simjot_json_array_length(void* parser, int32_t index);
+int32_t simjot_json_array_get(void* parser, int32_t array_idx, int32_t elem_idx);
+int32_t simjot_json_object_size(void* parser, int32_t index);
+int32_t simjot_json_object_get(void* parser, int32_t obj_idx, const char* key);
+const char* simjot_json_error(void* parser);
+void simjot_json_free(void* parser);
+
+/* JSON builder */
+void* simjot_json_builder_create(void);
+void simjot_json_builder_object_start(void* builder);
+void simjot_json_builder_object_end(void* builder);
+void simjot_json_builder_array_start(void* builder);
+void simjot_json_builder_array_end(void* builder);
+void simjot_json_builder_key(void* builder, const char* key);
+void simjot_json_builder_string(void* builder, const char* value);
+void simjot_json_builder_number(void* builder, double value);
+void simjot_json_builder_bool(void* builder, int32_t value);
+void simjot_json_builder_null(void* builder);
+const char* simjot_json_builder_get(void* builder, int32_t* out_len);
+void simjot_json_builder_free(void* builder);
 
 #ifdef __cplusplus
 }

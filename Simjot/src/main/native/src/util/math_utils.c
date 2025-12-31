@@ -273,18 +273,18 @@ int32_t simjot_math_clamp_int(int32_t value, int32_t min, int32_t max) {
 }
 
 /**
- * Clamp double to range.
+ * Clamp double to range (internal helper).
  */
-double simjot_math_clamp(double value, double min, double max) {
+static double util_math_clamp(double value, double min, double max) {
     if (value < min) return min;
     if (value > max) return max;
     return value;
 }
 
 /**
- * Linear interpolation.
+ * Linear interpolation (internal helper).
  */
-double simjot_math_lerp(double a, double b, double t) {
+static double util_math_lerp(double a, double b, double t) {
     return a + t * (b - a);
 }
 

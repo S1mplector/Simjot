@@ -183,9 +183,9 @@ char* simjot_text_title_case(const char* input) {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Count words in text.
+ * Count words in text (internal helper).
  */
-int32_t simjot_text_word_count(const char* text) {
+static int32_t util_text_word_count(const char* text) {
     if (!text || !*text) return 0;
     
     int32_t count = 0;
@@ -205,8 +205,9 @@ int32_t simjot_text_word_count(const char* text) {
 
 /**
  * Count characters (excluding whitespace).
+ * NOTE: Renamed to avoid ABI conflict with text/text_utils.c version which has include_spaces param.
  */
-int32_t simjot_text_char_count(const char* text) {
+int32_t simjot_text_char_count_nospace(const char* text) {
     if (!text) return 0;
     
     int32_t count = 0;
@@ -217,9 +218,9 @@ int32_t simjot_text_char_count(const char* text) {
 }
 
 /**
- * Count lines in text.
+ * Count lines in text (internal helper).
  */
-int32_t simjot_text_line_count(const char* text) {
+static int32_t util_text_line_count(const char* text) {
     if (!text || !*text) return 0;
     
     int32_t count = 1;
@@ -230,9 +231,9 @@ int32_t simjot_text_line_count(const char* text) {
 }
 
 /**
- * Count sentences (rough estimate based on . ! ?).
+ * Count sentences (rough estimate based on . ! ?) (internal helper).
  */
-int32_t simjot_text_sentence_count(const char* text) {
+static int32_t util_text_sentence_count(const char* text) {
     if (!text || !*text) return 0;
     
     int32_t count = 0;
@@ -309,9 +310,9 @@ int32_t simjot_text_analyze(const char* text, int32_t* out_stats, int32_t stats_
     TextStats stats = {0};
     
     // Basic counts
-    stats.word_count = simjot_text_word_count(text);
-    stats.line_count = simjot_text_line_count(text);
-    stats.sentence_count = simjot_text_sentence_count(text);
+    stats.word_count = util_text_word_count(text);
+    stats.line_count = util_text_line_count(text);
+    stats.sentence_count = util_text_sentence_count(text);
     
     // Character counts
     for (const char* p = text; *p; p++) {
