@@ -828,6 +828,11 @@ public class NotebookEntriesPanel extends JPanel {
             if (meta != null && meta.words >= 0) return meta.words;
             return 0;
         }
+        // Try native word count first (faster, memory efficient)
+        int nativeCount = main.infrastructure.ffi.NativeAccess.countWordsFile(f.getAbsolutePath());
+        if (nativeCount >= 0) return nativeCount;
+        
+        // Java fallback
         int count = 0;
         try(Scanner sc=new Scanner(f)){
             while(sc.hasNext()){
@@ -848,6 +853,17 @@ public class NotebookEntriesPanel extends JPanel {
         String nm = f.getName();
         String lower = nm.toLowerCase();
         if(lower.endsWith(".note")||lower.endsWith(".poem")||lower.endsWith(".txt")||lower.endsWith(".rtf")||lower.endsWith(".ntk")){
+            // Try native title extraction first
+            String nativeTitle = main.infrastructure.ffi.NativeAccess.extractTitle(f.getAbsolutePath());
+            if (nativeTitle != null && !nativeTitle.isEmpty()) {
+                // Check if it's a header line, parse it
+                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(nativeTitle);
+                if (meta != null && meta.title != null && !meta.title.isBlank()) {
+                    return meta.title.trim();
+                }
+                return nativeTitle.trim();
+            }
+            // Java fallback
             try(BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)){
                 String first = br.readLine();
                 if (first == null) return "";
@@ -899,15 +915,25 @@ public class NotebookEntriesPanel extends JPanel {
         try { listUpdateDebounce.stop(); } catch (Throwable ignored) {}
         try { watchDebounce.stop(); } catch (Throwable ignored) {}
         try { reorderAnimTimer.stop(); } catch (Throwable ignored) {}
+        try { deleteAnimTimer.stop(); } catch (Throwable ignored) {}
         try {
             if (metaLoader != null && !metaLoader.isDone()) {
                 metaLoader.cancel(true);
             }
         } catch (Throwable ignored) {}
         metaLoader = null;
+        
+        // Clear all cached data to free memory
         synchronized (metaQueued) { metaQueued.clear(); }
         metaComputed.clear();
         metaCache.clear();
+        wordCounts.clear();
+        titles.clear();
+        allFiles.clear();
+        reorderAnimProgress.clear();
+        deleteAnimProgress.clear();
+        pendingDeleteFile = null;
+        model.clear();
     }
     
 

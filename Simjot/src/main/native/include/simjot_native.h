@@ -427,6 +427,29 @@ void simjot_force_halt(void);
 int64_t simjot_monotonic_time_ms(void);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * FILE METADATA UTILITIES - Fast native file operations
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Count words in a text buffer */
+int32_t simjot_count_words(const char* text, int32_t len);
+
+/* Count words in a file (reads in chunks, memory efficient) */
+int32_t simjot_count_words_file(const char* path);
+
+/* Extract first non-empty line from file as title */
+int32_t simjot_extract_title(const char* path, char* out, int32_t out_len);
+
+/* Get file size and modification time */
+int32_t simjot_file_meta(const char* path, int64_t* out_size, int64_t* out_mtime);
+
+/* Batch metadata: word count, size, mtime, title in one call */
+int32_t simjot_file_meta_batch(const char* path, uint8_t* out, int32_t out_len);
+
+/* List files in directory with metadata (name, size, mtime) */
+int32_t simjot_list_files_meta(const char* dir_path, const char* extension,
+                                uint8_t* out, int32_t out_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * COMPONENT PROFILER - Per-component CPU and memory tracking
  * ═══════════════════════════════════════════════════════════════════════════ */
 

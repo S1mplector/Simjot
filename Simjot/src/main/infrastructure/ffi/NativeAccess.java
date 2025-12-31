@@ -2478,6 +2478,87 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // FILE METADATA UTILITIES - Fast native file operations
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Count words in a text string using native code.
+     */
+    public static int countWords(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return -1;
+        try {
+            return lib.countWords(text);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Count words in a file using native code (memory efficient, reads in chunks).
+     */
+    public static int countWordsFile(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return -1;
+        try {
+            return lib.countWordsFile(path);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Extract first non-empty line from file as title.
+     */
+    public static String extractTitle(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.extractTitle(path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * File metadata record: word count, title, size, mtime.
+     */
+    public record FileMeta(int wordCount, String title, long size, long mtime) {}
+
+    /**
+     * Get file metadata in a single native call (word count, title, size, mtime).
+     */
+    public static FileMeta getFileMeta(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.getFileMeta(path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Directory entry with metadata.
+     */
+    public record DirEntry(String name, long size, long mtime) {}
+
+    /**
+     * List files in directory with metadata (name, size, mtime).
+     * @param dirPath directory path
+     * @param extension file extension filter (e.g., ".txt") or null for all
+     */
+    public static java.util.List<DirEntry> listFilesMeta(String dirPath, String extension) {
+        NativeLibrary lib = library();
+        if (lib == null || dirPath == null) return null;
+        try {
+            return lib.listFilesMeta(dirPath, extension);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // COMPONENT PROFILER API
     // ═══════════════════════════════════════════════════════════════════════════
 
