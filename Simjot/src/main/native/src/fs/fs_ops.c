@@ -36,7 +36,7 @@
  * FILE METADATA
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-typedef struct FileInfo {
+typedef struct SimjotFileInfo {
     int64_t size;
     int64_t modified_time;
     int64_t created_time;
@@ -45,18 +45,18 @@ typedef struct FileInfo {
     int32_t is_symlink;
     int32_t is_hidden;
     int32_t permissions;
-} FileInfo;
+} SimjotFileInfo;
 
 /**
  * @brief Get file metadata
  */
-int32_t simjot_fs_stat(const char* path, FileInfo* info) {
+int32_t simjot_fs_stat(const char* path, SimjotFileInfo* info) {
     if (!path || !info) return -1;
     
     struct stat st;
     if (lstat(path, &st) != 0) return -1;
     
-    memset(info, 0, sizeof(FileInfo));
+    memset(info, 0, sizeof(SimjotFileInfo));
     info->size = st.st_size;
     info->modified_time = (int64_t)st.st_mtime * 1000;
     info->is_directory = S_ISDIR(st.st_mode) ? 1 : 0;
