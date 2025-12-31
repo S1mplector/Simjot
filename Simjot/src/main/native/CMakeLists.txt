@@ -1,13 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
-project(simjot_native C)
+project(simjot_native C CXX)
 
 option(SIMJOT_NATIVE_BUILD_TESTS "Build native test CLI" ON)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-file(GLOB_RECURSE SIMJOT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB_RECURSE SIMJOT_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+)
 
 add_library(simjot_native SHARED ${SIMJOT_SOURCES})
 set_target_properties(simjot_native PROPERTIES OUTPUT_NAME "simjot_native")

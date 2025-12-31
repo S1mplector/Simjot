@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.ResourceLoader;
 
 /**
@@ -29,7 +30,6 @@ public final class RhymeDatabase {
     
     private static Map<String, List<String>> rhymeGroups;
     private static Map<String, List<String>> synonymGroups;
-    private static Map<String, List<String>> dictSynonyms;
     private static Map<String, List<String>> dictRhymesByKey;
     private static boolean dictionaryLoaded = false;
     
@@ -52,13 +52,22 @@ public final class RhymeDatabase {
             }
         }
         
-        // Augment with dictionary-based rhymes (built from the provided JSON word list)
-        ensureDictionaryLoaded();
-        List<String> dict = dictRhymesByKey.get(key);
+        // Augment with dictionary-based rhymes (native when available, Java fallback otherwise)
+        List<String> dict = NativeAccess.dictionaryRhymes(word, 64);
         if (dict != null) {
             for (String w : dict) {
                 if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
                     result.add(w);
+                }
+            }
+        } else {
+            ensureDictionaryLoaded();
+            List<String> fallback = dictRhymesByKey.get(key);
+            if (fallback != null) {
+                for (String w : fallback) {
+                    if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
+                        result.add(w);
+                    }
                 }
             }
         }
@@ -70,10 +79,8 @@ public final class RhymeDatabase {
         String lower = word.toLowerCase(Locale.ROOT);
         
         initSynonyms();
-        ensureDictionaryLoaded();
-        
         List<String> merged = new ArrayList<>();
-        List<String> dict = dictSynonyms.get(lower);
+        List<String> dict = PoetryDictionary.getSynonyms(lower);
         if (dict != null) merged.addAll(dict);
         List<String> direct = synonymGroups.get(lower);
         if (direct != null) {
@@ -187,7 +194,6 @@ public final class RhymeDatabase {
 
     private static synchronized void ensureDictionaryLoaded() {
         if (dictionaryLoaded) return;
-        dictSynonyms = new HashMap<>();
         dictRhymesByKey = new HashMap<>();
 
         // Load lightweight word list from the simple dictionary JSON files (a.json ... z.json)
@@ -204,7 +210,7 @@ public final class RhymeDatabase {
         dictionaryLoaded = true;
     }
 
-    // Very small, tolerant parser that extracts the top-level word keys and their SYNONYMS arrays.
+    // Very small, tolerant parser that extracts the top-level word keys.
     private static void parseDictionaryChunk(String json) {
         if (json == null || json.isEmpty()) return;
         int idx = 0;
@@ -231,15 +237,9 @@ public final class RhymeDatabase {
                 idx = objStart + 1;
                 continue;
             }
-            String obj = json.substring(objStart + 1, objEnd - 1);
             idx = objEnd;
-
-            List<String> syns = extractSynonyms(obj);
             if (word != null && !word.isEmpty()) {
                 String lower = word.toLowerCase(Locale.ROOT);
-                if (!syns.isEmpty()) {
-                    dictSynonyms.put(lower, syns);
-                }
                 String key = PoetryUtils.rhymeKey(lower);
                 if (key != null && !key.isBlank()) {
                     List<String> bucket = dictRhymesByKey.computeIfAbsent(key, k -> new ArrayList<>());
@@ -249,26 +249,5 @@ public final class RhymeDatabase {
                 }
             }
         }
-    }
-
-    private static List<String> extractSynonyms(String objSection) {
-        int pos = objSection.indexOf("\"SYNONYMS\"");
-        if (pos < 0) return Collections.emptyList();
-        int bracketStart = objSection.indexOf('[', pos);
-        int bracketEnd = (bracketStart >= 0) ? objSection.indexOf(']', bracketStart) : -1;
-        if (bracketStart < 0 || bracketEnd < 0 || bracketEnd <= bracketStart) return Collections.emptyList();
-        String array = objSection.substring(bracketStart + 1, bracketEnd);
-        List<String> syns = new ArrayList<>();
-        int idx = 0;
-        while (idx < array.length()) {
-            int q1 = array.indexOf('"', idx);
-            if (q1 < 0 || q1 + 1 >= array.length()) break;
-            int q2 = array.indexOf('"', q1 + 1);
-            if (q2 < 0) break;
-            String s = array.substring(q1 + 1, q2).trim();
-            if (!s.isEmpty()) syns.add(s);
-            idx = q2 + 1;
-        }
-        return syns;
     }
 }

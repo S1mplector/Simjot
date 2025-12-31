@@ -53,6 +53,10 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle nearRhymeKeyHandle;
     private final MethodHandle listDirSizeHandle;
     private final MethodHandle listDirHandle;
+    private final MethodHandle dictSetBasePathHandle;
+    private final MethodHandle dictContainsHandle;
+    private final MethodHandle dictLookupHandle;
+    private final MethodHandle dictRhymesHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -135,6 +139,27 @@ public final class NativeLibrary implements AutoCloseable {
             lookup.find("simjot_ensure_space").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
+
+        this.dictSetBasePathHandle = optionalHandle(
+            "simjot_dict_set_base_path",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.dictContainsHandle = optionalHandle(
+            "simjot_dict_contains",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.dictLookupHandle = optionalHandle(
+            "simjot_dict_lookup",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.dictRhymesHandle = optionalHandle(
+            "simjot_dict_rhymes_for",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+    }
+
+    private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
+        return lookup.find(name).map(symbol -> linker.downcallHandle(symbol, descriptor)).orElse(null);
     }
     
     /**
@@ -286,6 +311,78 @@ public final class NativeLibrary implements AutoCloseable {
             return new String(bytes, StandardCharsets.US_ASCII);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_near_rhyme_key", t);
+        }
+    }
+
+    public boolean hasDictionarySupport() {
+        return dictSetBasePathHandle != null && dictLookupHandle != null && dictContainsHandle != null;
+    }
+
+    public boolean hasDictionaryRhymesSupport() {
+        return dictRhymesHandle != null;
+    }
+
+    public boolean setDictionaryBasePath(Path path) {
+        if (dictSetBasePathHandle == null || path == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(path.toString());
+            int ok = (int) dictSetBasePathHandle.invokeExact(cPath);
+            return ok != 0;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_dict_set_base_path", t);
+        }
+    }
+
+    public Boolean dictionaryContains(String word) {
+        if (dictContainsHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            int ok = (int) dictContainsHandle.invokeExact(cWord);
+            return ok != 0;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_dict_contains", t);
+        }
+    }
+
+    public byte[] dictionaryLookup(String word) {
+        if (dictLookupHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int outLen = 8192;
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            MemorySegment out = tempArena.allocate(outLen);
+            int len = (int) dictLookupHandle.invokeExact(cWord, out, outLen);
+            if (len < 0) {
+                outLen = Math.max(outLen, -len);
+                out = tempArena.allocate(outLen);
+                len = (int) dictLookupHandle.invokeExact(cWord, out, outLen);
+            }
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_dict_lookup", t);
+        }
+    }
+
+    public byte[] dictionaryRhymes(String word, int maxResults) {
+        if (dictRhymesHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int outLen = 16384;
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            MemorySegment out = tempArena.allocate(outLen);
+            int len = (int) dictRhymesHandle.invokeExact(cWord, maxResults, out, outLen);
+            if (len < 0) {
+                outLen = Math.max(outLen, -len);
+                out = tempArena.allocate(outLen);
+                len = (int) dictRhymesHandle.invokeExact(cWord, maxResults, out, outLen);
+            }
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_dict_rhymes_for", t);
         }
     }
 

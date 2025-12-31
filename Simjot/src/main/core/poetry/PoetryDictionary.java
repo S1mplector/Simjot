@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.ResourceLoader;
 
 /**
@@ -300,17 +301,34 @@ public final class PoetryDictionary {
      * Look up a word in the dictionary.
      */
     public static WordEntry lookup(String word) {
-        ensureLoaded();
         if (word == null) return null;
-        return dictionary.get(word.toLowerCase(Locale.ROOT));
+        String key = word.toLowerCase(Locale.ROOT);
+        WordEntry cached = dictionary.get(key);
+        if (cached != null) return cached;
+        if (NativeAccess.dictionaryReady()) {
+            NativeAccess.NativeDictionaryEntry nativeEntry = NativeAccess.dictionaryLookup(word);
+            if (nativeEntry == null) return null;
+            WordEntry entry = new WordEntry(word, nativeEntry.partsOfSpeech, nativeEntry.synonyms,
+                    nativeEntry.antonyms, PoetryUtils.countSyllables(word));
+            dictionary.put(key, entry);
+            return entry;
+        }
+        ensureLoaded();
+        return dictionary.get(key);
     }
     
     /**
      * Check if a word exists in the dictionary.
      */
     public static boolean contains(String word) {
+        if (word == null) return false;
+        String key = word.toLowerCase(Locale.ROOT);
+        if (dictionary.containsKey(key)) return true;
+        if (NativeAccess.dictionaryReady()) {
+            return NativeAccess.dictionaryContains(word);
+        }
         ensureLoaded();
-        return word != null && dictionary.containsKey(word.toLowerCase(Locale.ROOT));
+        return dictionary.containsKey(key);
     }
     
     /**
@@ -325,10 +343,9 @@ public final class PoetryDictionary {
         // Check cache first
         int[] cached = stressCache.get(lower);
         if (cached != null) return cached;
-        
-        ensureLoaded();
-        
-        int syllables = PoetryUtils.countSyllables(word);
+
+        WordEntry entry = lookup(word);
+        int syllables = entry != null ? entry.syllableCount : PoetryUtils.countSyllables(word);
         if (syllables <= 0) return new int[0];
         if (syllables == 1) {
             int[] pattern = new int[]{1}; // Monosyllables are stressed by default
@@ -339,8 +356,7 @@ public final class PoetryDictionary {
             stressCache.put(lower, pattern);
             return pattern;
         }
-        
-        WordEntry entry = dictionary.get(lower);
+
         int[] pattern = computeStressPattern(lower, syllables, entry);
         stressCache.put(lower, pattern);
         return pattern;
