@@ -222,6 +222,16 @@ public final class NativeLibrary implements AutoCloseable {
     // Dictionary JSON handles
     private final MethodHandle jsonLoadDictFileHandle;
     
+    // Image scaling handles
+    private final MethodHandle imageScaleHandle;
+    private final MethodHandle imageBlurHandle;
+    private final MethodHandle imageTintHandle;
+    
+    // Spell check handles
+    private final MethodHandle spellEdit1Handle;
+    private final MethodHandle levenshteinHandle;
+    private final MethodHandle damerauLevenshteinHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
@@ -663,6 +673,29 @@ public final class NativeLibrary implements AutoCloseable {
         // Dictionary JSON handles
         this.jsonLoadDictFileHandle = optionalHandle("simjot_json_load_dict_file",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // Image scaling handles
+        // int32_t simjot_image_scale(const uint32_t* src, int32_t src_w, int32_t src_h, uint32_t* dst, int32_t dst_w, int32_t dst_h, int32_t quality)
+        this.imageScaleHandle = optionalHandle("simjot_image_scale",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        // int32_t simjot_image_blur(uint32_t* pixels, int32_t width, int32_t height, int32_t radius)
+        this.imageBlurHandle = optionalHandle("simjot_image_blur",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        // int32_t simjot_image_tint(uint32_t* pixels, int32_t width, int32_t height, uint32_t tint_color, float intensity)
+        this.imageTintHandle = optionalHandle("simjot_image_tint",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+        
+        // Spell check handles
+        this.spellEdit1Handle = optionalHandle("simjot_spell_edit1",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.levenshteinHandle = optionalHandle("simjot_levenshtein",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.damerauLevenshteinHandle = optionalHandle("simjot_damerau_levenshtein",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -3055,6 +3088,172 @@ public final class NativeLibrary implements AutoCloseable {
             return words;
         } catch (Throwable t) {
             return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // IMAGE SCALING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native image scaling is available.
+     */
+    public boolean hasImageScaleSupport() {
+        return imageScaleHandle != null;
+    }
+
+    /**
+     * Scale image using native SIMD-accelerated resize.
+     * @param srcPixels Source ARGB pixels
+     * @param srcW Source width
+     * @param srcH Source height
+     * @param dstW Destination width
+     * @param dstH Destination height
+     * @param quality 0=fast, 1=balanced, 2=best
+     * @return Scaled ARGB pixels or null on failure
+     */
+    public int[] imageScale(int[] srcPixels, int srcW, int srcH, int dstW, int dstH, int quality) {
+        if (imageScaleHandle == null || srcPixels == null || srcPixels.length != srcW * srcH) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            // Allocate source buffer
+            MemorySegment srcSeg = temp.allocate(ValueLayout.JAVA_INT, srcPixels.length);
+            for (int i = 0; i < srcPixels.length; i++) {
+                srcSeg.setAtIndex(ValueLayout.JAVA_INT, i, srcPixels[i]);
+            }
+            // Allocate destination buffer
+            int dstSize = dstW * dstH;
+            MemorySegment dstSeg = temp.allocate(ValueLayout.JAVA_INT, dstSize);
+            
+            int result = (int) imageScaleHandle.invokeExact(srcSeg, srcW, srcH, dstSeg, dstW, dstH, quality);
+            if (result <= 0) return null;
+            
+            // Copy output
+            int[] dstPixels = new int[dstSize];
+            for (int i = 0; i < dstSize; i++) {
+                dstPixels[i] = dstSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return dstPixels;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Apply Gaussian blur to image in-place.
+     */
+    public boolean imageBlur(int[] pixels, int width, int height, int radius) {
+        if (imageBlurHandle == null || pixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(ValueLayout.JAVA_INT, pixels.length);
+            for (int i = 0; i < pixels.length; i++) {
+                seg.setAtIndex(ValueLayout.JAVA_INT, i, pixels[i]);
+            }
+            
+            int result = (int) imageBlurHandle.invokeExact(seg, width, height, radius);
+            if (result <= 0) return false;
+            
+            // Copy back
+            for (int i = 0; i < pixels.length; i++) {
+                pixels[i] = seg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Tint image with a color.
+     */
+    public boolean imageTint(int[] pixels, int width, int height, int tintColor, float intensity) {
+        if (imageTintHandle == null || pixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(ValueLayout.JAVA_INT, pixels.length);
+            for (int i = 0; i < pixels.length; i++) {
+                seg.setAtIndex(ValueLayout.JAVA_INT, i, pixels[i]);
+            }
+            
+            int result = (int) imageTintHandle.invokeExact(seg, width, height, tintColor, intensity);
+            if (result <= 0) return false;
+            
+            for (int i = 0; i < pixels.length; i++) {
+                pixels[i] = seg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPELL CHECK API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native spell check functions are available.
+     */
+    public boolean hasSpellEditSupport() {
+        return spellEdit1Handle != null && levenshteinHandle != null;
+    }
+
+    /**
+     * Generate edit-distance-1 candidates for a word.
+     */
+    public List<String> spellEdit1Candidates(String word) {
+        if (spellEdit1Handle == null || word == null || word.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            int outLen = 64 * 1024; // 64KB should be enough for edit-1 candidates
+            MemorySegment out = temp.allocate(outLen);
+            
+            int len = (int) spellEdit1Handle.invokeExact(cWord, out, outLen);
+            if (len <= 0) return null;
+            
+            // Parse null-separated candidates
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            
+            List<String> candidates = new ArrayList<>();
+            int start = 0;
+            for (int i = 0; i < len; i++) {
+                if (data[i] == 0) {
+                    if (i > start) {
+                        candidates.add(new String(data, start, i - start, StandardCharsets.UTF_8));
+                    }
+                    start = i + 1;
+                }
+            }
+            return candidates;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Compute Levenshtein distance between two strings.
+     */
+    public int levenshtein(String a, String b) {
+        if (levenshteinHandle == null || a == null || b == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cA = temp.allocateFrom(a);
+            MemorySegment cB = temp.allocateFrom(b);
+            return (int) levenshteinHandle.invokeExact(cA, cB);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Compute Damerau-Levenshtein distance (allows transpositions).
+     */
+    public int damerauLevenshtein(String a, String b) {
+        if (damerauLevenshteinHandle == null || a == null || b == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cA = temp.allocateFrom(a);
+            MemorySegment cB = temp.allocateFrom(b);
+            return (int) damerauLevenshteinHandle.invokeExact(cA, cB);
+        } catch (Throwable t) {
+            return -1;
         }
     }
 

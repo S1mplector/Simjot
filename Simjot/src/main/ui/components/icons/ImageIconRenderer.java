@@ -215,7 +215,11 @@ public final class ImageIconRenderer {
         if (srcW <= 0 || srcH <= 0) return null;
         if (srcW == target && srcH == target) return src;
 
-        // Progressive downscale for better sharpness when shrinking a lot
+        // Try native SIMD-accelerated scaling first
+        BufferedImage nativeScaled = tryNativeScale(src, srcW, srcH, target);
+        if (nativeScaled != null) return nativeScaled;
+
+        // Java fallback: Progressive downscale for better sharpness when shrinking a lot
         BufferedImage current = src;
         int cw = srcW;
         int ch = srcH;
@@ -251,6 +255,33 @@ public final class ImageIconRenderer {
         g.dispose();
         if (current != src) current.flush();
         return scaled;
+    }
+
+    private static BufferedImage tryNativeScale(BufferedImage src, int srcW, int srcH, int target) {
+        try {
+            if (!main.infrastructure.ffi.NativeAccess.imageScaleReady()) return null;
+            
+            // Calculate target dimensions maintaining aspect ratio
+            float scale = Math.min((float) target / srcW, (float) target / srcH);
+            int drawW = Math.max(1, Math.round(srcW * scale));
+            int drawH = Math.max(1, Math.round(srcH * scale));
+            
+            // Use native scaling with quality=1 (balanced)
+            BufferedImage scaledContent = main.infrastructure.ffi.NativeAccess.imageScale(src, drawW, drawH, 1);
+            if (scaledContent == null) return null;
+            
+            // Center in target-sized image
+            BufferedImage result = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = result.createGraphics();
+            int drawX = (target - drawW) / 2;
+            int drawY = (target - drawH) / 2;
+            g.drawImage(scaledContent, drawX, drawY, null);
+            g.dispose();
+            scaledContent.flush();
+            return result;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static BufferedImage loadSourceImage(String path, int target){

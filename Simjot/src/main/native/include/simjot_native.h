@@ -540,6 +540,54 @@ int32_t simjot_profiler_get_summary(uint8_t* out, int32_t out_len);
 int32_t simjot_profiler_print_report(char* out, int32_t out_len);
 int32_t simjot_profiler_status_line(char* out, int32_t out_len);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * IMAGE SCALING - SIMD-accelerated resize
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Bilinear interpolation (fast) */
+int32_t simjot_image_scale_bilinear(const uint32_t* src, int32_t src_w, int32_t src_h,
+                                     uint32_t* dst, int32_t dst_w, int32_t dst_h);
+
+/* Bicubic interpolation (high quality) */
+int32_t simjot_image_scale_bicubic(const uint32_t* src, int32_t src_w, int32_t src_h,
+                                    uint32_t* dst, int32_t dst_w, int32_t dst_h);
+
+/* Progressive downscale (best for large reductions) */
+int32_t simjot_image_scale_progressive(const uint32_t* src, int32_t src_w, int32_t src_h,
+                                        uint32_t* dst, int32_t dst_w, int32_t dst_h);
+
+/* Auto-select algorithm: quality 0=fast, 1=balanced, 2=best */
+int32_t simjot_image_scale(const uint32_t* src, int32_t src_w, int32_t src_h,
+                            uint32_t* dst, int32_t dst_w, int32_t dst_h,
+                            int32_t quality);
+
+/* Gaussian blur (separable) */
+int32_t simjot_image_blur(uint32_t* pixels, int32_t width, int32_t height, int32_t radius);
+
+/* Tint image with color */
+int32_t simjot_image_tint(uint32_t* pixels, int32_t width, int32_t height,
+                           uint32_t tint_color, float intensity);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SPELL CHECK - Edit distance and candidate generation
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Generate edit-distance-1 candidates (null-separated output) */
+int32_t simjot_spell_edit1(const char* word, char* output, int32_t output_len);
+
+/* Generate edit-distance-2 candidates (limited for performance) */
+int32_t simjot_spell_edit2(const char* word, char* output, int32_t output_len);
+
+/* Levenshtein distance */
+int32_t simjot_levenshtein(const char* a, const char* b);
+
+/* Damerau-Levenshtein distance (with transpositions) */
+int32_t simjot_damerau_levenshtein(const char* a, const char* b);
+
+/* Batch Levenshtein: compute distance to multiple candidates */
+int32_t simjot_levenshtein_batch(const char* word, const char* candidates, int32_t candidates_len,
+                                  int32_t* distances, int32_t max_results);
+
 #ifdef __cplusplus
 }
 #endif

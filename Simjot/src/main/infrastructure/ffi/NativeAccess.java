@@ -2852,4 +2852,157 @@ public final class NativeAccess {
         // TODO: Wire FFM binding when ready
         return null;
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NATIVE IMAGE SCALING - SIMD-accelerated resize
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native image scaling is available.
+     */
+    public static boolean imageScaleReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasImageScaleSupport();
+    }
+
+    /**
+     * Scale image using native SIMD-accelerated resize.
+     * @param src Source BufferedImage
+     * @param dstW Destination width
+     * @param dstH Destination height
+     * @param quality 0=fast, 1=balanced, 2=best
+     * @return Scaled BufferedImage or null if native unavailable
+     */
+    public static java.awt.image.BufferedImage imageScale(java.awt.image.BufferedImage src, 
+                                                           int dstW, int dstH, int quality) {
+        NativeLibrary lib = library();
+        if (lib == null || src == null || !lib.hasImageScaleSupport()) return null;
+        
+        try {
+            int srcW = src.getWidth();
+            int srcH = src.getHeight();
+            
+            // Extract pixels
+            int[] srcPixels = new int[srcW * srcH];
+            src.getRGB(0, 0, srcW, srcH, srcPixels, 0, srcW);
+            
+            // Native scale
+            int[] dstPixels = lib.imageScale(srcPixels, srcW, srcH, dstW, dstH, quality);
+            if (dstPixels == null) return null;
+            
+            // Create result image
+            java.awt.image.BufferedImage dst = new java.awt.image.BufferedImage(
+                dstW, dstH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            dst.setRGB(0, 0, dstW, dstH, dstPixels, 0, dstW);
+            return dst;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Apply Gaussian blur to image.
+     * @param img Image to blur (modified in place)
+     * @param radius Blur radius
+     * @return true if successful
+     */
+    public static boolean imageBlur(java.awt.image.BufferedImage img, int radius) {
+        NativeLibrary lib = library();
+        if (lib == null || img == null) return false;
+        
+        try {
+            int w = img.getWidth();
+            int h = img.getHeight();
+            int[] pixels = new int[w * h];
+            img.getRGB(0, 0, w, h, pixels, 0, w);
+            
+            if (!lib.imageBlur(pixels, w, h, radius)) return false;
+            
+            img.setRGB(0, 0, w, h, pixels, 0, w);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Tint image with a color.
+     * @param img Image to tint (modified in place)
+     * @param tintColor ARGB tint color
+     * @param intensity Tint intensity (0.0-1.0)
+     * @return true if successful
+     */
+    public static boolean imageTint(java.awt.image.BufferedImage img, int tintColor, float intensity) {
+        NativeLibrary lib = library();
+        if (lib == null || img == null) return false;
+        
+        try {
+            int w = img.getWidth();
+            int h = img.getHeight();
+            int[] pixels = new int[w * h];
+            img.getRGB(0, 0, w, h, pixels, 0, w);
+            
+            if (!lib.imageTint(pixels, w, h, tintColor, intensity)) return false;
+            
+            img.setRGB(0, 0, w, h, pixels, 0, w);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NATIVE SPELL CHECK - Edit distance generation
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native spell check functions are available.
+     */
+    public static boolean spellEditReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasSpellEditSupport();
+    }
+
+    /**
+     * Generate edit-distance-1 candidates for a word.
+     * @param word Input word
+     * @return List of candidate words or null if native unavailable
+     */
+    public static java.util.List<String> spellEdit1Candidates(String word) {
+        NativeLibrary lib = library();
+        if (lib == null || word == null) return null;
+        try {
+            return lib.spellEdit1Candidates(word);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Compute Levenshtein distance using native code.
+     * @return Distance or -1 if native unavailable
+     */
+    public static int nativeLevenshtein(String a, String b) {
+        NativeLibrary lib = library();
+        if (lib == null || a == null || b == null) return -1;
+        try {
+            return lib.levenshtein(a, b);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Compute Damerau-Levenshtein distance using native code.
+     * @return Distance or -1 if native unavailable
+     */
+    public static int nativeDamerauLevenshtein(String a, String b) {
+        NativeLibrary lib = library();
+        if (lib == null || a == null || b == null) return -1;
+        try {
+            return lib.damerauLevenshtein(a, b);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
 }

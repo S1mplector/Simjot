@@ -306,9 +306,13 @@ public class SpellCheckEngine {
     }
     
     private int levenshtein(String a, String b) {
-        // Try native implementation first (SIMD-accelerated)
-        Integer nativeResult = NativeAccess.textLevenshtein(a, b);
-        if (nativeResult != null && nativeResult >= 0) return nativeResult;
+        // Try native optimized Levenshtein first
+        int nativeResult = NativeAccess.nativeLevenshtein(a, b);
+        if (nativeResult >= 0) return nativeResult;
+        
+        // Try legacy text utils
+        Integer legacyResult = NativeAccess.textLevenshtein(a, b);
+        if (legacyResult != null && legacyResult >= 0) return legacyResult;
         
         // Java fallback
         int[][] dp = new int[a.length() + 1][b.length() + 1];
