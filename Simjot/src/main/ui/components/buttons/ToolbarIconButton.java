@@ -31,7 +31,6 @@ import javax.swing.JButton;
 import javax.swing.Timer;
 
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.components.icons.VectorIconPainter;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
@@ -314,13 +313,11 @@ public class ToolbarIconButton extends JButton {
                 g2.draw(hole);
                 break; }
             case "delete": {
-                // Use cached raster image for exact reuse and lower paint cost
+                // Use ImageIconRenderer for delete icon
                 int size = Math.min(w, h) - 8;
-                java.awt.image.BufferedImage img = VectorIconPainter.getImage("delete", size);
-                if (img != null) {
-                    g2.drawImage(img, cx - size/2, cy - size/2, null);
-                } else {
-                    VectorIconPainter.paint(g2, "delete", cx - size/2, cy - size/2, size);
+                String resPath = ImageIconRenderer.mapIdToResource("delete");
+                if (resPath != null) {
+                    ImageIconRenderer.draw(g2, resPath, cx - size/2, cy - size/2, size, this, true);
                 }
                 break; }
             case "trash": {

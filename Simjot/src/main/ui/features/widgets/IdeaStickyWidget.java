@@ -12,17 +12,70 @@
 
 package main.ui.features.widgets;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
-import java.util.*;
-import javax.swing.*;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.IllegalComponentStateException;
+import java.awt.Paint;
+import java.awt.Point;
+import java.awt.RadialGradientPaint;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Properties;
+
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
+import javax.swing.Icon;
+import javax.swing.InputMap;
+import javax.swing.JButton;
+import javax.swing.JColorChooser;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JEditorPane;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JToolBar;
+import javax.swing.JWindow;
+import javax.swing.KeyStroke;
+import javax.swing.ListSelectionModel;
+
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.components.icons.ImageIconRenderer;
 
 /**
  * Sticky Notes widget: Manage multiple small notes, change background color,
@@ -307,7 +360,10 @@ public class IdeaStickyWidget implements Widget {
                     case "close" -> { g2.drawLine(x + m, y + m, x + w - m, y + h - m); g2.drawLine(x + m, y + h - m, x + w - m, y + m); }
                     case "save" -> { g2.drawRoundRect(x + m, y + m, w - 2*m, h - 2*m, 3, 3); int header = y + m + (h - 2*m)/3; g2.drawLine(x + m, header, x + w - m, header); int lw = (w - 2*m)/3; g2.drawRect(x + m + 2, y + m + 2, lw, lw); }
                     case "list" -> { int left = x + m, right = x + w - m; int y1 = y + m + 2; int y2 = cy; int y3 = y + h - m - 2; g2.drawLine(left, y1, right, y1); g2.drawLine(left, y2, right, y2); g2.drawLine(left, y3, right, y3); }
-                    case "delete" -> { try { main.ui.components.icons.VectorIconPainter.paint(g2, "delete", x, y, s); } catch (Throwable ignored) {} }
+                    case "delete" -> { 
+                        String resPath = main.ui.components.icons.ImageIconRenderer.mapIdToResource("delete");
+                        if (resPath != null) main.ui.components.icons.ImageIconRenderer.draw(g2, resPath, x, y, s, null, true);
+                    }
                     case "pin" -> {
                         int r = Math.max(10, s-6);
                         int hx = cx, hy = cy-2;

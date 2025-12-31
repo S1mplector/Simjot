@@ -12,12 +12,41 @@
 
 package main.ui.features.widgets;
 
-import java.awt.*;
-import java.awt.event.*;
-import javax.swing.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.Icon;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
+import javax.swing.Timer;
+
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.icons.VectorIconPainter;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
 
@@ -70,13 +99,8 @@ public class PomodoroWidget implements Widget {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 String res = ImageIconRenderer.mapIdToResource(id);
-                boolean drawn = false;
                 if (res != null) {
-                    drawn = ImageIconRenderer.draw(g2, res, x, y, s, c, true);
-                }
-                if (!drawn) {
-                    // Fallback to vector draw if image not found
-                    VectorIconPainter.paint(g2, id, x, y, s);
+                    ImageIconRenderer.draw(g2, res, x, y, s, c, true);
                 }
                 g2.dispose();
             }

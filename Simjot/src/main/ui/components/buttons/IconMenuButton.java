@@ -29,7 +29,6 @@ import java.awt.geom.RoundRectangle2D;
 import javax.swing.JButton;
 
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.components.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -95,14 +94,9 @@ public class IconMenuButton extends JButton {
         int iconSize = Math.min(w - 18, 48);
         int iconX = (w - iconSize) / 2;
         int iconY = 12 + ((enabled && hovering) ? 0 : 4); // nudge down a bit when idle
-        boolean drawn = false;
         String resPath = ImageIconRenderer.mapIdToResource(iconId);
         if (resPath != null) {
-            drawn = ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
-        }
-        if (!drawn) {
-            g2.setColor(AeroTheme.TEXT_PRIMARY);
-            VectorIconPainter.paint(g2, iconId, iconX, iconY, iconSize);
+            ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
         }
 
         // Caption (only when hovered and enabled)

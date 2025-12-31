@@ -12,14 +12,29 @@
 
 package main.ui.components.buttons;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.Paint;
+import java.awt.Point;
+import java.awt.Polygon;
+import java.awt.RadialGradientPaint;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
+
 import javax.swing.JButton;
 import javax.swing.SwingConstants;
+
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.components.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -249,10 +264,13 @@ public class MainMenuButton extends JButton {
                 g2.setStroke(new BasicStroke(1.2f));
                 g2.drawOval(x, y, s, s);
                 break; }
-            case "wrench":
-                // Delegate to shared painter for exact match
-                VectorIconPainter.paint(g2, "wrench", x, y, s);
-                break;
+            case "wrench": {
+                // Use ImageIconRenderer for wrench/settings icon
+                String resPath = ImageIconRenderer.mapIdToResource("wrench");
+                if (resPath != null) {
+                    ImageIconRenderer.draw(g2, resPath, x, y, s, this, true);
+                }
+                break; }
             case "clock": {
                 // Glossy regular analog clock for Pomodoro
                 int cx = x + s/2; int cy = y + s/2;

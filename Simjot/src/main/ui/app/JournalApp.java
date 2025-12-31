@@ -1347,17 +1347,7 @@ public class JournalApp extends JFrame {
                         }
                     } catch (Throwable ignored) {}
 
-                    publish("Warming vector icons…");
-                    try {
-                        int[] sizes = {16,20,24,32,48,64};
-                        String[] ids = {"notebook","pencil","image","smile","wrench","clock","tick","breath"};
-                        for (int s : sizes) {
-                            for (String id : ids) {
-                                try { main.ui.components.icons.VectorIconPainter.getImage(id, s); } catch (Throwable ignored2) {}
-                            }
-                        }
-                    } catch (Throwable ignored) {}
-                    try { Thread.sleep(120); } catch (InterruptedException ignored) {}
+                    try { Thread.sleep(60); } catch (InterruptedException ignored) {}
 
                     // Warm template manager (built-ins + globals) so template dialogs are instant
                     publish("Loading templates…");

@@ -23,7 +23,6 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.components.icons.VectorIconPainter;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -77,14 +76,9 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         int iconSize = Math.min(w, h) - 12;
         int ix = (w - iconSize) / 2;
         int iy = (h - iconSize) / 2;
-        boolean drawn = false;
         String res = ImageIconRenderer.mapIdToResource(iconId);
         if (res != null) {
-            drawn = ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
-        }
-        if (!drawn) {
-            g2.setColor(AeroTheme.TEXT_PRIMARY);
-            VectorIconPainter.paint(g2, iconId, ix, iy, iconSize);
+            ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
         }
 
         // Caption appears on hover/press as inline overlay
