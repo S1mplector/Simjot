@@ -77,23 +77,39 @@ class DebugSettingsPage extends JPanel implements SettingsPage {
     private double lastCpuPercent;
 
     DebugSettingsPage() {
-        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        setLayout(new BorderLayout());
         setOpaque(true);
         setBackground(Color.WHITE);
-        setBorder(new EmptyBorder(0, 0, 20, 0));
+        
+        // Content panel with centered layout
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.setBorder(new EmptyBorder(0, 0, 20, 0));
         
         // Header
         JPanel header = SettingsUi.header("Debug", "Performance diagnostics and binary health checks");
-        header.setAlignmentX(LEFT_ALIGNMENT);
-        add(header);
-        add(Box.createVerticalStrut(20));
+        header.setAlignmentX(CENTER_ALIGNMENT);
+        content.add(header);
+        content.add(Box.createVerticalStrut(20));
         
         // Performance section
-        add(buildPerformanceSection());
-        add(Box.createVerticalStrut(24));
+        JPanel perfSection = buildPerformanceSection();
+        perfSection.setAlignmentX(CENTER_ALIGNMENT);
+        content.add(perfSection);
+        content.add(Box.createVerticalStrut(24));
         
         // Binary Health section
-        add(buildBinaryHealthSection());
+        JPanel healthSection = buildBinaryHealthSection();
+        healthSection.setAlignmentX(CENTER_ALIGNMENT);
+        content.add(healthSection);
+        
+        // Wrap in a top-aligned panel to prevent vertical stretching
+        JPanel topWrapper = new JPanel(new BorderLayout());
+        topWrapper.setOpaque(false);
+        topWrapper.add(content, BorderLayout.NORTH);
+        
+        add(topWrapper, BorderLayout.CENTER);
         
         // Start refresh timer
         Timer timer = new Timer(1000, e -> refreshPerformance());
@@ -114,13 +130,13 @@ class DebugSettingsPage extends JPanel implements SettingsPage {
         JPanel section = new JPanel();
         section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
         section.setOpaque(false);
-        section.setAlignmentX(LEFT_ALIGNMENT);
         
         // Section header with status
         JPanel headerRow = new JPanel(new BorderLayout());
         headerRow.setOpaque(false);
-        headerRow.setAlignmentX(LEFT_ALIGNMENT);
-        headerRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        headerRow.setAlignmentX(CENTER_ALIGNMENT);
+        headerRow.setMaximumSize(new Dimension(560, 30));
+        headerRow.setPreferredSize(new Dimension(560, 30));
         
         JLabel sectionTitle = new JLabel("Performance");
         sectionTitle.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 14f));
@@ -138,8 +154,9 @@ class DebugSettingsPage extends JPanel implements SettingsPage {
         // Metric cards row
         JPanel cardsPanel = new JPanel(new GridLayout(1, 3, 12, 0));
         cardsPanel.setOpaque(false);
-        cardsPanel.setAlignmentX(LEFT_ALIGNMENT);
+        cardsPanel.setAlignmentX(CENTER_ALIGNMENT);
         cardsPanel.setMaximumSize(new Dimension(560, 100));
+        cardsPanel.setPreferredSize(new Dimension(560, 100));
         
         cpuCard = new MetricCard("CPU Usage", "--", CPU_COLOR);
         ramCard = new MetricCard("App Memory", "--", RAM_COLOR);
@@ -154,7 +171,8 @@ class DebugSettingsPage extends JPanel implements SettingsPage {
         // Additional info row
         JPanel infoRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 0));
         infoRow.setOpaque(false);
-        infoRow.setAlignmentX(LEFT_ALIGNMENT);
+        infoRow.setAlignmentX(CENTER_ALIGNMENT);
+        infoRow.setMaximumSize(new Dimension(560, 40));
         
         coreLabel = createInfoLabel("Cores", "--");
         cpuTimeLabel = createInfoLabel("CPU Time", "--");
@@ -182,26 +200,33 @@ class DebugSettingsPage extends JPanel implements SettingsPage {
         JPanel section = new JPanel();
         section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
         section.setOpaque(false);
-        section.setAlignmentX(LEFT_ALIGNMENT);
+        
+        // Header panel with title and subtitle
+        JPanel headerPanel = new JPanel();
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setOpaque(false);
+        headerPanel.setAlignmentX(CENTER_ALIGNMENT);
+        headerPanel.setMaximumSize(new Dimension(560, 40));
         
         JLabel sectionTitle = new JLabel("Binary Health");
         sectionTitle.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 14f));
         sectionTitle.setForeground(new Color(30, 41, 59));
-        sectionTitle.setAlignmentX(LEFT_ALIGNMENT);
-        section.add(sectionTitle);
+        headerPanel.add(sectionTitle);
         
         JLabel subtitle = new JLabel("Verify integrity of critical application files");
         subtitle.setFont(AeroTheme.defaultFont().deriveFont(11f));
         subtitle.setForeground(ACCENT_SUBTLE);
-        subtitle.setAlignmentX(LEFT_ALIGNMENT);
-        section.add(subtitle);
+        headerPanel.add(subtitle);
+        
+        section.add(headerPanel);
         section.add(Box.createVerticalStrut(12));
         
         // Health cards
         JPanel cardsPanel = new JPanel(new GridLayout(1, 2, 12, 0));
         cardsPanel.setOpaque(false);
-        cardsPanel.setAlignmentX(LEFT_ALIGNMENT);
+        cardsPanel.setAlignmentX(CENTER_ALIGNMENT);
         cardsPanel.setMaximumSize(new Dimension(560, 160));
+        cardsPanel.setPreferredSize(new Dimension(560, 160));
         
         appHealthCard = new BinaryHealthCard("Application Binary", "JAR executable", e -> verifyAppBinary());
         nativeHealthCard = new BinaryHealthCard("Native Library", "Platform-specific library", e -> verifyNativeBinary());
