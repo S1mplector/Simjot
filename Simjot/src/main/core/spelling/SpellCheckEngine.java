@@ -289,6 +289,11 @@ public class SpellCheckEngine {
     }
     
     private int levenshtein(String a, String b) {
+        // Try native implementation first (SIMD-accelerated)
+        Integer nativeResult = NativeAccess.textLevenshtein(a, b);
+        if (nativeResult != null && nativeResult >= 0) return nativeResult;
+        
+        // Java fallback
         int[][] dp = new int[a.length() + 1][b.length() + 1];
         for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
         for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
@@ -299,6 +304,26 @@ public class SpellCheckEngine {
             }
         }
         return dp[a.length()][b.length()];
+    }
+    
+    /**
+     * Use native fuzzy matching for spell suggestions when available.
+     */
+    public boolean fuzzyMatch(String text, String query) {
+        Boolean result = NativeAccess.textFuzzyMatch(text, query);
+        if (result != null) return result;
+        // Java fallback: simple contains check
+        return text.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT));
+    }
+    
+    /**
+     * Get fuzzy match score using native implementation.
+     */
+    public int fuzzyScore(String text, String query) {
+        Integer score = NativeAccess.textFuzzyScore(text, query);
+        if (score != null) return score;
+        // Java fallback: simple similarity
+        return 100 - levenshtein(text.toLowerCase(Locale.ROOT), query.toLowerCase(Locale.ROOT)) * 10;
     }
     
     public static class SpellError {

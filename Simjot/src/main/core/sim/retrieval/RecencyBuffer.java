@@ -67,6 +67,17 @@ public final class RecencyBuffer {
     }
 
     private static String sanitize(String s){
+        if (s == null || s.isEmpty()) return "";
+        
+        // Try native sanitization first (faster)
+        String nativeSanitized = NativeAccess.stringSanitize(s);
+        if (nativeSanitized != null) {
+            String out = nativeSanitized.trim();
+            if (out.length() > 240) out = out.substring(0, 239) + "…";
+            return out;
+        }
+        
+        // Java fallback
         String out = s.replace('\n',' ').replace('\r',' ');
         out = out.replaceAll("\\s+"," ").trim();
         if (out.length() > 240) out = out.substring(0,239) + "…";
