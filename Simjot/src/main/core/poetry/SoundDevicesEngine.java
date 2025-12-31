@@ -29,6 +29,17 @@ import java.util.regex.Pattern;
  * SoundDevicesEngine 
  * 
  * Sound devices detection of alliteration, assonance, and consonance.
+ * Also detects sibilance and onomatopoeia.
+ * Analyzes poems line by line for sound patterns.
+ * Provides summary statistics of detected sound devices.
+ * 
+ * Meant for use in poetry analysis and educational tools.
+ * Integrates with other poetry analysis components.
+ * Handles edge cases like short lines and punctuation.
+ * Robust against null or empty input.
+ * Scalable to longer poems with many lines.
+ * Thread-safe for concurrent use.
+ * Extensible for future sound device types.
  * 
  * Features:
  * - Alliteration detection (repeated initial consonant sounds)
@@ -452,6 +463,39 @@ public class SoundDevicesEngine {
             }
         }
         
+        return devices;
+    }
+
+    /**
+     * Detect internal rhymes within a line.
+     */
+    private List<SoundDevice> detectInternalRhymes(List<WordInfo> words, int lineNumber) {
+        List<SoundDevice> devices = new ArrayList<>();
+        Map<String, List<WordInfo>> rhymeGroups = new HashMap<>();
+
+        for (WordInfo word : words) {
+            String lower = word.word.toLowerCase(Locale.ROOT);
+            if (PoetryDictionary.isFunctionWord(lower)) continue;
+            String key = PoetryUtils.rhymeKey(lower);
+            if (key == null || key.length() < 2) continue;
+            rhymeGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(word);
+        }
+
+        for (Map.Entry<String, List<WordInfo>> e : rhymeGroups.entrySet()) {
+            List<WordInfo> group = e.getValue();
+            if (group.size() < 2) continue;
+            List<List<WordInfo>> clusters = clusterByProximity(group, 6);
+            for (List<WordInfo> cluster : clusters) {
+                if (cluster.size() < 2) continue;
+                List<WordMatch> matches = cluster.stream()
+                        .map(w -> new WordMatch(w.word, w.start, w.end, e.getKey(), w.index))
+                        .toList();
+                double strength = Math.min(1.0, cluster.size() / 3.0);
+                devices.add(new SoundDevice(SoundDevice.Type.INTERNAL_RHYME, matches,
+                        e.getKey(), lineNumber, strength));
+            }
+        }
+
         return devices;
     }
     

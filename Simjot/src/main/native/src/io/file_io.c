@@ -12,9 +12,31 @@
 
 /**
  * File I/O helpers for atomic writes and space checks.
+ * Provides functions for:
+ * - Atomic file writing to ensure data integrity.
+ * - Checking available disk space.
+ * - Efficient file copying with attribute preservation.
+ *
  * Meant to be used only on POSIX systems, but stubs are provided for Windows.
- * @author S1mplector
+ * Depends on standard C library and POSIX APIs.
+ * Works with C17 standard.
+ * Written in a portable manner with fallbacks for different Unix-like systems.
+ * Use cases include safely writing files atomically, checking disk space,
+ * and copying files efficiently while preserving attributes.
+ * It is designed to be easy to use and integrate into existing codebases.
  * 
+ * Depending on your preference, you may modify the error handling strategy to suit your needs.
+ * This may include changing the logging behavior, adjusting the level of detail in error messages,
+ * or implementing custom recovery actions in response to specific errors.
+ * 
+ * So, feel free to adapt the error handling to align with your application's requirements and coding standards.
+ * Regarding memory safety, this code takes care to allocate and free memory appropriately.
+ * However, it is always advisable to review and test the code in the context of your specific
+ * application to ensure it meets your memory safety standards and practices.
+ * No guarantees are made about memory safety beyond standard C practices.
+ * Use with caution and perform your own validation as needed.
+ * 
+ * @author S1mplector
  */
 
 #include "simjot_native.h"
