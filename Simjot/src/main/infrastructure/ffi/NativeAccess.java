@@ -2486,8 +2486,13 @@ public final class NativeAccess {
      * Returns words as a list.
      */
     public static java.util.List<String> jsonLoadDictWords(String filePath) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null || filePath == null) return null;
+        try {
+            return lib.jsonLoadDictWords(filePath);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2499,8 +2504,13 @@ public final class NativeAccess {
      * @return Number of samples parsed, or negative on error
      */
     public static int moodLoad(String filePath) {
-        // TODO: Wire FFM binding when ready
-        return -1;
+        NativeLibrary lib = library();
+        if (lib == null || filePath == null) return -1;
+        try {
+            return lib.moodLoad(filePath);
+        } catch (Throwable t) {
+            return -1;
+        }
     }
 
     /**
@@ -2509,8 +2519,13 @@ public final class NativeAccess {
      * @return Number of days with data
      */
     public static int moodComputeDaily(int daysBack) {
-        // TODO: Wire FFM binding when ready
-        return -1;
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.moodComputeDaily(daysBack);
+        } catch (Throwable t) {
+            return -1;
+        }
     }
 
     /**
@@ -2518,8 +2533,13 @@ public final class NativeAccess {
      * @param threshold Good/bad mood threshold (typically 60)
      */
     public static int moodComputeSummary(int threshold) {
-        // TODO: Wire FFM binding when ready
-        return -1;
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.moodComputeSummary(threshold);
+        } catch (Throwable t) {
+            return -1;
+        }
     }
 
     /**
@@ -2539,23 +2559,47 @@ public final class NativeAccess {
      * Get analytics summary after computing.
      */
     public static MoodSummary moodGetSummary() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            byte[] data = lib.moodGetSummary();
+            if (data == null || data.length < 56) return null;
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            double overallAvg = buf.getDouble();
+            double volatility = buf.getDouble();
+            int currentStreak = buf.getInt();
+            int longestGood = buf.getInt();
+            int longestBad = buf.getInt();
+            int totalSamples = buf.getInt();
+            int totalDays = buf.getInt();
+            return new MoodSummary(overallAvg, volatility, currentStreak, longestGood, longestBad, totalSamples, totalDays);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
      * Get number of daily stats entries.
      */
     public static int moodDailyCount() {
-        // TODO: Wire FFM binding when ready
-        return 0;
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.moodDailyCount();
+        } catch (Throwable t) {
+            return 0;
+        }
     }
 
     /**
      * Clear all loaded mood data.
      */
     public static void moodClear() {
-        // TODO: Wire FFM binding when ready
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.moodClear();
+        } catch (Throwable ignored) {}
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2574,8 +2618,19 @@ public final class NativeAccess {
      */
     public static java.awt.image.BufferedImage moodSparkline(int[] values, int width, int height, 
                                                               int bgColor, int lineThickness) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null || values == null || values.length == 0) return null;
+        try {
+            int[] pixels = lib.moodSparkline(values, width, height, bgColor, lineThickness);
+            if (pixels == null) return null;
+            
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
+                width, height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            img.setRGB(0, 0, width, height, pixels, 0, width);
+            return img;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
@@ -2590,8 +2645,19 @@ public final class NativeAccess {
      */
     public static java.awt.image.BufferedImage moodBarChart(int[] values, int width, int height,
                                                              int bgColor, int barSpacing) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null || values == null || values.length == 0) return null;
+        try {
+            int[] pixels = lib.moodBarChart(values, width, height, bgColor, barSpacing);
+            if (pixels == null) return null;
+            
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
+                width, height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            img.setRGB(0, 0, width, height, pixels, 0, width);
+            return img;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
@@ -2606,8 +2672,19 @@ public final class NativeAccess {
      */
     public static java.awt.image.BufferedImage moodGauge(int value, int size,
                                                           int bgColor, int trackColor, int thickness) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            int[] pixels = lib.moodGauge(value, size, bgColor, trackColor, thickness);
+            if (pixels == null) return null;
+            
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
+                size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            img.setRGB(0, 0, size, size, pixels, 0, size);
+            return img;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
@@ -2624,8 +2701,24 @@ public final class NativeAccess {
     public static java.awt.image.BufferedImage moodHeatmap(int[] values, int cols,
                                                             int cellSize, int cellGap,
                                                             int bgColor, int emptyColor) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null || values == null || values.length == 0) return null;
+        try {
+            int rows = (values.length + cols - 1) / cols;
+            int width = cols * (cellSize + cellGap) - cellGap;
+            int height = rows * (cellSize + cellGap) - cellGap;
+            
+            int[] pixels = lib.moodHeatmap(values, cols, cellSize, cellGap, 
+                                            width, height, bgColor, emptyColor);
+            if (pixels == null) return null;
+            
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
+                width, height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            img.setRGB(0, 0, width, height, pixels, 0, width);
+            return img;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

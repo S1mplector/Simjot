@@ -204,6 +204,24 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle cacheGetHandle;
     private final MethodHandle cacheSizeHandle;
     
+    // Mood analytics handles
+    private final MethodHandle moodLoadHandle;
+    private final MethodHandle moodComputeDailyHandle;
+    private final MethodHandle moodComputeSummaryHandle;
+    private final MethodHandle moodGetSummaryHandle;
+    private final MethodHandle moodDailyCountHandle;
+    private final MethodHandle moodSampleCountHandle;
+    private final MethodHandle moodClearHandle;
+    
+    // Mood graphics handles
+    private final MethodHandle moodSparklineHandle;
+    private final MethodHandle moodBarchartHandle;
+    private final MethodHandle moodGaugeHandle;
+    private final MethodHandle moodHeatmapHandle;
+    
+    // Dictionary JSON handles
+    private final MethodHandle jsonLoadDictFileHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
@@ -603,6 +621,48 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.cacheSizeHandle = optionalHandle("simjot_cache_size",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        
+        // Mood analytics handles
+        this.moodLoadHandle = optionalHandle("simjot_mood_load",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.moodComputeDailyHandle = optionalHandle("simjot_mood_compute_daily",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.moodComputeSummaryHandle = optionalHandle("simjot_mood_compute_summary",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.moodGetSummaryHandle = optionalHandle("simjot_mood_get_summary",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.moodDailyCountHandle = optionalHandle("simjot_mood_daily_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.moodSampleCountHandle = optionalHandle("simjot_mood_sample_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.moodClearHandle = optionalHandle("simjot_mood_clear",
+            FunctionDescriptor.ofVoid());
+        
+        // Mood graphics handles
+        // int32_t simjot_mood_sparkline(const int32_t* values, int32_t count, int32_t width, int32_t height, uint32_t* out, uint32_t bg_color, int32_t line_thickness)
+        this.moodSparklineHandle = optionalHandle("simjot_mood_sparkline",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, 
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        // int32_t simjot_mood_barchart(const int32_t* values, int32_t count, int32_t width, int32_t height, uint32_t* out, uint32_t bg_color, int32_t bar_spacing)
+        this.moodBarchartHandle = optionalHandle("simjot_mood_barchart",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        // int32_t simjot_mood_gauge(int32_t value, int32_t size, uint32_t* out, uint32_t bg_color, uint32_t track_color, int32_t thickness)
+        this.moodGaugeHandle = optionalHandle("simjot_mood_gauge",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        // int32_t simjot_mood_heatmap(const int32_t* values, int32_t count, int32_t cols, int32_t cell_size, int32_t cell_gap, uint32_t* out, int32_t out_width, int32_t out_height, uint32_t bg_color, uint32_t empty_color)
+        this.moodHeatmapHandle = optionalHandle("simjot_mood_heatmap",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        
+        // Dictionary JSON handles
+        this.jsonLoadDictFileHandle = optionalHandle("simjot_json_load_dict_file",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -2741,6 +2801,260 @@ public final class NativeLibrary implements AutoCloseable {
             return (long) handle.invokeExact();
         } catch (Throwable e) {
             return System.nanoTime() / 1_000_000L;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MOOD ANALYTICS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Load and parse mood log file.
+     * @return Number of samples parsed, or negative on error
+     */
+    public int moodLoad(String filePath) {
+        if (moodLoadHandle == null || filePath == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cPath = temp.allocateFrom(filePath);
+            return (int) moodLoadHandle.invokeExact(cPath);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Compute daily statistics from loaded samples.
+     * @param daysBack Number of days to analyze (0 = all time)
+     * @return Number of days with data
+     */
+    public int moodComputeDaily(int daysBack) {
+        if (moodComputeDailyHandle == null) return -1;
+        try {
+            return (int) moodComputeDailyHandle.invokeExact(daysBack);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Compute analytics summary.
+     * @param threshold Good/bad mood threshold (typically 60)
+     */
+    public int moodComputeSummary(int threshold) {
+        if (moodComputeSummaryHandle == null) return -1;
+        try {
+            return (int) moodComputeSummaryHandle.invokeExact(threshold);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Get analytics summary as binary data.
+     * Format: 8 doubles (overall_avg, volatility, etc.) + 4 ints (streaks, counts)
+     */
+    public byte[] moodGetSummary() {
+        if (moodGetSummaryHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int outLen = 128;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) moodGetSummaryHandle.invokeExact(out, outLen);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Get number of daily stats entries.
+     */
+    public int moodDailyCount() {
+        if (moodDailyCountHandle == null) return 0;
+        try {
+            return (int) moodDailyCountHandle.invokeExact();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get number of samples loaded.
+     */
+    public int moodSampleCount() {
+        if (moodSampleCountHandle == null) return 0;
+        try {
+            return (int) moodSampleCountHandle.invokeExact();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
+     * Clear all loaded mood data.
+     */
+    public void moodClear() {
+        if (moodClearHandle == null) return;
+        try {
+            moodClearHandle.invokeExact();
+        } catch (Throwable ignored) {}
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MOOD GRAPHICS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Render a mood sparkline chart.
+     * @return ARGB pixel array or null on failure
+     */
+    public int[] moodSparkline(int[] values, int width, int height, int bgColor, int lineThickness) {
+        if (moodSparklineHandle == null || values == null || values.length == 0) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            // Allocate input array
+            MemorySegment valuesSegment = temp.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                valuesSegment.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            // Allocate output buffer
+            int pixelCount = width * height;
+            MemorySegment outSegment = temp.allocate(ValueLayout.JAVA_INT, pixelCount);
+            
+            int result = (int) moodSparklineHandle.invokeExact(
+                valuesSegment, values.length, width, height, outSegment, bgColor, lineThickness);
+            if (result <= 0) return null;
+            
+            // Copy output to int array
+            int[] pixels = new int[pixelCount];
+            for (int i = 0; i < pixelCount; i++) {
+                pixels[i] = outSegment.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return pixels;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Render a mood bar chart.
+     * @return ARGB pixel array or null on failure
+     */
+    public int[] moodBarChart(int[] values, int width, int height, int bgColor, int barSpacing) {
+        if (moodBarchartHandle == null || values == null || values.length == 0) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment valuesSegment = temp.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                valuesSegment.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            int pixelCount = width * height;
+            MemorySegment outSegment = temp.allocate(ValueLayout.JAVA_INT, pixelCount);
+            
+            int result = (int) moodBarchartHandle.invokeExact(
+                valuesSegment, values.length, width, height, outSegment, bgColor, barSpacing);
+            if (result <= 0) return null;
+            
+            int[] pixels = new int[pixelCount];
+            for (int i = 0; i < pixelCount; i++) {
+                pixels[i] = outSegment.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return pixels;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Render a mood gauge.
+     * @return ARGB pixel array or null on failure
+     */
+    public int[] moodGauge(int value, int size, int bgColor, int trackColor, int thickness) {
+        if (moodGaugeHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int pixelCount = size * size;
+            MemorySegment outSegment = temp.allocate(ValueLayout.JAVA_INT, pixelCount);
+            
+            int result = (int) moodGaugeHandle.invokeExact(
+                value, size, outSegment, bgColor, trackColor, thickness);
+            if (result <= 0) return null;
+            
+            int[] pixels = new int[pixelCount];
+            for (int i = 0; i < pixelCount; i++) {
+                pixels[i] = outSegment.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return pixels;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Render a mood heatmap.
+     * @return ARGB pixel array or null on failure
+     */
+    public int[] moodHeatmap(int[] values, int cols, int cellSize, int cellGap,
+                             int outWidth, int outHeight, int bgColor, int emptyColor) {
+        if (moodHeatmapHandle == null || values == null || values.length == 0) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment valuesSegment = temp.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                valuesSegment.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            int pixelCount = outWidth * outHeight;
+            MemorySegment outSegment = temp.allocate(ValueLayout.JAVA_INT, pixelCount);
+            
+            int result = (int) moodHeatmapHandle.invokeExact(
+                valuesSegment, values.length, cols, cellSize, cellGap,
+                outSegment, outWidth, outHeight, bgColor, emptyColor);
+            if (result <= 0) return null;
+            
+            int[] pixels = new int[pixelCount];
+            for (int i = 0; i < pixelCount; i++) {
+                pixels[i] = outSegment.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return pixels;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DICTIONARY JSON API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Load dictionary words from JSON file.
+     * @return List of words or null on failure
+     */
+    public List<String> jsonLoadDictWords(String filePath) {
+        if (jsonLoadDictFileHandle == null || filePath == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cPath = temp.allocateFrom(filePath);
+            // Start with a reasonably large buffer
+            int outLen = 1024 * 1024; // 1MB
+            MemorySegment out = temp.allocate(outLen);
+            
+            int len = (int) jsonLoadDictFileHandle.invokeExact(cPath, out, outLen);
+            if (len <= 0) return null;
+            
+            // Parse null-separated words
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            
+            List<String> words = new ArrayList<>();
+            int start = 0;
+            for (int i = 0; i < len; i++) {
+                if (data[i] == 0) {
+                    if (i > start) {
+                        words.add(new String(data, start, i - start, StandardCharsets.UTF_8));
+                    }
+                    start = i + 1;
+                }
+            }
+            return words;
+        } catch (Throwable t) {
+            return null;
         }
     }
 
