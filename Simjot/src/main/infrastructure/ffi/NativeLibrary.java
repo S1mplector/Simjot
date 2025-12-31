@@ -57,6 +57,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle dictContainsHandle;
     private final MethodHandle dictLookupHandle;
     private final MethodHandle dictRhymesHandle;
+    private final MethodHandle dictSizeHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -155,6 +156,10 @@ public final class NativeLibrary implements AutoCloseable {
         this.dictRhymesHandle = optionalHandle(
             "simjot_dict_rhymes_for",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.dictSizeHandle = optionalHandle(
+            "simjot_dict_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT)
         );
     }
 
@@ -320,6 +325,16 @@ public final class NativeLibrary implements AutoCloseable {
 
     public boolean hasDictionaryRhymesSupport() {
         return dictRhymesHandle != null;
+    }
+
+    public Integer dictionarySize() {
+        if (dictSizeHandle == null) return null;
+        try {
+            int size = (int) dictSizeHandle.invokeExact();
+            return size > 0 ? size : null;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_dict_size", t);
+        }
     }
 
     public boolean setDictionaryBasePath(Path path) {

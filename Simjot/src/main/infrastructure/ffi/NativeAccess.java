@@ -224,6 +224,18 @@ public final class NativeAccess {
         }
     }
 
+    public static Integer dictionarySize() {
+        if (!dictionaryReady()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.dictionarySize();
+        } catch (Throwable t) {
+            IoLog.warn("native-dict", "Native dictionary size failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
     private static List<String> readStringList(ByteBuffer buf, int count) {
         if (count <= 0) return Collections.emptyList();
         List<String> out = new ArrayList<>(count);

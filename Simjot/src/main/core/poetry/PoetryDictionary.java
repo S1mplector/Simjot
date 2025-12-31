@@ -533,6 +533,8 @@ public final class PoetryDictionary {
      * Get dictionary size.
      */
     public static int size() {
+        Integer nativeSize = NativeAccess.dictionarySize();
+        if (nativeSize != null && nativeSize > 0) return nativeSize;
         ensureLoaded();
         return dictionary.size();
     }

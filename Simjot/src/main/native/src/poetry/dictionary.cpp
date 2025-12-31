@@ -348,3 +348,9 @@ extern "C" int32_t simjot_dict_rhymes_for(const char* word, int32_t max_results,
     for (const auto& w : results) write_string(out, offset, w);
     return static_cast<int32_t>(required);
 }
+
+extern "C" int32_t simjot_dict_size(void) {
+    if (!ensure_loaded()) return 0;
+    if (g_dictionary.size() > static_cast<size_t>(std::numeric_limits<int32_t>::max())) return 0;
+    return static_cast<int32_t>(g_dictionary.size());
+}

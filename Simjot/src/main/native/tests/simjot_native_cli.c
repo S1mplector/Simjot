@@ -49,6 +49,21 @@ static void bytes_to_hex(const uint8_t* in, size_t len, char* out) {
     out[len * 2] = '\0';
 }
 
+static int read_u32(const uint8_t* data, int32_t len, int32_t* offset, uint32_t* out) {
+    if (*offset + 4 > len) return 0;
+    memcpy(out, data + *offset, sizeof(uint32_t));
+    *offset += 4;
+    return 1;
+}
+
+static int skip_string(const uint8_t* data, int32_t len, int32_t* offset) {
+    uint32_t slen = 0;
+    if (!read_u32(data, len, offset, &slen)) return 0;
+    if (slen > (uint32_t)(len - *offset)) return 0;
+    *offset += (int32_t)slen;
+    return 1;
+}
+
 static int list_contains(const uint8_t* data, int32_t len, const char* name, int expect_dir) {
     int32_t offset = 0;
     while (offset + 8 <= len) {
@@ -127,6 +142,97 @@ int main(void) {
     } else {
         fprintf(stderr, "[FAIL] simjot_near_rhyme_key(thing): call failed\n");
         failures++;
+    }
+
+    const char* dict_path = getenv("SIMJOT_DICT_PATH");
+    if (dict_path && *dict_path) {
+        if (!simjot_dict_set_base_path(dict_path)) {
+            fprintf(stderr, "[FAIL] simjot_dict_set_base_path\n");
+            failures++;
+        } else {
+            int32_t dict_size = simjot_dict_size();
+            if (dict_size > 0) {
+                printf("[OK] simjot_dict_size\n");
+            } else {
+                fprintf(stderr, "[FAIL] simjot_dict_size: %d\n", dict_size);
+                failures++;
+            }
+            expect_int("simjot_dict_contains(love)", simjot_dict_contains("love"), 1);
+            expect_int("simjot_dict_contains(qzxw)", simjot_dict_contains("qzxw"), 0);
+
+            int32_t needed = simjot_dict_lookup("love", NULL, 0);
+            if (needed < 0) {
+                needed = -needed;
+            }
+            if (needed <= 0) {
+                fprintf(stderr, "[FAIL] simjot_dict_lookup(love): size\n");
+                failures++;
+            } else {
+                uint8_t* data = (uint8_t*)malloc((size_t)needed);
+                if (!data) {
+                    fprintf(stderr, "[FAIL] simjot_dict_lookup(love): alloc\n");
+                    failures++;
+                } else {
+                    int32_t wrote = simjot_dict_lookup("love", data, needed);
+                    if (wrote > 0) {
+                        int32_t off = 0;
+                        uint32_t pos_count = 0, syn_count = 0, ant_count = 0;
+                        if (read_u32(data, wrote, &off, &pos_count) &&
+                            read_u32(data, wrote, &off, &syn_count) &&
+                            read_u32(data, wrote, &off, &ant_count)) {
+                            int ok = 1;
+                            for (uint32_t i = 0; i < pos_count; i++) ok &= skip_string(data, wrote, &off);
+                            for (uint32_t i = 0; i < syn_count; i++) ok &= skip_string(data, wrote, &off);
+                            for (uint32_t i = 0; i < ant_count; i++) ok &= skip_string(data, wrote, &off);
+                            if (ok && pos_count > 0) {
+                                printf("[OK] simjot_dict_lookup(love)\n");
+                            } else {
+                                fprintf(stderr, "[FAIL] simjot_dict_lookup(love): parse\n");
+                                failures++;
+                            }
+                        } else {
+                            fprintf(stderr, "[FAIL] simjot_dict_lookup(love): header\n");
+                            failures++;
+                        }
+                    } else {
+                        fprintf(stderr, "[FAIL] simjot_dict_lookup(love): call\n");
+                        failures++;
+                    }
+                    free(data);
+                }
+            }
+
+            int32_t rhyme_need = simjot_dict_rhymes_for("night", 5, NULL, 0);
+            if (rhyme_need < 0) rhyme_need = -rhyme_need;
+            if (rhyme_need <= 0) {
+                fprintf(stderr, "[FAIL] simjot_dict_rhymes_for(night): size\n");
+                failures++;
+            } else {
+                uint8_t* data = (uint8_t*)malloc((size_t)rhyme_need);
+                if (!data) {
+                    fprintf(stderr, "[FAIL] simjot_dict_rhymes_for(night): alloc\n");
+                    failures++;
+                } else {
+                    int32_t wrote = simjot_dict_rhymes_for("night", 5, data, rhyme_need);
+                    if (wrote > 0) {
+                        int32_t off = 0;
+                        uint32_t count = 0;
+                        if (read_u32(data, wrote, &off, &count) && count > 0) {
+                            printf("[OK] simjot_dict_rhymes_for(night)\n");
+                        } else {
+                            fprintf(stderr, "[FAIL] simjot_dict_rhymes_for(night): parse\n");
+                            failures++;
+                        }
+                    } else {
+                        fprintf(stderr, "[FAIL] simjot_dict_rhymes_for(night): call\n");
+                        failures++;
+                    }
+                    free(data);
+                }
+            }
+        }
+    } else {
+        printf("[SKIP] simjot_dict_* (set SIMJOT_DICT_PATH to enable)\n");
     }
 
     char tmp_path[L_tmpnam];

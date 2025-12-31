@@ -6,6 +6,14 @@
   <name>Simjot</name>
   <version>1.0.0</version>
   <description>Simjot Journal Application</description>
+  <licenses>
+    <license>
+      <name>Simjot Proprietary License v1.0</name>
+      <url>https://github.com/simjot/simjot/blob/main/LICENSE</url>
+      <distribution>repo</distribution>
+      <comments>Open source with proprietary restrictions</comments>
+    </license>
+  </licenses>
   <build>
     <sourceDirectory>src/main</sourceDirectory>
     <testSourceDirectory>src/test</testSourceDirectory>
