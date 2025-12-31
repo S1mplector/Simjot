@@ -19,6 +19,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Minimal event bus for Sim signals.
  */
 public final class SimEventBus {
+    /**
+     * Controls whether verbose logging is enabled.
+     * Disabled by default to reduce console noise and improve performance.
+     */
+    private static volatile boolean verboseLogging = false;
+    
+    /** Enable verbose logging for all SimBus events */
+    public static void enableVerboseLogging() { verboseLogging = true; }
+    /** Disable verbose logging (default) */
+    public static void disableVerboseLogging() { verboseLogging = false; }
+    /** Check if verbose logging is enabled */
+    public static boolean isVerboseLogging() { return verboseLogging; }
+    
     public enum InvocationSource { CALL_HEART, HOTKEY, TRAY, MENU, OTHER }
     public interface Listener {
         default void onTyping(String latestText) {}
@@ -59,76 +72,76 @@ public final class SimEventBus {
 
     // Emitters
     public void emitTyping(String latestText){
-        System.out.println("[SimBus] typing len=" + (latestText==null?0:latestText.length()) +
+        if (verboseLogging) System.out.println("[SimBus] typing len=" + (latestText==null?0:latestText.length()) +
                 " preview=\"" + preview(latestText) + "\"");
         for(var l:listeners) l.onTyping(latestText);
     }
     public void emitCardSwitched(String cardId){
-        System.out.println("[SimBus] cardSwitched id=" + String.valueOf(cardId));
+        if (verboseLogging) System.out.println("[SimBus] cardSwitched id=" + String.valueOf(cardId));
         for(var l:listeners) l.onCardSwitched(cardId);
     }
     public void emitMoodChanged(double value){
-        System.out.println("[SimBus] moodChanged value=" + value);
+        if (verboseLogging) System.out.println("[SimBus] moodChanged value=" + value);
         for(var l:listeners) l.onMoodChanged(value);
     }
     public void emitSpeak(String message){
-        System.out.println("[SimBus] speak preview=\"" + preview(message) + "\"");
+        if (verboseLogging) System.out.println("[SimBus] speak preview=\"" + preview(message) + "\"");
         for(var l:listeners) l.onSpeak(message);
     }
     public void emitSpeakStart(){
-        System.out.println("[SimBus] speakStart");
+        if (verboseLogging) System.out.println("[SimBus] speakStart");
         for (var l: listeners) l.onSpeakStart();
     }
     public void emitSpeakEnd(){
-        System.out.println("[SimBus] speakEnd");
+        if (verboseLogging) System.out.println("[SimBus] speakEnd");
         for (var l: listeners) l.onSpeakEnd();
     }
 
     // Phase 1 chat: user asked to continue the conversation with one more reply
     public void emitChatFollowupRequested(){
-        System.out.println("[SimBus] chatFollowupRequested");
+        if (verboseLogging) System.out.println("[SimBus] chatFollowupRequested");
         for (var l: listeners) l.onChatFollowupRequested();
     }
 
     // Phase 2 chat: user sent a chat message
     public void emitChatMessage(String userText){
-        System.out.println("[SimBus] chatMessage len=" + (userText==null?0:userText.length()));
+        if (verboseLogging) System.out.println("[SimBus] chatMessage len=" + (userText==null?0:userText.length()));
         for (var l: listeners) l.onChatMessage(userText);
     }
 
     // Phase 2 chat: user ended chat session
     public void emitChatEnded(){
-        System.out.println("[SimBus] chatEnded");
+        if (verboseLogging) System.out.println("[SimBus] chatEnded");
         for (var l: listeners) l.onChatEnded();
     }
 
     // Reflective guidance on editor content
     public void emitGuidanceRequested(String text){
-        System.out.println("[SimBus] guidanceRequested len=" + (text==null?0:text.length()));
+        if (verboseLogging) System.out.println("[SimBus] guidanceRequested len=" + (text==null?0:text.length()));
         for (var l: listeners) l.onGuidanceRequested(text);
     }
 
     public void emitGuidanceProduced(String text){
-        System.out.println("[SimBus] guidanceProduced len=" + (text==null?0:text.length()));
+        if (verboseLogging) System.out.println("[SimBus] guidanceProduced len=" + (text==null?0:text.length()));
         for (var l: listeners) l.onGuidanceProduced(text);
     }
 
     // App-level: request all listeners to quit/close gracefully
     public void emitQuitRequested(){
-        System.out.println("[SimBus] quitRequested");
+        if (verboseLogging) System.out.println("[SimBus] quitRequested");
         for (var l: listeners) l.onQuitRequested();
     }
 
     // Real-time per-entry emotion tag emitter
     public void emitEmotionTagged(String entryId, String emotion, double intensity){
-        System.out.println("[SimBus] emotionTagged entry=" + String.valueOf(entryId) +
+        if (verboseLogging) System.out.println("[SimBus] emotionTagged entry=" + String.valueOf(entryId) +
                 " emotion=" + String.valueOf(emotion) + " intensity=" + intensity);
         for (var l: listeners) l.onEmotionTagged(entryId, emotion, intensity);
     }
 
     // User explicit invocation emitter
     public void emitUserInvoked(InvocationSource source){
-        System.out.println("[SimBus] userInvoked source=" + String.valueOf(source));
+        if (verboseLogging) System.out.println("[SimBus] userInvoked source=" + String.valueOf(source));
         for (var l: listeners) l.onUserInvoked(source);
     }
 
