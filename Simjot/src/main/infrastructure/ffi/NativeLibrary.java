@@ -1053,7 +1053,9 @@ public final class NativeLibrary implements AutoCloseable {
         if (target == null || data == null) return false;
         try (Arena tempArena = Arena.ofConfined()) {
             MemorySegment cPath = tempArena.allocateFrom(target.toString());
-            MemorySegment dataSeg = MemorySegment.ofArray(data);
+            // Must allocate native memory - heap segments are not allowed in native calls
+            MemorySegment dataSeg = tempArena.allocate(data.length);
+            dataSeg.copyFrom(MemorySegment.ofArray(data));
             int ok = (int) atomicWriteHandle.invokeExact(
                 cPath,
                 dataSeg,
