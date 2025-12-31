@@ -85,6 +85,11 @@ int32_t simjot_json_get_keys(const char* json, char* output, int32_t output_len)
 int32_t simjot_json_parse_string_array(const char* json, char* output, int32_t output_len);
 int32_t simjot_json_get_path(const char* json, const char* path, char* output, int32_t output_len);
 
+/* Dictionary JSON parsing - optimized for simple-english-dictionary format */
+int32_t simjot_json_parse_dict_words(const char* json, int32_t json_len, char* output, int32_t output_len);
+int32_t simjot_json_parse_dict_entry(const char* json, const char* word, uint8_t* out, int32_t out_len);
+int32_t simjot_json_load_dict_file(const char* file_path, char* output, int32_t output_len);
+
 /* Date/time utilities */
 int64_t simjot_time_now_millis(void);
 int64_t simjot_time_now_secs(void);

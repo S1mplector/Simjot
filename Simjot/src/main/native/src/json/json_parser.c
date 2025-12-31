@@ -18,6 +18,7 @@
 
 #include <ctype.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -504,4 +505,319 @@ int32_t simjot_json_get_path(const char* json, const char* path,
     
     /* Final key */
     return simjot_json_get_string(current, path, output, output_len);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * DICTIONARY FILE PARSING - Optimized for simple-english-dictionary format
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Parse dictionary JSON file and extract all words
+ * 
+ * Optimized for the simple-english-dictionary format:
+ * { "word1": {...}, "word2": {...}, ... }
+ * 
+ * Returns words as newline-separated list.
+ * 
+ * @param json JSON content
+ * @param json_len Length of JSON content
+ * @param output Output buffer for words (newline-separated)
+ * @param output_len Size of output buffer
+ * @return Number of words extracted, or negative on error
+ */
+int32_t simjot_json_parse_dict_words(const char* json, int32_t json_len,
+                                      char* output, int32_t output_len) {
+    if (!json || json_len <= 0 || !output || output_len <= 0) return -1;
+    
+    const char* p = json;
+    const char* end = json + json_len;
+    int32_t out_pos = 0;
+    int32_t count = 0;
+    
+    p = skip_ws(p, end);
+    if (p >= end || *p != '{') return -1;
+    p++;
+    
+    while (p < end) {
+        p = skip_ws(p, end);
+        if (p >= end || *p == '}') break;
+        if (*p == ',') { p++; continue; }
+        
+        /* Extract word (key) */
+        if (*p != '"') break;
+        p++;
+        const char* ws = p;
+        p = skip_string(p, end);
+        const char* we = p - 1;
+        int32_t wlen = (int32_t)(we - ws);
+        
+        /* Copy word to output */
+        if (wlen > 0 && out_pos + wlen + 1 < output_len) {
+            if (out_pos > 0) output[out_pos++] = '\n';
+            memcpy(output + out_pos, ws, wlen);
+            out_pos += wlen;
+            count++;
+        }
+        
+        /* Skip colon and value (the word's definition object) */
+        p = skip_ws(p, end);
+        if (p >= end || *p != ':') break;
+        p++;
+        p = skip_value(p, end);
+    }
+    
+    output[out_pos] = '\0';
+    return count;
+}
+
+/**
+ * @brief Dictionary entry parsed from JSON
+ */
+typedef struct {
+    char word[64];
+    char pos[128];      /* Parts of speech, comma-separated */
+    char synonyms[512]; /* Newline-separated */
+    char antonyms[256]; /* Newline-separated */
+} DictEntry;
+
+/**
+ * @brief Parse a single dictionary entry
+ * 
+ * @param json JSON object for the word entry
+ * @param word The word being looked up
+ * @param out Output buffer (binary format)
+ * @param out_len Size of output buffer
+ * @return Bytes written, or negative on error
+ * 
+ * Output format:
+ *   int32: word length
+ *   char[]: word
+ *   int32: POS count
+ *   int32: POS string length
+ *   char[]: POS (newline-separated)
+ *   int32: synonyms count
+ *   int32: synonyms string length
+ *   char[]: synonyms (newline-separated)
+ *   int32: antonyms count
+ *   int32: antonyms string length
+ *   char[]: antonyms (newline-separated)
+ */
+int32_t simjot_json_parse_dict_entry(const char* json, const char* word,
+                                      uint8_t* out, int32_t out_len) {
+    if (!json || !word || !out || out_len < 64) return -1;
+    
+    const char* p = json;
+    const char* end = json + strlen(json);
+    
+    char pos_buf[256] = {0};
+    char syn_buf[1024] = {0};
+    char ant_buf[512] = {0};
+    int32_t pos_count = 0;
+    int32_t syn_count = 0;
+    int32_t ant_count = 0;
+    int32_t pos_len = 0;
+    int32_t syn_len = 0;
+    int32_t ant_len = 0;
+    
+    p = skip_ws(p, end);
+    if (p >= end || *p != '{') return -2;
+    p++;
+    
+    while (p < end) {
+        p = skip_ws(p, end);
+        if (p >= end || *p == '}') break;
+        if (*p == ',') { p++; continue; }
+        
+        /* Get key */
+        if (*p != '"') break;
+        p++;
+        const char* ks = p;
+        p = skip_string(p, end);
+        const char* ke = p - 1;
+        size_t klen = ke - ks;
+        
+        p = skip_ws(p, end);
+        if (p >= end || *p != ':') break;
+        p++;
+        p = skip_ws(p, end);
+        
+        /* Check key and extract values */
+        if (klen == 8 && memcmp(ks, "MEANINGS", 8) == 0 && *p == '{') {
+            /* Parse MEANINGS to extract POS */
+            const char* ms = p + 1;
+            const char* me = skip_value(p, end);
+            
+            /* Look for POS tags in the meanings */
+            while (ms < me) {
+                ms = skip_ws(ms, me);
+                if (ms >= me || *ms == '}') break;
+                if (*ms == ',') { ms++; continue; }
+                
+                if (*ms == '"') {
+                    ms++;
+                    const char* poss = ms;
+                    ms = skip_string(ms, me);
+                    const char* pose = ms - 1;
+                    int32_t plen = (int32_t)(pose - poss);
+                    
+                    /* Check if this looks like a POS */
+                    if (plen > 0 && plen < 20) {
+                        char temp[32];
+                        if (plen < (int32_t)sizeof(temp) - 1) {
+                            memcpy(temp, poss, plen);
+                            temp[plen] = '\0';
+                            
+                            /* Common POS tags */
+                            if (strcmp(temp, "Noun") == 0 || strcmp(temp, "Verb") == 0 ||
+                                strcmp(temp, "Adjective") == 0 || strcmp(temp, "Adverb") == 0 ||
+                                strcmp(temp, "Preposition") == 0 || strcmp(temp, "Conjunction") == 0 ||
+                                strcmp(temp, "Pronoun") == 0 || strcmp(temp, "Interjection") == 0) {
+                                if (pos_len + plen + 1 < (int32_t)sizeof(pos_buf)) {
+                                    if (pos_len > 0) pos_buf[pos_len++] = '\n';
+                                    memcpy(pos_buf + pos_len, temp, plen);
+                                    pos_len += plen;
+                                    pos_count++;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    ms = skip_value(ms, me);
+                }
+            }
+            p = me;
+        } else if (klen == 8 && memcmp(ks, "SYNONYMS", 8) == 0 && *p == '[') {
+            /* Parse synonyms array */
+            p++;
+            while (p < end && *p != ']') {
+                p = skip_ws(p, end);
+                if (*p == ',') { p++; continue; }
+                if (*p == '"') {
+                    p++;
+                    const char* ss = p;
+                    p = skip_string(p, end);
+                    const char* se = p - 1;
+                    int32_t slen = (int32_t)(se - ss);
+                    
+                    if (slen > 0 && syn_len + slen + 1 < (int32_t)sizeof(syn_buf)) {
+                        if (syn_len > 0) syn_buf[syn_len++] = '\n';
+                        memcpy(syn_buf + syn_len, ss, slen);
+                        syn_len += slen;
+                        syn_count++;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if (p < end && *p == ']') p++;
+        } else if (klen == 8 && memcmp(ks, "ANTONYMS", 8) == 0 && *p == '[') {
+            /* Parse antonyms array */
+            p++;
+            while (p < end && *p != ']') {
+                p = skip_ws(p, end);
+                if (*p == ',') { p++; continue; }
+                if (*p == '"') {
+                    p++;
+                    const char* as = p;
+                    p = skip_string(p, end);
+                    const char* ae = p - 1;
+                    int32_t alen = (int32_t)(ae - as);
+                    
+                    if (alen > 0 && ant_len + alen + 1 < (int32_t)sizeof(ant_buf)) {
+                        if (ant_len > 0) ant_buf[ant_len++] = '\n';
+                        memcpy(ant_buf + ant_len, as, alen);
+                        ant_len += alen;
+                        ant_count++;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if (p < end && *p == ']') p++;
+        } else {
+            p = skip_value(p, end);
+        }
+    }
+    
+    pos_buf[pos_len] = '\0';
+    syn_buf[syn_len] = '\0';
+    ant_buf[ant_len] = '\0';
+    
+    /* Write output */
+    int32_t word_len = (int32_t)strlen(word);
+    int32_t needed = 4 + word_len + 4 + 4 + pos_len + 4 + 4 + syn_len + 4 + 4 + ant_len;
+    if (needed > out_len) return -3;
+    
+    int32_t pos = 0;
+    
+    /* Word */
+    memcpy(out + pos, &word_len, 4); pos += 4;
+    memcpy(out + pos, word, word_len); pos += word_len;
+    
+    /* POS */
+    memcpy(out + pos, &pos_count, 4); pos += 4;
+    memcpy(out + pos, &pos_len, 4); pos += 4;
+    if (pos_len > 0) { memcpy(out + pos, pos_buf, pos_len); pos += pos_len; }
+    
+    /* Synonyms */
+    memcpy(out + pos, &syn_count, 4); pos += 4;
+    memcpy(out + pos, &syn_len, 4); pos += 4;
+    if (syn_len > 0) { memcpy(out + pos, syn_buf, syn_len); pos += syn_len; }
+    
+    /* Antonyms */
+    memcpy(out + pos, &ant_count, 4); pos += 4;
+    memcpy(out + pos, &ant_len, 4); pos += 4;
+    if (ant_len > 0) { memcpy(out + pos, ant_buf, ant_len); pos += ant_len; }
+    
+    return pos;
+}
+
+/**
+ * @brief Load and parse a dictionary letter file
+ * 
+ * Reads file, parses JSON, and returns word list.
+ * 
+ * @param file_path Path to the JSON file
+ * @param output Output buffer for words (newline-separated)
+ * @param output_len Size of output buffer
+ * @return Number of words, or negative on error
+ */
+int32_t simjot_json_load_dict_file(const char* file_path,
+                                    char* output, int32_t output_len) {
+    if (!file_path || !output || output_len <= 0) return -1;
+    
+    FILE* f = fopen(file_path, "rb");
+    if (!f) return -2;
+    
+    /* Get file size */
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    
+    if (fsize <= 0 || fsize > 50 * 1024 * 1024) { /* Max 50MB */
+        fclose(f);
+        return -3;
+    }
+    
+    /* Allocate and read file */
+    char* json = (char*)malloc(fsize + 1);
+    if (!json) {
+        fclose(f);
+        return -4;
+    }
+    
+    size_t read = fread(json, 1, fsize, f);
+    fclose(f);
+    
+    if ((long)read != fsize) {
+        free(json);
+        return -5;
+    }
+    json[fsize] = '\0';
+    
+    /* Parse and extract words */
+    int32_t count = simjot_json_parse_dict_words(json, (int32_t)fsize, output, output_len);
+    
+    free(json);
+    return count;
 }

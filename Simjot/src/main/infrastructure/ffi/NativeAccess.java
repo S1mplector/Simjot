@@ -2478,6 +2478,25 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // NATIVE JSON PARSING - Fast dictionary loading
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Parse dictionary JSON file and extract all words.
+     * Returns words as a list.
+     */
+    public static java.util.List<String> jsonLoadDictWords(String filePath) {
+        NativeLibrary lib = library();
+        if (lib == null || filePath == null) return null;
+        try {
+            return lib.jsonLoadDictWords(filePath);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // FILE METADATA UTILITIES - Fast native file operations
     // ═══════════════════════════════════════════════════════════════════════════
 
