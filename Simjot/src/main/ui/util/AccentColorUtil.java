@@ -14,6 +14,13 @@ package main.ui.util;
 
 /**
  * Utility class for accent color extraction and manipulation.
+ * Uses native SIMD-accelerated math operations when available.
+ * Used for extracting accent colors from images.
+ * 
+ * Provides color "tint" for certain UI utilities for the main menu. 
+ * These include the clock widget and the calendar widget. 
+ * Not all variations of the said widgets have a tint color applicaable component. 
+ * 
  * @author S1mplector
  */
 
@@ -101,7 +108,36 @@ public final class AccentColorUtil {
         return new Color(r, g, b);
     }
 
+    /**
+     * Blend two colors using native SIMD-accelerated math when available.
+     */
+    public static Color blend(Color c1, Color c2, float t) {
+        t = clamp01(t);
+        // Try native SIMD-accelerated color blend
+        int blended = NativeAccess.mathColorBlend(c1.getRGB(), c2.getRGB(), t);
+        if (blended != c1.getRGB() || t == 0.0f) {
+            return new Color(blended, true);
+        }
+        // Java fallback
+        int r = (int) NativeAccess.mathLerp(c1.getRed(), c2.getRed(), t);
+        int g = (int) NativeAccess.mathLerp(c1.getGreen(), c2.getGreen(), t);
+        int b = (int) NativeAccess.mathLerp(c1.getBlue(), c2.getBlue(), t);
+        int a = (int) NativeAccess.mathLerp(c1.getAlpha(), c2.getAlpha(), t);
+        return new Color(clamp255(r), clamp255(g), clamp255(b), clamp255(a));
+    }
+
+    /**
+     * Convert HSL to RGB using native implementation when available.
+     */
+    public static Color hslToRgb(float h, float s, float l) {
+        int rgb = NativeAccess.mathHslToRgb(h, s, l);
+        if (rgb != 0) return new Color(rgb);
+        // Java fallback
+        return Color.getHSBColor(h, s, l);
+    }
+
     private static float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
+    private static int clamp255(int v) { return Math.max(0, Math.min(255, v)); }
 
     public static Color defaultAccent() {
         return new Color(0, 120, 215);

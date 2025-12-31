@@ -35,6 +35,13 @@ public final class RhymeDatabase {
     
     public static List<String> getRhymesFor(String word) {
         if (word == null) return Collections.emptyList();
+        
+        // Try native rhyme engine first (fastest)
+        List<String> nativeRhymes = NativeAccess.rhymeFind(word, 20);
+        if (nativeRhymes != null && !nativeRhymes.isEmpty()) {
+            return nativeRhymes.size() > 10 ? nativeRhymes.subList(0, 10) : nativeRhymes;
+        }
+        
         String key = PoetryUtils.rhymeKey(word);
         if (key == null) return Collections.emptyList();
         

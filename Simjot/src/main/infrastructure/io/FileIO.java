@@ -194,4 +194,142 @@ public final class FileIO {
             // Best-effort only.
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NATIVE FILE SYSTEM OPERATIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if path exists using native implementation when available.
+     */
+    public static boolean exists(Path path) {
+        if (path == null) return false;
+        if (NativeAccess.fsExists(path.toString())) return true;
+        return Files.exists(path);
+    }
+
+    /**
+     * Check if path is directory using native implementation when available.
+     */
+    public static boolean isDirectory(Path path) {
+        if (path == null) return false;
+        if (NativeAccess.fsIsDir(path.toString())) return true;
+        return Files.isDirectory(path);
+    }
+
+    /**
+     * Get file size using native implementation when available.
+     */
+    public static long size(Path path) {
+        if (path == null) return -1;
+        long nativeSize = NativeAccess.fsSize(path.toString());
+        if (nativeSize >= 0) return nativeSize;
+        try {
+            return Files.size(path);
+        } catch (IOException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Get file modification time using native implementation when available.
+     */
+    public static long lastModified(Path path) {
+        if (path == null) return -1;
+        long nativeMtime = NativeAccess.fsMtime(path.toString());
+        if (nativeMtime >= 0) return nativeMtime;
+        try {
+            return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Read all bytes from file using native implementation when available.
+     */
+    public static byte[] readAllBytes(Path path) throws IOException {
+        if (path == null) throw new IllegalArgumentException("path is null");
+        byte[] nativeData = NativeAccess.fsReadAll(path.toString());
+        if (nativeData != null) return nativeData;
+        return Files.readAllBytes(path);
+    }
+
+    /**
+     * Write all bytes to file using native implementation when available.
+     */
+    public static void writeAllBytes(Path path, byte[] data) throws IOException {
+        if (path == null) throw new IllegalArgumentException("path is null");
+        if (data == null) throw new IllegalArgumentException("data is null");
+        if (NativeAccess.fsWriteAll(path.toString(), data)) return;
+        Files.write(path, data);
+    }
+
+    /**
+     * Create directories using native implementation when available.
+     */
+    public static void createDirectories(Path path) throws IOException {
+        if (path == null) return;
+        if (NativeAccess.fsMkdir(path.toString())) return;
+        Files.createDirectories(path);
+    }
+
+    /**
+     * Delete file or empty directory using native implementation when available.
+     */
+    public static boolean delete(Path path) {
+        if (path == null) return false;
+        if (NativeAccess.fsRemove(path.toString())) return true;
+        try {
+            return Files.deleteIfExists(path);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Rename/move file using native implementation when available.
+     */
+    public static boolean rename(Path source, Path target) {
+        if (source == null || target == null) return false;
+        if (NativeAccess.fsRename(source.toString(), target.toString())) return true;
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get file extension using native implementation when available.
+     */
+    public static String getExtension(Path path) {
+        if (path == null) return null;
+        String nativeExt = NativeAccess.fsExtension(path.toString());
+        if (nativeExt != null) return nativeExt;
+        String name = path.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(dot + 1) : "";
+    }
+
+    /**
+     * Get file basename using native implementation when available.
+     */
+    public static String getBasename(Path path) {
+        if (path == null) return null;
+        String nativeName = NativeAccess.fsBasename(path.toString());
+        if (nativeName != null) return nativeName;
+        return path.getFileName().toString();
+    }
+
+    /**
+     * Join paths using native implementation when available.
+     */
+    public static String joinPath(String base, String child) {
+        if (base == null || child == null) return null;
+        String nativeJoined = NativeAccess.fsJoin(base, child);
+        if (nativeJoined != null) return nativeJoined;
+        return Path.of(base, child).toString();
+    }
 }

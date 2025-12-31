@@ -186,8 +186,15 @@ public final class PoetryUtils {
      */
     public static int countSyllables(String word) {
         if (word == null || word.isEmpty()) return 0;
+        
+        // Try native implementation first (fastest)
         Integer nativeCount = NativeAccess.countSyllables(word);
-        if (nativeCount != null) return nativeCount;
+        if (nativeCount != null && nativeCount > 0) return nativeCount;
+        
+        // Try native poetry syllable counter
+        int poetryCount = NativeAccess.poetryCountSyllables(word);
+        if (poetryCount > 0) return poetryCount;
+        
         String w = word.toLowerCase(Locale.ROOT).replaceAll("[^a-z']", "");
         if (w.isEmpty()) return 0;
         
