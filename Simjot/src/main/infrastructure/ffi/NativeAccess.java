@@ -1723,6 +1723,50 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // IMAGE OPERATIONS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fast native image resize using ARGB pixel data (Java BufferedImage compatible).
+     * 
+     * @param srcPixels Source ARGB int array from BufferedImage.getRGB()
+     * @param srcW Source width
+     * @param srcH Source height
+     * @param dstW Target width
+     * @param dstH Target height
+     * @param quality 0=fast/bilinear, 1=high/bicubic, 2=auto
+     * @return Resized ARGB int array, or null if native unavailable/error
+     */
+    public static int[] imageResizeArgb(int[] srcPixels, int srcW, int srcH, int dstW, int dstH, int quality) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.imageResizeArgb(srcPixels, srcW, srcH, dstW, dstH, quality);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Calculate target dimensions to fit within max bounds while preserving aspect ratio.
+     * 
+     * @param srcW Source width
+     * @param srcH Source height
+     * @param maxW Maximum target width (0 = no limit)
+     * @param maxH Maximum target height (0 = no limit)
+     * @return int[2] with {targetWidth, targetHeight}, or null if native unavailable
+     */
+    public static int[] imageCalcFitSize(int srcW, int srcH, int maxW, int maxH) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.imageCalcFitSize(srcW, srcH, maxW, maxH);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════
 

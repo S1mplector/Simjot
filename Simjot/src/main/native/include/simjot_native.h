@@ -291,6 +291,16 @@ int32_t simjot_fs_join(const char* base, const char* child, char* output, int32_
 int32_t simjot_fs_list_filtered(const char* dir_path, const char* extensions, int32_t include_hidden, char* output, int32_t output_len);
 int32_t simjot_fs_count_entries(const char* dir_path, int32_t include_hidden);
 
+/* Image operations */
+int32_t simjot_image_resize_bilinear(const uint8_t* src, int32_t src_w, int32_t src_h, uint8_t* dst, int32_t dst_w, int32_t dst_h);
+int32_t simjot_image_resize_bicubic(const uint8_t* src, int32_t src_w, int32_t src_h, uint8_t* dst, int32_t dst_w, int32_t dst_h);
+int32_t simjot_image_resize_area(const uint8_t* src, int32_t src_w, int32_t src_h, uint8_t* dst, int32_t dst_w, int32_t dst_h);
+int32_t simjot_image_resize(const uint8_t* src, int32_t src_w, int32_t src_h, uint8_t* dst, int32_t dst_w, int32_t dst_h, int32_t quality);
+void simjot_image_calc_fit_size(int32_t src_w, int32_t src_h, int32_t max_w, int32_t max_h, int32_t* out_w, int32_t* out_h);
+void simjot_image_argb_to_rgba(const int32_t* argb, uint8_t* rgba, int32_t pixel_count);
+void simjot_image_rgba_to_argb(const uint8_t* rgba, int32_t* argb, int32_t pixel_count);
+int32_t simjot_image_resize_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h, int32_t* dst_argb, int32_t dst_w, int32_t dst_h, int32_t quality);
+
 #ifdef __cplusplus
 }
 #endif

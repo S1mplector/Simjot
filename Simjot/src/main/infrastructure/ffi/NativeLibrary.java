@@ -2035,6 +2035,92 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // IMAGE OPERATIONS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fast native image resize using ARGB pixel data (Java BufferedImage compatible).
+     * 
+     * @param srcPixels Source ARGB int array from BufferedImage.getRGB()
+     * @param srcW Source width
+     * @param srcH Source height
+     * @param dstW Target width
+     * @param dstH Target height
+     * @param quality 0=fast/bilinear, 1=high/bicubic, 2=auto
+     * @return Resized ARGB int array, or null on error
+     */
+    public int[] imageResizeArgb(int[] srcPixels, int srcW, int srcH, int dstW, int dstH, int quality) {
+        if (srcPixels == null || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0) return null;
+        if (srcPixels.length < srcW * srcH) return null;
+        
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_image_resize_argb",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            
+            // Allocate native memory for source and destination
+            int srcCount = srcW * srcH;
+            int dstCount = dstW * dstH;
+            
+            MemorySegment srcSeg = tempArena.allocate(srcCount * 4L);
+            MemorySegment dstSeg = tempArena.allocate(dstCount * 4L);
+            
+            // Copy source pixels to native memory
+            for (int i = 0; i < srcCount; i++) {
+                srcSeg.setAtIndex(ValueLayout.JAVA_INT, i, srcPixels[i]);
+            }
+            
+            // Call native resize
+            int result = (int) handle.invokeExact(srcSeg, srcW, srcH, dstSeg, dstW, dstH, quality);
+            if (result != 0) return null;
+            
+            // Copy result back
+            int[] dstPixels = new int[dstCount];
+            for (int i = 0; i < dstCount; i++) {
+                dstPixels[i] = dstSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            
+            return dstPixels;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Calculate target dimensions to fit within max bounds while preserving aspect ratio.
+     * 
+     * @param srcW Source width
+     * @param srcH Source height
+     * @param maxW Maximum target width (0 = no limit)
+     * @param maxH Maximum target height (0 = no limit)
+     * @return int[2] with {targetWidth, targetHeight}, or null on error
+     */
+    public int[] imageCalcFitSize(int srcW, int srcH, int maxW, int maxH) {
+        if (srcW <= 0 || srcH <= 0) return null;
+        
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_image_calc_fit_size",
+                FunctionDescriptor.ofVoid(
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return null;
+            
+            MemorySegment outW = tempArena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment outH = tempArena.allocate(ValueLayout.JAVA_INT);
+            
+            handle.invokeExact(srcW, srcH, maxW, maxH, outW, outH);
+            
+            return new int[] { outW.get(ValueLayout.JAVA_INT, 0), outH.get(ValueLayout.JAVA_INT, 0) };
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
     // ═══════════════════════════════════════════════════════════════════════════
 

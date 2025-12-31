@@ -64,6 +64,7 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 
 /**
@@ -269,9 +270,26 @@ public final class ImagePasteManager {
 
     private static BufferedImage scaleToMaxWidth(BufferedImage src, int maxW) {
         if (maxW <= 0 || src.getWidth() <= maxW) return src;
-        float scale = maxW / (float) src.getWidth();
-        int w = Math.max(1, Math.round(src.getWidth() * scale));
-        int h = Math.max(1, Math.round(src.getHeight() * scale));
+        
+        // Calculate target dimensions
+        int srcW = src.getWidth();
+        int srcH = src.getHeight();
+        int[] fitSize = NativeAccess.imageCalcFitSize(srcW, srcH, maxW, 0);
+        int w, h;
+        if (fitSize != null && fitSize.length == 2) {
+            w = fitSize[0];
+            h = fitSize[1];
+        } else {
+            float scale = maxW / (float) srcW;
+            w = Math.max(1, Math.round(srcW * scale));
+            h = Math.max(1, Math.round(srcH * scale));
+        }
+        
+        // Try native resize first (faster, off-EDT friendly)
+        BufferedImage result = nativeResize(src, w, h);
+        if (result != null) return result;
+        
+        // Java fallback
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = out.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
@@ -279,6 +297,31 @@ public final class ImagePasteManager {
         g2.drawImage(src, 0, 0, w, h, null);
         g2.dispose();
         return out;
+    }
+    
+    /**
+     * Native high-performance image resize using C implementation.
+     * Returns null if native library unavailable or resize fails.
+     */
+    private static BufferedImage nativeResize(BufferedImage src, int dstW, int dstH) {
+        try {
+            int srcW = src.getWidth();
+            int srcH = src.getHeight();
+            
+            // Extract ARGB pixels
+            int[] srcPixels = src.getRGB(0, 0, srcW, srcH, null, 0, srcW);
+            
+            // Call native resize (quality=2 for auto selection)
+            int[] dstPixels = NativeAccess.imageResizeArgb(srcPixels, srcW, srcH, dstW, dstH, 2);
+            if (dstPixels == null) return null;
+            
+            // Create result image
+            BufferedImage out = new BufferedImage(dstW, dstH, BufferedImage.TYPE_INT_ARGB);
+            out.setRGB(0, 0, dstW, dstH, dstPixels, 0, dstW);
+            return out;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ---- DnD handler ----
