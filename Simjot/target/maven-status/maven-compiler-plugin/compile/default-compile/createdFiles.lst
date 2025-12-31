@@ -5,6 +5,7 @@ main/core/sim/llm/api/SimLLMClient.class
 main/ui/features/settings/DrawingSettingsPage.class
 main/ui/dialog/export/PoemExportDialog$1.class
 main/core/sim/persona/SimPersonality$Type.class
+ui/dialog/file/package-info.class
 main/core/sim/proactive/TriggerStatsStore$Stat.class
 main/ui/features/poetry/PoetryAnalysisPanel.class
 main/ui/features/entries/DetailedMoodPanel$DetailedMoodSnapshot.class
@@ -19,6 +20,7 @@ main/ui/features/quicksettings/QuickSettingsOverlay.class
 main/core/sim/retrieval/RecencyBuffer.class
 main/ui/dialog/export/PoemExportDialog.class
 main/ui/features/widgets/IdeaStickyWidget$7.class
+main/ui/features/poetry/PoetryToolsPanel$3.class
 main/core/sim/llm/api/DefaultSimSuggestionService$1.class
 main/ui/sim/overlay/SimOverlay$ChatLine.class
 main/infrastructure/backup/EntryHistoryManager.class
@@ -27,6 +29,7 @@ main/ui/app/JournalApp$TimeInfoPanel.class
 main/core/sim/engine/SimScheduler$1.class
 main/core/security/crypto/CryptoHeader$Builder.class
 main/core/export/PoemExporter$Format.class
+core/security/crypto/package-info.class
 main/ui/features/entries/PoemPanel$GuidedLineState.class
 main/infrastructure/backup/NotebookInfo$Type.class
 main/ui/features/entries/NotetakingPanel$3.class
@@ -51,6 +54,7 @@ main/ui/features/poetry/StatsSidebarPanel$1.class
 main/ui/features/editing/UndoRedoManager.class
 main/core/sim/data/SimDataGateway$MoodSample.class
 main/ui/features/drawing/DrawingPanel$2.class
+core/poetry/package-info.class
 main/ui/features/gallery/GeneratedWallpapers.class
 main/ui/features/editing/UndoRedoManager$1.class
 main/ui/features/entries/NotetakingPanel$8.class
@@ -62,6 +66,7 @@ main/core/poetry/PoetryAnalyzer$RhetoricalAnalysis.class
 main/ui/components/buttons/ToolbarIconButton.class
 main/core/sim/persona/SimPersonality.class
 main/core/sim/retrieval/RecencyBuffer$Item.class
+main/ui/theme/aero/AeroTheme$1.class
 main/ui/sim/overlay/ChatViewPanel$BubbleCanvas.class
 main/ui/app/JournalApp$1.class
 main/core/service/SettingsStore.class
@@ -86,13 +91,16 @@ main/ui/features/quicksettings/QuickSettingsOverlay$Orb.class
 main/ui/features/widgets/QuickMoodWidget$1.class
 main/core/security/crypto/SimjotCrypto.class
 main/ui/components/containers/FrostedGlassPanel.class
+main/core/sim/llm/prompt/PromptBuilder$1.class
 main/ui/features/entries/PoemPanel$1.class
 main/ui/components/scrollbar/AeroScrollBarUI$ArrowButton.class
 main/ui/features/drawing/DrawingPanel.class
 main/ui/features/entries/PoemPanel$4.class
+main/infrastructure/backup/BackupService$1.class
 main/ui/sim/overlay/SimOverlay$Role.class
 main/ui/components/clocks/SwissRailwayClock.class
 main/core/poetry/MeterAnalysis.class
+main/ui/features/entries/QuickCaptureDialog$3.class
 main/ui/features/entries/NotetakingPanel$DrawStroke.class
 main/ui/features/entries/NotebookEntriesPanel$MetaSnapshot.class
 main/ui/features/entries/NotetakingPanel$2.class
@@ -156,11 +164,9 @@ main/ui/features/quicksettings/QuickSettingsOverlay$1.class
 main/ui/features/entries/EntryPanel$4.class
 main/ui/components/indicators/SaveIndicatorPanel.class
 main/core/poetry/PoetryAnalyzer$FootProfile.class
-main/infrastructure/monitoring/RamMonitor$1.class
 main/ui/components/checkbox/AeroCheckBoxUI$1.class
 main/ui/sim/overlay/ChatTranscriptModel$Listener.class
 main/ui/features/gallery/GalleryPanel$1.class
-main/infrastructure/monitoring/RamMonitor$RamGraph.class
 main/ui/features/poetry/StatsSidebarPanel$2.class
 main/ui/features/quicksettings/QuickSettingsOverlay$2.class
 main/ui/app/JournalApp$3.class
@@ -172,6 +178,7 @@ main/core/poetry/PoetryAnalyzer$SentimentAnalysis.class
 main/ui/features/poetry/PoetryAnalysisPanel$1.class
 main/ui/features/entries/NotebookEditor.class
 main/ui/features/editing/UndoRedoManager$2.class
+main/ui/theme/aero/AeroLookAndFeel$1.class
 main/ui/features/entries/NotetakingPanel$6.class
 main/ui/sim/overlay/ChatTranscriptModel.class
 main/ui/app/JournalApp$2.class
@@ -200,6 +207,7 @@ main/core/sim/critic/CriticPromptDecorator.class
 main/core/sim/memory/MemoryStore.class
 main/ui/features/widgets/IdeaStickyWidget$8.class
 main/core/poetry/RhymeDatabase.class
+main/ui/features/entries/MoodButton$1.class
 main/ui/features/quicksettings/QuickSettingsCategory.class
 main/ui/components/calendars/PostItCalendar.class
 main/ui/components/popup/AnimatedGlassPopup.class
@@ -221,6 +229,7 @@ main/ui/features/entries/PoemPanel$GuidedAnchorHighlightPainter.class
 main/ui/features/entries/NotetakingPanel$11.class
 main/ui/features/home/EcgTraceRenderer.class
 main/core/security/crypto/CryptoException.class
+main/ui/features/settings/StorageSettingsPage$5.class
 main/ui/features/widgets/IdeaStickyWidget$5.class
 main/ui/features/poetry/StatsSidebarPanel$4.class
 main/ui/features/settings/SettingsPage.class

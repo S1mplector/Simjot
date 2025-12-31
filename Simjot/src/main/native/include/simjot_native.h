@@ -328,6 +328,11 @@ int32_t simjot_fade_is_complete(int64_t elapsedMs, int64_t durationMs);
 int32_t simjot_color_lerp(int32_t color1, int32_t color2, float t);
 int32_t simjot_color_lerp_eased(int32_t color1, int32_t color2, float t, int32_t easingType);
 
+/* Animation math - disappear animation */
+void simjot_disappear_anim(float t, float* outAlpha, float* outScale, float* outOffsetX);
+float simjot_disappear_value(float t);
+float simjot_collapse_height(float t);
+
 #ifdef __cplusplus
 }
 #endif

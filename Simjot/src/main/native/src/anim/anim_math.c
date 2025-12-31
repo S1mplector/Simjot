@@ -353,3 +353,64 @@ int32_t simjot_color_lerp_eased(int32_t color1, int32_t color2, float t, int32_t
     
     return simjot_color_lerp(color1, color2, eased);
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * DISAPPEAR ANIMATION (for deleted items)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Calculate disappear animation parameters
+ * 
+ * Creates a smooth disappear effect with:
+ * - Fade out (alpha goes 1 → 0)
+ * - Shrink (scale goes 1 → 0)
+ * - Slide left (offset increases)
+ * 
+ * @param t Progress 0..1 (0=start, 1=fully gone)
+ * @param outAlpha Output: opacity (1..0)
+ * @param outScale Output: scale factor (1..0)
+ * @param outOffsetX Output: horizontal slide offset
+ */
+void simjot_disappear_anim(float t, float* outAlpha, float* outScale, float* outOffsetX) {
+    t = clamp01(t);
+    
+    /* Use smootherstep for very smooth animation */
+    float eased = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    
+    /* Alpha: fade out with slight delay at start */
+    float alphaT = clamp01((t - 0.1f) / 0.7f);
+    *outAlpha = 1.0f - (alphaT * alphaT);
+    
+    /* Scale: shrink with ease-out cubic */
+    float scaleT = clamp01(t / 0.9f);
+    float inv = 1.0f - scaleT;
+    *outScale = 0.3f + 0.7f * (inv * inv); /* shrink to 30% then gone */
+    
+    /* Slide: accelerating slide to the left */
+    *outOffsetX = eased * 50.0f; /* max 50px slide */
+}
+
+/**
+ * @brief Calculate combined disappear value for simple use
+ * Returns a single 0..1 value representing "visibility"
+ */
+float simjot_disappear_value(float t) {
+    t = clamp01(t);
+    /* Smootherstep with slight overshoot feel */
+    float eased = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    return 1.0f - eased;
+}
+
+/**
+ * @brief Calculate height multiplier for collapsing animation
+ * Used to smoothly collapse the space after item disappears
+ */
+float simjot_collapse_height(float t) {
+    t = clamp01(t);
+    /* Delayed start - collapse after fade begins */
+    float delayedT = clamp01((t - 0.3f) / 0.7f);
+    /* Ease out - fast at first, slow at end */
+    float inv = 1.0f - delayedT;
+    return inv * inv;
+}

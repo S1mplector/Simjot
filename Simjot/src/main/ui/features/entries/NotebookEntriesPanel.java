@@ -118,6 +118,33 @@ public class NotebookEntriesPanel extends JPanel {
 
     // Lightweight animation when items are reordered (fade highlight)
     private final java.util.Map<File, Float> reorderAnimProgress = new java.util.HashMap<>();
+    
+    // Delete animation state: file -> progress (0=start, 1=gone)
+    private final java.util.Map<File, Float> deleteAnimProgress = new java.util.HashMap<>();
+    private File pendingDeleteFile = null;
+    private final javax.swing.Timer deleteAnimTimer = new javax.swing.Timer(16, e -> {
+        try {
+            if (pendingDeleteFile == null || !deleteAnimProgress.containsKey(pendingDeleteFile)) {
+                ((javax.swing.Timer) e.getSource()).stop();
+                return;
+            }
+            Float fv = deleteAnimProgress.get(pendingDeleteFile);
+            float v = (fv == null ? 0f : fv.floatValue());
+            v += 0.08f; // animation speed
+            if (v >= 1f) {
+                // Animation complete - perform actual delete
+                ((javax.swing.Timer) e.getSource()).stop();
+                File toDelete = pendingDeleteFile;
+                deleteAnimProgress.remove(toDelete);
+                pendingDeleteFile = null;
+                performActualDelete(toDelete);
+            } else {
+                deleteAnimProgress.put(pendingDeleteFile, v);
+                list.repaint();
+            }
+        } catch (Throwable ignored) {}
+    });
+    
     private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(16, e -> {
         try {
             java.util.List<File> toRemove = new java.util.ArrayList<>();
@@ -178,6 +205,7 @@ public class NotebookEntriesPanel extends JPanel {
         private final Color selectedBorder = new Color(110, 160, 255);
         private boolean selected;
         private float reorderGlow = 0f;
+        private float deleteProgress = 0f; // 0=normal, 1=fully gone
 
         // Background image cache (scaled+blurred per size)
         private static BufferedImage ENTRY_BG_BASE;
@@ -252,6 +280,7 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
             @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
+            @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
             String fallback = value.getName();
             int dotIdx = fallback.lastIndexOf('.');
             if (dotIdx > 0) fallback = fallback.substring(0, dotIdx);
@@ -259,6 +288,8 @@ public class NotebookEntriesPanel extends JPanel {
             int wc = wordCounts != null ? wordCounts.getOrDefault(value, 0) : 0;
             Float glow = reorderAnim != null ? reorderAnim.get(value) : null;
             reorderGlow = glow == null ? 0f : glow;
+            Float delProg = deleteAnim != null ? deleteAnim.get(value) : null;
+            deleteProgress = delProg == null ? 0f : delProg;
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
             Date created = new Date(value.lastModified());
@@ -283,6 +314,16 @@ public class NotebookEntriesPanel extends JPanel {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            // Apply delete animation (fade + slide + shrink)
+            if (deleteProgress > 0f) {
+                float visibility = main.infrastructure.ffi.NativeAccess.disappearValue(deleteProgress);
+                g2.setComposite(AlphaComposite.SrcOver.derive(visibility));
+                // Slide left effect
+                int slideX = (int) (deleteProgress * 40);
+                g2.translate(-slideX, 0);
+            }
+            
             int arc = 16;
             int w = getWidth(), h = getHeight();
             RoundRectangle2D.Float shape = new RoundRectangle2D.Float(4, 3, w - 8, h - 6, arc, arc);
@@ -663,6 +704,22 @@ public class NotebookEntriesPanel extends JPanel {
             loadFiles(); update();
             return;
         }
+        // Start delete animation
+        pendingDeleteFile = f;
+        deleteAnimProgress.put(f, 0f);
+        list.putClientProperty("deleteAnim", deleteAnimProgress);
+        if (!deleteAnimTimer.isRunning()) {
+            deleteAnimTimer.start();
+        }
+        list.repaint();
+    }
+    
+    private void performActualDelete(File f) {
+        if (f == null || !f.exists()) {
+            refreshImmediate();
+            return;
+        }
+        String title = java.util.Objects.toString(titles.get(f), f.getName());
         // Use robust deletion with verification and retries
         boolean deleted = main.infrastructure.io.FileIO.deleteWithVerify(f.toPath());
         if(!deleted){

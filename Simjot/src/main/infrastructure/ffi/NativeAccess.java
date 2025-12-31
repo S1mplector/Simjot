@@ -1849,6 +1849,29 @@ public final class NativeAccess {
         try { return lib.colorLerp(color1, color2, t); } catch (Throwable e) { return color1; }
     }
 
+    /** Calculate disappear animation value (1=visible, 0=gone) */
+    public static float disappearValue(float t) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            t = Math.max(0f, Math.min(1f, t));
+            float eased = t * t * t * (t * (t * 6 - 15) + 10);
+            return 1f - eased;
+        }
+        try { return lib.disappearValue(t); } catch (Throwable e) { return 1f - t; }
+    }
+
+    /** Calculate collapse height multiplier (1=full height, 0=collapsed) */
+    public static float collapseHeight(float t) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            t = Math.max(0f, Math.min(1f, t));
+            float delayedT = Math.max(0f, Math.min(1f, (t - 0.3f) / 0.7f));
+            float inv = 1f - delayedT;
+            return inv * inv;
+        }
+        try { return lib.collapseHeight(t); } catch (Throwable e) { return 1f - t; }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════

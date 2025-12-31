@@ -269,26 +269,29 @@ public final class ImagePasteManager {
 
     private static BufferedImage scaleToMaxWidth(BufferedImage src, int maxW) {
         if (maxW <= 0 || src.getWidth() <= maxW) return src;
+        return resizeToWidth(src, maxW);
+    }
+    
+    /**
+     * Resize image to target width, maintaining aspect ratio.
+     * Supports both upscaling and downscaling using native C implementation.
+     */
+    private static BufferedImage resizeToWidth(BufferedImage src, int targetW) {
+        if (targetW <= 0) return src;
+        if (src.getWidth() == targetW) return src;
         
-        // Calculate target dimensions
+        // Calculate target dimensions maintaining aspect ratio
         int srcW = src.getWidth();
         int srcH = src.getHeight();
-        int[] fitSize = NativeAccess.imageCalcFitSize(srcW, srcH, maxW, 0);
-        int w, h;
-        if (fitSize != null && fitSize.length == 2) {
-            w = fitSize[0];
-            h = fitSize[1];
-        } else {
-            float scale = maxW / (float) srcW;
-            w = Math.max(1, Math.round(srcW * scale));
-            h = Math.max(1, Math.round(srcH * scale));
-        }
+        float scale = targetW / (float) srcW;
+        int w = Math.max(1, Math.round(srcW * scale));
+        int h = Math.max(1, Math.round(srcH * scale));
         
-        // Try native resize first (faster, off-EDT friendly)
+        // Try native resize first (faster, supports both up and down)
         BufferedImage result = nativeResize(src, w, h);
         if (result != null) return result;
         
-        // Java fallback
+        // Java fallback with bicubic interpolation
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = out.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
@@ -594,7 +597,8 @@ public final class ImagePasteManager {
             BufferedImage orig = ImageIO.read(source);
             if (orig == null) return;
             
-            BufferedImage scaled = scaleToMaxWidth(orig, targetW);
+            // Use resizeToWidth for both upscaling and downscaling
+            BufferedImage scaled = resizeToWidth(orig, targetW);
             ImageIcon newIcon = new ImageIcon(scaled);
             
             StyledDocument doc = editor.getStyledDocument();

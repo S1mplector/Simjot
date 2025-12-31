@@ -2265,6 +2265,43 @@ public final class NativeLibrary implements AutoCloseable {
         }
     }
 
+    /**
+     * Calculate disappear animation value (0=visible, 1=gone)
+     */
+    public float disappearValue(float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_disappear_value",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                t = Math.max(0f, Math.min(1f, t));
+                float eased = t * t * t * (t * (t * 6 - 15) + 10);
+                return 1f - eased;
+            }
+            return (float) handle.invokeExact(t);
+        } catch (Throwable e) {
+            return 1f - t;
+        }
+    }
+
+    /**
+     * Calculate collapse height multiplier for list item removal
+     */
+    public float collapseHeight(float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_collapse_height",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                t = Math.max(0f, Math.min(1f, t));
+                float delayedT = Math.max(0f, Math.min(1f, (t - 0.3f) / 0.7f));
+                float inv = 1f - delayedT;
+                return inv * inv;
+            }
+            return (float) handle.invokeExact(t);
+        } catch (Throwable e) {
+            return 1f - t;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
     // ═══════════════════════════════════════════════════════════════════════════
