@@ -2121,6 +2121,69 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // AERO/GLASS EFFECT API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Compute outer glow alpha using ease-out curve.
+     */
+    public int aeroOuterGlowAlpha(int layer, int size, int maxAlpha) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_aero_outer_glow_alpha",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, 
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact(layer, size, maxAlpha);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
+     * Compute inner shadow alpha using linear fade.
+     */
+    public int aeroInnerShadowAlpha(int layer, int size, int maxAlpha) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_aero_inner_shadow_alpha",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact(layer, size, maxAlpha);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
+     * Interpolate between two ARGB colors.
+     */
+    public int aeroLerpColor(int color1, int color2, float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_aero_lerp_color",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) return color1;
+            return (int) handle.invokeExact(color1, color2, t);
+        } catch (Throwable e) {
+            return color1;
+        }
+    }
+
+    /**
+     * Blend foreground over background using alpha compositing.
+     */
+    public int aeroBlendOver(int fg, int bg) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_aero_blend_over",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return fg;
+            return (int) handle.invokeExact(fg, bg);
+        } catch (Throwable t) {
+            return fg;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // ANIMATION MATH API
     // ═══════════════════════════════════════════════════════════════════════════
 

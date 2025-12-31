@@ -310,6 +310,20 @@ void simjot_bg_cache_invalidate(const char* cache_key, int32_t panel_w, int32_t 
 void simjot_bg_cache_stats(int32_t* count, int64_t* total_bytes);
 void simjot_bg_blur(int32_t* argb, int32_t width, int32_t height, int32_t radius, int32_t passes);
 
+/* Aero/Glass UI effect computations */
+void simjot_aero_outer_glow_alphas(int32_t size, int32_t max_alpha, uint8_t* out_alphas);
+int32_t simjot_aero_outer_glow_alpha(int32_t layer, int32_t size, int32_t max_alpha);
+void simjot_aero_inner_shadow_alphas(int32_t size, int32_t max_alpha, uint8_t* out_alphas);
+int32_t simjot_aero_inner_shadow_alpha(int32_t layer, int32_t size, int32_t max_alpha);
+int32_t simjot_aero_lerp_color(int32_t color1, int32_t color2, float t);
+void simjot_aero_gradient_colors(int32_t top_color, int32_t bottom_color, int32_t height, int32_t* out_colors);
+int32_t simjot_aero_blend_over(int32_t fg, int32_t bg);
+int32_t simjot_aero_apply_alpha(int32_t color, int32_t alpha);
+void simjot_aero_glass_overlay(int32_t height, uint8_t* out_sheen_alphas, uint8_t* out_shadow_alphas);
+void simjot_aero_frosted_glass(int32_t height, int32_t base_top_alpha, int32_t base_bottom_alpha, uint8_t* out_base_alphas);
+void simjot_aero_glow_stroke_widths(int32_t size, int32_t* out_widths);
+void simjot_aero_shadow_insets(int32_t size, int32_t* out_insets);
+
 /* Animation math - easing functions */
 float simjot_ease_cosine(float t);
 float simjot_ease_smootherstep(float t);

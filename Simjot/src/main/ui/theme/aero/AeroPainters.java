@@ -12,8 +12,18 @@
 
 package main.ui.theme.aero;
 
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.Paint;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Stroke;
 import java.awt.geom.RoundRectangle2D;
+
+import main.infrastructure.ffi.NativeAccess;
 import main.ui.theme.Theme;
 
 public final class AeroPainters {
@@ -60,6 +70,7 @@ public final class AeroPainters {
     }
 
     // Subtle outer glow halo around a rounded rectangle. Draw before the fill to appear behind.
+    // Uses native alpha computation when available for better performance.
     public static void paintOuterGlow(Graphics2D g2, Rectangle r, int arc, Color color, int size, int maxAlpha) {
         if (Theme.isPlainWhite()) return;
         Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
@@ -67,8 +78,8 @@ public final class AeroPainters {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         for (int i = size; i >= 1; i--) {
-            float a = (float) i / (float) size;
-            int alpha = Math.min(255, Math.max(0, Math.round(maxAlpha * a * a))); // ease-out
+            // Native ease-out alpha: alpha = maxAlpha * (i/size)^2
+            int alpha = NativeAccess.aeroOuterGlowAlpha(i, size, maxAlpha);
             g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
             g2.setStroke(new BasicStroke(i * 2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             RoundRectangle2D rr = new RoundRectangle2D.Float(r.x + 1, r.y + 1, r.width - 2, r.height - 2, arc, arc);
@@ -95,6 +106,7 @@ public final class AeroPainters {
     }
 
     // Inner shadow to simulate a pressed/inset button state.
+    // Uses native alpha computation when available for better performance.
     public static void paintInnerShadow(Graphics2D g2, Rectangle r, int arc, Color color, int size, int maxAlpha) {
         if (Theme.isPlainWhite()) return;
         Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
@@ -102,8 +114,8 @@ public final class AeroPainters {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         for (int i = 1; i <= size; i++) {
-            float t = (float) i / (float) size;
-            int alpha = Math.min(255, Math.max(0, Math.round(maxAlpha * (1f - t))));
+            // Native linear fade alpha: alpha = maxAlpha * (1 - i/size)
+            int alpha = NativeAccess.aeroInnerShadowAlpha(i, size, maxAlpha);
             g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
             g2.setStroke(new BasicStroke(1f));
             RoundRectangle2D rr = new RoundRectangle2D.Float(r.x + i, r.y + i, r.width - 2 * i, r.height - 2 * i, arc, arc);

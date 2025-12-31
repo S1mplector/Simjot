@@ -1769,6 +1769,110 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // AERO/GLASS EFFECT API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Compute outer glow alpha using ease-out curve.
+     * @param layer Current layer (1 to size)
+     * @param size Total layers
+     * @param maxAlpha Maximum alpha (0-255)
+     * @return Computed alpha, or Java fallback if native unavailable
+     */
+    public static int aeroOuterGlowAlpha(int layer, int size, int maxAlpha) {
+        NativeLibrary lib = library();
+        if (lib == null || size <= 0 || layer <= 0) {
+            // Java fallback: alpha = maxAlpha * (layer/size)^2
+            float t = (float) layer / size;
+            return Math.min(255, Math.max(0, Math.round(maxAlpha * t * t)));
+        }
+        try {
+            return lib.aeroOuterGlowAlpha(layer, size, maxAlpha);
+        } catch (Throwable t) {
+            float a = (float) layer / size;
+            return Math.min(255, Math.max(0, Math.round(maxAlpha * a * a)));
+        }
+    }
+
+    /**
+     * Compute inner shadow alpha using linear fade.
+     * @param layer Current layer (1 to size)
+     * @param size Total layers
+     * @param maxAlpha Maximum alpha (0-255)
+     * @return Computed alpha, or Java fallback if native unavailable
+     */
+    public static int aeroInnerShadowAlpha(int layer, int size, int maxAlpha) {
+        NativeLibrary lib = library();
+        if (lib == null || size <= 0 || layer <= 0) {
+            // Java fallback: alpha = maxAlpha * (1 - layer/size)
+            float t = (float) layer / size;
+            return Math.min(255, Math.max(0, Math.round(maxAlpha * (1f - t))));
+        }
+        try {
+            return lib.aeroInnerShadowAlpha(layer, size, maxAlpha);
+        } catch (Throwable t) {
+            float a = (float) layer / size;
+            return Math.min(255, Math.max(0, Math.round(maxAlpha * (1f - a))));
+        }
+    }
+
+    /**
+     * Interpolate between two ARGB colors.
+     * @param color1 First color (ARGB)
+     * @param color2 Second color (ARGB)
+     * @param t Interpolation factor (0.0-1.0)
+     * @return Interpolated color
+     */
+    public static int aeroLerpColor(int color1, int color2, float t) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Java fallback
+            if (t <= 0f) return color1;
+            if (t >= 1f) return color2;
+            int a1 = (color1 >> 24) & 0xFF, r1 = (color1 >> 16) & 0xFF, g1 = (color1 >> 8) & 0xFF, b1 = color1 & 0xFF;
+            int a2 = (color2 >> 24) & 0xFF, r2 = (color2 >> 16) & 0xFF, g2 = (color2 >> 8) & 0xFF, b2 = color2 & 0xFF;
+            int a = (int)(a1 + (a2 - a1) * t + 0.5f);
+            int r = (int)(r1 + (r2 - r1) * t + 0.5f);
+            int g = (int)(g1 + (g2 - g1) * t + 0.5f);
+            int b = (int)(b1 + (b2 - b1) * t + 0.5f);
+            return (a << 24) | (r << 16) | (g << 8) | b;
+        }
+        try {
+            return lib.aeroLerpColor(color1, color2, t);
+        } catch (Throwable e) {
+            return color1;
+        }
+    }
+
+    /**
+     * Blend foreground color over background using alpha compositing.
+     * @param fg Foreground color with alpha (ARGB)
+     * @param bg Background color (ARGB)
+     * @return Blended color
+     */
+    public static int aeroBlendOver(int fg, int bg) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Java fallback
+            int fgA = (fg >> 24) & 0xFF;
+            if (fgA == 255) return fg | 0xFF000000;
+            if (fgA == 0) return bg | 0xFF000000;
+            int fgR = (fg >> 16) & 0xFF, fgG = (fg >> 8) & 0xFF, fgB = fg & 0xFF;
+            int bgR = (bg >> 16) & 0xFF, bgG = (bg >> 8) & 0xFF, bgB = bg & 0xFF;
+            int invA = 255 - fgA;
+            int r = (fgR * fgA + bgR * invA + 127) / 255;
+            int g = (fgG * fgA + bgG * invA + 127) / 255;
+            int b = (fgB * fgA + bgB * invA + 127) / 255;
+            return 0xFF000000 | (r << 16) | (g << 8) | b;
+        }
+        try {
+            return lib.aeroBlendOver(fg, bg);
+        } catch (Throwable t) {
+            return fg;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // ANIMATION MATH API
     // ═══════════════════════════════════════════════════════════════════════════
 
