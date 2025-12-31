@@ -103,18 +103,18 @@ public class NotebookEntriesPanel extends JPanel {
     private List<File> allFiles = new ArrayList<>();
 
     // Debounced search and background metadata loader
-    private final javax.swing.Timer searchDebounce = new javax.swing.Timer(200, e -> update());
+    private final javax.swing.Timer searchDebounce = new javax.swing.Timer(100, e -> update());
     private SwingWorker<Void, FileMeta> metaLoader;
 
     // Debounced list rebuild to avoid frequent model churn on metadata updates
-    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(160, e -> applyFilterSort());
+    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(50, e -> applyFilterSort());
     // Track which files have computed metadata and which are enqueued
     private final java.util.Set<File> metaComputed = new java.util.HashSet<>();
     private final java.util.Set<File> metaQueued = new java.util.HashSet<>();
     private javax.swing.JScrollPane listScroll;
 
     // Debounced folder watch refresh to coalesce rapid file system events
-    private final javax.swing.Timer watchDebounce = new javax.swing.Timer(250, e -> refresh());
+    private final javax.swing.Timer watchDebounce = new javax.swing.Timer(100, e -> refresh());
 
     // Lightweight animation when items are reordered (fade highlight)
     private final java.util.Map<File, Float> reorderAnimProgress = new java.util.HashMap<>();
@@ -424,14 +424,41 @@ public class NotebookEntriesPanel extends JPanel {
 
         File folder = nb.getFolder();
         java.util.Set<String> exts = app.getEditorFactory().getRegisteredExtensions();
-        File[] arr = folder.listFiles((d,name)->{
-            // Exclude hidden dotfiles (e.g., legacy metadata like .journal_templates.txt)
-            if (name.startsWith(".")) return false;
-            String s = name.toLowerCase();
-            int dot = s.lastIndexOf('.');
-            String ext = dot>=0 ? s.substring(dot) : "";
-            return exts.contains(ext);
-        });
+        
+        // Try native directory listing first for speed
+        File[] arr = null;
+        try {
+            java.nio.file.Path folderPath = folder.toPath();
+            if (java.nio.file.Files.isDirectory(folderPath)) {
+                try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.list(folderPath)) {
+                    arr = stream
+                        .filter(p -> {
+                            String name = p.getFileName().toString();
+                            if (name.startsWith(".")) return false;
+                            String s = name.toLowerCase();
+                            int dot = s.lastIndexOf('.');
+                            String ext = dot >= 0 ? s.substring(dot) : "";
+                            return exts.contains(ext);
+                        })
+                        .map(java.nio.file.Path::toFile)
+                        .toArray(File[]::new);
+                }
+            }
+        } catch (Exception e) {
+            // Fall back to old File API
+            arr = null;
+        }
+        
+        // Fallback to File.listFiles if NIO failed
+        if (arr == null) {
+            arr = folder.listFiles((d,name)->{
+                if (name.startsWith(".")) return false;
+                String s = name.toLowerCase();
+                int dot = s.lastIndexOf('.');
+                String ext = dot>=0 ? s.substring(dot) : "";
+                return exts.contains(ext);
+            });
+        }
         if (arr != null) {
             allFiles = Arrays.asList(arr);
             java.util.Set<File> current = new java.util.HashSet<>(allFiles);
@@ -623,7 +650,8 @@ public class NotebookEntriesPanel extends JPanel {
         if(!deleted){
             JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'. The file may be in use.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
         }
-        loadFiles(); update();
+        // Use immediate refresh for instant UI update after deletion
+        refreshImmediate();
     }
 
     private void deleteNotebook(){
@@ -766,6 +794,22 @@ public class NotebookEntriesPanel extends JPanel {
         if (disposed) return;
         loadFiles();
         update();
+    }
+
+    /** Immediate refresh bypassing debounce - use after critical operations like delete */
+    public void refreshImmediate(){
+        if (disposed) return;
+        // Stop any pending debounced updates
+        try { listUpdateDebounce.stop(); } catch (Throwable ignored) {}
+        try { watchDebounce.stop(); } catch (Throwable ignored) {}
+        // Reload and apply immediately
+        loadFiles();
+        applyFilterSort();
+        // Ensure UI is updated on EDT
+        SwingUtilities.invokeLater(() -> {
+            list.revalidate();
+            list.repaint();
+        });
     }
 
     /** Stop background work so the panel can be disposed without hanging the app. */
