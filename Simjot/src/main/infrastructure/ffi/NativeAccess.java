@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.HexFormat;
 
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.io.IoLog;
@@ -126,6 +127,51 @@ public final class NativeAccess {
             return result == 1;
         } catch (Throwable t) {
             IoLog.warn("native-space", "Native space check failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static PerfSnapshot perfSnapshot() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            byte[] data = lib.perfSnapshot();
+            if (data == null || data.length < 64) return null;
+            ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.nativeOrder());
+            int version = buf.getInt();
+            int cpuCount = buf.getInt();
+            long timestampNs = buf.getLong();
+            long cpuUserNs = buf.getLong();
+            long cpuSystemNs = buf.getLong();
+            long rssBytes = buf.getLong();
+            long vmemBytes = buf.getLong();
+            long sysTotalBytes = buf.getLong();
+            long sysAvailBytes = buf.getLong();
+            return new PerfSnapshot(version, cpuCount, timestampNs, cpuUserNs, cpuSystemNs,
+                    rssBytes, vmemBytes, sysTotalBytes, sysAvailBytes);
+        } catch (Throwable t) {
+            IoLog.warn("native-perf", "Native performance snapshot failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static BinaryHealth binaryHealth(Path path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            byte[] data = lib.binaryHealth(path);
+            if (data == null || data.length < 56) return null;
+            ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.nativeOrder());
+            int version = buf.getInt();
+            int flags = buf.getInt();
+            long sizeBytes = buf.getLong();
+            long modifiedEpochSeconds = buf.getLong();
+            byte[] hash = new byte[32];
+            buf.get(hash);
+            String hashHex = HexFormat.of().formatHex(hash);
+            return new BinaryHealth(version, flags, sizeBytes, modifiedEpochSeconds, hashHex);
+        } catch (Throwable t) {
+            IoLog.warn("native-health", "Native binary health check failed; falling back to Java.", t);
             return null;
         }
     }
@@ -312,6 +358,47 @@ public final class NativeAccess {
             this.partsOfSpeech = partsOfSpeech != null ? partsOfSpeech : Collections.emptyList();
             this.synonyms = synonyms != null ? synonyms : Collections.emptyList();
             this.antonyms = antonyms != null ? antonyms : Collections.emptyList();
+        }
+    }
+
+    public static final class PerfSnapshot {
+        public final int version;
+        public final int cpuCount;
+        public final long timestampNs;
+        public final long cpuUserNs;
+        public final long cpuSystemNs;
+        public final long rssBytes;
+        public final long vmemBytes;
+        public final long sysTotalBytes;
+        public final long sysAvailBytes;
+
+        public PerfSnapshot(int version, int cpuCount, long timestampNs, long cpuUserNs, long cpuSystemNs,
+                            long rssBytes, long vmemBytes, long sysTotalBytes, long sysAvailBytes) {
+            this.version = version;
+            this.cpuCount = cpuCount;
+            this.timestampNs = timestampNs;
+            this.cpuUserNs = cpuUserNs;
+            this.cpuSystemNs = cpuSystemNs;
+            this.rssBytes = rssBytes;
+            this.vmemBytes = vmemBytes;
+            this.sysTotalBytes = sysTotalBytes;
+            this.sysAvailBytes = sysAvailBytes;
+        }
+    }
+
+    public static final class BinaryHealth {
+        public final int version;
+        public final int flags;
+        public final long sizeBytes;
+        public final long modifiedEpochSeconds;
+        public final String sha256Hex;
+
+        public BinaryHealth(int version, int flags, long sizeBytes, long modifiedEpochSeconds, String sha256Hex) {
+            this.version = version;
+            this.flags = flags;
+            this.sizeBytes = sizeBytes;
+            this.modifiedEpochSeconds = modifiedEpochSeconds;
+            this.sha256Hex = sha256Hex;
         }
     }
 

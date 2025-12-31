@@ -389,6 +389,7 @@ public final class ImageIconRenderer {
             case "sim_settings", "settings_sim" -> iconSvg("Laptop-Help-Message");
             case "about_settings", "settings_about" -> iconSvg("Information-Circle");
             case "security", "security_settings" -> iconSvg("Lock-5");
+            case "debug_settings", "settings_debug" -> iconSvg("Cog-Search-1");
             // Widget buttons
             case "breathing_widget", "widget_breathing", "breath" -> iconSvg("Gauge-Dashboard");
             case "pomodoro_widget", "widget_pomodoro" -> iconSvg("Alarm-Bell-Ring");

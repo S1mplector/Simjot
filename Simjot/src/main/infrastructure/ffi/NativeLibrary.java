@@ -46,6 +46,8 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle sumArrayHandle;
     private final MethodHandle fibHandle;
     private final MethodHandle sha256FileHandle;
+    private final MethodHandle perfSnapshotHandle;
+    private final MethodHandle binaryHealthHandle;
     private final MethodHandle countSyllablesHandle;
     private final MethodHandle atomicWriteHandle;
     private final MethodHandle ensureSpaceHandle;
@@ -93,6 +95,15 @@ public final class NativeLibrary implements AutoCloseable {
         this.sha256FileHandle = linker.downcallHandle(
             lookup.find("simjot_sha256_file").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        this.perfSnapshotHandle = optionalHandle(
+            "simjot_perf_snapshot",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.binaryHealthHandle = optionalHandle(
+            "simjot_binary_health",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
         );
 
         // int32_t simjot_count_syllables(const char* word)
@@ -271,6 +282,47 @@ public final class NativeLibrary implements AutoCloseable {
             return HexFormat.of().formatHex(bytes);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_sha256_file", t);
+        }
+    }
+
+    public byte[] perfSnapshot() {
+        if (perfSnapshotHandle == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int outLen = 128;
+            MemorySegment out = tempArena.allocate(outLen);
+            int len = (int) perfSnapshotHandle.invokeExact(out, outLen);
+            if (len < 0) {
+                outLen = Math.max(outLen, -len);
+                out = tempArena.allocate(outLen);
+                len = (int) perfSnapshotHandle.invokeExact(out, outLen);
+            }
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_perf_snapshot", t);
+        }
+    }
+
+    public byte[] binaryHealth(Path path) {
+        if (binaryHealthHandle == null || path == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int outLen = 96;
+            MemorySegment cPath = tempArena.allocateFrom(path.toString());
+            MemorySegment out = tempArena.allocate(outLen);
+            int len = (int) binaryHealthHandle.invokeExact(cPath, out, outLen);
+            if (len < 0) {
+                outLen = Math.max(outLen, -len);
+                out = tempArena.allocate(outLen);
+                len = (int) binaryHealthHandle.invokeExact(cPath, out, outLen);
+            }
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_binary_health", t);
         }
     }
 

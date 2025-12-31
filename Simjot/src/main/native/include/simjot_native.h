@@ -13,6 +13,8 @@ int64_t simjot_sum_array(const int32_t* arr, int32_t len);
 int64_t simjot_fib(int32_t n);
 
 int32_t simjot_sha256_file(const char* path, uint8_t* out32);
+int32_t simjot_perf_snapshot(uint8_t* out, int32_t out_len);
+int32_t simjot_binary_health(const char* path, uint8_t* out, int32_t out_len);
 
 int32_t simjot_count_syllables(const char* word);
 int32_t simjot_rhyme_key(const char* word, char* out, int32_t out_len);

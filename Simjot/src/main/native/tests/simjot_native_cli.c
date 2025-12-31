@@ -81,6 +81,13 @@ static int read_u32(const uint8_t* data, int32_t len, int32_t* offset, uint32_t*
     return 1;
 }
 
+static int read_u64(const uint8_t* data, int32_t len, int32_t* offset, uint64_t* out) {
+    if (*offset + 8 > len) return 0;
+    memcpy(out, data + *offset, sizeof(uint64_t));
+    *offset += 8;
+    return 1;
+}
+
 static int skip_string(const uint8_t* data, int32_t len, int32_t* offset) {
     uint32_t slen = 0;
     if (!read_u32(data, len, offset, &slen)) return 0;
@@ -272,6 +279,37 @@ int main(void) {
                 fprintf(stderr, "[FAIL] simjot_sha256_file: call failed\n");
                 failures++;
             }
+
+            uint8_t health[64];
+            int32_t hlen = simjot_binary_health(tmp_path, health, (int32_t)sizeof(health));
+            if (hlen > 0) {
+                int32_t off = 0;
+                uint32_t version = 0;
+                uint32_t flags = 0;
+                uint64_t size = 0;
+                uint64_t mtime = 0;
+                if (read_u32(health, hlen, &off, &version) &&
+                    read_u32(health, hlen, &off, &flags) &&
+                    read_u64(health, hlen, &off, &size) &&
+                    read_u64(health, hlen, &off, &mtime) &&
+                    off + 32 <= hlen) {
+                    (void)mtime;
+                    if (version == 1 && flags == 1 && size == 3) {
+                        char hex[65];
+                        bytes_to_hex(health + off, 32, hex);
+                        expect_str("simjot_binary_health", hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+                    } else {
+                        fprintf(stderr, "[FAIL] simjot_binary_health: unexpected metadata\n");
+                        failures++;
+                    }
+                } else {
+                    fprintf(stderr, "[FAIL] simjot_binary_health: parse failed\n");
+                    failures++;
+                }
+            } else {
+                fprintf(stderr, "[FAIL] simjot_binary_health: call failed\n");
+                failures++;
+            }
         } else {
             fprintf(stderr, "[FAIL] write temp file for sha256\n");
             failures++;
@@ -337,6 +375,42 @@ int main(void) {
     }
 #else
     printf("[SKIP] simjot_list_dir (Windows stub)\n");
+#endif
+
+#ifndef _WIN32
+    uint8_t perf[96];
+    int32_t plen = simjot_perf_snapshot(perf, (int32_t)sizeof(perf));
+    if (plen > 0) {
+        int32_t off = 0;
+        uint32_t version = 0;
+        uint32_t cpu_count = 0;
+        uint64_t ts = 0, user = 0, sys = 0, rss = 0, vmem = 0, total = 0, avail = 0;
+        if (read_u32(perf, plen, &off, &version) &&
+            read_u32(perf, plen, &off, &cpu_count) &&
+            read_u64(perf, plen, &off, &ts) &&
+            read_u64(perf, plen, &off, &user) &&
+            read_u64(perf, plen, &off, &sys) &&
+            read_u64(perf, plen, &off, &rss) &&
+            read_u64(perf, plen, &off, &vmem) &&
+            read_u64(perf, plen, &off, &total) &&
+            read_u64(perf, plen, &off, &avail)) {
+            if (version == 1 && cpu_count >= 1 && total > 0) {
+                printf("[OK] simjot_perf_snapshot\n");
+            } else {
+                fprintf(stderr, "[FAIL] simjot_perf_snapshot: unexpected metadata\n");
+                failures++;
+            }
+            (void)ts; (void)user; (void)sys; (void)rss; (void)vmem; (void)avail;
+        } else {
+            fprintf(stderr, "[FAIL] simjot_perf_snapshot: parse failed\n");
+            failures++;
+        }
+    } else {
+        fprintf(stderr, "[FAIL] simjot_perf_snapshot: call failed\n");
+        failures++;
+    }
+#else
+    printf("[SKIP] simjot_perf_snapshot (Windows stub)\n");
 #endif
 
 #ifndef _WIN32
