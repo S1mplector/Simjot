@@ -64,6 +64,7 @@ public class ThematicAnalyzer {
     private static volatile Map<String, Set<String>> THEME_INDEX;
     private static volatile Map<String, Set<String>> THEME_SYNONYM_INDEX;
     private static final Object INDEX_LOCK = new Object();
+    private static final double SYNONYM_WEIGHT = 0.7;
     
     static {
         // Nature themes
