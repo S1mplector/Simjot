@@ -12,19 +12,46 @@
 
 package main.ui.features.entries;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dialog;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
+import javax.swing.DropMode;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.KeyStroke;
+import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
+import javax.swing.TransferHandler;
+
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.AeroPanel;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
-import main.ui.components.containers.AeroPanel;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-import main.ui.dialog.message.UIMessage;
 import main.ui.dialog.input.CustomInputDialog;
+import main.ui.dialog.message.UIMessage;
 
 /**
  * Dialog for managing journal entry templates: add, edit, remove.
@@ -362,12 +389,33 @@ public class TemplateManagerDialog extends JDialog {
             questionModel = new DefaultListModel<>();
             questionList = new JList<>(questionModel);
             questionList.setFont(questionList.getFont().deriveFont(14f));
+            questionList.setCellRenderer(new QuestionCellRenderer());
+            questionList.setFixedCellHeight(36);
+            
+            // Double-click to edit
+            questionList.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() == 2 && questionList.isEnabled()) editQuestion();
+                }
+            });
+            
+            // Delete key to remove
+            questionList.addKeyListener(new java.awt.event.KeyAdapter() {
+                @Override public void keyPressed(java.awt.event.KeyEvent e) {
+                    if (e.getKeyCode() == java.awt.event.KeyEvent.VK_DELETE && questionList.isEnabled()) {
+                        deleteQuestion();
+                    } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER && questionList.isEnabled()) {
+                        editQuestion();
+                    }
+                }
+            });
+            
             JScrollPane qScroll = new JScrollPane(questionList);
-            qScroll.setBorder(BorderFactory.createLineBorder(new Color(210,216,228)));
+            qScroll.setBorder(BorderFactory.createLineBorder(new Color(200,210,225)));
             qScroll.setOpaque(false);
             qScroll.getViewport().setOpaque(false);
             questionList.setOpaque(true);
-            questionList.setBackground(new Color(255, 255, 255, 210));
+            questionList.setBackground(new Color(252, 253, 255));
             qScroll.setPreferredSize(new Dimension(480, 200));
             try {
                 JScrollBar vbar = qScroll.getVerticalScrollBar();
@@ -407,20 +455,42 @@ public class TemplateManagerDialog extends JDialog {
             gc.gridy = 5; gc.gridwidth = 2;
             AeroPanel quickRow = new AeroPanel(12);
             quickRow.setLayout(new BorderLayout(6, 0));
-            quickRow.setBorder(BorderFactory.createEmptyBorder(4,6,4,6));
+            quickRow.setBorder(BorderFactory.createEmptyBorder(6,8,6,8));
             quickAddField = new AeroTextField(20);
             quickAddField.setToolTipText("Type a question and press Enter to add");
-            quickAddField.addActionListener(e -> { String t = quickAddField.getText().trim(); if (!t.isEmpty()) { questionModel.addElement(t); quickAddField.setText(""); } });
+            quickAddField.putClientProperty("JTextField.placeholderText", "Type a new question and press Enter…");
+            quickAddField.addActionListener(e -> { 
+                String t = quickAddField.getText().trim(); 
+                if (!t.isEmpty()) { 
+                    questionModel.addElement(t); 
+                    quickAddField.setText(""); 
+                    questionList.setSelectedIndex(questionModel.size() - 1);
+                    questionList.ensureIndexIsVisible(questionModel.size() - 1);
+                } 
+            });
             quickRow.add(quickAddField, BorderLayout.CENTER);
+            
+            // Quick hint label
+            JLabel quickHint = new JLabel("Press Enter to add");
+            quickHint.setFont(quickHint.getFont().deriveFont(Font.PLAIN, 11f));
+            quickHint.setForeground(new Color(140, 150, 165));
+            quickRow.add(quickHint, BorderLayout.EAST);
             formPanel.add(quickRow, gc);
 
             // Read-only hint label
-            roLabel = new JLabel("Built-in template (read-only). Duplicate to customize.");
-            roLabel.setForeground(new Color(120, 120, 120));
-            roLabel.setFont(roLabel.getFont().deriveFont(Font.PLAIN, 12f));
+            roLabel = new JLabel("ℹ Built-in template (read-only). Duplicate to customize.");
+            roLabel.setForeground(new Color(100, 120, 160));
+            roLabel.setFont(roLabel.getFont().deriveFont(Font.ITALIC, 12f));
             roLabel.setVisible(false);
             gc.gridy = 6; gc.gridwidth = 2;
             formPanel.add(roLabel, gc);
+            
+            // Hint for keyboard shortcuts
+            JLabel shortcutHint = new JLabel("Tip: Double-click to edit • Delete key to remove • Drag to reorder");
+            shortcutHint.setFont(shortcutHint.getFont().deriveFont(Font.PLAIN, 11f));
+            shortcutHint.setForeground(new Color(130, 140, 155));
+            gc.gridy = 7;
+            formPanel.add(shortcutHint, gc);
 
             // Enable drag-reorder of questions
             installReorderDnD(questionList, questionModel);
@@ -523,6 +593,49 @@ public class TemplateManagerDialog extends JDialog {
             }
         }
 
+        /** Custom renderer showing question numbers */
+        private class QuestionCellRenderer extends JPanel implements ListCellRenderer<String> {
+            private final JLabel numLabel = new JLabel();
+            private final JLabel textLabel = new JLabel();
+            
+            QuestionCellRenderer() {
+                setLayout(new BorderLayout(8, 0));
+                setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+                setOpaque(true);
+                
+                numLabel.setFont(numLabel.getFont().deriveFont(Font.BOLD, 12f));
+                numLabel.setForeground(new Color(100, 130, 180));
+                numLabel.setPreferredSize(new Dimension(28, 24));
+                
+                textLabel.setFont(textLabel.getFont().deriveFont(14f));
+                
+                add(numLabel, BorderLayout.WEST);
+                add(textLabel, BorderLayout.CENTER);
+            }
+            
+            @Override
+            public Component getListCellRendererComponent(JList<? extends String> list, String value, 
+                    int index, boolean isSelected, boolean cellHasFocus) {
+                numLabel.setText((index + 1) + ".");
+                textLabel.setText(value);
+                
+                if (isSelected) {
+                    setBackground(new Color(225, 235, 250));
+                    textLabel.setForeground(new Color(30, 50, 80));
+                    setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(0, 3, 0, 0, new Color(90, 140, 220)),
+                        BorderFactory.createEmptyBorder(6, 7, 6, 10)
+                    ));
+                } else {
+                    setBackground(index % 2 == 0 ? new Color(252, 253, 255) : new Color(248, 250, 254));
+                    textLabel.setForeground(new Color(50, 55, 65));
+                    setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+                }
+                
+                return this;
+            }
+        }
+        
         private static void installReorderDnD(JList<String> list, DefaultListModel<String> model){
             list.setDragEnabled(true);
             list.setDropMode(DropMode.INSERT);
