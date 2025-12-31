@@ -90,6 +90,59 @@ int32_t simjot_json_parse_dict_words(const char* json, int32_t json_len, char* o
 int32_t simjot_json_parse_dict_entry(const char* json, const char* word, uint8_t* out, int32_t out_len);
 int32_t simjot_json_load_dict_file(const char* file_path, char* output, int32_t output_len);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MOOD ANALYTICS - Fast mood log parsing and statistics
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Load and parse mood log file */
+int32_t simjot_mood_load(const char* file_path);
+
+/* Compute daily statistics (call after load) */
+int32_t simjot_mood_compute_daily(int32_t days_back);
+
+/* Compute analytics summary (call after compute_daily) */
+int32_t simjot_mood_compute_summary(int32_t threshold);
+
+/* Get daily stats by index (binary output) */
+int32_t simjot_mood_get_daily(int32_t index, uint8_t* out, int32_t out_len);
+
+/* Get analytics summary (binary output) */
+int32_t simjot_mood_get_summary(uint8_t* out, int32_t out_len);
+
+/* Get counts */
+int32_t simjot_mood_daily_count(void);
+int32_t simjot_mood_sample_count(void);
+
+/* Clear all loaded data */
+void simjot_mood_clear(void);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MOOD GRAPHICS - Native chart rendering to pixel buffers
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Render sparkline chart (mood trend line) */
+int32_t simjot_mood_sparkline(const int32_t* values, int32_t count,
+                               int32_t width, int32_t height,
+                               uint32_t* out, uint32_t bg_color,
+                               int32_t line_thickness);
+
+/* Render bar chart (daily averages) */
+int32_t simjot_mood_barchart(const int32_t* values, int32_t count,
+                              int32_t width, int32_t height,
+                              uint32_t* out, uint32_t bg_color,
+                              int32_t bar_spacing);
+
+/* Render gauge/radial chart */
+int32_t simjot_mood_gauge(int32_t value, int32_t size,
+                           uint32_t* out, uint32_t bg_color,
+                           uint32_t track_color, int32_t thickness);
+
+/* Render heatmap grid (contribution graph style) */
+int32_t simjot_mood_heatmap(const int32_t* values, int32_t count,
+                             int32_t cols, int32_t cell_size, int32_t cell_gap,
+                             uint32_t* out, int32_t out_width, int32_t out_height,
+                             uint32_t bg_color, uint32_t empty_color);
+
 /* Date/time utilities */
 int64_t simjot_time_now_millis(void);
 int64_t simjot_time_now_secs(void);

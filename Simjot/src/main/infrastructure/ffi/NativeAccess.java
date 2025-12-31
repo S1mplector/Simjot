@@ -2486,15 +2486,147 @@ public final class NativeAccess {
      * Returns words as a list.
      */
     public static java.util.List<String> jsonLoadDictWords(String filePath) {
-        NativeLibrary lib = library();
-        if (lib == null || filePath == null) return null;
-        try {
-            return lib.jsonLoadDictWords(filePath);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NATIVE MOOD ANALYTICS - Fast mood log parsing
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Load and parse mood log file using native parser.
+     * @return Number of samples parsed, or negative on error
+     */
+    public static int moodLoad(String filePath) {
+        // TODO: Wire FFM binding when ready
+        return -1;
+    }
+
+    /**
+     * Compute daily statistics from loaded samples.
+     * @param daysBack Number of days to analyze (0 = all time)
+     * @return Number of days with data
+     */
+    public static int moodComputeDaily(int daysBack) {
+        // TODO: Wire FFM binding when ready
+        return -1;
+    }
+
+    /**
+     * Compute analytics summary (volatility, streaks).
+     * @param threshold Good/bad mood threshold (typically 60)
+     */
+    public static int moodComputeSummary(int threshold) {
+        // TODO: Wire FFM binding when ready
+        return -1;
+    }
+
+    /**
+     * Mood analytics summary record.
+     */
+    public record MoodSummary(
+        double overallAverage,
+        double volatility,
+        int currentStreak,
+        int longestGoodStreak,
+        int longestBadStreak,
+        int totalSamples,
+        int totalDays
+    ) {}
+
+    /**
+     * Get analytics summary after computing.
+     */
+    public static MoodSummary moodGetSummary() {
+        // TODO: Wire FFM binding when ready
+        return null;
+    }
+
+    /**
+     * Get number of daily stats entries.
+     */
+    public static int moodDailyCount() {
+        // TODO: Wire FFM binding when ready
+        return 0;
+    }
+
+    /**
+     * Clear all loaded mood data.
+     */
+    public static void moodClear() {
+        // TODO: Wire FFM binding when ready
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NATIVE MOOD GRAPHICS - Fast chart rendering
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Render a mood sparkline chart to a BufferedImage.
+     * 
+     * @param values Mood values (0-100)
+     * @param width Output width
+     * @param height Output height
+     * @param bgColor Background color (ARGB)
+     * @param lineThickness Line thickness (1-5)
+     * @return BufferedImage or null if native unavailable
+     */
+    public static java.awt.image.BufferedImage moodSparkline(int[] values, int width, int height, 
+                                                              int bgColor, int lineThickness) {
+        // TODO: Wire FFM binding when ready
+        return null;
+    }
+
+    /**
+     * Render a mood bar chart to a BufferedImage.
+     * 
+     * @param values Mood values (0-100, -1 for missing)
+     * @param width Output width
+     * @param height Output height
+     * @param bgColor Background color (ARGB)
+     * @param barSpacing Spacing between bars
+     * @return BufferedImage or null if native unavailable
+     */
+    public static java.awt.image.BufferedImage moodBarChart(int[] values, int width, int height,
+                                                             int bgColor, int barSpacing) {
+        // TODO: Wire FFM binding when ready
+        return null;
+    }
+
+    /**
+     * Render a mood gauge to a BufferedImage.
+     * 
+     * @param value Mood value (0-100)
+     * @param size Output size (width=height)
+     * @param bgColor Background color (ARGB)
+     * @param trackColor Track color (ARGB)
+     * @param thickness Arc thickness
+     * @return BufferedImage or null if native unavailable
+     */
+    public static java.awt.image.BufferedImage moodGauge(int value, int size,
+                                                          int bgColor, int trackColor, int thickness) {
+        // TODO: Wire FFM binding when ready
+        return null;
+    }
+
+    /**
+     * Render a mood heatmap to a BufferedImage.
+     * 
+     * @param values Mood values (0-100, -1 for missing)
+     * @param cols Number of columns
+     * @param cellSize Cell size in pixels
+     * @param cellGap Gap between cells
+     * @param bgColor Background color (ARGB)
+     * @param emptyColor Color for missing data (ARGB)
+     * @return BufferedImage or null if native unavailable
+     */
+    public static java.awt.image.BufferedImage moodHeatmap(int[] values, int cols,
+                                                            int cellSize, int cellGap,
+                                                            int bgColor, int emptyColor) {
+        // TODO: Wire FFM binding when ready
+        return null;
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // FILE METADATA UTILITIES - Fast native file operations
@@ -2504,39 +2636,24 @@ public final class NativeAccess {
      * Count words in a text string using native code.
      */
     public static int countWords(String text) {
-        NativeLibrary lib = library();
-        if (lib == null || text == null) return -1;
-        try {
-            return lib.countWords(text);
-        } catch (Throwable t) {
-            return -1;
-        }
+        // TODO: Wire FFM binding when ready
+        return -1;
     }
 
     /**
      * Count words in a file using native code (memory efficient, reads in chunks).
      */
     public static int countWordsFile(String path) {
-        NativeLibrary lib = library();
-        if (lib == null || path == null) return -1;
-        try {
-            return lib.countWordsFile(path);
-        } catch (Throwable t) {
-            return -1;
-        }
+        // TODO: Wire FFM binding when ready
+        return -1;
     }
 
     /**
      * Extract first non-empty line from file as title.
      */
     public static String extractTitle(String path) {
-        NativeLibrary lib = library();
-        if (lib == null || path == null) return null;
-        try {
-            return lib.extractTitle(path);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     /**
@@ -2548,13 +2665,8 @@ public final class NativeAccess {
      * Get file metadata in a single native call (word count, title, size, mtime).
      */
     public static FileMeta getFileMeta(String path) {
-        NativeLibrary lib = library();
-        if (lib == null || path == null) return null;
-        try {
-            return lib.getFileMeta(path);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     /**
@@ -2568,13 +2680,8 @@ public final class NativeAccess {
      * @param extension file extension filter (e.g., ".txt") or null for all
      */
     public static java.util.List<DirEntry> listFilesMeta(String dirPath, String extension) {
-        NativeLibrary lib = library();
-        if (lib == null || dirPath == null) return null;
-        try {
-            return lib.listFilesMeta(dirPath, extension);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2582,147 +2689,74 @@ public final class NativeAccess {
     // ═══════════════════════════════════════════════════════════════════════════
 
     public static Boolean profilerInit(int sampleIntervalMs) {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerInit(sampleIntervalMs);
-        } catch (Throwable t) {
-            IoLog.warn("native-profiler", "Native profiler init failed.", t);
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static Boolean profilerStart() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerStart();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static Boolean profilerStop() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerStop();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static void profilerReset() {
-        NativeLibrary lib = library();
-        if (lib == null) return;
-        try {
-            lib.profilerReset();
-        } catch (Throwable ignored) {}
+        // TODO: Wire FFM binding when ready
     }
 
     public static Integer profilerRegisterComponent(String name) {
-        NativeLibrary lib = library();
-        if (lib == null || name == null) return null;
-        try {
-            return lib.profilerRegisterComponent(name);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static Boolean profilerRegisterThread(String componentName, long threadId) {
-        NativeLibrary lib = library();
-        if (lib == null || componentName == null) return null;
-        try {
-            return lib.profilerRegisterThread(componentName, threadId);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static Boolean profilerUnregisterThread(String componentName, long threadId) {
-        NativeLibrary lib = library();
-        if (lib == null || componentName == null) return null;
-        try {
-            return lib.profilerUnregisterThread(componentName, threadId);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static void profilerTrackAlloc(String componentName, long bytes) {
-        NativeLibrary lib = library();
-        if (lib == null || componentName == null) return;
-        try {
-            lib.profilerTrackAlloc(componentName, bytes);
-        } catch (Throwable ignored) {}
+        // TODO: Wire FFM binding when ready
     }
 
     public static void profilerTrackFree(String componentName, long bytes) {
-        NativeLibrary lib = library();
-        if (lib == null || componentName == null) return;
-        try {
-            lib.profilerTrackFree(componentName, bytes);
-        } catch (Throwable ignored) {}
+        // TODO: Wire FFM binding when ready
     }
 
     public static Boolean profilerSample() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerSample();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static Integer profilerComponentCount() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerComponentCount();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static byte[] profilerGetComponentSnapshot(int index) {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerGetComponentSnapshot(index);
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static byte[] profilerGetSummary() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerGetSummary();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static String profilerPrintReport() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerPrintReport();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 
     public static String profilerStatusLine() {
-        NativeLibrary lib = library();
-        if (lib == null) return null;
-        try {
-            return lib.profilerStatusLine();
-        } catch (Throwable t) {
-            return null;
-        }
+        // TODO: Wire FFM binding when ready
+        return null;
     }
 }

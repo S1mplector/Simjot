@@ -119,7 +119,6 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/security/LockDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/drawing/DrawingChooserDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/backup/NotebookInfo.java
-/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/icons/VectorIconPainter.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/settings/SettingsPage.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/calendars/StampCalendar.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/PolarClock.java
@@ -186,6 +185,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/calendars/VerticalCalendar.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/sim/retrieval/RecencyBuffer.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/icons/ModernFileIcons.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/monitoring/ComponentProfiler.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/OrbitalClock.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/home/AnalogClockPanel.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/combobox/ModernComboBoxUI.java

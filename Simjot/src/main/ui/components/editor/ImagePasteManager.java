@@ -219,7 +219,7 @@ public final class ImagePasteManager {
         }
         try { ImageIO.write(scaled, "PNG", out); } catch (IOException e) { /* ignore, still insert */ }
 
-        // Insert as icon at caret
+        // Insert as icon at caret, preserving scroll position to prevent jumping
         ImageIcon icon = new ImageIcon(scaled);
         SimpleAttributeSet attrs = new SimpleAttributeSet();
         StyleConstants.setIcon(attrs, icon);
@@ -227,12 +227,40 @@ public final class ImagePasteManager {
         attrs.addAttribute("imageSourceFile", out);
         StyledDocument doc = editor.getStyledDocument();
         try {
+            // Save current scroll position before insertion
+            javax.swing.JViewport viewport = null;
+            java.awt.Container parent = editor.getParent();
+            if (parent instanceof javax.swing.JViewport) {
+                viewport = (javax.swing.JViewport) parent;
+            }
+            Point savedScrollPos = viewport != null ? viewport.getViewPosition() : null;
+            
             int pos = editor.getCaretPosition();
             doc.insertString(pos, " ", attrs);
             // Add a trailing newline for spacing
             doc.insertString(pos+1, "\n", null);
+            
+            // Set caret without triggering scroll by using invokeLater
+            // and restore scroll position if user was scrolled away
+            final javax.swing.JViewport vp = viewport;
+            final Point scrollPos = savedScrollPos;
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    // Move caret
+                    editor.setCaretPosition(Math.min(doc.getLength(), pos + 2));
+                    // Restore scroll position to prevent jump
+                    if (vp != null && scrollPos != null) {
+                        // Only restore if the image insertion would cause a jump
+                        // (i.e., the new view position differs significantly)
+                        Point newPos = vp.getViewPosition();
+                        if (Math.abs(newPos.y - scrollPos.y) > 50) {
+                            vp.setViewPosition(scrollPos);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            });
+            
             editor.requestFocusInWindow();
-            editor.setCaretPosition(Math.min(doc.getLength(), pos+2));
             return true;
         } catch (BadLocationException e) {
             return false;
@@ -577,6 +605,15 @@ public final class ImagePasteManager {
     private static void resizeImage(JTextPane editor, int startOffset, File[] srcRef, 
                                     int targetW, Supplier<File> attachmentsDirSupplier) {
         try {
+            // Save scroll position to prevent jumping
+            javax.swing.JViewport viewport = null;
+            java.awt.Container parent = editor.getParent();
+            if (parent instanceof javax.swing.JViewport) {
+                viewport = (javax.swing.JViewport) parent;
+            }
+            final Point savedScrollPos = viewport != null ? viewport.getViewPosition() : null;
+            final javax.swing.JViewport vp = viewport;
+            
             File source = srcRef[0];
             if (source == null) {
                 // Create source file from current icon
@@ -609,6 +646,15 @@ public final class ImagePasteManager {
             try {
                 doc.remove(startOffset, 1);
                 doc.insertString(startOffset, " ", attrs);
+                
+                // Restore scroll position after resize to prevent jumping
+                if (vp != null && savedScrollPos != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        try {
+                            vp.setViewPosition(savedScrollPos);
+                        } catch (Throwable ignored) {}
+                    });
+                }
             } catch (BadLocationException ignored) {}
             
         } catch (IOException ignored) {}
