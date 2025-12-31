@@ -378,6 +378,31 @@ int32_t simjot_create_directory(const char* dir_path);
 /* Check if setup is needed */
 int32_t simjot_needs_setup(const char* config_path);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * WATCHDOG SYSTEM - Application lifecycle management
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Start a watchdog timer (action: 0=none, 1=callback, 2=exit, 3=halt) */
+int32_t simjot_watchdog_start(int64_t timeout_ms, int32_t action, const char* name);
+
+/* Cancel a running watchdog */
+int32_t simjot_watchdog_cancel(int32_t id);
+
+/* Reset watchdog timer (restart countdown) */
+int32_t simjot_watchdog_reset(int32_t id);
+
+/* Get watchdog state (0=inactive, 1=running, 2=triggered, 3=cancelled) */
+int32_t simjot_watchdog_state(int32_t id);
+
+/* Get remaining time in milliseconds */
+int64_t simjot_watchdog_remaining(int32_t id);
+
+/* Force immediate process halt */
+void simjot_force_halt(void);
+
+/* Get monotonic time in milliseconds */
+int64_t simjot_monotonic_time_ms(void);
+
 #ifdef __cplusplus
 }
 #endif

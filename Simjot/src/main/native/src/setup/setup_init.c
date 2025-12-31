@@ -235,7 +235,7 @@ static int verify_setup_marker(const char* root_path) {
  * @param root_path Path to the Simjot root folder
  * @return 0 on success, negative error code on failure
  */
-EXPORT int32_t simjot_setup_init(const char* root_path) {
+int32_t simjot_setup_init(const char* root_path) {
     if (root_path == NULL || root_path[0] == '\0') {
         return SETUP_ERR_NULL_PATH;
     }
@@ -277,7 +277,7 @@ EXPORT int32_t simjot_setup_init(const char* root_path) {
  * @param root_path Path to the Simjot root folder
  * @return Bitmask: bit 0 = root ok, bits 1-4 = subdirs ok, bit 7 = marker ok
  */
-EXPORT int32_t simjot_setup_verify(const char* root_path) {
+int32_t simjot_setup_verify(const char* root_path) {
     if (root_path == NULL || root_path[0] == '\0') {
         return 0;
     }
@@ -313,7 +313,7 @@ EXPORT int32_t simjot_setup_verify(const char* root_path) {
  * @param dir_path Directory to test
  * @return 1 if writable, 0 if not
  */
-EXPORT int32_t simjot_verify_writable(const char* dir_path) {
+int32_t simjot_verify_writable(const char* dir_path) {
     if (dir_path == NULL || dir_path[0] == '\0') {
         return 0;
     }
@@ -329,7 +329,7 @@ EXPORT int32_t simjot_verify_writable(const char* dir_path) {
  *                   marker_valid, setup_complete]
  * @return Number of directories that are OK (0-5), or -1 on error
  */
-EXPORT int32_t simjot_setup_status(const char* root_path, int32_t* out_status) {
+int32_t simjot_setup_status(const char* root_path, int32_t* out_status) {
     if (root_path == NULL || out_status == NULL) {
         return -1;
     }
@@ -370,7 +370,7 @@ EXPORT int32_t simjot_setup_status(const char* root_path, int32_t* out_status) {
  * @param root_path Root folder path to write
  * @return 0 on success, negative on error
  */
-EXPORT int32_t simjot_write_config(const char* config_path, const char* root_path) {
+int32_t simjot_write_config(const char* config_path, const char* root_path) {
     if (config_path == NULL || root_path == NULL) {
         return SETUP_ERR_NULL_PATH;
     }
@@ -420,7 +420,7 @@ EXPORT int32_t simjot_write_config(const char* config_path, const char* root_pat
  * @param out_root_path Buffer to receive root path (must be MAX_PATH_LEN)
  * @return 1 if valid config found, 0 if not
  */
-EXPORT int32_t simjot_read_config(const char* config_path, char* out_root_path) {
+int32_t simjot_read_config(const char* config_path, char* out_root_path) {
     if (config_path == NULL || out_root_path == NULL) {
         return 0;
     }
@@ -466,7 +466,7 @@ EXPORT int32_t simjot_read_config(const char* config_path, char* out_root_path) 
  * @param dir_path Directory path to create
  * @return 0 on success (or already exists), negative on error
  */
-EXPORT int32_t simjot_create_directory(const char* dir_path) {
+int32_t simjot_create_directory(const char* dir_path) {
     if (dir_path == NULL || dir_path[0] == '\0') {
         return SETUP_ERR_NULL_PATH;
     }
@@ -480,7 +480,7 @@ EXPORT int32_t simjot_create_directory(const char* dir_path) {
  * @param config_path Path to config file
  * @return 1 if setup needed, 0 if already configured
  */
-EXPORT int32_t simjot_needs_setup(const char* config_path) {
+int32_t simjot_needs_setup(const char* config_path) {
     if (config_path == NULL) {
         return 1;
     }

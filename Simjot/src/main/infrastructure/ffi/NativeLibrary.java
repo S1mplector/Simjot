@@ -2570,6 +2570,118 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // WATCHDOG API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Watchdog actions */
+    public static final int WD_ACTION_NONE = 0;
+    public static final int WD_ACTION_CALLBACK = 1;
+    public static final int WD_ACTION_EXIT = 2;
+    public static final int WD_ACTION_HALT = 3;
+
+    /**
+     * Start a native watchdog timer.
+     * @param timeoutMs Timeout in milliseconds
+     * @param action Action on trigger: 0=none, 1=callback, 2=exit, 3=halt
+     * @param name Optional name for logging
+     * @return Watchdog ID (0-7), or -1 on error
+     */
+    public int watchdogStart(long timeoutMs, int action, String name) {
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_watchdog_start",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, 
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return -1;
+            MemorySegment nameSeg = name != null ? tempArena.allocateFrom(name) : MemorySegment.NULL;
+            return (int) handle.invokeExact(timeoutMs, action, nameSeg);
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Cancel a running watchdog.
+     */
+    public boolean watchdogCancel(int id) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_watchdog_cancel",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact(id)) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Reset a watchdog timer.
+     */
+    public boolean watchdogReset(int id) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_watchdog_reset",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact(id)) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get watchdog state.
+     */
+    public int watchdogState(int id) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_watchdog_state",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            return (int) handle.invokeExact(id);
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Get remaining time for watchdog.
+     */
+    public long watchdogRemaining(int id) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_watchdog_remaining",
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            return (long) handle.invokeExact(id);
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Force immediate process halt.
+     */
+    public void forceHalt() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_force_halt",
+                FunctionDescriptor.ofVoid());
+            if (handle != null) handle.invokeExact();
+        } catch (Throwable ignored) {}
+        Runtime.getRuntime().halt(1);
+    }
+
+    /**
+     * Get monotonic time in milliseconds.
+     */
+    public long monotonicTimeMs() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_monotonic_time_ms",
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG));
+            if (handle == null) return System.nanoTime() / 1_000_000L;
+            return (long) handle.invokeExact();
+        } catch (Throwable e) {
+            return System.nanoTime() / 1_000_000L;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
     // ═══════════════════════════════════════════════════════════════════════════
 

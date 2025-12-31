@@ -33,9 +33,6 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -900,69 +897,26 @@ public class JournalApp extends JFrame {
     }
 
     // Fail-safe to guarantee termination even if cleanup threads stall
+    // Now delegates to native watchdog via AppLifecycle
     private void startExitWatchdog() {
         try {
-            Thread watchdog = new Thread(() -> {
-                try { Thread.sleep(EXIT_WATCHDOG_TIMEOUT_MS); } catch (InterruptedException ignored) {}
-                if (exitInProgress.get()) {
-                    System.err.println("[JournalApp] Exit watchdog forcing halt after timeout");
-                    try {
-                        CrashReporter.report("exit-timeout", Thread.currentThread(), new RuntimeException("Exit watchdog timeout"));
-                    } catch (Throwable ignored) {}
-                    try { Runtime.getRuntime().halt(0); } catch (Throwable ignored) {}
-                }
-            }, "SimjotExitWatchdog");
-            watchdog.setDaemon(true);
-            watchdog.start();
+            AppLifecycle.startExitWatchdog(EXIT_WATCHDOG_TIMEOUT_MS);
         } catch (Throwable t) {
             logWarn("exit watchdog", t);
         }
     }
 
+    // Now delegates to AppLifecycle
     private void relaunchCurrentProcess() {
         try {
-            String javaHome = System.getProperty("java.home");
-            String javaBin = javaHome == null ? "java"
-                    : new File(new File(javaHome, "bin"), isWindows() ? "javaw" : "java").getAbsolutePath();
-            String sunCmd = System.getProperty("sun.java.command", "");
-            String classPath = System.getProperty("java.class.path", "");
-
-            List<String> cmd = new ArrayList<>();
-            cmd.add(javaBin);
-
-            if (sunCmd.endsWith(".jar") || sunCmd.contains(".jar ")) {
-                // Recreate a -jar launch preserving any extra args
-                String[] parts = sunCmd.split(" ");
-                if (parts.length > 0) {
-                    cmd.add("-jar");
-                    cmd.add(parts[0]);
-                    for (int i = 1; i < parts.length; i++) {
-                        if (!parts[i].isBlank()) cmd.add(parts[i]);
-                    }
-                }
-            } else {
-                if (!classPath.isBlank()) {
-                    cmd.add("-cp");
-                    cmd.add(classPath);
-                }
-                if (!sunCmd.isBlank()) {
-                    for (String part : sunCmd.split(" ")) {
-                        if (!part.isBlank()) cmd.add(part);
-                    }
-                } else {
-                    cmd.add(JournalApp.class.getName());
-                    cmd.addAll(Arrays.asList(launchArgs));
-                }
-            }
-            new ProcessBuilder(cmd).start();
+            AppLifecycle.relaunch();
         } catch (Throwable t) {
             logWarn("relaunch", t);
         }
     }
 
     private static boolean isWindows() {
-        String os = System.getProperty("os.name");
-        return os != null && os.toLowerCase().contains("win");
+        return AppLifecycle.isWindows();
     }
 
     /**

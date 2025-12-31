@@ -2132,6 +2132,150 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // WATCHDOG API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Watchdog actions */
+    public static final int WD_ACTION_NONE = 0;
+    public static final int WD_ACTION_CALLBACK = 1;
+    public static final int WD_ACTION_EXIT = 2;
+    public static final int WD_ACTION_HALT = 3;
+
+    /** Watchdog states */
+    public static final int WD_STATE_INACTIVE = 0;
+    public static final int WD_STATE_RUNNING = 1;
+    public static final int WD_STATE_TRIGGERED = 2;
+    public static final int WD_STATE_CANCELLED = 3;
+
+    // Java fallback watchdog implementation
+    private static final java.util.Map<Integer, Thread> javaWatchdogs = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger javaWdCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+
+    /**
+     * Start a native watchdog timer.
+     * Falls back to Java thread-based watchdog if native unavailable.
+     */
+    public static int watchdogStart(long timeoutMs, int action, String name) {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                int id = lib.watchdogStart(timeoutMs, action, name);
+                if (id >= 0) return id;
+            } catch (Throwable ignored) {}
+        }
+        
+        // Java fallback
+        int id = 100 + javaWdCounter.getAndIncrement();
+        final int finalId = id;
+        final String finalName = name != null ? name : "watchdog-" + id;
+        Thread wd = new Thread(() -> {
+            try {
+                Thread.sleep(timeoutMs);
+                System.err.println("[Watchdog-Java] '" + finalName + "' triggered after " + timeoutMs + " ms");
+                if (action == WD_ACTION_HALT) {
+                    Runtime.getRuntime().halt(1);
+                } else if (action == WD_ACTION_EXIT) {
+                    System.exit(1);
+                }
+            } catch (InterruptedException ignored) {
+                // Cancelled
+            } finally {
+                javaWatchdogs.remove(finalId);
+            }
+        }, "JavaWatchdog-" + finalName);
+        wd.setDaemon(true);
+        javaWatchdogs.put(id, wd);
+        wd.start();
+        return id;
+    }
+
+    /**
+     * Cancel a running watchdog.
+     */
+    public static boolean watchdogCancel(int id) {
+        // Try native first
+        if (id < 100) {
+            NativeLibrary lib = library();
+            if (lib != null) {
+                try { return lib.watchdogCancel(id); } catch (Throwable ignored) {}
+            }
+        }
+        
+        // Java fallback
+        Thread wd = javaWatchdogs.remove(id);
+        if (wd != null) {
+            wd.interrupt();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Reset a watchdog timer.
+     */
+    public static boolean watchdogReset(int id) {
+        if (id < 100) {
+            NativeLibrary lib = library();
+            if (lib != null) {
+                try { return lib.watchdogReset(id); } catch (Throwable ignored) {}
+            }
+        }
+        return false; // Java fallback doesn't support reset
+    }
+
+    /**
+     * Get watchdog state.
+     */
+    public static int watchdogState(int id) {
+        if (id < 100) {
+            NativeLibrary lib = library();
+            if (lib != null) {
+                try { return lib.watchdogState(id); } catch (Throwable ignored) {}
+            }
+        }
+        
+        // Java fallback
+        Thread wd = javaWatchdogs.get(id);
+        if (wd == null) return WD_STATE_INACTIVE;
+        return wd.isAlive() ? WD_STATE_RUNNING : WD_STATE_TRIGGERED;
+    }
+
+    /**
+     * Get remaining time for watchdog.
+     */
+    public static long watchdogRemaining(int id) {
+        if (id < 100) {
+            NativeLibrary lib = library();
+            if (lib != null) {
+                try { return lib.watchdogRemaining(id); } catch (Throwable ignored) {}
+            }
+        }
+        return -1; // Java fallback doesn't track remaining time
+    }
+
+    /**
+     * Force immediate process halt.
+     */
+    public static void forceHalt() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try { lib.forceHalt(); } catch (Throwable ignored) {}
+        }
+        Runtime.getRuntime().halt(1);
+    }
+
+    /**
+     * Get monotonic time in milliseconds.
+     */
+    public static long monotonicTimeMs() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try { return lib.monotonicTimeMs(); } catch (Throwable ignored) {}
+        }
+        return System.nanoTime() / 1_000_000L;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════
 

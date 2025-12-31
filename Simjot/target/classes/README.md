@@ -1,14 +1,12 @@
-# NOTICE - Third-Party Dependencies and Assets
+# Third-Party Dependencies and Assets
 
-## Comprehensive Documentation
+## Documentation
 
 For detailed information about all third-party assets, libraries, and resources used in Simjot, please see the **DOCUMENTATION_INDEX.md** file in this directory.
 
 ## Quick Reference
 
 - **Third-Party Libraries**: See `THIRD_PARTY_LIBRARIES_NOTICE.md`
-- **Icons**: See `STREAMLINE_ICONS_NOTICE.md`
-- **Background Images**: See `img/background/BACKGROUND_IMAGES_NOTICE.md`
 - **Generated Assets**: See `img/NOTICE`
 - **Quotes**: See `quotes/NOTICE`
 - **Dictionary Data**: See `simple-english-dictionary/README.md`
