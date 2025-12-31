@@ -1873,6 +1873,107 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // UI SCALING API - Native DPI-aware scaling
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private static float cachedPrimaryScale = -1f;
+
+    /** Get number of connected displays */
+    public static int getDisplayCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 1;
+        try { return lib.getDisplayCount(); } catch (Throwable e) { return 1; }
+    }
+
+    /** Get scale factor for a specific display (0-indexed) */
+    public static float getDisplayScale(int displayIndex) {
+        NativeLibrary lib = library();
+        if (lib == null) return 1.0f;
+        try { return lib.getDisplayScale(displayIndex); } catch (Throwable e) { return 1.0f; }
+    }
+
+    /** Get scale factor for the primary display (cached for performance) */
+    public static float getPrimaryDisplayScale() {
+        if (cachedPrimaryScale > 0) return cachedPrimaryScale;
+        NativeLibrary lib = library();
+        if (lib == null) {
+            cachedPrimaryScale = 1.0f;
+            return 1.0f;
+        }
+        try {
+            cachedPrimaryScale = lib.getPrimaryDisplayScale();
+            return cachedPrimaryScale;
+        } catch (Throwable e) {
+            cachedPrimaryScale = 1.0f;
+            return 1.0f;
+        }
+    }
+
+    /** Get DPI for a specific display */
+    public static float getDisplayDpi(int displayIndex) {
+        NativeLibrary lib = library();
+        if (lib == null) return 96.0f;
+        try { return lib.getDisplayDpi(displayIndex); } catch (Throwable e) { return 96.0f; }
+    }
+
+    /** Invalidate cached display scale values (call when displays change) */
+    public static void invalidateDisplayCache() {
+        cachedPrimaryScale = -1f;
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try { lib.invalidateDisplayCache(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /** Scale a dimension value using native calculation */
+    public static int scaleDimension(int value, float scale) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            float s = scale > 0 ? scale : getPrimaryDisplayScale();
+            return Math.round(value * s);
+        }
+        try { return lib.scaleDimension(value, scale); } catch (Throwable e) {
+            return Math.round(value * (scale > 0 ? scale : 1.0f));
+        }
+    }
+
+    /** Scale a dimension using primary display scale */
+    public static int scale(int value) {
+        return scaleDimension(value, 0);
+    }
+
+    /** Scale a float value */
+    public static float scaleValue(float value, float scale) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            float s = scale > 0 ? scale : getPrimaryDisplayScale();
+            return value * s;
+        }
+        try { return lib.scaleValue(value, scale); } catch (Throwable e) {
+            return value * (scale > 0 ? scale : 1.0f);
+        }
+    }
+
+    /** Scale a font size with proper rounding for readability */
+    public static float scaleFontSize(float baseSize, float scale) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            float s = scale > 0 ? scale : getPrimaryDisplayScale();
+            float scaled = baseSize * s;
+            scaled = Math.round(scaled * 2.0f) / 2.0f;
+            return Math.max(8.0f, scaled);
+        }
+        try { return lib.scaleFontSize(baseSize, scale); } catch (Throwable e) {
+            return Math.max(8.0f, baseSize * (scale > 0 ? scale : 1.0f));
+        }
+    }
+
+    /** Scale a font size using primary display scale */
+    public static float scaleFontSize(float baseSize) {
+        return scaleFontSize(baseSize, 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════
 

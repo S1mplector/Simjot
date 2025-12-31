@@ -2303,6 +2303,130 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // UI SCALING API - Native DPI-aware scaling
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get number of connected displays
+     */
+    public int getDisplayCount() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_get_display_count",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 1;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 1;
+        }
+    }
+
+    /**
+     * Get scale factor for a specific display
+     */
+    public float getDisplayScale(int displayIndex) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_get_display_scale",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT));
+            if (handle == null) return 1.0f;
+            return (float) handle.invokeExact(displayIndex);
+        } catch (Throwable e) {
+            return 1.0f;
+        }
+    }
+
+    /**
+     * Get scale factor for the primary display
+     */
+    public float getPrimaryDisplayScale() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_get_primary_display_scale",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT));
+            if (handle == null) return 1.0f;
+            return (float) handle.invokeExact();
+        } catch (Throwable e) {
+            return 1.0f;
+        }
+    }
+
+    /**
+     * Get DPI for a specific display
+     */
+    public float getDisplayDpi(int displayIndex) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_get_display_dpi",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT));
+            if (handle == null) return 96.0f;
+            return (float) handle.invokeExact(displayIndex);
+        } catch (Throwable e) {
+            return 96.0f;
+        }
+    }
+
+    /**
+     * Invalidate cached display scale values
+     */
+    public void invalidateDisplayCache() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_invalidate_display_cache",
+                FunctionDescriptor.ofVoid());
+            if (handle != null) {
+                handle.invokeExact();
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * Scale a dimension value
+     */
+    public int scaleDimension(int value, float scale) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_scale_dimension",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                return Math.round(value * (scale > 0 ? scale : 1.0f));
+            }
+            return (int) handle.invokeExact(value, scale);
+        } catch (Throwable e) {
+            return Math.round(value * (scale > 0 ? scale : 1.0f));
+        }
+    }
+
+    /**
+     * Scale a float value
+     */
+    public float scaleValue(float value, float scale) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_scale_value",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                return value * (scale > 0 ? scale : 1.0f);
+            }
+            return (float) handle.invokeExact(value, scale);
+        } catch (Throwable e) {
+            return value * (scale > 0 ? scale : 1.0f);
+        }
+    }
+
+    /**
+     * Scale a font size with proper rounding for readability
+     */
+    public float scaleFontSize(float baseSize, float scale) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_scale_font_size",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                float s = scale > 0 ? scale : 1.0f;
+                float scaled = baseSize * s;
+                scaled = Math.round(scaled * 2.0f) / 2.0f;
+                return Math.max(8.0f, scaled);
+            }
+            return (float) handle.invokeExact(baseSize, scale);
+        } catch (Throwable e) {
+            return Math.max(8.0f, baseSize * (scale > 0 ? scale : 1.0f));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
     // ═══════════════════════════════════════════════════════════════════════════
 

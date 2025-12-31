@@ -12,20 +12,46 @@
 
 package main.ui.scaling;
 
-import java.awt.*;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.Window;
 import java.util.Enumeration;
-import javax.swing.*;
+
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.JSpinner;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JTree;
+import javax.swing.UIDefaults;
+import javax.swing.UIManager;
 import javax.swing.plaf.FontUIResource;
 
 /**
  * Advanced, system-agnostic UI scaling manager that detects and applies
  * DPI/scaling across Windows, Linux, and macOS.
+ * 
+ * Now uses native C implementation for reliable cross-platform DPI detection.
  */
 public final class UIScalingManager {
     
     private static float detectedScale = -1f;
     private static boolean initialized = false;
     private static float lastAppliedScale = 1.0f;
+    private static boolean useNativeScaling = true;
     
     private UIScalingManager() {}
     
@@ -311,11 +337,24 @@ public final class UIScalingManager {
     
     /**
      * Detect system scale across all platforms.
+     * Uses native C implementation for reliable cross-platform detection.
      */
     private static float detectSystemScale() {
-        String os = System.getProperty("os.name", "").toLowerCase();
+        // Try native detection first (most reliable)
+        if (useNativeScaling) {
+            try {
+                float nativeScale = main.infrastructure.ffi.NativeAccess.getPrimaryDisplayScale();
+                if (nativeScale > 0.5f && nativeScale <= 4.0f) {
+                    System.out.println("[UIScaling] Native scale detected: " + nativeScale);
+                    return nativeScale;
+                }
+            } catch (Throwable e) {
+                System.err.println("[UIScaling] Native scaling failed, using Java fallback: " + e.getMessage());
+            }
+        }
         
-        // Try multiple detection methods and use the highest confidence result
+        // Java fallback methods
+        String os = System.getProperty("os.name", "").toLowerCase();
         float scale = 1.0f;
         
         // Method 1: Check JVM properties (might be set by launcher or desktop)
@@ -430,37 +469,71 @@ public final class UIScalingManager {
     
     /**
      * Scale a dimension value by the detected scale.
+     * Uses native C implementation for consistent results.
      */
     public static int scale(int value) {
-        return Math.round(value * getDetectedScale());
+        return main.infrastructure.ffi.NativeAccess.scale(value);
     }
     
     /**
      * Scale a dimension value by a specific scale factor.
+     * Uses native C implementation for consistent results.
      */
     public static int scale(int value, float scaleFactor) {
-        return Math.round(value * scaleFactor);
+        return main.infrastructure.ffi.NativeAccess.scaleDimension(value, scaleFactor);
     }
     
     /**
      * Scale a font size by the detected scale.
+     * Uses native C implementation with proper rounding for text clarity.
      */
     public static Font scaleFont(Font font) {
-        return font.deriveFont(font.getSize() * getDetectedScale());
+        float scaledSize = main.infrastructure.ffi.NativeAccess.scaleFontSize(font.getSize2D());
+        return font.deriveFont(scaledSize);
+    }
+    
+    /**
+     * Scale a font size by a specific scale factor.
+     * Uses native C implementation with proper rounding for text clarity.
+     */
+    public static Font scaleFont(Font font, float scaleFactor) {
+        float scaledSize = main.infrastructure.ffi.NativeAccess.scaleFontSize(font.getSize2D(), scaleFactor);
+        return font.deriveFont(scaledSize);
     }
     
     /**
      * Create a scaled dimension.
      */
     public static Dimension scaleDimension(int width, int height) {
-        float scale = getDetectedScale();
-        return new Dimension(Math.round(width * scale), Math.round(height * scale));
+        return new Dimension(scale(width), scale(height));
     }
     
     /**
      * Create a scaled dimension with specific scale.
      */
-    public static Dimension scaleDimension(int width, int height, float scale) {
-        return new Dimension(Math.round(width * scale), Math.round(height * scale));
+    public static Dimension scaleDimension(int width, int height, float scaleFactor) {
+        return new Dimension(scale(width, scaleFactor), scale(height, scaleFactor));
+    }
+    
+    /**
+     * Invalidate cached scale values (call when displays change).
+     */
+    public static void invalidateCache() {
+        detectedScale = -1f;
+        main.infrastructure.ffi.NativeAccess.invalidateDisplayCache();
+    }
+    
+    /**
+     * Get scale factor for a specific display.
+     */
+    public static float getDisplayScale(int displayIndex) {
+        return main.infrastructure.ffi.NativeAccess.getDisplayScale(displayIndex);
+    }
+    
+    /**
+     * Get the number of connected displays.
+     */
+    public static int getDisplayCount() {
+        return main.infrastructure.ffi.NativeAccess.getDisplayCount();
     }
 }

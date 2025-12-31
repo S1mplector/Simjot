@@ -333,6 +333,25 @@ void simjot_disappear_anim(float t, float* outAlpha, float* outScale, float* out
 float simjot_disappear_value(float t);
 float simjot_collapse_height(float t);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UI SCALING - Cross-platform DPI-aware scaling
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Display information */
+int32_t simjot_get_display_count(void);
+float simjot_get_display_scale(int32_t displayIndex);
+float simjot_get_primary_display_scale(void);
+float simjot_get_display_dpi(int32_t displayIndex);
+void simjot_invalidate_display_cache(void);
+
+/* Scaling utilities */
+int32_t simjot_scale_dimension(int32_t value, float scale);
+float simjot_scale_value(float value, float scale);
+float simjot_scale_font_size(float baseSize, float scale);
+void simjot_scale_insets(int32_t top, int32_t left, int32_t bottom, int32_t right,
+                         float scale, int32_t* outInsets);
+void simjot_scale_dimensions(int32_t width, int32_t height, float scale, int32_t* outDimensions);
+
 #ifdef __cplusplus
 }
 #endif

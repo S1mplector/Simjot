@@ -18,6 +18,16 @@ add_library(simjot_native SHARED ${SIMJOT_SOURCES})
 set_target_properties(simjot_native PROPERTIES OUTPUT_NAME "simjot_native")
 target_include_directories(simjot_native PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
+# Platform-specific linking for UI scaling
+if(APPLE)
+    target_link_libraries(simjot_native PRIVATE
+        "-framework CoreGraphics"
+        "-framework ApplicationServices"
+    )
+elseif(WIN32)
+    target_link_libraries(simjot_native PRIVATE Shcore)
+endif()
+
 if (SIMJOT_NATIVE_BUILD_TESTS)
     add_executable(simjot_native_cli tests/simjot_native_cli.c)
     target_link_libraries(simjot_native_cli PRIVATE simjot_native)
