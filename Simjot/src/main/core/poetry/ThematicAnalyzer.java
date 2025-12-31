@@ -9,6 +9,13 @@
  * 
  * See LICENSE file in this package for full terms.
  */
+
+/**
+ * A utility class for thematic analysis of poetry.
+ * Provides methods to analyze themes, moods, imagery, and symbols in poetic texts.
+ * Supports keyword clustering and emotional arc analysis.
+ */
+
 package main.core.poetry;
 
 import java.util.ArrayList;
@@ -529,108 +536,79 @@ public class ThematicAnalyzer {
         return counts;
     }
     
-    private List<ThemeMatch> analyzeThemes(Map<String, Integer> counts, int total) {
+    private List<ThemeMatch> analyzeThemes(Set<String> words, Map<String, Integer> counts, int total) {
         List<ThemeMatch> matches = new ArrayList<>();
-        Map<String, Double> scores = new LinkedHashMap<>();
-        Map<String, Set<String>> matchedWords = new LinkedHashMap<>();
         
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            String word = entry.getKey();
-            int count = entry.getValue();
+        for (Map.Entry<String, Set<String>> theme : THEME_KEYWORDS.entrySet()) {
+            List<String> matched = new ArrayList<>();
+            int matchCount = 0;
             
-            Set<String> directThemes = THEME_INDEX.get(word);
-            if (directThemes != null) {
-                for (String theme : directThemes) {
-                    addWeightedMatch(scores, matchedWords, theme, word, count, 1.0);
+            for (String keyword : theme.getValue()) {
+                if (words.contains(keyword)) {
+                    matched.add(keyword);
+                    matchCount += counts.getOrDefault(keyword, 0);
                 }
             }
             
-            Set<String> synThemes = THEME_SYNONYM_INDEX.get(word);
-            if (synThemes != null) {
-                for (String theme : synThemes) {
-                    addWeightedMatch(scores, matchedWords, theme, word, count, 0.6);
-                }
+            if (!matched.isEmpty()) {
+                double strength = Math.min(1.0, (double) matchCount / Math.max(1, total / 10));
+                matches.add(new ThemeMatch(theme.getKey(), strength, matched));
             }
-        }
-        
-        for (Map.Entry<String, Double> entry : scores.entrySet()) {
-            double strength = Math.min(1.0, entry.getValue() / Math.max(1.0, total / 8.0));
-            List<String> words = new ArrayList<>(matchedWords.getOrDefault(entry.getKey(), Set.of()));
-            matches.add(new ThemeMatch(entry.getKey(), strength, words));
         }
         
         matches.sort((a, b) -> Double.compare(b.strength, a.strength));
         return matches;
     }
     
-    private List<ImageryMatch> analyzeImagery(Map<String, Integer> counts, int total) {
+    private List<ImageryMatch> analyzeImagery(Set<String> words, Map<String, Integer> counts, int total) {
         List<ImageryMatch> matches = new ArrayList<>();
-        Map<String, Double> scores = new LinkedHashMap<>();
-        Map<String, Set<String>> matchedWords = new LinkedHashMap<>();
         
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            String word = entry.getKey();
-            int count = entry.getValue();
+        for (Map.Entry<String, Set<String>> type : IMAGERY_KEYWORDS.entrySet()) {
+            List<String> matched = new ArrayList<>();
+            int matchCount = 0;
             
-            Set<String> imagery = IMAGERY_INDEX.get(word);
-            if (imagery != null) {
-                for (String type : imagery) {
-                    addWeightedMatch(scores, matchedWords, type, word, count, 1.0);
+            for (String keyword : type.getValue()) {
+                if (words.contains(keyword)) {
+                    matched.add(keyword);
+                    matchCount += counts.getOrDefault(keyword, 0);
                 }
             }
-        }
-        
-        for (Map.Entry<String, Double> entry : scores.entrySet()) {
-            double strength = Math.min(1.0, entry.getValue() / Math.max(1.0, total / 12.0));
-            List<String> words = new ArrayList<>(matchedWords.getOrDefault(entry.getKey(), Set.of()));
-            matches.add(new ImageryMatch(entry.getKey(), strength, words));
+            
+            if (!matched.isEmpty()) {
+                double strength = Math.min(1.0, (double) matchCount / Math.max(1, total / 15));
+                matches.add(new ImageryMatch(type.getKey(), strength, matched));
+            }
         }
         
         matches.sort((a, b) -> Double.compare(b.strength, a.strength));
         return matches;
     }
     
-    private List<MoodMatch> analyzeMoods(Map<String, Integer> counts, int total) {
+    private List<MoodMatch> analyzeMoods(Set<String> words, Map<String, Integer> counts, int total) {
         List<MoodMatch> matches = new ArrayList<>();
-        Map<String, Double> scores = new LinkedHashMap<>();
-        Map<String, Set<String>> matchedWords = new LinkedHashMap<>();
         
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            String word = entry.getKey();
-            int count = entry.getValue();
+        for (Map.Entry<String, Set<String>> mood : MOOD_KEYWORDS.entrySet()) {
+            List<String> matched = new ArrayList<>();
+            int matchCount = 0;
             
-            Set<String> directMoods = MOOD_INDEX.get(word);
-            if (directMoods != null) {
-                for (String mood : directMoods) {
-                    addWeightedMatch(scores, matchedWords, mood, word, count, 1.0);
+            for (String keyword : mood.getValue()) {
+                if (words.contains(keyword)) {
+                    matched.add(keyword);
+                    matchCount += counts.getOrDefault(keyword, 0);
                 }
             }
             
-            Set<String> synMoods = MOOD_SYNONYM_INDEX.get(word);
-            if (synMoods != null) {
-                for (String mood : synMoods) {
-                    addWeightedMatch(scores, matchedWords, mood, word, count, 0.7);
-                }
+            if (!matched.isEmpty()) {
+                double strength = Math.min(1.0, (double) matchCount / Math.max(1, total / 10));
+                matches.add(new MoodMatch(mood.getKey(), strength, matched));
             }
-        }
-        
-        for (Map.Entry<String, Double> entry : scores.entrySet()) {
-            double strength = Math.min(1.0, entry.getValue() / Math.max(1.0, total / 9.0));
-            List<String> words = new ArrayList<>(matchedWords.getOrDefault(entry.getKey(), Set.of()));
-            matches.add(new MoodMatch(entry.getKey(), strength, words));
         }
         
         matches.sort((a, b) -> Double.compare(b.strength, a.strength));
         return matches;
     }
     
-    private void addWeightedMatch(Map<String, Double> scores, Map<String, Set<String>> matchedWords,
-                                 String label, String word, int count, double weight) {
-        scores.merge(label, count * weight, Double::sum);
-        matchedWords.computeIfAbsent(label, k -> new HashSet<>()).add(word);
-    }
-    
-    private List<KeywordCluster> createClusters(Map<String, Integer> wordCounts, int total, List<String> motifs) {
+    private List<KeywordCluster> createClusters(Map<String, Integer> wordCounts, int total) {
         List<KeywordCluster> clusters = new ArrayList<>();
         
         // Get content words (non-function words) sorted by frequency
@@ -643,15 +621,9 @@ public class ThematicAnalyzer {
         
         if (contentWords.isEmpty()) return clusters;
         
-        if (motifs != null && !motifs.isEmpty()) {
-            double coherence = Math.min(1.0, motifs.size() / 5.0);
-            clusters.add(new KeywordCluster("Motifs", motifs, coherence));
-        }
-        
         // Simple clustering by semantic similarity (theme overlap)
         Map<String, List<String>> themeClusters = new LinkedHashMap<>();
         Set<String> assigned = new HashSet<>();
-        if (motifs != null) assigned.addAll(motifs);
         
         for (Map.Entry<String, Integer> word : contentWords) {
             if (assigned.contains(word.getKey())) continue;
@@ -686,34 +658,12 @@ public class ThematicAnalyzer {
     }
     
     private String findBestTheme(String word) {
-        ensureIndices();
-        Set<String> direct = THEME_INDEX.get(word);
-        if (direct != null && !direct.isEmpty()) return direct.iterator().next();
-        Set<String> synonyms = THEME_SYNONYM_INDEX.get(word);
-        if (synonyms != null && !synonyms.isEmpty()) return synonyms.iterator().next();
-        return null;
-    }
-    
-    private List<String> detectMotifs(String text) {
-        Map<String, Integer> stanzaCounts = new LinkedHashMap<>();
-        String[] stanzas = text.split("\n\n+");
-        
-        for (String stanza : stanzas) {
-            if (stanza.isBlank()) continue;
-            Set<String> unique = new HashSet<>(extractWords(stanza));
-            for (String word : unique) {
-                if (word.length() < 3) continue;
-                if (PoetryDictionary.isFunctionWord(word)) continue;
-                stanzaCounts.merge(word, 1, Integer::sum);
+        for (Map.Entry<String, Set<String>> theme : THEME_KEYWORDS.entrySet()) {
+            if (theme.getValue().contains(word)) {
+                return theme.getKey();
             }
         }
-        
-        return stanzaCounts.entrySet().stream()
-            .filter(e -> e.getValue() >= 2)
-            .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
-            .limit(10)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+        return null;
     }
     
     private List<SymbolMatch> detectSymbols(String text, Map<String, Integer> wordCounts) {
@@ -748,10 +698,11 @@ public class ThematicAnalyzer {
             if (stanza.isBlank()) continue;
             
             List<String> words = extractWords(stanza);
+            Set<String> unique = new HashSet<>(words);
             Map<String, Integer> counts = countWords(words);
             
-            List<ThemeMatch> themes = analyzeThemes(counts, words.size());
-            List<MoodMatch> moods = analyzeMoods(counts, words.size());
+            List<ThemeMatch> themes = analyzeThemes(unique, counts, words.size());
+            List<MoodMatch> moods = analyzeMoods(unique, counts, words.size());
             
             String theme = themes.isEmpty() ? "General" : themes.get(0).theme;
             String mood = moods.isEmpty() ? "Neutral" : moods.get(0).mood;
@@ -826,7 +777,7 @@ public class ThematicAnalyzer {
     }
     
     private boolean isPositiveMood(String mood) {
-        return Set.of("Joyful", "Peaceful", "Romantic", "Triumphant", "Defiant").contains(mood);
+        return Set.of("Joyful", "Peaceful", "Romantic", "Triumphant", "Hope").contains(mood);
     }
     
     private ThematicAnalysis emptyAnalysis() {
@@ -882,14 +833,6 @@ public class ThematicAnalyzer {
             }
             sb.append("\n");
         }
-        
-        analysis.clusters.stream()
-            .filter(c -> c.label.equalsIgnoreCase("Motifs"))
-            .findFirst()
-            .ifPresent(cluster -> {
-                sb.append("Motifs:\n");
-                sb.append("  • ").append(String.join(", ", cluster.keywords)).append("\n\n");
-            });
         
         sb.append("Emotional Arc: ").append(analysis.emotionalArc.pattern).append("\n");
         sb.append(analysis.emotionalArc.description).append("\n");

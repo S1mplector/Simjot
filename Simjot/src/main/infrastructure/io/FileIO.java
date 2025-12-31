@@ -12,22 +12,40 @@
 
 package main.infrastructure.io;
 
-import main.infrastructure.ffi.NativeAccess;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.Charset;
-import java.nio.file.*;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * File I/O helpers for atomic writes, fsync, checksum, and temp cleanup.
+ * Provides utility methods for file operations.
+ * Includes atomic write with optional fsync, SHA-256 checksum calculation,
+ * disk space checking, temporary file cleanup, and file locking.
+ * Utilizes native methods when available for performance.
+ * Thread-local buffers are used for efficient I/O operations.
+ * Logging is performed for key operations.
+ * This class is thread-safe.
+ * @see NativeAccess
+ * @see IoLog
  */
 public final class FileIO {
     private FileIO() {}
+    private static final int DIGEST_BUFFER_SIZE = 64 * 1024;
+    private static final ThreadLocal<ByteBuffer> DIGEST_BUFFER =
+            ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(DIGEST_BUFFER_SIZE));
 
     public static void atomicWrite(Path target, byte[] data, boolean fsyncFile, boolean fsyncDir) throws IOException {
         if (target == null) throw new IllegalArgumentException("target is null");
@@ -40,9 +58,14 @@ public final class FileIO {
             IoLog.info("atomic-write", "Wrote " + target.getFileName() + " (" + data.length + " bytes) in " + (System.currentTimeMillis() - start) + "ms");
             return;
         }
-        Path tmp = dir.resolve(target.getFileName().toString() + ".tmp" + System.nanoTime());
-        try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-            ch.write(ByteBuffer.wrap(data));
+        String base = target.getFileName().toString();
+        String prefix = base.length() >= 3 ? base : ("tmp" + base);
+        Path tmp = Files.createTempFile(dir, prefix, ".tmp");
+        try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            ByteBuffer buf = ByteBuffer.wrap(data);
+            while (buf.hasRemaining()) {
+                ch.write(buf);
+            }
             if (fsyncFile) {
                 try { ch.force(true); } catch (Throwable ignored) {}
             }
@@ -51,6 +74,9 @@ public final class FileIO {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (Throwable t) {
+            try { Files.deleteIfExists(tmp); } catch (Throwable ignored) {}
+            throw t;
         }
         if (fsyncDir) {
             fsyncDirectory(dir);
@@ -68,7 +94,8 @@ public final class FileIO {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
-                ByteBuffer buf = ByteBuffer.allocateDirect(8192);
+                ByteBuffer buf = DIGEST_BUFFER.get();
+                buf.clear();
                 while (ch.read(buf) > 0) {
                     buf.flip();
                     md.update(buf);
@@ -103,17 +130,22 @@ public final class FileIO {
         if (root == null || suffix == null) return;
         long now = System.currentTimeMillis();
         try {
-            Files.walk(root)
-                    .filter(p -> p.getFileName().toString().endsWith(suffix))
-                    .forEach(p -> {
-                        try {
-                            long age = now - Files.getLastModifiedTime(p).toMillis();
-                            if (age >= olderThanMs) {
-                                Files.deleteIfExists(p);
-                                IoLog.info("tmp-clean", "Deleted temp file: " + p);
-                            }
-                        } catch (IOException ignored) {}
-                    });
+            Files.walkFileTree(root, new java.nio.file.SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (!file.getFileName().toString().endsWith(suffix)) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    try {
+                        long age = now - attrs.lastModifiedTime().toMillis();
+                        if (age >= olderThanMs) {
+                            Files.deleteIfExists(file);
+                            IoLog.info("tmp-clean", "Deleted temp file: " + file);
+                        }
+                    } catch (IOException ignored) {}
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         } catch (IOException ignored) {}
     }
 
