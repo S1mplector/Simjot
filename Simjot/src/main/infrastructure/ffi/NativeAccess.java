@@ -811,4 +811,978 @@ public final class NativeAccess {
         }
         return library;
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // JSON PARSING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static String jsonGetString(String json, String key) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null || key == null) return null;
+        try {
+            return lib.jsonGetString(json, key);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Long jsonGetLong(String json, String key) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null || key == null) return null;
+        try {
+            return lib.jsonGetLong(json, key);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean jsonHasKey(String json, String key) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null || key == null) return false;
+        try {
+            return lib.jsonHasKey(json, key);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DATE/TIME API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static long timeNowMillis() {
+        NativeLibrary lib = library();
+        if (lib == null) return System.currentTimeMillis();
+        try {
+            return lib.timeNowMillis();
+        } catch (Throwable t) {
+            return System.currentTimeMillis();
+        }
+    }
+
+    public static String timeFormat(long millis, String pattern) {
+        NativeLibrary lib = library();
+        if (lib == null || pattern == null) return null;
+        try {
+            return lib.timeFormat(millis, pattern);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String timeFormatNow(String pattern) {
+        NativeLibrary lib = library();
+        if (lib == null || pattern == null) return null;
+        try {
+            return lib.timeFormatNow(pattern);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String timeRelative(long millis) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.timeRelative(millis);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PATTERN MATCHING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static int patternFind(String text, String pattern, boolean wordBoundary) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null || pattern == null) return -1;
+        try {
+            return lib.patternFind(text, pattern, wordBoundary);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static String patternExtractAfter(String text, String prefix, int maxPhraseLen) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null || prefix == null) return null;
+        try {
+            return lib.patternExtractAfter(text, prefix, maxPhraseLen);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String patternReplaceAll(String text, String pattern, String replacement) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null || pattern == null) return null;
+        try {
+            return lib.patternReplaceAll(text, pattern, replacement);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String patternCollapseSpaces(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return null;
+        try {
+            return lib.patternCollapseSpaces(text);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ENCODING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static String base64Encode(byte[] data) {
+        NativeLibrary lib = library();
+        if (lib == null || data == null) return null;
+        try {
+            return lib.base64Encode(data);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] base64Decode(String encoded) {
+        NativeLibrary lib = library();
+        if (lib == null || encoded == null) return null;
+        try {
+            return lib.base64Decode(encoded);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static int utf8Strlen(String str) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return -1;
+        try {
+            return lib.utf8Strlen(str);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static String hexEncode(byte[] data) {
+        NativeLibrary lib = library();
+        if (lib == null || data == null) return null;
+        try {
+            return lib.hexEncode(data);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] hexDecode(String hex) {
+        NativeLibrary lib = library();
+        if (lib == null || hex == null) return null;
+        try {
+            return lib.hexDecode(hex);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // POETRY ANALYSIS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static int poetryAnalyzeSounds(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return 0;
+        try {
+            return lib.poetryAnalyzeSounds(text);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int poetryAnalyzeThemes(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return 0;
+        try {
+            return lib.poetryAnalyzeThemes(text);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static double poetryGetThemeScore(String theme) {
+        NativeLibrary lib = library();
+        if (lib == null || theme == null) return 0.0;
+        try {
+            return lib.poetryGetThemeScore(theme);
+        } catch (Throwable t) {
+            return 0.0;
+        }
+    }
+
+    public static String poetryGetThemes() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.poetryGetThemes();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static int poetryAnalyzeVocab(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return 0;
+        try {
+            return lib.poetryAnalyzeVocab(text);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int poetryCountSyllables(String word) {
+        NativeLibrary lib = library();
+        if (lib == null || word == null) return 0;
+        try {
+            return lib.poetryCountSyllables(word);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int poetryAnalyzeMeter(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return 0;
+        try {
+            return lib.poetryAnalyzeMeter(text);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static String poetryDetectMeter() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.poetryDetectMeter();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RHYME ENGINE API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static void rhymeAddWord(String word) {
+        NativeLibrary lib = library();
+        if (lib == null || word == null) return;
+        try {
+            lib.rhymeAddWord(word);
+        } catch (Throwable ignored) {}
+    }
+
+    public static int rhymeAddWords(String words) {
+        NativeLibrary lib = library();
+        if (lib == null || words == null) return 0;
+        try {
+            return lib.rhymeAddWords(words);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static List<String> rhymeFind(String word, int maxResults) {
+        NativeLibrary lib = library();
+        if (lib == null || word == null) return Collections.emptyList();
+        try {
+            String results = lib.rhymeFind(word, maxResults);
+            if (results == null || results.isEmpty()) return Collections.emptyList();
+            List<String> list = new ArrayList<>();
+            for (String s : results.split("\n")) {
+                if (!s.isEmpty()) list.add(s);
+            }
+            return list;
+        } catch (Throwable t) {
+            return Collections.emptyList();
+        }
+    }
+
+    public static boolean rhymeCheck(String word1, String word2) {
+        NativeLibrary lib = library();
+        if (lib == null || word1 == null || word2 == null) return false;
+        try {
+            return lib.rhymeCheck(word1, word2);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static String rhymeDetectScheme(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return null;
+        try {
+            return lib.rhymeDetectScheme(text);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static void rhymeClear() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.rhymeClear();
+        } catch (Throwable ignored) {}
+    }
+
+    public static int rhymeDbSize() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.rhymeDbSize();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MATH UTILITIES API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static double mathVec2Length(double x, double y) {
+        NativeLibrary lib = library();
+        if (lib == null) return Math.sqrt(x * x + y * y);
+        try {
+            return lib.mathVec2Length(x, y);
+        } catch (Throwable t) {
+            return Math.sqrt(x * x + y * y);
+        }
+    }
+
+    public static double mathVec2Distance(double x1, double y1, double x2, double y2) {
+        NativeLibrary lib = library();
+        if (lib == null) return Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+        try {
+            return lib.mathVec2Distance(x1, y1, x2, y2);
+        } catch (Throwable t) {
+            return Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+        }
+    }
+
+    public static double mathEase(int type, double t) {
+        NativeLibrary lib = library();
+        if (lib == null) return t;
+        try {
+            return lib.mathEase(type, t);
+        } catch (Throwable ex) {
+            return t;
+        }
+    }
+
+    public static int mathColorBlend(int color1, int color2, double t) {
+        NativeLibrary lib = library();
+        if (lib == null) return color1;
+        try {
+            return lib.mathColorBlend(color1, color2, t);
+        } catch (Throwable ex) {
+            return color1;
+        }
+    }
+
+    public static int mathHslToRgb(double h, double s, double l) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.mathHslToRgb(h, s, l);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static double mathLerp(double a, double b, double t) {
+        NativeLibrary lib = library();
+        if (lib == null) return a + (b - a) * t;
+        try {
+            return lib.mathLerp(a, b, t);
+        } catch (Throwable ex) {
+            return a + (b - a) * t;
+        }
+    }
+
+    public static double mathClamp(double value, double min, double max) {
+        NativeLibrary lib = library();
+        if (lib == null) return Math.max(min, Math.min(max, value));
+        try {
+            return lib.mathClamp(value, min, max);
+        } catch (Throwable ex) {
+            return Math.max(min, Math.min(max, value));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CONCURRENT/TASK API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static int taskCreate(String data, int priority) {
+        NativeLibrary lib = library();
+        if (lib == null || data == null) return -1;
+        try {
+            return lib.taskCreate(data, priority);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static int taskPendingCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.taskPendingCount();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int parallelGetHwThreads() {
+        NativeLibrary lib = library();
+        if (lib == null) return Runtime.getRuntime().availableProcessors();
+        try {
+            return lib.parallelGetHwThreads();
+        } catch (Throwable t) {
+            return Runtime.getRuntime().availableProcessors();
+        }
+    }
+
+    public static long atomicInc(int counterId) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.atomicInc(counterId);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static long atomicGet(int counterId) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.atomicGet(counterId);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static long hrtimeNs() {
+        NativeLibrary lib = library();
+        if (lib == null) return System.nanoTime();
+        try {
+            return lib.hrtimeNs();
+        } catch (Throwable t) {
+            return System.nanoTime();
+        }
+    }
+
+    public static long monotonicMs() {
+        NativeLibrary lib = library();
+        if (lib == null) return System.currentTimeMillis();
+        try {
+            return lib.monotonicMs();
+        } catch (Throwable t) {
+            return System.currentTimeMillis();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COLLECTION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static int setCreate() {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.setCreate();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static void setAdd(int setId, String str) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return;
+        try {
+            lib.setAdd(setId, str);
+        } catch (Throwable ignored) {}
+    }
+
+    public static boolean setContains(int setId, String str) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return false;
+        try {
+            return lib.setContains(setId, str);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static int setSize(int setId) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.setSize(setId);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static void setClear(int setId) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.setClear(setId);
+        } catch (Throwable ignored) {}
+    }
+
+    public static int mapCreate() {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.mapCreate();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static void mapSet(int mapId, String key, String value) {
+        NativeLibrary lib = library();
+        if (lib == null || key == null || value == null) return;
+        try {
+            lib.mapSet(mapId, key, value);
+        } catch (Throwable ignored) {}
+    }
+
+    public static String mapGet(int mapId, String key) {
+        NativeLibrary lib = library();
+        if (lib == null || key == null) return null;
+        try {
+            return lib.mapGet(mapId, key);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean mapHas(int mapId, String key) {
+        NativeLibrary lib = library();
+        if (lib == null || key == null) return false;
+        try {
+            return lib.mapHas(mapId, key);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static int mapSize(int mapId) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.mapSize(mapId);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int freqCreate() {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.freqCreate();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static void freqAdd(int mapId, String str, int count) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return;
+        try {
+            lib.freqAdd(mapId, str, count);
+        } catch (Throwable ignored) {}
+    }
+
+    public static int freqGet(int mapId, String str) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return 0;
+        try {
+            return lib.freqGet(mapId, str);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static String freqTopN(int mapId, int n) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.freqTopN(mapId, n);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static int cacheCreate(int maxSize) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.cacheCreate(maxSize);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static void cacheSet(int cacheId, String key, String value) {
+        NativeLibrary lib = library();
+        if (lib == null || key == null || value == null) return;
+        try {
+            lib.cacheSet(cacheId, key, value);
+        } catch (Throwable ignored) {}
+    }
+
+    public static String cacheGet(int cacheId, String key) {
+        NativeLibrary lib = library();
+        if (lib == null || key == null) return null;
+        try {
+            return lib.cacheGet(cacheId, key);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static int cacheSize(int cacheId) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.cacheSize(cacheId);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SIMD OPERATIONS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static int simdSupportLevel() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.simdSupportLevel();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static long simdSumInt(int[] arr) {
+        NativeLibrary lib = library();
+        if (lib == null || arr == null) return 0;
+        try {
+            return lib.simdSumInt(arr);
+        } catch (Throwable t) {
+            long sum = 0;
+            for (int v : arr) sum += v;
+            return sum;
+        }
+    }
+
+    public static double simdSumDouble(double[] arr) {
+        NativeLibrary lib = library();
+        if (lib == null || arr == null) return 0;
+        try {
+            return lib.simdSumDouble(arr);
+        } catch (Throwable t) {
+            double sum = 0;
+            for (double v : arr) sum += v;
+            return sum;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FILE SYSTEM API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static long fsSize(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return -1;
+        try {
+            return lib.fsSize(path);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static long fsMtime(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return -1;
+        try {
+            return lib.fsMtime(path);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static boolean fsExists(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try {
+            return lib.fsExists(path);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static boolean fsIsDir(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try {
+            return lib.fsIsDir(path);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static boolean fsIsFile(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try {
+            return lib.fsIsFile(path);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static String fsListRecursive(String path, String extension, int maxDepth) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.fsListRecursive(path, extension, maxDepth);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] fsReadAll(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.fsReadAll(path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean fsWriteAll(String path, byte[] data) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || data == null) return false;
+        try {
+            return lib.fsWriteAll(path, data);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static boolean fsMkdir(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try {
+            return lib.fsMkdir(path);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static boolean fsRemove(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try {
+            return lib.fsRemove(path);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static boolean fsRename(String oldPath, String newPath) {
+        NativeLibrary lib = library();
+        if (lib == null || oldPath == null || newPath == null) return false;
+        try {
+            return lib.fsRename(oldPath, newPath);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static int fsWatchCreate(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return -1;
+        try {
+            return lib.fsWatchCreate(path);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static int fsWatchPoll(int watchId, int timeoutMs) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.fsWatchPoll(watchId, timeoutMs);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static void fsWatchDestroy(int watchId) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.fsWatchDestroy(watchId);
+        } catch (Throwable ignored) {}
+    }
+
+    public static String fsExtension(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.fsExtension(path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String fsBasename(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.fsBasename(path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String fsDirname(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try {
+            return lib.fsDirname(path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String fsJoin(String base, String child) {
+        NativeLibrary lib = library();
+        if (lib == null || base == null || child == null) return null;
+        try {
+            return lib.fsJoin(base, child);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MEMORY POOL API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static int poolCreate(int blockSize, int initialBlocks) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.poolCreate(blockSize, initialBlocks);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static void poolDestroy(int poolId) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.poolDestroy(poolId);
+        } catch (Throwable ignored) {}
+    }
+
+    public static int arenaCreate() {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.arenaCreate();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static void arenaReset(int arenaId) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.arenaReset(arenaId);
+        } catch (Throwable ignored) {}
+    }
+
+    public static void arenaDestroy(int arenaId) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.arenaDestroy(arenaId);
+        } catch (Throwable ignored) {}
+    }
+
+    public static int internInit() {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.internInit();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static String intern(String str) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return str;
+        try {
+            return lib.intern(str);
+        } catch (Throwable t) {
+            return str;
+        }
+    }
+
+    public static boolean internContains(String str) {
+        NativeLibrary lib = library();
+        if (lib == null || str == null) return false;
+        try {
+            return lib.internContains(str);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static int internCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.internCount();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static void internClear() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.internClear();
+        } catch (Throwable ignored) {}
+    }
 }

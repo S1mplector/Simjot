@@ -1404,6 +1404,598 @@ public final class NativeLibrary implements AutoCloseable {
             return false;
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // JSON PARSING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public String jsonGetString(String json, String key) {
+        if (jsonGetStringHandle == null || json == null || key == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            MemorySegment outBuf = tempArena.allocate(4096);
+            int len = (int) jsonGetStringHandle.invokeExact(cJson, cKey, outBuf, 4096);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public Long jsonGetLong(String json, String key) {
+        if (jsonGetIntHandle == null || json == null || key == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            MemorySegment outVal = tempArena.allocate(ValueLayout.JAVA_LONG);
+            int result = (int) jsonGetIntHandle.invokeExact(cJson, cKey, outVal);
+            if (result <= 0) return null;
+            return outVal.get(ValueLayout.JAVA_LONG, 0);
+        } catch (Throwable t) { return null; }
+    }
+
+    public boolean jsonHasKey(String json, String key) {
+        if (jsonHasKeyHandle == null || json == null || key == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            return (int) jsonHasKeyHandle.invokeExact(cJson, cKey) != 0;
+        } catch (Throwable t) { return false; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DATE/TIME API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public long timeNowMillis() {
+        if (timeNowMillisHandle == null) return System.currentTimeMillis();
+        try { return (long) timeNowMillisHandle.invokeExact(); } 
+        catch (Throwable t) { return System.currentTimeMillis(); }
+    }
+
+    public String timeFormat(long millis, String pattern) {
+        if (timeFormatHandle == null || pattern == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPattern = tempArena.allocateFrom(pattern);
+            MemorySegment outBuf = tempArena.allocate(256);
+            int len = (int) timeFormatHandle.invokeExact(millis, cPattern, outBuf, 256);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public String timeFormatNow(String pattern) {
+        if (timeFormatNowHandle == null || pattern == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPattern = tempArena.allocateFrom(pattern);
+            MemorySegment outBuf = tempArena.allocate(256);
+            int len = (int) timeFormatNowHandle.invokeExact(cPattern, outBuf, 256);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public String timeRelative(long millis) {
+        if (timeRelativeHandle == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment outBuf = tempArena.allocate(128);
+            int len = (int) timeRelativeHandle.invokeExact(millis, outBuf, 128);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PATTERN MATCHING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int patternFind(String text, String pattern, boolean wordBoundary) {
+        if (patternFindHandle == null || text == null || pattern == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment cPattern = tempArena.allocateFrom(pattern);
+            return (int) patternFindHandle.invokeExact(cText, cPattern, wordBoundary ? 1 : 0);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public String patternExtractAfter(String text, String prefix, int maxPhraseLen) {
+        if (patternExtractAfterHandle == null || text == null || prefix == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment cPrefix = tempArena.allocateFrom(prefix);
+            MemorySegment outBuf = tempArena.allocate(maxPhraseLen + 1);
+            int len = (int) patternExtractAfterHandle.invokeExact(cText, cPrefix, outBuf, maxPhraseLen + 1, maxPhraseLen);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public String patternReplaceAll(String text, String pattern, String replacement) {
+        if (patternReplaceAllHandle == null || text == null || pattern == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment cPattern = tempArena.allocateFrom(pattern);
+            MemorySegment cRepl = tempArena.allocateFrom(replacement != null ? replacement : "");
+            int bufSize = text.length() * 2 + 1;
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int len = (int) patternReplaceAllHandle.invokeExact(cText, cPattern, cRepl, outBuf, bufSize);
+            if (len < 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public String patternCollapseSpaces(String text) {
+        if (patternCollapseSpacesHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment outBuf = tempArena.allocate(text.length() + 1);
+            int len = (int) patternCollapseSpacesHandle.invokeExact(cText, outBuf, text.length() + 1);
+            if (len < 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ENCODING API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public String base64Encode(byte[] data) {
+        if (base64EncodeHandle == null || data == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment inBuf = tempArena.allocate(data.length);
+            inBuf.asByteBuffer().put(data);
+            int outLen = (data.length + 2) / 3 * 4 + 1;
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int len = (int) base64EncodeHandle.invokeExact(inBuf, data.length, outBuf, outLen);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public byte[] base64Decode(String encoded) {
+        if (base64DecodeHandle == null || encoded == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cEncoded = tempArena.allocateFrom(encoded);
+            int outLen = encoded.length();
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int len = (int) base64DecodeHandle.invokeExact(cEncoded, outBuf, outLen);
+            if (len <= 0) return null;
+            return outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+        } catch (Throwable t) { return null; }
+    }
+
+    public int utf8Strlen(String str) {
+        if (utf8StrlenHandle == null || str == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cStr = tempArena.allocateFrom(str);
+            return (int) utf8StrlenHandle.invokeExact(cStr);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public String hexEncode(byte[] data) {
+        if (hexEncodeHandle == null || data == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment inBuf = tempArena.allocate(data.length);
+            inBuf.asByteBuffer().put(data);
+            int outLen = data.length * 2 + 1;
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int len = (int) hexEncodeHandle.invokeExact(inBuf, data.length, outBuf, outLen);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public byte[] hexDecode(String hex) {
+        if (hexDecodeHandle == null || hex == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cHex = tempArena.allocateFrom(hex);
+            int outLen = hex.length() / 2;
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int len = (int) hexDecodeHandle.invokeExact(cHex, outBuf, outLen);
+            if (len <= 0) return null;
+            return outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+        } catch (Throwable t) { return null; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // POETRY ANALYSIS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int poetryAnalyzeSounds(String text) {
+        if (poetryAnalyzeSoundsHandle == null || text == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) poetryAnalyzeSoundsHandle.invokeExact(cText);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public int poetryAnalyzeThemes(String text) {
+        if (poetryAnalyzeThemesHandle == null || text == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) poetryAnalyzeThemesHandle.invokeExact(cText);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public double poetryGetThemeScore(String theme) {
+        if (poetryGetThemeScoreHandle == null || theme == null) return 0.0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cTheme = tempArena.allocateFrom(theme);
+            return (double) poetryGetThemeScoreHandle.invokeExact(cTheme);
+        } catch (Throwable t) { return 0.0; }
+    }
+
+    public String poetryGetThemes() {
+        if (poetryGetThemesHandle == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment outBuf = tempArena.allocate(1024);
+            int len = (int) poetryGetThemesHandle.invokeExact(outBuf, 1024);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public int poetryAnalyzeVocab(String text) {
+        if (poetryAnalyzeVocabHandle == null || text == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) poetryAnalyzeVocabHandle.invokeExact(cText);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public int poetryCountSyllables(String word) {
+        if (poetryCountSyllablesHandle == null || word == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            return (int) poetryCountSyllablesHandle.invokeExact(cWord);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public int poetryAnalyzeMeter(String text) {
+        if (poetryAnalyzeMeterHandle == null || text == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) poetryAnalyzeMeterHandle.invokeExact(cText);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public String poetryDetectMeter() {
+        if (poetryDetectMeterHandle == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment outBuf = tempArena.allocate(128);
+            int len = (int) poetryDetectMeterHandle.invokeExact(outBuf, 128);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RHYME ENGINE API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public void rhymeAddWord(String word) {
+        if (rhymeAddWordHandle == null || word == null) return;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            rhymeAddWordHandle.invokeExact(cWord);
+        } catch (Throwable ignored) {}
+    }
+
+    public int rhymeAddWords(String words) {
+        if (rhymeAddWordsHandle == null || words == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWords = tempArena.allocateFrom(words);
+            return (int) rhymeAddWordsHandle.invokeExact(cWords);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public String rhymeFind(String word, int maxResults) {
+        if (rhymeFindHandle == null || word == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWord = tempArena.allocateFrom(word);
+            int count = (int) rhymeFindHandle.invokeExact(cWord, maxResults);
+            if (count <= 0) return null;
+            if (rhymeGetAllResultsHandle == null) return null;
+            MemorySegment outBuf = tempArena.allocate(4096);
+            int len = (int) rhymeGetAllResultsHandle.invokeExact(outBuf, 4096);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public boolean rhymeCheck(String word1, String word2) {
+        if (rhymeCheckHandle == null || word1 == null || word2 == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cWord1 = tempArena.allocateFrom(word1);
+            MemorySegment cWord2 = tempArena.allocateFrom(word2);
+            return (int) rhymeCheckHandle.invokeExact(cWord1, cWord2) != 0;
+        } catch (Throwable t) { return false; }
+    }
+
+    public String rhymeDetectScheme(String text) {
+        if (rhymeDetectSchemeHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment outBuf = tempArena.allocate(256);
+            int len = (int) rhymeDetectSchemeHandle.invokeExact(cText, outBuf, 256);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public void rhymeClear() {
+        if (rhymeClearHandle == null) return;
+        try { rhymeClearHandle.invokeExact(); } catch (Throwable ignored) {}
+    }
+
+    public int rhymeDbSize() {
+        if (rhymeDbSizeHandle == null) return 0;
+        try { return (int) rhymeDbSizeHandle.invokeExact(); } catch (Throwable t) { return 0; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MATH UTILITIES API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public double mathVec2Length(double x, double y) {
+        if (mathVec2LengthHandle == null) return Math.sqrt(x*x + y*y);
+        try { return (double) mathVec2LengthHandle.invokeExact(x, y); } 
+        catch (Throwable t) { return Math.sqrt(x*x + y*y); }
+    }
+
+    public double mathVec2Distance(double x1, double y1, double x2, double y2) {
+        if (mathVec2DistanceHandle == null) return Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+        try { return (double) mathVec2DistanceHandle.invokeExact(x1, y1, x2, y2); } 
+        catch (Throwable t) { return Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1)); }
+    }
+
+    public double mathEase(int type, double t) {
+        if (mathEaseHandle == null) return t;
+        try { return (double) mathEaseHandle.invokeExact(type, t); } catch (Throwable ex) { return t; }
+    }
+
+    public int mathColorBlend(int color1, int color2, double t) {
+        if (mathColorBlendHandle == null) return color1;
+        try { return (int) mathColorBlendHandle.invokeExact(color1, color2, t); } catch (Throwable ex) { return color1; }
+    }
+
+    public int mathHslToRgb(double h, double s, double l) {
+        if (mathHslToRgbHandle == null) return 0;
+        try { return (int) mathHslToRgbHandle.invokeExact(h, s, l); } catch (Throwable t) { return 0; }
+    }
+
+    public double mathLerp(double a, double b, double t) {
+        if (mathLerpHandle == null) return a + (b - a) * t;
+        try { return (double) mathLerpHandle.invokeExact(a, b, t); } catch (Throwable ex) { return a + (b - a) * t; }
+    }
+
+    public double mathClamp(double value, double min, double max) {
+        if (mathClampHandle == null) return Math.max(min, Math.min(max, value));
+        try { return (double) mathClampHandle.invokeExact(value, min, max); } 
+        catch (Throwable ex) { return Math.max(min, Math.min(max, value)); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CONCURRENT/TASK API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int taskCreate(String data, int priority) {
+        if (taskCreateHandle == null || data == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cData = tempArena.allocateFrom(data);
+            return (int) taskCreateHandle.invokeExact(cData, priority);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public int taskPendingCount() {
+        if (taskPendingCountHandle == null) return 0;
+        try { return (int) taskPendingCountHandle.invokeExact(); } catch (Throwable t) { return 0; }
+    }
+
+    public int parallelGetHwThreads() {
+        if (parallelGetHwThreadsHandle == null) return Runtime.getRuntime().availableProcessors();
+        try { return (int) parallelGetHwThreadsHandle.invokeExact(); } 
+        catch (Throwable t) { return Runtime.getRuntime().availableProcessors(); }
+    }
+
+    public long atomicInc(int counterId) {
+        if (atomicIncHandle == null) return -1;
+        try { return (long) atomicIncHandle.invokeExact(counterId); } catch (Throwable t) { return -1; }
+    }
+
+    public long atomicGet(int counterId) {
+        if (atomicGetHandle == null) return -1;
+        try { return (long) atomicGetHandle.invokeExact(counterId); } catch (Throwable t) { return -1; }
+    }
+
+    public long hrtimeNs() {
+        if (hrtimeNsHandle == null) return System.nanoTime();
+        try { return (long) hrtimeNsHandle.invokeExact(); } catch (Throwable t) { return System.nanoTime(); }
+    }
+
+    public long monotonicMs() {
+        if (monotonicMsHandle == null) return System.currentTimeMillis();
+        try { return (long) monotonicMsHandle.invokeExact(); } catch (Throwable t) { return System.currentTimeMillis(); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COLLECTION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int setCreate() {
+        if (setCreateHandle == null) return -1;
+        try { return (int) setCreateHandle.invokeExact(); } catch (Throwable t) { return -1; }
+    }
+
+    public void setAdd(int setId, String str) {
+        if (setAddHandle == null || str == null) return;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cStr = tempArena.allocateFrom(str);
+            setAddHandle.invokeExact(setId, cStr);
+        } catch (Throwable ignored) {}
+    }
+
+    public boolean setContains(int setId, String str) {
+        if (setContainsHandle == null || str == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cStr = tempArena.allocateFrom(str);
+            return (int) setContainsHandle.invokeExact(setId, cStr) != 0;
+        } catch (Throwable t) { return false; }
+    }
+
+    public int setSize(int setId) {
+        if (setSizeHandle == null) return 0;
+        try { return (int) setSizeHandle.invokeExact(setId); } catch (Throwable t) { return 0; }
+    }
+
+    public void setClear(int setId) {
+        if (setClearHandle == null) return;
+        try { setClearHandle.invokeExact(setId); } catch (Throwable ignored) {}
+    }
+
+    public int mapCreate() {
+        if (mapCreateHandle == null) return -1;
+        try { return (int) mapCreateHandle.invokeExact(); } catch (Throwable t) { return -1; }
+    }
+
+    public void mapSet(int mapId, String key, String value) {
+        if (mapSetHandle == null || key == null || value == null) return;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            MemorySegment cValue = tempArena.allocateFrom(value);
+            mapSetHandle.invokeExact(mapId, cKey, cValue);
+        } catch (Throwable ignored) {}
+    }
+
+    public String mapGet(int mapId, String key) {
+        if (mapGetHandle == null || key == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            MemorySegment outBuf = tempArena.allocate(4096);
+            int len = (int) mapGetHandle.invokeExact(mapId, cKey, outBuf, 4096);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public boolean mapHas(int mapId, String key) {
+        if (mapHasHandle == null || key == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            return (int) mapHasHandle.invokeExact(mapId, cKey) != 0;
+        } catch (Throwable t) { return false; }
+    }
+
+    public int mapSize(int mapId) {
+        if (mapSizeHandle == null) return 0;
+        try { return (int) mapSizeHandle.invokeExact(mapId); } catch (Throwable t) { return 0; }
+    }
+
+    public int freqCreate() {
+        if (freqCreateHandle == null) return -1;
+        try { return (int) freqCreateHandle.invokeExact(); } catch (Throwable t) { return -1; }
+    }
+
+    public void freqAdd(int mapId, String str, int count) {
+        if (freqAddHandle == null || str == null) return;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cStr = tempArena.allocateFrom(str);
+            freqAddHandle.invokeExact(mapId, cStr, count);
+        } catch (Throwable ignored) {}
+    }
+
+    public int freqGet(int mapId, String str) {
+        if (freqGetHandle == null || str == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cStr = tempArena.allocateFrom(str);
+            return (int) freqGetHandle.invokeExact(mapId, cStr);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public String freqTopN(int mapId, int n) {
+        if (freqTopNHandle == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment outBuf = tempArena.allocate(4096);
+            int len = (int) freqTopNHandle.invokeExact(mapId, n, outBuf, 4096);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public int cacheCreate(int maxSize) {
+        if (cacheCreateHandle == null) return -1;
+        try { return (int) cacheCreateHandle.invokeExact(maxSize); } catch (Throwable t) { return -1; }
+    }
+
+    public void cacheSet(int cacheId, String key, String value) {
+        if (cacheSetHandle == null || key == null || value == null) return;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            MemorySegment cValue = tempArena.allocateFrom(value);
+            cacheSetHandle.invokeExact(cacheId, cKey, cValue);
+        } catch (Throwable ignored) {}
+    }
+
+    public String cacheGet(int cacheId, String key) {
+        if (cacheGetHandle == null || key == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cKey = tempArena.allocateFrom(key);
+            MemorySegment outBuf = tempArena.allocate(4096);
+            int len = (int) cacheGetHandle.invokeExact(cacheId, cKey, outBuf, 4096);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) { return null; }
+    }
+
+    public int cacheSize(int cacheId) {
+        if (cacheSizeHandle == null) return 0;
+        try { return (int) cacheSizeHandle.invokeExact(cacheId); } catch (Throwable t) { return 0; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SIMD API (placeholder - needs array passing)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int simdSupportLevel() { return 0; }
+    public long simdSumInt(int[] arr) { long sum = 0; for (int v : arr) sum += v; return sum; }
+    public double simdSumDouble(double[] arr) { double sum = 0; for (double v : arr) sum += v; return sum; }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FILE SYSTEM API (placeholder)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public long fsSize(String path) { return -1; }
+    public long fsMtime(String path) { return -1; }
+    public boolean fsExists(String path) { return false; }
+    public boolean fsIsDir(String path) { return false; }
+    public boolean fsIsFile(String path) { return false; }
+    public String fsListRecursive(String path, String ext, int depth) { return null; }
+    public byte[] fsReadAll(String path) { return null; }
+    public boolean fsWriteAll(String path, byte[] data) { return false; }
+    public boolean fsMkdir(String path) { return false; }
+    public boolean fsRemove(String path) { return false; }
+    public boolean fsRename(String oldPath, String newPath) { return false; }
+    public int fsWatchCreate(String path) { return -1; }
+    public int fsWatchPoll(int watchId, int timeout) { return 0; }
+    public void fsWatchDestroy(int watchId) {}
+    public String fsExtension(String path) { return null; }
+    public String fsBasename(String path) { return null; }
+    public String fsDirname(String path) { return null; }
+    public String fsJoin(String base, String child) { return null; }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MEMORY POOL API (placeholder)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int poolCreate(int blockSize, int initialBlocks) { return -1; }
+    public void poolDestroy(int poolId) {}
+    public int arenaCreate() { return -1; }
+    public void arenaReset(int arenaId) {}
+    public void arenaDestroy(int arenaId) {}
+    public int internInit() { return -1; }
+    public String intern(String str) { return str; }
+    public boolean internContains(String str) { return false; }
+    public int internCount() { return 0; }
+    public void internClear() {}
     
     @Override
     public void close() {
