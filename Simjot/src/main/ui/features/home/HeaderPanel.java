@@ -20,6 +20,7 @@ import java.awt.image.BufferedImage;
 import java.util.Random;
 import javax.swing.*;
 
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.monitoring.AppPerf;
 import main.core.service.SettingsStore;
 import main.ui.theme.Theme;
@@ -146,9 +147,9 @@ public class HeaderPanel extends JPanel {
         if (!SettingsStore.get().isMainMenuAnimationsDisabled()) {
             pulseTimer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() { // centralized FPS
                 public void actionPerformed(ActionEvent e) {
-                    // Advance phase and compute eased beat between 0..1
+                    // Advance phase and compute eased beat using native math
                     phase += 0.05; // speed
-                    double eased = (1 - Math.cos(phase)) * 0.5; // cosine ease-in-out
+                    double eased = NativeAccess.easeCosine((float) (phase % (2 * Math.PI) / (2 * Math.PI)));
 
                     // Small overshoot spring right after peak
                     boolean justPeaked = (eased > 0.98 && lastBeatValue <= 0.98);
@@ -163,15 +164,12 @@ public class HeaderPanel extends JPanel {
                     }
                     lastBeatValue = eased;
 
-                    // Decay spring
-                    if (spring > 0f) {
-                        spring *= 0.90f; // damping
-                        if (spring < 0.001f) spring = 0f;
-                    }
+                    // Decay spring using native math
+                    spring = NativeAccess.springDecay(spring, 0.90f, 0.001f);
 
-                    // Base amplitude subtle for Aero
+                    // Calculate heartbeat scale using native math
                     float baseAmp = 0.06f;
-                    heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + spring; // around 1.0 with small overshoot
+                    heartScale = NativeAccess.heartbeatScale((float) phase, baseAmp, spring);
 
                     // ECG drawing progression (left→right draw then fade)
                     if(ecgOpacity > 0f){

@@ -16,6 +16,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
+import main.infrastructure.ffi.NativeAccess;
+
 public class FadeTransitionPanel extends JComponent {
     private float alpha = 0f;
     private Timer fadeTimer;
@@ -97,9 +99,8 @@ public class FadeTransitionPanel extends JComponent {
     }
 
     // Smooth cubic ease-in-out easing function for t in [0,1].
+    // Uses native C implementation for precision and consistency.
     private static float easeInOut(float t) {
-        t = Math.max(0f, Math.min(1f, t));
-        // Smootherstep-like cubic: 3t^2 - 2t^3
-        return (float) (t * t * (3 - 2 * t));
+        return NativeAccess.easeSmoothstep(t);
     }
 }

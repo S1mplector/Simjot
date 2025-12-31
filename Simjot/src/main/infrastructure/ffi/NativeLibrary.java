@@ -2121,6 +2121,151 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // ANIMATION MATH API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Easing function: cosine ease-in-out
+     */
+    public float easeCosine(float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_ease_cosine",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) return t; // fallback to linear
+            return (float) handle.invokeExact(t);
+        } catch (Throwable e) {
+            return t;
+        }
+    }
+
+    /**
+     * Easing function: smoothstep (3t² - 2t³)
+     */
+    public float easeSmoothstep(float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_ease_smoothstep",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) return t * t * (3 - 2 * t);
+            return (float) handle.invokeExact(t);
+        } catch (Throwable e) {
+            return t * t * (3 - 2 * t);
+        }
+    }
+
+    /**
+     * Easing function: smootherstep (6t⁵ - 15t⁴ + 10t³)
+     */
+    public float easeSmootherstep(float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_ease_smootherstep",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) return t * t * t * (t * (t * 6 - 15) + 10);
+            return (float) handle.invokeExact(t);
+        } catch (Throwable e) {
+            return t * t * t * (t * (t * 6 - 15) + 10);
+        }
+    }
+
+    /**
+     * Spring decay calculation
+     */
+    public float springDecay(float current, float damping, float threshold) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_spring_decay",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, 
+                    ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                current *= damping;
+                return Math.abs(current) < threshold ? 0f : current;
+            }
+            return (float) handle.invokeExact(current, damping, threshold);
+        } catch (Throwable e) {
+            current *= damping;
+            return Math.abs(current) < threshold ? 0f : current;
+        }
+    }
+
+    /**
+     * Calculate heartbeat scale factor
+     */
+    public float heartbeatScale(float phase, float baseAmplitude, float spring) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_heartbeat_scale",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT,
+                    ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                float eased = (1f - (float) Math.cos(phase)) * 0.5f;
+                return 1f + baseAmplitude * (eased * 2f - 1f) + spring;
+            }
+            return (float) handle.invokeExact(phase, baseAmplitude, spring);
+        } catch (Throwable e) {
+            float eased = (1f - (float) Math.cos(phase)) * 0.5f;
+            return 1f + baseAmplitude * (eased * 2f - 1f) + spring;
+        }
+    }
+
+    /**
+     * Sample ECG waveform at given phase
+     */
+    public float ecgSample(float phase) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_ecg_sample",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) return 0f;
+            return (float) handle.invokeExact(phase);
+        } catch (Throwable e) {
+            return 0f;
+        }
+    }
+
+    /**
+     * Calculate fade alpha for transition
+     * @param easingType 0=linear, 1=smoothstep, 2=smootherstep, 3=cosine
+     */
+    public float fadeAlpha(long elapsedMs, long durationMs, boolean fadeOut, int easingType) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_fade_alpha",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT,
+                    ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, 
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) {
+                float t = durationMs > 0 ? (float) elapsedMs / durationMs : 1f;
+                t = Math.max(0f, Math.min(1f, t));
+                float eased = t * t * (3 - 2 * t);
+                return fadeOut ? eased : (1f - eased);
+            }
+            return (float) handle.invokeExact(elapsedMs, durationMs, fadeOut ? 1 : 0, easingType);
+        } catch (Throwable e) {
+            float t = durationMs > 0 ? (float) elapsedMs / durationMs : 1f;
+            t = Math.max(0f, Math.min(1f, t));
+            float eased = t * t * (3 - 2 * t);
+            return fadeOut ? eased : (1f - eased);
+        }
+    }
+
+    /**
+     * Linearly interpolate between two colors
+     */
+    public int colorLerp(int color1, int color2, float t) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_color_lerp",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+            if (handle == null) {
+                t = Math.max(0f, Math.min(1f, t));
+                int a1 = (color1 >> 24) & 0xFF, r1 = (color1 >> 16) & 0xFF, g1 = (color1 >> 8) & 0xFF, b1 = color1 & 0xFF;
+                int a2 = (color2 >> 24) & 0xFF, r2 = (color2 >> 16) & 0xFF, g2 = (color2 >> 8) & 0xFF, b2 = color2 & 0xFF;
+                int a = (int)(a1 + t * (a2 - a1)), r = (int)(r1 + t * (r2 - r1));
+                int g = (int)(g1 + t * (g2 - g1)), b = (int)(b1 + t * (b2 - b1));
+                return (a << 24) | (r << 16) | (g << 8) | b;
+            }
+            return (int) handle.invokeExact(color1, color2, t);
+        } catch (Throwable e) {
+            return color1;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
     // ═══════════════════════════════════════════════════════════════════════════
 

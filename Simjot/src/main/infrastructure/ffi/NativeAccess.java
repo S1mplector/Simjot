@@ -1767,6 +1767,89 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // ANIMATION MATH API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Easing function: cosine ease-in-out */
+    public static float easeCosine(float t) {
+        NativeLibrary lib = library();
+        if (lib == null) return (1f - (float) Math.cos(t * Math.PI)) * 0.5f;
+        try { return lib.easeCosine(t); } catch (Throwable e) { return t; }
+    }
+
+    /** Easing function: smoothstep (3t² - 2t³) */
+    public static float easeSmoothstep(float t) {
+        NativeLibrary lib = library();
+        if (lib == null) { t = Math.max(0f, Math.min(1f, t)); return t * t * (3 - 2 * t); }
+        try { return lib.easeSmoothstep(t); } catch (Throwable e) { return t * t * (3 - 2 * t); }
+    }
+
+    /** Easing function: smootherstep (6t⁵ - 15t⁴ + 10t³) */
+    public static float easeSmootherstep(float t) {
+        NativeLibrary lib = library();
+        if (lib == null) { t = Math.max(0f, Math.min(1f, t)); return t * t * t * (t * (t * 6 - 15) + 10); }
+        try { return lib.easeSmootherstep(t); } catch (Throwable e) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    }
+
+    /** Spring decay calculation */
+    public static float springDecay(float current, float damping, float threshold) {
+        NativeLibrary lib = library();
+        if (lib == null) { current *= damping; return Math.abs(current) < threshold ? 0f : current; }
+        try { return lib.springDecay(current, damping, threshold); } catch (Throwable e) { return current * damping; }
+    }
+
+    /** Calculate heartbeat scale factor */
+    public static float heartbeatScale(float phase, float baseAmplitude, float spring) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            float eased = (1f - (float) Math.cos(phase)) * 0.5f;
+            return 1f + baseAmplitude * (eased * 2f - 1f) + spring;
+        }
+        try { return lib.heartbeatScale(phase, baseAmplitude, spring); } catch (Throwable e) {
+            float eased = (1f - (float) Math.cos(phase)) * 0.5f;
+            return 1f + baseAmplitude * (eased * 2f - 1f) + spring;
+        }
+    }
+
+    /** Sample ECG waveform at given phase */
+    public static float ecgSample(float phase) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0f;
+        try { return lib.ecgSample(phase); } catch (Throwable e) { return 0f; }
+    }
+
+    /** Calculate fade alpha for transition (easingType: 0=linear, 1=smoothstep, 2=smootherstep, 3=cosine) */
+    public static float fadeAlpha(long elapsedMs, long durationMs, boolean fadeOut, int easingType) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            float t = durationMs > 0 ? (float) elapsedMs / durationMs : 1f;
+            t = Math.max(0f, Math.min(1f, t));
+            float eased = t * t * (3 - 2 * t);
+            return fadeOut ? eased : (1f - eased);
+        }
+        try { return lib.fadeAlpha(elapsedMs, durationMs, fadeOut, easingType); } catch (Throwable e) {
+            float t = durationMs > 0 ? (float) elapsedMs / durationMs : 1f;
+            t = Math.max(0f, Math.min(1f, t));
+            float eased = t * t * (3 - 2 * t);
+            return fadeOut ? eased : (1f - eased);
+        }
+    }
+
+    /** Linearly interpolate between two ARGB colors */
+    public static int colorLerp(int color1, int color2, float t) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            t = Math.max(0f, Math.min(1f, t));
+            int a1 = (color1 >> 24) & 0xFF, r1 = (color1 >> 16) & 0xFF, g1 = (color1 >> 8) & 0xFF, b1 = color1 & 0xFF;
+            int a2 = (color2 >> 24) & 0xFF, r2 = (color2 >> 16) & 0xFF, g2 = (color2 >> 8) & 0xFF, b2 = color2 & 0xFF;
+            int a = (int)(a1 + t * (a2 - a1)), r = (int)(r1 + t * (r2 - r1));
+            int g = (int)(g1 + t * (g2 - g1)), b = (int)(b1 + t * (b2 - b1));
+            return (a << 24) | (r << 16) | (g << 8) | b;
+        }
+        try { return lib.colorLerp(color1, color2, t); } catch (Throwable e) { return color1; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════
 

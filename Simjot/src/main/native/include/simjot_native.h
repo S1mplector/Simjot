@@ -301,6 +301,33 @@ void simjot_image_argb_to_rgba(const int32_t* argb, uint8_t* rgba, int32_t pixel
 void simjot_image_rgba_to_argb(const uint8_t* rgba, int32_t* argb, int32_t pixel_count);
 int32_t simjot_image_resize_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h, int32_t* dst_argb, int32_t dst_w, int32_t dst_h, int32_t quality);
 
+/* Animation math - easing functions */
+float simjot_ease_cosine(float t);
+float simjot_ease_smootherstep(float t);
+float simjot_ease_smoothstep(float t);
+float simjot_ease_out_cubic(float t);
+float simjot_ease_in_cubic(float t);
+float simjot_ease_in_out_cubic(float t);
+float simjot_ease_elastic(float t);
+float simjot_spring_decay(float current, float damping, float threshold);
+
+/* Animation math - heartbeat */
+float simjot_heartbeat_scale(float phase, float baseAmplitude, float spring);
+int32_t simjot_heartbeat_is_peak(float currentEased, float lastEased, float threshold);
+void simjot_heartbeat_update(float* phase, float phaseStep, float* spring, float springDamping, float springKick, float* lastEased, float baseAmplitude, float* outScale, int32_t* outPeaked);
+
+/* Animation math - ECG waveform */
+float simjot_ecg_sample(float phase);
+void simjot_ecg_generate(float startPhase, float phaseStep, float* output, int32_t count);
+
+/* Animation math - fade transitions */
+float simjot_fade_alpha(int64_t elapsedMs, int64_t durationMs, int32_t fadeOut, int32_t easingType);
+int32_t simjot_fade_is_complete(int64_t elapsedMs, int64_t durationMs);
+
+/* Animation math - color interpolation */
+int32_t simjot_color_lerp(int32_t color1, int32_t color2, float t);
+int32_t simjot_color_lerp_eased(int32_t color1, int32_t color2, float t, int32_t easingType);
+
 #ifdef __cplusplus
 }
 #endif
