@@ -352,6 +352,32 @@ void simjot_scale_insets(int32_t top, int32_t left, int32_t bottom, int32_t righ
                          float scale, int32_t* outInsets);
 void simjot_scale_dimensions(int32_t width, int32_t height, float scale, int32_t* outDimensions);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SETUP & INITIALIZATION - First-time setup utilities
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Initialize directory structure */
+int32_t simjot_setup_init(const char* root_path);
+
+/* Verify setup is complete (returns bitmask) */
+int32_t simjot_setup_verify(const char* root_path);
+
+/* Check if directory is truly writable */
+int32_t simjot_verify_writable(const char* dir_path);
+
+/* Get detailed status (8-element array) */
+int32_t simjot_setup_status(const char* root_path, int32_t* out_status);
+
+/* Config file operations */
+int32_t simjot_write_config(const char* config_path, const char* root_path);
+int32_t simjot_read_config(const char* config_path, char* out_root_path);
+
+/* Directory operations */
+int32_t simjot_create_directory(const char* dir_path);
+
+/* Check if setup is needed */
+int32_t simjot_needs_setup(const char* config_path);
+
 #ifdef __cplusplus
 }
 #endif

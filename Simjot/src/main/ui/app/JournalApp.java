@@ -471,6 +471,26 @@ public class JournalApp extends JFrame {
      */
     private void loadOrChooseRootFolder() {
         configFile = new File(System.getProperty("user.home"), CONFIG_FILENAME);
+        
+        // Try native config read first (more reliable verification)
+        String nativePath = main.infrastructure.ffi.NativeAccess.readConfig(configFile.getAbsolutePath());
+        if (nativePath != null) {
+            File folder = new File(nativePath);
+            // Verify setup is complete using native verification
+            if (main.infrastructure.ffi.NativeAccess.isSetupComplete(folder.getAbsolutePath())) {
+                rootFolder = folder;
+                AppDirectories.setRoot(rootFolder);
+                // Ensure subdirectories exist
+                AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
+                AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
+                AppDirectories.folder(AppDirectories.Type.SETTINGS);
+                AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+                FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
+                return;
+            }
+        }
+        
+        // Fallback: try Java config read
         if (configFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
                 String path = reader.readLine();
@@ -479,7 +499,6 @@ public class JournalApp extends JFrame {
                     if (folder.exists() && folder.isDirectory()) {
                         rootFolder = folder;
                         AppDirectories.setRoot(rootFolder);
-                        // Guarantee only active sub-directories exist when loading existing root
                         AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
                         AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
                         AppDirectories.folder(AppDirectories.Type.SETTINGS);
@@ -492,6 +511,8 @@ public class JournalApp extends JFrame {
                 ex.printStackTrace();
             }
         }
+        
+        // Show setup wizard
         SetupWizardDialog dlg = new SetupWizardDialog(this);
         dlg.setVisible(true);
         rootFolder = dlg.getRootFolder();
@@ -566,10 +587,19 @@ public class JournalApp extends JFrame {
      * in the user's home directory. This ensures persistence across application sessions.</p>
      */
     private void saveJournalFolderConfig() {
-        try (PrintWriter writer = new PrintWriter(new FileWriter(configFile))) {
-            writer.println(rootFolder.getAbsolutePath());
-        } catch (IOException ex) {
-            ex.printStackTrace();
+        // Use native atomic write for reliability
+        boolean written = main.infrastructure.ffi.NativeAccess.writeConfig(
+            configFile.getAbsolutePath(), 
+            rootFolder.getAbsolutePath()
+        );
+        
+        // Fallback to Java if native fails
+        if (!written) {
+            try (PrintWriter writer = new PrintWriter(new FileWriter(configFile))) {
+                writer.println(rootFolder.getAbsolutePath());
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
         }
     }
 

@@ -2427,6 +2427,149 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SETUP & INITIALIZATION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Initialize Simjot directory structure.
+     * Creates root and all subdirectories with proper verification.
+     */
+    public int setupInit(String rootPath) {
+        if (rootPath == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_setup_init",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return -1;
+            MemorySegment pathSeg = tempArena.allocateFrom(rootPath);
+            return (int) handle.invokeExact(pathSeg);
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Verify setup is complete. Returns bitmask of status.
+     */
+    public int setupVerify(String rootPath) {
+        if (rootPath == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_setup_verify",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return 0;
+            MemorySegment pathSeg = tempArena.allocateFrom(rootPath);
+            return (int) handle.invokeExact(pathSeg);
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Verify directory is truly writable by test write.
+     */
+    public boolean verifyWritable(String dirPath) {
+        if (dirPath == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_verify_writable",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return new java.io.File(dirPath).canWrite();
+            MemorySegment pathSeg = tempArena.allocateFrom(dirPath);
+            return ((int) handle.invokeExact(pathSeg)) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get detailed setup status.
+     * Returns array: [root_exists, root_writable, notebooks_ok, mood_ok, 
+     *                 settings_ok, wallpapers_ok, marker_valid, setup_complete]
+     */
+    public int[] setupStatus(String rootPath) {
+        int[] result = new int[8];
+        if (rootPath == null) return result;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_setup_status",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return result;
+            MemorySegment pathSeg = tempArena.allocateFrom(rootPath);
+            MemorySegment outSeg = tempArena.allocate(ValueLayout.JAVA_INT, 8);
+            handle.invokeExact(pathSeg, outSeg);
+            for (int i = 0; i < 8; i++) {
+                result[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+        } catch (Throwable ignored) {}
+        return result;
+    }
+
+    /**
+     * Write config file atomically.
+     */
+    public boolean writeConfig(String configPath, String rootPath) {
+        if (configPath == null || rootPath == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_write_config",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment configSeg = tempArena.allocateFrom(configPath);
+            MemorySegment rootSeg = tempArena.allocateFrom(rootPath);
+            return ((int) handle.invokeExact(configSeg, rootSeg)) == 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Read config file and verify root exists.
+     */
+    public String readConfig(String configPath) {
+        if (configPath == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_read_config",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return null;
+            MemorySegment configSeg = tempArena.allocateFrom(configPath);
+            MemorySegment outSeg = tempArena.allocate(4096);
+            int ok = (int) handle.invokeExact(configSeg, outSeg);
+            if (ok != 0) {
+                return outSeg.getString(0);
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /**
+     * Create directory with all parents.
+     */
+    public boolean createDirectory(String dirPath) {
+        if (dirPath == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_create_directory",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return new java.io.File(dirPath).mkdirs();
+            MemorySegment pathSeg = tempArena.allocateFrom(dirPath);
+            return ((int) handle.invokeExact(pathSeg)) == 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if first-time setup is needed.
+     */
+    public boolean needsSetup(String configPath) {
+        if (configPath == null) return true;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_needs_setup",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return !new java.io.File(configPath).exists();
+            MemorySegment pathSeg = tempArena.allocateFrom(configPath);
+            return ((int) handle.invokeExact(pathSeg)) != 0;
+        } catch (Throwable e) {
+            return true;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
     // ═══════════════════════════════════════════════════════════════════════════
 

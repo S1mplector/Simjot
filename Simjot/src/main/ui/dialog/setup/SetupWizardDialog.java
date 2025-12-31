@@ -514,30 +514,35 @@ public class SetupWizardDialog extends JDialog {
         tasksPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
         tasksPanel.setMaximumSize(new Dimension(400, 300));
         
-        // Initialize task list
+        // Initialize task list - using native setup for reliability
         setupTasks = new ArrayList<>();
-        setupTasks.add(new SetupTask("Creating Simjot folder", () -> {
-            if (!rootFolder.exists()) {
-                return rootFolder.mkdirs();
+        setupTasks.add(new SetupTask("Initializing directory structure", () -> {
+            // Use native setup for atomic directory creation
+            int result = main.infrastructure.ffi.NativeAccess.setupInit(rootFolder.getAbsolutePath());
+            if (result == 0) {
+                AppDirectories.setRoot(rootFolder);
+                return true;
             }
+            // Fallback: try Java creation if native fails
+            if (!rootFolder.exists() && !rootFolder.mkdirs()) return false;
+            AppDirectories.setRoot(rootFolder);
             return rootFolder.isDirectory();
         }));
-        setupTasks.add(new SetupTask("Setting up notebooks directory", () -> {
-            AppDirectories.setRoot(rootFolder);
+        setupTasks.add(new SetupTask("Verifying notebooks directory", () -> {
             File f = AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
-            return f.exists() && f.isDirectory();
+            return main.infrastructure.ffi.NativeAccess.verifyWritable(f.getAbsolutePath());
         }));
-        setupTasks.add(new SetupTask("Creating mood data folder", () -> {
+        setupTasks.add(new SetupTask("Verifying mood data folder", () -> {
             File f = AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
-            return f.exists() && f.isDirectory();
+            return main.infrastructure.ffi.NativeAccess.verifyWritable(f.getAbsolutePath());
         }));
-        setupTasks.add(new SetupTask("Setting up settings directory", () -> {
+        setupTasks.add(new SetupTask("Verifying settings directory", () -> {
             File f = AppDirectories.folder(AppDirectories.Type.SETTINGS);
-            return f.exists() && f.isDirectory();
+            return main.infrastructure.ffi.NativeAccess.verifyWritable(f.getAbsolutePath());
         }));
-        setupTasks.add(new SetupTask("Creating wallpapers folder", () -> {
+        setupTasks.add(new SetupTask("Verifying wallpapers folder", () -> {
             File f = AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
-            return f.exists() && f.isDirectory();
+            return main.infrastructure.ffi.NativeAccess.verifyWritable(f.getAbsolutePath());
         }));
         setupTasks.add(new SetupTask("Initializing preferences", () -> {
             try {
@@ -548,9 +553,9 @@ public class SetupWizardDialog extends JDialog {
                 return false;
             }
         }));
-        setupTasks.add(new SetupTask("Validating setup", () -> {
-            // Final validation
-            return rootFolder.exists() && rootFolder.isDirectory();
+        setupTasks.add(new SetupTask("Final verification", () -> {
+            // Use native verification for comprehensive check
+            return main.infrastructure.ffi.NativeAccess.isSetupComplete(rootFolder.getAbsolutePath());
         }));
         
         // Create task UI components

@@ -1974,6 +1974,164 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SETUP & INITIALIZATION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Initialize Simjot directory structure with native verification.
+     * Creates root and all subdirectories atomically.
+     * 
+     * @param rootPath Path to Simjot root folder
+     * @return 0 on success, negative error code on failure
+     */
+    public static int setupInit(String rootPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Fallback: use Java to create directories
+            try {
+                java.io.File root = new java.io.File(rootPath);
+                if (!root.exists() && !root.mkdirs()) return -3;
+                String[] subdirs = {"notebooks", "mood", "settings", "wallpapers"};
+                for (String sub : subdirs) {
+                    java.io.File f = new java.io.File(root, sub);
+                    if (!f.exists() && !f.mkdirs()) return -4;
+                }
+                return 0;
+            } catch (Exception e) {
+                return -1;
+            }
+        }
+        try { return lib.setupInit(rootPath); } catch (Throwable e) { return -1; }
+    }
+
+    /**
+     * Verify setup is complete.
+     * 
+     * @param rootPath Path to Simjot root folder
+     * @return Bitmask: bit 0 = root, bits 1-4 = subdirs, bit 7 = marker
+     */
+    public static int setupVerify(String rootPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Fallback check
+            java.io.File root = new java.io.File(rootPath);
+            if (!root.isDirectory()) return 0;
+            int result = 1; // root exists
+            String[] subdirs = {"notebooks", "mood", "settings", "wallpapers"};
+            for (int i = 0; i < subdirs.length; i++) {
+                if (new java.io.File(root, subdirs[i]).isDirectory()) {
+                    result |= (1 << (i + 1));
+                }
+            }
+            return result;
+        }
+        try { return lib.setupVerify(rootPath); } catch (Throwable e) { return 0; }
+    }
+
+    /**
+     * Check if directory is truly writable by test write.
+     */
+    public static boolean verifyWritable(String dirPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            return new java.io.File(dirPath).canWrite();
+        }
+        try { return lib.verifyWritable(dirPath); } catch (Throwable e) { return false; }
+    }
+
+    /**
+     * Get detailed setup status.
+     * 
+     * @param rootPath Path to Simjot root folder
+     * @return Array: [root_exists, root_writable, notebooks_ok, mood_ok, 
+     *                 settings_ok, wallpapers_ok, marker_valid, setup_complete]
+     */
+    public static int[] setupStatus(String rootPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            int[] result = new int[8];
+            java.io.File root = new java.io.File(rootPath);
+            result[0] = root.isDirectory() ? 1 : 0;
+            result[1] = root.canWrite() ? 1 : 0;
+            String[] subdirs = {"notebooks", "mood", "settings", "wallpapers"};
+            int okCount = result[1];
+            for (int i = 0; i < subdirs.length; i++) {
+                java.io.File f = new java.io.File(root, subdirs[i]);
+                result[2 + i] = f.isDirectory() && f.canWrite() ? 1 : 0;
+                if (result[2 + i] == 1) okCount++;
+            }
+            result[7] = (okCount == 5) ? 1 : 0;
+            return result;
+        }
+        try { return lib.setupStatus(rootPath); } catch (Throwable e) { return new int[8]; }
+    }
+
+    /**
+     * Write config file atomically using native I/O.
+     */
+    public static boolean writeConfig(String configPath, String rootPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Fallback: Java write
+            try (java.io.PrintWriter w = new java.io.PrintWriter(new java.io.FileWriter(configPath))) {
+                w.println(rootPath);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        try { return lib.writeConfig(configPath, rootPath); } catch (Throwable e) { return false; }
+    }
+
+    /**
+     * Read config file and verify root exists.
+     */
+    public static String readConfig(String configPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Fallback: Java read
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(configPath))) {
+                String path = r.readLine();
+                if (path != null && new java.io.File(path.trim()).isDirectory()) {
+                    return path.trim();
+                }
+            } catch (Exception ignored) {}
+            return null;
+        }
+        try { return lib.readConfig(configPath); } catch (Throwable e) { return null; }
+    }
+
+    /**
+     * Create directory with all parents using native I/O.
+     */
+    public static boolean createDirectory(String dirPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            return new java.io.File(dirPath).mkdirs();
+        }
+        try { return lib.createDirectory(dirPath); } catch (Throwable e) { return false; }
+    }
+
+    /**
+     * Check if first-time setup is needed.
+     */
+    public static boolean needsSetup(String configPath) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            return !new java.io.File(configPath).exists();
+        }
+        try { return lib.needsSetup(configPath); } catch (Throwable e) { return true; }
+    }
+
+    /**
+     * Check if setup is complete with all directories verified.
+     */
+    public static boolean isSetupComplete(String rootPath) {
+        int[] status = setupStatus(rootPath);
+        return status[7] == 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════
 
