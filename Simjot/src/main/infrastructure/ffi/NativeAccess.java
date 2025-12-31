@@ -12,20 +12,20 @@
 
 package main.infrastructure.ffi;
 
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.HexFormat;
+import java.util.List;
 
-import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.io.IoLog;
+import main.infrastructure.io.ResourceLoader;
 
 /**
  * Lazily loads the native library and provides safe fallbacks.
@@ -293,6 +293,119 @@ public final class NativeAccess {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPELL CHECK API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private static final Object SPELL_LOCK = new Object();
+    private static volatile boolean spellReady;
+    private static volatile boolean spellInitAttempted;
+
+    public static boolean spellReady() {
+        if (spellReady) return true;
+        if (spellInitAttempted) return false;
+        synchronized (SPELL_LOCK) {
+            if (spellReady) return true;
+            if (spellInitAttempted) return false;
+            spellInitAttempted = true;
+            NativeLibrary lib = library();
+            if (lib == null || !lib.hasSpellSupport()) return false;
+            Path basePath = resolveSpellDictionaryPath();
+            if (basePath == null) return false;
+            spellReady = lib.initSpellDictionary(basePath.toString());
+            return spellReady;
+        }
+    }
+
+    public static Boolean spellContains(String word) {
+        if (!spellReady() || word == null || word.isBlank()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.spellContains(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-spell", "Native spell contains failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static List<String> spellSuggestions(String word, int maxResults) {
+        if (!spellReady() || word == null || word.isBlank()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.spellSuggestions(word, maxResults);
+        } catch (Throwable t) {
+            IoLog.warn("native-spell", "Native spell suggestions failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static String spellBestCorrection(String word) {
+        if (!spellReady() || word == null || word.isBlank()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.spellBestCorrection(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-spell", "Native spell correction failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static boolean addUserDictionaryWord(String word) {
+        if (!spellReady() || word == null || word.isBlank()) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try {
+            return lib.addUserDictionaryWord(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-spell", "Native add user word failed.", t);
+            return false;
+        }
+    }
+
+    public static void clearUserDictionary() {
+        if (!spellReady()) return;
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.clearUserDictionary();
+        } catch (Throwable t) {
+            IoLog.warn("native-spell", "Native clear user dictionary failed.", t);
+        }
+    }
+
+    private static Path resolveSpellDictionaryPath() {
+        String override = System.getProperty("simjot.spell.path");
+        if (override == null || override.isBlank()) {
+            override = System.getenv("SIMJOT_SPELL_PATH");
+        }
+        if (override != null && !override.isBlank()) {
+            Path candidate = Paths.get(override);
+            if (Files.isDirectory(candidate)) return candidate.toAbsolutePath();
+        }
+
+        try {
+            URL url = ResourceLoader.getResource("simple-english-dictionary/processed");
+            if (url != null && "file".equalsIgnoreCase(url.getProtocol())) {
+                Path path = Paths.get(url.toURI());
+                if (Files.isDirectory(path)) return path.toAbsolutePath();
+            }
+        } catch (Throwable ignored) {}
+
+        String[] fallbacks = {
+            "src/main/resources/simple-english-dictionary/processed",
+            "Simjot/src/main/resources/simple-english-dictionary/processed",
+            "simple-english-dictionary/processed"
+        };
+        for (String fb : fallbacks) {
+            Path path = Paths.get(fb);
+            if (Files.isDirectory(path)) return path.toAbsolutePath();
+        }
+        return null;
+    }
+
     private static List<String> readStringList(ByteBuffer buf, int count) {
         if (count <= 0) return Collections.emptyList();
         List<String> out = new ArrayList<>(count);
@@ -305,6 +418,201 @@ public final class NativeAccess {
             out.add(new String(bytes, StandardCharsets.UTF_8));
         }
         return out;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TEXT UTILITIES API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static boolean textUtilsReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasTextUtilsSupport();
+    }
+
+    public static Integer textWordCount(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textWordCount(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native word count failed.", t);
+            return null;
+        }
+    }
+
+    public static Integer textSentenceCount(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textSentenceCount(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native sentence count failed.", t);
+            return null;
+        }
+    }
+
+    public static Integer textCharCount(String text, boolean includeSpaces) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textCharCount(text, includeSpaces);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native char count failed.", t);
+            return null;
+        }
+    }
+
+    public static List<String> textExtractWords(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textExtractWords(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native word extraction failed.", t);
+            return null;
+        }
+    }
+
+    public static String textLastWord(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textLastWord(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native last word failed.", t);
+            return null;
+        }
+    }
+
+    public static String textNormalize(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textNormalize(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native normalize failed.", t);
+            return null;
+        }
+    }
+
+    public static boolean textFuzzyMatch(String text, String query) {
+        if (!textUtilsReady() || text == null || query == null) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try {
+            return lib.textFuzzyMatch(text, query);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static int textFuzzyScore(String text, String query) {
+        if (!textUtilsReady() || text == null || query == null) return 0;
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.textFuzzyScore(text, query);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static Integer textLineCount(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textLineCount(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native line count failed.", t);
+            return null;
+        }
+    }
+
+    public static String textGetLine(String text, int lineNum) {
+        if (!textUtilsReady() || text == null || lineNum < 0) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textGetLine(text, lineNum);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native get line failed.", t);
+            return null;
+        }
+    }
+
+    public static Integer textLevenshtein(String a, String b) {
+        if (!textUtilsReady() || a == null || b == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textLevenshtein(a, b);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Integer textDamerauLevenshtein(String a, String b) {
+        if (!textUtilsReady() || a == null || b == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textDamerauLevenshtein(a, b);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Integer textSimilarity(String a, String b) {
+        if (!textUtilsReady() || a == null || b == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textSimilarity(a, b);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPRESSION API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static boolean compressionReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasCompressionSupport();
+    }
+
+    public static byte[] compress(byte[] data, int level) {
+        if (!compressionReady() || data == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.compress(data, level);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] compress(byte[] data) {
+        return compress(data, 9);  // Best compression
+    }
+
+    public static byte[] decompress(byte[] data, int expectedSize) {
+        if (!compressionReady() || data == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.decompress(data, expectedSize);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static Path resolveDictionaryBasePath() {

@@ -414,6 +414,12 @@ public class IntelligentAutocorrect {
     }
     
     private int levenshteinDistance(String a, String b) {
+        // Try native implementation first
+        Integer nativeResult = NativeAccess.textLevenshtein(a, b);
+        if (nativeResult != null) {
+            return nativeResult;
+        }
+        // Java fallback
         int[][] dp = new int[a.length() + 1][b.length() + 1];
         for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
         for (int j = 0; j <= b.length(); j++) dp[0][j] = j;

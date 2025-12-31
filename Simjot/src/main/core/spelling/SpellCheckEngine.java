@@ -12,7 +12,14 @@
 
 package main.core.spelling;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,7 +28,8 @@ import java.util.stream.Collectors;
 import main.infrastructure.ffi.NativeAccess;
 
 /**
- * SpellCheckEngine - A comprehensive spell checking and autocorrect engine.
+ * SpellCheckEngine
+ * A comprehensive spell checking and autocorrect engine.
  */
 public class SpellCheckEngine {
     
@@ -33,11 +41,13 @@ public class SpellCheckEngine {
     private final Map<String, Boolean> spellCheckCache = new ConcurrentHashMap<>();
     private final Map<String, List<String>> suggestionCache = new ConcurrentHashMap<>();
     private static final Pattern WORD_PATTERN = Pattern.compile("[a-zA-Z']+");
+    private final boolean useNativeSpell;
     private final boolean useNativeDictionary;
     
     private SpellCheckEngine() {
-        useNativeDictionary = NativeAccess.dictionaryReady();
-        if (!useNativeDictionary) {
+        useNativeSpell = NativeAccess.spellReady();
+        useNativeDictionary = !useNativeSpell && NativeAccess.dictionaryReady();
+        if (!useNativeSpell && !useNativeDictionary) {
             loadDefaultDictionary();
         }
         loadWordFrequencies();
@@ -74,10 +84,20 @@ public class SpellCheckEngine {
         Boolean cached = spellCheckCache.get(lower);
         if (cached != null) return cached;
         
-        boolean correct = isInAnyDictionary(lower);
+        boolean correct;
+        if (useNativeSpell) {
+            // Native spell check handles word forms internally
+            Boolean nativeResult = NativeAccess.spellContains(lower);
+            correct = nativeResult != null ? nativeResult : isInAnyDictionaryJava(lower);
+        } else {
+            correct = isInAnyDictionaryJava(lower);
+            if (!correct) correct = checkWordForms(lower);
+        }
         
-        // Check word forms (possessives, plurals, verb forms)
-        if (!correct) correct = checkWordForms(lower);
+        // Also check user dictionary (Java-side)
+        if (!correct && userDictionary.contains(lower)) {
+            correct = true;
+        }
         
         spellCheckCache.put(lower, correct);
         return correct;
@@ -87,34 +107,34 @@ public class SpellCheckEngine {
         // Possessives
         if (lower.endsWith("'s") && lower.length() > 2) {
             String base = lower.substring(0, lower.length() - 2);
-            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionaryJava(base)) return true;
         }
         // Plurals
         if (lower.endsWith("s") && lower.length() > 2) {
             String base = lower.substring(0, lower.length() - 1);
-            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionaryJava(base)) return true;
         }
         if (lower.endsWith("es") && lower.length() > 3) {
             String base = lower.substring(0, lower.length() - 2);
-            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionaryJava(base)) return true;
         }
         // Past tense
         if (lower.endsWith("ed") && lower.length() > 3) {
             String base = lower.substring(0, lower.length() - 2);
-            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionaryJava(base)) return true;
             base = lower.substring(0, lower.length() - 1);
-            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionaryJava(base)) return true;
         }
         // Present participle
         if (lower.endsWith("ing") && lower.length() > 4) {
             String base = lower.substring(0, lower.length() - 3);
-            if (isInAnyDictionary(base)) return true;
-            if (isInAnyDictionary(base + "e")) return true;
+            if (isInAnyDictionaryJava(base)) return true;
+            if (isInAnyDictionaryJava(base + "e")) return true;
         }
         // Adverbs
         if (lower.endsWith("ly") && lower.length() > 3) {
             String base = lower.substring(0, lower.length() - 2);
-            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionaryJava(base)) return true;
         }
         return false;
     }
@@ -126,6 +146,16 @@ public class SpellCheckEngine {
         List<String> cached = suggestionCache.get(lower);
         if (cached != null) return cached;
         
+        // Try native suggestions first
+        if (useNativeSpell) {
+            List<String> nativeSuggestions = NativeAccess.spellSuggestions(lower, 5);
+            if (nativeSuggestions != null && !nativeSuggestions.isEmpty()) {
+                suggestionCache.put(lower, nativeSuggestions);
+                return nativeSuggestions;
+            }
+        }
+        
+        // Fallback to Java autocorrect map
         String autocorrect = autocorrectMap.get(lower);
         if (autocorrect != null) {
             List<String> result = Collections.singletonList(autocorrect);
@@ -133,6 +163,7 @@ public class SpellCheckEngine {
             return result;
         }
         
+        // Fallback to Java edit-distance suggestions
         Set<String> suggestions = new LinkedHashSet<>();
         addEditDistance1Candidates(lower, suggestions);
         if (suggestions.size() < 3) addEditDistance2Candidates(lower, suggestions);
@@ -153,7 +184,19 @@ public class SpellCheckEngine {
     }
     
     public String getAutocorrect(String word) {
-        return word == null ? null : autocorrectMap.get(word.toLowerCase(Locale.ROOT));
+        if (word == null) return null;
+        String lower = word.toLowerCase(Locale.ROOT);
+        
+        // Try native autocorrect first
+        if (useNativeSpell) {
+            String nativeCorrection = NativeAccess.spellBestCorrection(lower);
+            if (nativeCorrection != null && !nativeCorrection.isEmpty()) {
+                return nativeCorrection;
+            }
+        }
+        
+        // Fallback to Java map
+        return autocorrectMap.get(lower);
     }
     
     public void addToUserDictionary(String word) {
@@ -161,6 +204,10 @@ public class SpellCheckEngine {
             String lower = word.toLowerCase(Locale.ROOT);
             userDictionary.add(lower);
             spellCheckCache.remove(lower);
+            // Also add to native user dictionary
+            if (useNativeSpell) {
+                NativeAccess.addUserDictionaryWord(lower);
+            }
         }
     }
     
@@ -235,7 +282,7 @@ public class SpellCheckEngine {
         return dictionary.contains(word);
     }
 
-    private boolean isInAnyDictionary(String word) {
+    private boolean isInAnyDictionaryJava(String word) {
         if (word == null || word.isEmpty()) return false;
         if (userDictionary.contains(word)) return true;
         return isInMainDictionary(word);

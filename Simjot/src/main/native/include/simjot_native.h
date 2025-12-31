@@ -32,6 +32,37 @@ int32_t simjot_copy_file(const char* src_path, const char* dst_path, int32_t cop
 int32_t simjot_list_dir_size(const char* path, int32_t include_hidden);
 int32_t simjot_list_dir(const char* path, int32_t include_hidden, uint8_t* out, int32_t out_len);
 
+int32_t simjot_spell_init(const char* base_path);
+int32_t simjot_spell_contains(const char* word);
+int32_t simjot_spell_suggestions(const char* word, int32_t max_results, uint8_t* out, int32_t out_len);
+int32_t simjot_spell_best_correction(const char* word, char* out, int32_t out_len);
+int32_t simjot_spell_add_user_word(const char* word);
+int32_t simjot_spell_clear_user_words(void);
+
+/* Text processing utilities */
+int32_t simjot_text_word_count(const char* text);
+int32_t simjot_text_sentence_count(const char* text);
+int32_t simjot_text_char_count(const char* text, int32_t include_spaces);
+int32_t simjot_text_extract_words(const char* text, char* out, int32_t out_len);
+int32_t simjot_text_last_word(const char* text, char* out, int32_t out_len);
+int32_t simjot_text_normalize(const char* text, char* out, int32_t out_len);
+int32_t simjot_text_fuzzy_match(const char* text, const char* query);
+int32_t simjot_text_fuzzy_score(const char* text, const char* query);
+int32_t simjot_text_line_count(const char* text);
+int32_t simjot_text_get_line(const char* text, int32_t line_num, char* out, int32_t out_len);
+
+/* String distance functions */
+int32_t simjot_text_levenshtein(const char* a, const char* b);
+int32_t simjot_text_damerau_levenshtein(const char* a, const char* b);
+int32_t simjot_text_similarity(const char* a, const char* b);
+
+/* Compression utilities */
+int32_t simjot_compress(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len, int32_t level);
+int32_t simjot_decompress(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len);
+int32_t simjot_compress_bound(int32_t input_len);
+int32_t simjot_compress_default(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len);
+int32_t simjot_compress_fast(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -14,6 +14,7 @@
  * Meant to provide a Panama FFM wrapper for native Simjot functions.
  * 
  * This class provides a Java interface to native Simjot functions using Java's Foreign Function & Memory API (FFM).
+ * It serves as a bridge between Java and the native C library for various system operations.
  * 
  * @author S1mplector
  */
@@ -32,16 +33,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 
 /**
  * Panama FFM wrapper for native Simjot functions.
  * Requires Java 22+.
+ * Make sure to load the native library before using it.
+ * Otherwise it will throw an exception, and the application will crash.
  * 
  * Usage:
  *   NativeLibrary lib = NativeLibrary.load("/path/to/libsimjot_native.dylib");
  *   int result = lib.add(2, 3);  // returns 5
+ * 
+ * And so on.
  * 
  * @author S1mplector
  */
@@ -72,6 +78,32 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle dictLookupHandle;
     private final MethodHandle dictRhymesHandle;
     private final MethodHandle dictSizeHandle;
+    private final MethodHandle spellInitHandle;
+    private final MethodHandle spellContainsHandle;
+    private final MethodHandle spellSuggestionsHandle;
+    private final MethodHandle spellBestCorrectionHandle;
+    private final MethodHandle spellAddUserWordHandle;
+    private final MethodHandle spellClearUserWordsHandle;
+    
+    // Text utility handles
+    private final MethodHandle textWordCountHandle;
+    private final MethodHandle textSentenceCountHandle;
+    private final MethodHandle textCharCountHandle;
+    private final MethodHandle textExtractWordsHandle;
+    private final MethodHandle textLastWordHandle;
+    private final MethodHandle textNormalizeHandle;
+    private final MethodHandle textFuzzyMatchHandle;
+    private final MethodHandle textFuzzyScoreHandle;
+    private final MethodHandle textLineCountHandle;
+    private final MethodHandle textGetLineHandle;
+    private final MethodHandle textLevenshteinHandle;
+    private final MethodHandle textDamerauLevenshteinHandle;
+    private final MethodHandle textSimilarityHandle;
+    
+    // Compression handles
+    private final MethodHandle compressHandle;
+    private final MethodHandle decompressHandle;
+    private final MethodHandle compressBoundHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -188,6 +220,100 @@ public final class NativeLibrary implements AutoCloseable {
         this.dictSizeHandle = optionalHandle(
             "simjot_dict_size",
             FunctionDescriptor.of(ValueLayout.JAVA_INT)
+        );
+        this.spellInitHandle = optionalHandle(
+            "simjot_spell_init",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.spellContainsHandle = optionalHandle(
+            "simjot_spell_contains",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.spellSuggestionsHandle = optionalHandle(
+            "simjot_spell_suggestions",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.spellBestCorrectionHandle = optionalHandle(
+            "simjot_spell_best_correction",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.spellAddUserWordHandle = optionalHandle(
+            "simjot_spell_add_user_word",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.spellClearUserWordsHandle = optionalHandle(
+            "simjot_spell_clear_user_words",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT)
+        );
+        
+        // Text utilities
+        this.textWordCountHandle = optionalHandle(
+            "simjot_text_word_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.textSentenceCountHandle = optionalHandle(
+            "simjot_text_sentence_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.textCharCountHandle = optionalHandle(
+            "simjot_text_char_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.textExtractWordsHandle = optionalHandle(
+            "simjot_text_extract_words",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.textLastWordHandle = optionalHandle(
+            "simjot_text_last_word",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.textNormalizeHandle = optionalHandle(
+            "simjot_text_normalize",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.textFuzzyMatchHandle = optionalHandle(
+            "simjot_text_fuzzy_match",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+        this.textFuzzyScoreHandle = optionalHandle(
+            "simjot_text_fuzzy_score",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+        this.textLineCountHandle = optionalHandle(
+            "simjot_text_line_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.textGetLineHandle = optionalHandle(
+            "simjot_text_get_line",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.textLevenshteinHandle = optionalHandle(
+            "simjot_text_levenshtein",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+        this.textDamerauLevenshteinHandle = optionalHandle(
+            "simjot_text_damerau_levenshtein",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+        this.textSimilarityHandle = optionalHandle(
+            "simjot_text_similarity",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+        
+        // Compression
+        this.compressHandle = optionalHandle(
+            "simjot_compress",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                                  ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+        );
+        this.decompressHandle = optionalHandle(
+            "simjot_decompress",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                                  ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.compressBoundHandle = optionalHandle(
+            "simjot_compress_bound",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
         );
     }
 
@@ -441,20 +567,104 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     public boolean hasDictionarySupport() {
-        return dictSetBasePathHandle != null && dictLookupHandle != null && dictContainsHandle != null;
+        return dictSetBasePathHandle != null && dictContainsHandle != null;
     }
-
+    
     public boolean hasDictionaryRhymesSupport() {
         return dictRhymesHandle != null;
     }
+    
+    public boolean hasSpellSupport() {
+        return spellInitHandle != null
+                && spellContainsHandle != null
+                && spellSuggestionsHandle != null
+                && spellBestCorrectionHandle != null;
+    }
 
-    public Integer dictionarySize() {
-        if (dictSizeHandle == null) return null;
+    public int dictionarySize() {
+        if (dictSizeHandle == null) return 0;
         try {
-            int size = (int) dictSizeHandle.invokeExact();
-            return size > 0 ? size : null;
+            return (int) dictSizeHandle.invokeExact();
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_dict_size", t);
+        }
+    }
+
+    public boolean initSpellDictionary(String basePath) {
+        if (spellInitHandle == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cPath = temp.allocateFrom(basePath);
+            return (int) spellInitHandle.invokeExact(cPath) == 1;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_spell_init", t);
+        }
+    }
+
+    public boolean spellContains(String word) {
+        if (spellContainsHandle == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            return (int) spellContainsHandle.invokeExact(cWord) == 1;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_spell_contains", t);
+        }
+    }
+
+    public List<String> spellSuggestions(String word, int maxResults) {
+        if (spellSuggestionsHandle == null) return Collections.emptyList();
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            int outLen = 4096;
+            MemorySegment buffer = temp.allocate(outLen);
+            int written = (int) spellSuggestionsHandle.invokeExact(cWord, maxResults, buffer, outLen);
+            if (written <= 0) return Collections.emptyList();
+            byte[] bytes = new byte[written];
+            buffer.asByteBuffer().get(bytes);
+            String joined = new String(bytes, StandardCharsets.UTF_8);
+            if (joined.isEmpty()) return Collections.emptyList();
+            List<String> result = new ArrayList<>();
+            for (String token : joined.split("\n")) {
+                String trimmed = token.trim();
+                if (!trimmed.isEmpty()) result.add(trimmed);
+            }
+            return result;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_spell_suggestions", t);
+        }
+    }
+
+    public String spellBestCorrection(String word) {
+        if (spellBestCorrectionHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            int outLen = 256;
+            MemorySegment out = temp.allocate(outLen);
+            int ok = (int) spellBestCorrectionHandle.invokeExact(cWord, out, outLen);
+            if (ok <= 0) return null;
+            byte[] bytes = new byte[ok];
+            out.asByteBuffer().get(bytes);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_spell_best_correction", t);
+        }
+    }
+
+    public boolean addUserDictionaryWord(String word) {
+        if (spellAddUserWordHandle == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            return (int) spellAddUserWordHandle.invokeExact(cWord) == 1;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_spell_add_user_word", t);
+        }
+    }
+
+    public void clearUserDictionary() {
+        if (spellClearUserWordsHandle == null) return;
+        try {
+            spellClearUserWordsHandle.invokeExact();
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_spell_clear_user_words", t);
         }
     }
 
@@ -592,6 +802,232 @@ public final class NativeLibrary implements AutoCloseable {
             return ok != 0;
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_copy_file", t);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TEXT UTILITIES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public boolean hasTextUtilsSupport() {
+        return textWordCountHandle != null;
+    }
+
+    public Integer textWordCount(String text) {
+        if (textWordCountHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) textWordCountHandle.invokeExact(cText);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public Integer textSentenceCount(String text) {
+        if (textSentenceCountHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) textSentenceCountHandle.invokeExact(cText);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public Integer textCharCount(String text, boolean includeSpaces) {
+        if (textCharCountHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) textCharCountHandle.invokeExact(cText, includeSpaces ? 1 : 0);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public List<String> textExtractWords(String text) {
+        if (textExtractWordsHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            int bufSize = Math.max(1024, text.length() * 2);
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int written = (int) textExtractWordsHandle.invokeExact(cText, outBuf, bufSize);
+            if (written <= 0) return Collections.emptyList();
+            byte[] bytes = outBuf.asSlice(0, written).toArray(ValueLayout.JAVA_BYTE);
+            String result = new String(bytes, StandardCharsets.UTF_8);
+            List<String> words = new ArrayList<>();
+            for (String w : result.split("\n")) {
+                if (!w.isEmpty()) words.add(w);
+            }
+            return words;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String textLastWord(String text) {
+        if (textLastWordHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment outBuf = tempArena.allocate(128);
+            int len = (int) textLastWordHandle.invokeExact(cText, outBuf, 128);
+            if (len <= 0) return null;
+            byte[] bytes = outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String textNormalize(String text) {
+        if (textNormalizeHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            int bufSize = text.length() + 1;
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int len = (int) textNormalizeHandle.invokeExact(cText, outBuf, bufSize);
+            if (len <= 0) return "";
+            byte[] bytes = outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public boolean textFuzzyMatch(String text, String query) {
+        if (textFuzzyMatchHandle == null || text == null || query == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment cQuery = tempArena.allocateFrom(query);
+            int result = (int) textFuzzyMatchHandle.invokeExact(cText, cQuery);
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public int textFuzzyScore(String text, String query) {
+        if (textFuzzyScoreHandle == null || text == null || query == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            MemorySegment cQuery = tempArena.allocateFrom(query);
+            return (int) textFuzzyScoreHandle.invokeExact(cText, cQuery);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public Integer textLineCount(String text) {
+        if (textLineCountHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) textLineCountHandle.invokeExact(cText);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String textGetLine(String text, int lineNum) {
+        if (textGetLineHandle == null || text == null || lineNum < 0) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            int bufSize = Math.min(4096, text.length() + 1);
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int len = (int) textGetLineHandle.invokeExact(cText, lineNum, outBuf, bufSize);
+            if (len < 0) return null;
+            if (len == 0) return "";
+            byte[] bytes = outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public Integer textLevenshtein(String a, String b) {
+        if (textLevenshteinHandle == null || a == null || b == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cA = tempArena.allocateFrom(a);
+            MemorySegment cB = tempArena.allocateFrom(b);
+            int result = (int) textLevenshteinHandle.invokeExact(cA, cB);
+            return result >= 0 ? result : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public Integer textDamerauLevenshtein(String a, String b) {
+        if (textDamerauLevenshteinHandle == null || a == null || b == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cA = tempArena.allocateFrom(a);
+            MemorySegment cB = tempArena.allocateFrom(b);
+            int result = (int) textDamerauLevenshteinHandle.invokeExact(cA, cB);
+            return result >= 0 ? result : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public Integer textSimilarity(String a, String b) {
+        if (textSimilarityHandle == null || a == null || b == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cA = tempArena.allocateFrom(a);
+            MemorySegment cB = tempArena.allocateFrom(b);
+            int result = (int) textSimilarityHandle.invokeExact(cA, cB);
+            return result >= 0 ? result : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPRESSION UTILITIES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public boolean hasCompressionSupport() {
+        return compressHandle != null && decompressHandle != null;
+    }
+
+    public int compressBound(int inputLen) {
+        if (compressBoundHandle == null) return inputLen + 128;
+        try {
+            return (int) compressBoundHandle.invokeExact(inputLen);
+        } catch (Throwable t) {
+            return inputLen + 128;
+        }
+    }
+
+    public byte[] compress(byte[] input, int level) {
+        if (compressHandle == null || input == null || input.length == 0) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            int maxOut = compressBound(input.length);
+            MemorySegment inBuf = tempArena.allocate(input.length);
+            inBuf.asByteBuffer().put(input);
+            MemorySegment outBuf = tempArena.allocate(maxOut);
+            
+            int compressedSize = (int) compressHandle.invokeExact(inBuf, input.length, outBuf, maxOut, level);
+            if (compressedSize <= 0) return null;
+            
+            byte[] result = new byte[compressedSize];
+            outBuf.asByteBuffer().get(result);
+            return result;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public byte[] decompress(byte[] input, int expectedSize) {
+        if (decompressHandle == null || input == null || input.length == 0) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment inBuf = tempArena.allocate(input.length);
+            inBuf.asByteBuffer().put(input);
+            MemorySegment outBuf = tempArena.allocate(expectedSize);
+            
+            int decompressedSize = (int) decompressHandle.invokeExact(inBuf, input.length, outBuf, expectedSize);
+            if (decompressedSize <= 0) return null;
+            
+            byte[] result = new byte[decompressedSize];
+            outBuf.asByteBuffer().get(result);
+            return result;
+        } catch (Throwable t) {
+            return null;
         }
     }
     
