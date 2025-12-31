@@ -76,6 +76,60 @@ int32_t simjot_string_starts_with_ci(const char* str, const char* prefix);
 int32_t simjot_string_join(const char** strings, int32_t count, const char* separator, char* output, int32_t output_len);
 int32_t simjot_buffer_append_circular(char* buffer, int32_t buffer_len, int32_t max_size, const char* append, const char* separator);
 
+/* JSON parsing */
+int32_t simjot_json_get_string(const char* json, const char* key, char* output, int32_t output_len);
+int32_t simjot_json_get_int(const char* json, const char* key, int64_t* out_value);
+int32_t simjot_json_has_key(const char* json, const char* key);
+int32_t simjot_json_count_keys(const char* json);
+int32_t simjot_json_get_keys(const char* json, char* output, int32_t output_len);
+int32_t simjot_json_parse_string_array(const char* json, char* output, int32_t output_len);
+int32_t simjot_json_get_path(const char* json, const char* path, char* output, int32_t output_len);
+
+/* Date/time utilities */
+int64_t simjot_time_now_millis(void);
+int64_t simjot_time_now_secs(void);
+int32_t simjot_time_format(int64_t millis, const char* pattern, char* output, int32_t output_len);
+int32_t simjot_time_format_now(const char* pattern, char* output, int32_t output_len);
+int32_t simjot_time_format_iso(int64_t millis, char* output, int32_t output_len);
+int32_t simjot_time_format_backup(int64_t millis, char* output, int32_t output_len);
+int64_t simjot_time_parse(const char* str, const char* pattern);
+int64_t simjot_time_add_days(int64_t millis, int32_t days);
+int32_t simjot_time_diff_days(int64_t millis1, int64_t millis2);
+int64_t simjot_time_start_of_day(int64_t millis);
+int32_t simjot_time_day_of_week(int64_t millis);
+int32_t simjot_time_is_leap_year(int32_t year);
+int32_t simjot_time_days_in_month(int32_t year, int32_t month);
+int32_t simjot_time_relative(int64_t millis, char* output, int32_t output_len);
+
+/* Pattern matching */
+int32_t simjot_pattern_match_wildcard(const char* str, const char* pattern);
+int32_t simjot_pattern_find(const char* text, const char* pattern, int32_t word_boundary);
+int32_t simjot_pattern_count(const char* text, const char* pattern, int32_t word_boundary);
+int32_t simjot_pattern_extract_after(const char* text, const char* prefix, char* output, int32_t output_len, int32_t max_phrase_len);
+int32_t simjot_pattern_extract_all(const char* text, const char* prefix, char* output, int32_t output_len, int32_t max_phrase_len);
+int32_t simjot_pattern_extract_words(const char* text, const char* pattern, char* output, int32_t output_len);
+int32_t simjot_pattern_replace_all(const char* text, const char* pattern, const char* replacement, char* output, int32_t output_len);
+int32_t simjot_pattern_collapse_spaces(const char* text, char* output, int32_t output_len);
+
+/* Base64 encoding */
+int32_t simjot_base64_encode_len(int32_t input_len);
+int32_t simjot_base64_decode_len(int32_t input_len);
+int32_t simjot_base64_encode(const uint8_t* input, int32_t input_len, char* output, int32_t output_len);
+int32_t simjot_base64_decode(const char* input, uint8_t* output, int32_t output_len);
+int32_t simjot_base64url_encode(const uint8_t* input, int32_t input_len, char* output, int32_t output_len);
+int32_t simjot_base64url_decode(const char* input, uint8_t* output, int32_t output_len);
+
+/* Unicode/UTF-8 utilities */
+int32_t simjot_utf8_strlen(const char* str);
+int32_t simjot_utf8_valid(const char* str);
+int32_t simjot_utf8_encode_codepoint(uint32_t codepoint, char* output, int32_t output_len);
+int32_t simjot_utf8_decode_codepoint(const char* str, int32_t* bytes_consumed);
+int32_t simjot_unicode_unescape(const char* input, char* output, int32_t output_len);
+
+/* Hex encoding */
+int32_t simjot_hex_encode(const uint8_t* input, int32_t input_len, char* output, int32_t output_len);
+int32_t simjot_hex_decode(const char* input, uint8_t* output, int32_t output_len);
+
 #ifdef __cplusplus
 }
 #endif
