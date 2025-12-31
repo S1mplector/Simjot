@@ -301,6 +301,15 @@ void simjot_image_argb_to_rgba(const int32_t* argb, uint8_t* rgba, int32_t pixel
 void simjot_image_rgba_to_argb(const uint8_t* rgba, int32_t* argb, int32_t pixel_count);
 int32_t simjot_image_resize_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h, int32_t* dst_argb, int32_t dst_w, int32_t dst_h, int32_t quality);
 
+/* Background image processing (native cache + scaling + opacity) */
+void simjot_bg_calc_cover_fit(int32_t src_w, int32_t src_h, int32_t panel_w, int32_t panel_h, int32_t* out_w, int32_t* out_h, int32_t* out_x, int32_t* out_y);
+void simjot_bg_apply_opacity(int32_t* argb, int32_t pixel_count, float opacity);
+int32_t simjot_bg_process(const int32_t* src_argb, int32_t src_w, int32_t src_h, int32_t panel_w, int32_t panel_h, float opacity, const char* cache_key, int32_t** out_pixels, int32_t* out_w, int32_t* out_h, int32_t* out_x, int32_t* out_y);
+void simjot_bg_cache_clear(void);
+void simjot_bg_cache_invalidate(const char* cache_key, int32_t panel_w, int32_t panel_h, float opacity);
+void simjot_bg_cache_stats(int32_t* count, int64_t* total_bytes);
+void simjot_bg_blur(int32_t* argb, int32_t width, int32_t height, int32_t radius, int32_t passes);
+
 /* Animation math - easing functions */
 float simjot_ease_cosine(float t);
 float simjot_ease_smootherstep(float t);
