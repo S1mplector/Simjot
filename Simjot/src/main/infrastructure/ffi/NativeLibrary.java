@@ -10,6 +10,14 @@
  * See LICENSE.md for full terms.
  */
 
+/**
+ * Meant to provide a Panama FFM wrapper for native Simjot functions.
+ * 
+ * This class provides a Java interface to native Simjot functions using Java's Foreign Function & Memory API (FFM).
+ * 
+ * @author S1mplector
+ */
+
 package main.infrastructure.ffi;
 
 import java.lang.foreign.Arena;
@@ -19,10 +27,13 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 
 /**
  * Panama FFM wrapper for native Simjot functions.
@@ -202,16 +213,68 @@ public final class NativeLibrary implements AutoCloseable {
      * Resolve the default native library path for the current OS.
      */
     public static Path defaultLibraryPath() {
-        String projectPath = System.getProperty("user.dir");
         String libName = System.mapLibraryName("simjot_native");
-        Path inSource = Path.of(projectPath, "src", "main", "native", libName);
-        Path inBuild = Path.of(projectPath, "src", "main", "native", "build", libName);
-        Path inBuildDebug = Path.of(projectPath, "src", "main", "native", "build", "Debug", libName);
-        Path inBuildRelease = Path.of(projectPath, "src", "main", "native", "build", "Release", libName);
-        if (Files.exists(inBuild)) return inBuild;
-        if (Files.exists(inBuildDebug)) return inBuildDebug;
-        if (Files.exists(inBuildRelease)) return inBuildRelease;
-        return inSource;
+        List<Path> candidates = new ArrayList<>();
+
+        Path jarCandidate = resolveAlongsideJar(libName);
+        if (jarCandidate != null) {
+            candidates.add(jarCandidate);
+        }
+
+        String userDir = System.getProperty("user.dir", ".");
+        addNativeCandidates(Path.of(userDir).toAbsolutePath().normalize(), libName, candidates);
+
+        Path moduleDir = Path.of(userDir, "Simjot");
+        if (Files.isDirectory(moduleDir)) {
+            addNativeCandidates(moduleDir.toAbsolutePath().normalize(), libName, candidates);
+        }
+
+        for (Path candidate : candidates) {
+            if (candidate != null && Files.exists(candidate)) {
+                return candidate;
+            }
+        }
+
+        // Best-effort fall-back
+        return Path.of(userDir, "src", "main", "native", libName);
+    }
+
+    private static void addNativeCandidates(Path baseDir, String libName, List<Path> out) {
+        if (baseDir == null) return;
+        out.add(baseDir.resolve("src/main/native/build/Release").resolve(libName));
+        out.add(baseDir.resolve("src/main/native/build/Debug").resolve(libName));
+        out.add(baseDir.resolve("src/main/native/build").resolve(libName));
+        out.add(baseDir.resolve("src/main/native").resolve(libName));
+        out.add(baseDir.resolve("target/native").resolve(libName));
+    }
+
+    private static Path resolveAlongsideJar(String libName) {
+        try {
+            URL location = NativeLibrary.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location == null) return null;
+            Path jarPath = Path.of(location.toURI());
+            Path jarDir = Files.isDirectory(jarPath) ? jarPath : jarPath.getParent();
+            if (jarDir == null) return null;
+
+            List<Path> candidates = new ArrayList<>();
+            candidates.add(jarDir.resolve(libName));
+            candidates.add(jarDir.resolve("native").resolve(libName));
+
+            Path contentsDir = jarDir.getParent();
+            if (contentsDir != null) {
+                candidates.add(contentsDir.resolve("Resources/native").resolve(libName));
+                candidates.add(contentsDir.resolve("resources/native").resolve(libName));
+            }
+
+            for (Path candidate : candidates) {
+                if (Files.exists(candidate)) {
+                    return candidate.normalize();
+                }
+            }
+        } catch (Exception ignored) {
+            // fall through
+        }
+        return null;
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
