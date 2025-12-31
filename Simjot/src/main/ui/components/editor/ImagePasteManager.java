@@ -15,7 +15,6 @@ package main.ui.components.editor;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -385,12 +384,11 @@ public final class ImagePasteManager {
         dismissActiveOverlay();
         
         int currentW = currentIcon.getIconWidth();
-        int minW = 80;
-        int maxW = Math.max(defaultMaxWidth * 2, Math.max(currentW, editor.getWidth()));
+        int minW = 60;
+        int maxW = Math.max(defaultMaxWidth * 2, Math.max(currentW * 2, editor.getWidth()));
         
         // Mutable holder for the source file
         final File[] srcRef = new File[]{ sourceFile };
-        final int[] currentWidth = new int[]{ currentW };
         
         // Create a sleek floating toolbar
         JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
@@ -401,59 +399,82 @@ public final class ImagePasteManager {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // Rounded rectangle background with shadow effect
-                g2.setColor(new Color(0, 0, 0, 30));
-                g2.fillRoundRect(2, 2, getWidth() - 2, getHeight() - 2, 12, 12);
-                g2.setColor(new Color(250, 250, 250, 245));
-                g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 2, 12, 12);
+                // Soft shadow
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(2, 2, getWidth() - 2, getHeight() - 2, 16, 16);
+                // Background
+                g2.setColor(new Color(255, 255, 255, 250));
+                g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 2, 16, 16);
+                // Border
                 g2.setColor(new Color(200, 200, 200));
-                g2.drawRoundRect(0, 0, getWidth() - 3, getHeight() - 3, 12, 12);
+                g2.drawRoundRect(0, 0, getWidth() - 3, getHeight() - 3, 16, 16);
                 g2.dispose();
             }
         };
         content.setOpaque(false);
-        content.setLayout(new FlowLayout(FlowLayout.CENTER, 4, 6));
-        content.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
+        content.setLayout(new java.awt.BorderLayout(8, 0));
+        content.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        
+        // Slider for resizing
+        javax.swing.JSlider sizeSlider = new javax.swing.JSlider(minW, maxW, currentW);
+        sizeSlider.setOpaque(false);
+        sizeSlider.setPreferredSize(new Dimension(140, 20));
+        sizeSlider.setFocusable(false);
         
         // Size label
         JLabel sizeLabel = new JLabel(currentW + "px");
         sizeLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        sizeLabel.setForeground(new Color(80, 80, 80));
+        sizeLabel.setForeground(new Color(100, 100, 100));
+        sizeLabel.setPreferredSize(new Dimension(45, 20));
         
-        // Create icon buttons using simple Unicode symbols
-        JButton smallerBtn = createToolbarButton("−", "Make smaller");
-        JButton largerBtn = createToolbarButton("+", "Make larger");
-        JButton fitBtn = createToolbarButton("⤢", "Fit to width");
-        JButton copyBtn = createToolbarButton("⎘", "Copy image");
-        JButton deleteBtn = createToolbarButton("✕", "Remove image");
+        // Delete button - simple red X
+        JButton deleteBtn = new JButton("X") {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (getModel().isPressed()) {
+                    g2.setColor(new Color(200, 60, 60));
+                } else if (getModel().isRollover()) {
+                    g2.setColor(new Color(220, 80, 80));
+                } else {
+                    g2.setColor(new Color(180, 80, 80));
+                }
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("SansSerif", Font.BOLD, 11));
+                java.awt.FontMetrics fm = g2.getFontMetrics();
+                int tx = (getWidth() - fm.stringWidth("X")) / 2;
+                int ty = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString("X", tx, ty);
+                g2.dispose();
+            }
+        };
+        deleteBtn.setPreferredSize(new Dimension(24, 20));
+        deleteBtn.setBorderPainted(false);
+        deleteBtn.setContentAreaFilled(false);
+        deleteBtn.setFocusPainted(false);
+        deleteBtn.setToolTipText("Delete image");
+        deleteBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         
-        // Size adjustment actions
-        smallerBtn.addActionListener(e -> {
-            int newW = Math.max(minW, currentWidth[0] - 100);
-            currentWidth[0] = newW;
-            resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
+        // Slider change listener with debounce
+        final Timer[] resizeTimer = new Timer[1];
+        sizeSlider.addChangeListener(e -> {
+            int newW = sizeSlider.getValue();
             sizeLabel.setText(newW + "px");
-            repositionToolbar(toolbar, editor, startOffset);
-        });
-        
-        largerBtn.addActionListener(e -> {
-            int newW = Math.min(maxW, currentWidth[0] + 100);
-            currentWidth[0] = newW;
-            resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
-            sizeLabel.setText(newW + "px");
-            repositionToolbar(toolbar, editor, startOffset);
-        });
-        
-        fitBtn.addActionListener(e -> {
-            int fitW = Math.max(minW, editor.getVisibleRect().width - 48);
-            currentWidth[0] = fitW;
-            resizeImage(editor, startOffset, srcRef, fitW, attachmentsDirSupplier);
-            sizeLabel.setText(fitW + "px");
-            repositionToolbar(toolbar, editor, startOffset);
-        });
-        
-        copyBtn.addActionListener(e -> {
-            copyToClipboard(currentIcon.getImage());
+            
+            // Debounce actual resize to avoid lag
+            if (resizeTimer[0] != null) resizeTimer[0].stop();
+            if (!sizeSlider.getValueIsAdjusting()) {
+                resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
+                repositionToolbar(toolbar, editor, startOffset);
+            } else {
+                resizeTimer[0] = new Timer(150, ev -> {
+                    resizeImage(editor, startOffset, srcRef, sizeSlider.getValue(), attachmentsDirSupplier);
+                    repositionToolbar(toolbar, editor, startOffset);
+                });
+                resizeTimer[0].setRepeats(false);
+                resizeTimer[0].start();
+            }
         });
         
         deleteBtn.addActionListener(e -> {
@@ -464,14 +485,14 @@ public final class ImagePasteManager {
             dismissActiveOverlay();
         });
         
-        // Add components
-        content.add(smallerBtn);
-        content.add(sizeLabel);
-        content.add(largerBtn);
-        content.add(createSeparator());
-        content.add(fitBtn);
-        content.add(copyBtn);
-        content.add(deleteBtn);
+        // Layout: [slider] [size] [delete]
+        JPanel sliderPanel = new JPanel(new java.awt.BorderLayout(6, 0));
+        sliderPanel.setOpaque(false);
+        sliderPanel.add(sizeSlider, java.awt.BorderLayout.CENTER);
+        sliderPanel.add(sizeLabel, java.awt.BorderLayout.EAST);
+        
+        content.add(sliderPanel, java.awt.BorderLayout.CENTER);
+        content.add(deleteBtn, java.awt.BorderLayout.EAST);
         
         toolbar.setContentPane(content);
         toolbar.pack();
@@ -483,7 +504,6 @@ public final class ImagePasteManager {
         // Auto-dismiss when clicking elsewhere
         editor.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                // Check if click is outside toolbar area
                 Point screenPoint = e.getLocationOnScreen();
                 Rectangle toolbarBounds = toolbar.getBounds();
                 if (!toolbarBounds.contains(screenPoint)) {
@@ -496,7 +516,6 @@ public final class ImagePasteManager {
         // Dismiss on focus loss
         editor.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override public void focusLost(java.awt.event.FocusEvent e) {
-                // Delay to allow toolbar button clicks
                 Timer timer = new Timer(200, ev -> {
                     Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
                     if (focused != toolbar) {
@@ -508,46 +527,6 @@ public final class ImagePasteManager {
                 editor.removeFocusListener(this);
             }
         });
-    }
-    
-    private static JButton createToolbarButton(String text, String tooltip) {
-        JButton btn = new JButton(text) {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                if (getModel().isPressed()) {
-                    g2.setColor(new Color(220, 220, 220));
-                } else if (getModel().isRollover()) {
-                    g2.setColor(new Color(235, 235, 235));
-                } else {
-                    g2.setColor(new Color(245, 245, 245));
-                }
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        btn.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        btn.setForeground(new Color(60, 60, 60));
-        btn.setPreferredSize(new Dimension(28, 24));
-        btn.setBorderPainted(false);
-        btn.setContentAreaFilled(false);
-        btn.setFocusPainted(false);
-        btn.setToolTipText(tooltip);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        return btn;
-    }
-    
-    private static JComponent createSeparator() {
-        JPanel sep = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                g.setColor(new Color(200, 200, 200));
-                g.fillRect(getWidth() / 2, 2, 1, getHeight() - 4);
-            }
-        };
-        sep.setOpaque(false);
-        sep.setPreferredSize(new Dimension(8, 20));
-        return sep;
     }
     
     private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds) {
