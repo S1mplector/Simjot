@@ -288,6 +288,139 @@ public final class FileIO {
     }
 
     /**
+     * Robustly delete a file with verification and retries.
+     * This method ensures the file is actually deleted.
+     * 
+     * @param path The file to delete
+     * @return true if file was deleted or didn't exist, false if deletion failed
+     */
+    public static boolean deleteWithVerify(Path path) {
+        if (path == null) return true;
+        if (!Files.exists(path)) return true;
+        
+        // Try native first
+        if (NativeAccess.fsRemove(path.toString())) {
+            if (!Files.exists(path)) {
+                IoLog.info("delete", "Deleted: " + path);
+                return true;
+            }
+        }
+        
+        // Try Java NIO with retries
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                Files.deleteIfExists(path);
+                if (!Files.exists(path)) {
+                    IoLog.info("delete", "Deleted: " + path);
+                    return true;
+                }
+            } catch (IOException e) {
+                // May be locked, wait briefly
+                try { Thread.sleep(50); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+        }
+        
+        // Last resort: try old File API
+        try {
+            boolean deleted = path.toFile().delete();
+            if (deleted && !Files.exists(path)) {
+                IoLog.info("delete", "Deleted (legacy): " + path);
+                return true;
+            }
+        } catch (SecurityException ignored) {}
+        
+        IoLog.info("delete", "WARN: Failed to delete: " + path);
+        return false;
+    }
+
+    /**
+     * Robustly delete a file, throwing if deletion fails.
+     * 
+     * @param path The file to delete
+     * @throws IOException if file exists and could not be deleted
+     */
+    public static void deleteOrThrow(Path path) throws IOException {
+        if (path == null) return;
+        if (!Files.exists(path)) return;
+        if (!deleteWithVerify(path)) {
+            throw new IOException("Failed to delete file: " + path);
+        }
+    }
+
+    /**
+     * Recursively delete a directory and all its contents.
+     * 
+     * @param dir The directory to delete
+     * @return true if directory was fully deleted, false if any deletion failed
+     */
+    public static boolean deleteRecursively(Path dir) {
+        if (dir == null) return true;
+        if (!Files.exists(dir)) return true;
+        
+        final boolean[] success = {true};
+        
+        try {
+            Files.walkFileTree(dir, new java.nio.file.SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (!deleteWithVerify(file)) {
+                        success[0] = false;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+                
+                @Override
+                public FileVisitResult postVisitDirectory(Path d, IOException exc) {
+                    if (!deleteWithVerify(d)) {
+                        success[0] = false;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+                
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    success[0] = false;
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            IoLog.info("delete", "WARN: Error during recursive delete of " + dir + ": " + e.getMessage());
+            return false;
+        }
+        
+        return success[0] && !Files.exists(dir);
+    }
+
+    /**
+     * Move file to trash/recycle bin if possible, otherwise delete.
+     * Note: Java doesn't have built-in trash support, so this just deletes.
+     * The method is provided for API symmetry and future enhancement.
+     * 
+     * @param path The file to move to trash
+     * @return true if file was trashed/deleted, false if failed
+     */
+    public static boolean moveToTrash(Path path) {
+        // Java Desktop API has moveToTrash on some platforms
+        if (path == null) return true;
+        if (!Files.exists(path)) return true;
+        
+        try {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
+                if (desktop.isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH)) {
+                    if (desktop.moveToTrash(path.toFile())) {
+                        IoLog.info("delete", "Moved to trash: " + path);
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        
+        // Fall back to regular delete
+        return deleteWithVerify(path);
+    }
+
+    /**
      * Rename/move file using native implementation when available.
      */
     public static boolean rename(Path source, Path target) {

@@ -614,14 +614,14 @@ public class NotebookEntriesPanel extends JPanel {
             loadFiles(); update();
             return;
         }
-        boolean deleted = false;
-        try {
-            deleted = f.delete();
-        } catch (SecurityException se) {
-            deleted = false;
+        // Use robust deletion with verification and retries
+        boolean deleted = main.infrastructure.io.FileIO.deleteWithVerify(f.toPath());
+        if(!deleted){
+            // Try move to trash as fallback
+            deleted = main.infrastructure.io.FileIO.moveToTrash(f.toPath());
         }
         if(!deleted){
-            JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'. The file may be in use.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
         }
         loadFiles(); update();
     }
