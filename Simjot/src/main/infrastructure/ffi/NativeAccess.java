@@ -615,6 +615,85 @@ public final class NativeAccess {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STRING OPERATIONS API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static boolean stringOpsReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasStringOpsSupport();
+    }
+
+    public static String stringSanitize(String input, int maxLen) {
+        if (!stringOpsReady() || input == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.stringSanitize(input, maxLen);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String stringSanitize(String input) {
+        return stringSanitize(input, 0);  // No max length
+    }
+
+    public static long stringHash(String str) {
+        if (!stringOpsReady() || str == null) return 0;
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.stringHash(str);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int stringTokenCount(String text) {
+        if (!stringOpsReady() || text == null) return -1;
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.stringTokenCount(text);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static String stringFirstTokens(String text, int maxTokens) {
+        if (!stringOpsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.stringFirstTokens(text, maxTokens);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String stringLastTokens(String text, int maxTokens) {
+        if (!stringOpsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.stringLastTokens(text, maxTokens);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean stringContainsCi(String haystack, String needle) {
+        if (!stringOpsReady() || haystack == null || needle == null) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try {
+            return lib.stringContainsCi(haystack, needle);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     private static Path resolveDictionaryBasePath() {
         String override = System.getProperty("simjot.dict.path");
         if (override == null || override.isBlank()) {

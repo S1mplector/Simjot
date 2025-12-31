@@ -63,6 +63,19 @@ int32_t simjot_compress_bound(int32_t input_len);
 int32_t simjot_compress_default(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len);
 int32_t simjot_compress_fast(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len);
 
+/* String operations */
+int32_t simjot_string_sanitize(const char* input, char* output, int32_t output_len, int32_t max_len);
+int32_t simjot_string_collapse_whitespace(char* str);
+uint64_t simjot_string_hash(const char* str);
+uint64_t simjot_string_hash_multi(const char** strings, int32_t count);
+int32_t simjot_string_token_count(const char* text);
+int32_t simjot_string_first_tokens(const char* text, char* output, int32_t output_len, int32_t max_tokens);
+int32_t simjot_string_last_tokens(const char* text, char* output, int32_t output_len, int32_t max_tokens);
+int32_t simjot_string_contains_ci(const char* haystack, const char* needle);
+int32_t simjot_string_starts_with_ci(const char* str, const char* prefix);
+int32_t simjot_string_join(const char** strings, int32_t count, const char* separator, char* output, int32_t output_len);
+int32_t simjot_buffer_append_circular(char* buffer, int32_t buffer_len, int32_t max_size, const char* append, const char* separator);
+
 #ifdef __cplusplus
 }
 #endif

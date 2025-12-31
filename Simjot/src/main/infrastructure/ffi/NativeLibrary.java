@@ -105,6 +105,14 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle decompressHandle;
     private final MethodHandle compressBoundHandle;
     
+    // String operations handles
+    private final MethodHandle stringSanitizeHandle;
+    private final MethodHandle stringHashHandle;
+    private final MethodHandle stringTokenCountHandle;
+    private final MethodHandle stringFirstTokensHandle;
+    private final MethodHandle stringLastTokensHandle;
+    private final MethodHandle stringContainsCiHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
@@ -314,6 +322,35 @@ public final class NativeLibrary implements AutoCloseable {
         this.compressBoundHandle = optionalHandle(
             "simjot_compress_bound",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+        );
+        
+        // String operations
+        this.stringSanitizeHandle = optionalHandle(
+            "simjot_string_sanitize",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, 
+                                  ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+        );
+        this.stringHashHandle = optionalHandle(
+            "simjot_string_hash",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS)
+        );
+        this.stringTokenCountHandle = optionalHandle(
+            "simjot_string_token_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.stringFirstTokensHandle = optionalHandle(
+            "simjot_string_first_tokens",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, 
+                                  ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+        );
+        this.stringLastTokensHandle = optionalHandle(
+            "simjot_string_last_tokens",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, 
+                                  ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+        );
+        this.stringContainsCiHandle = optionalHandle(
+            "simjot_string_contains_ci",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
         );
     }
 
@@ -1028,6 +1065,92 @@ public final class NativeLibrary implements AutoCloseable {
             return result;
         } catch (Throwable t) {
             return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STRING OPERATIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public boolean hasStringOpsSupport() {
+        return stringSanitizeHandle != null;
+    }
+
+    public String stringSanitize(String input, int maxLen) {
+        if (stringSanitizeHandle == null || input == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cInput = tempArena.allocateFrom(input);
+            int bufSize = Math.max(input.length() + 16, 512);
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int len = (int) stringSanitizeHandle.invokeExact(cInput, outBuf, bufSize, maxLen);
+            if (len < 0) return null;
+            if (len == 0) return "";
+            byte[] bytes = outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public long stringHash(String str) {
+        if (stringHashHandle == null || str == null) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cStr = tempArena.allocateFrom(str);
+            return (long) stringHashHandle.invokeExact(cStr);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public int stringTokenCount(String text) {
+        if (stringTokenCountHandle == null || text == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            return (int) stringTokenCountHandle.invokeExact(cText);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public String stringFirstTokens(String text, int maxTokens) {
+        if (stringFirstTokensHandle == null || text == null || maxTokens <= 0) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            int bufSize = Math.min(text.length() + 1, 4096);
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int count = (int) stringFirstTokensHandle.invokeExact(cText, outBuf, bufSize, maxTokens);
+            if (count <= 0) return "";
+            byte[] bytes = outBuf.asSlice(0, Math.min(bufSize - 1, text.length())).toArray(ValueLayout.JAVA_BYTE);
+            return new String(bytes, StandardCharsets.UTF_8).trim();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String stringLastTokens(String text, int maxTokens) {
+        if (stringLastTokensHandle == null || text == null || maxTokens <= 0) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            int bufSize = Math.min(text.length() + 1, 4096);
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int count = (int) stringLastTokensHandle.invokeExact(cText, outBuf, bufSize, maxTokens);
+            if (count <= 0) return "";
+            byte[] bytes = outBuf.asSlice(0, Math.min(bufSize - 1, text.length())).toArray(ValueLayout.JAVA_BYTE);
+            return new String(bytes, StandardCharsets.UTF_8).trim();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public boolean stringContainsCi(String haystack, String needle) {
+        if (stringContainsCiHandle == null || haystack == null || needle == null) return false;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cHaystack = tempArena.allocateFrom(haystack);
+            MemorySegment cNeedle = tempArena.allocateFrom(needle);
+            int result = (int) stringContainsCiHandle.invokeExact(cHaystack, cNeedle);
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
         }
     }
     
