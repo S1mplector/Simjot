@@ -113,6 +113,97 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle stringLastTokensHandle;
     private final MethodHandle stringContainsCiHandle;
     
+    // JSON parsing handles
+    private final MethodHandle jsonGetStringHandle;
+    private final MethodHandle jsonGetIntHandle;
+    private final MethodHandle jsonHasKeyHandle;
+    private final MethodHandle jsonCountKeysHandle;
+    private final MethodHandle jsonGetKeysHandle;
+    private final MethodHandle jsonGetPathHandle;
+    
+    // Date/time handles
+    private final MethodHandle timeNowMillisHandle;
+    private final MethodHandle timeFormatHandle;
+    private final MethodHandle timeFormatNowHandle;
+    private final MethodHandle timeParseHandle;
+    private final MethodHandle timeRelativeHandle;
+    
+    // Pattern matching handles
+    private final MethodHandle patternFindHandle;
+    private final MethodHandle patternExtractAfterHandle;
+    private final MethodHandle patternReplaceAllHandle;
+    private final MethodHandle patternCollapseSpacesHandle;
+    
+    // Base64/encoding handles
+    private final MethodHandle base64EncodeHandle;
+    private final MethodHandle base64DecodeHandle;
+    private final MethodHandle utf8StrlenHandle;
+    private final MethodHandle unicodeUnescapeHandle;
+    private final MethodHandle hexEncodeHandle;
+    private final MethodHandle hexDecodeHandle;
+    
+    // Poetry analysis handles
+    private final MethodHandle poetryAnalyzeSoundsHandle;
+    private final MethodHandle poetryGetSoundDeviceHandle;
+    private final MethodHandle poetryAnalyzeThemesHandle;
+    private final MethodHandle poetryGetThemeScoreHandle;
+    private final MethodHandle poetryGetThemesHandle;
+    private final MethodHandle poetryAnalyzeVocabHandle;
+    private final MethodHandle poetryGetVocabStatsHandle;
+    private final MethodHandle poetryCountSyllablesHandle;
+    private final MethodHandle poetryAnalyzeMeterHandle;
+    private final MethodHandle poetryGetLineSyllablesHandle;
+    private final MethodHandle poetryDetectMeterHandle;
+    
+    // Rhyme engine handles
+    private final MethodHandle rhymeAddWordHandle;
+    private final MethodHandle rhymeAddWordsHandle;
+    private final MethodHandle rhymeFindHandle;
+    private final MethodHandle rhymeGetResultHandle;
+    private final MethodHandle rhymeGetAllResultsHandle;
+    private final MethodHandle rhymeCheckHandle;
+    private final MethodHandle rhymeDetectSchemeHandle;
+    private final MethodHandle rhymeClearHandle;
+    private final MethodHandle rhymeDbSizeHandle;
+    
+    // Math utilities handles
+    private final MethodHandle mathVec2LengthHandle;
+    private final MethodHandle mathVec2DistanceHandle;
+    private final MethodHandle mathEaseHandle;
+    private final MethodHandle mathColorBlendHandle;
+    private final MethodHandle mathHslToRgbHandle;
+    private final MethodHandle mathLerpHandle;
+    private final MethodHandle mathClampHandle;
+    
+    // Concurrent/task handles
+    private final MethodHandle taskCreateHandle;
+    private final MethodHandle taskPendingCountHandle;
+    private final MethodHandle parallelGetHwThreadsHandle;
+    private final MethodHandle atomicIncHandle;
+    private final MethodHandle atomicGetHandle;
+    private final MethodHandle hrtimeNsHandle;
+    private final MethodHandle monotonicMsHandle;
+    
+    // Collection handles
+    private final MethodHandle setCreateHandle;
+    private final MethodHandle setAddHandle;
+    private final MethodHandle setContainsHandle;
+    private final MethodHandle setSizeHandle;
+    private final MethodHandle setClearHandle;
+    private final MethodHandle mapCreateHandle;
+    private final MethodHandle mapSetHandle;
+    private final MethodHandle mapGetHandle;
+    private final MethodHandle mapHasHandle;
+    private final MethodHandle mapSizeHandle;
+    private final MethodHandle freqCreateHandle;
+    private final MethodHandle freqAddHandle;
+    private final MethodHandle freqGetHandle;
+    private final MethodHandle freqTopNHandle;
+    private final MethodHandle cacheCreateHandle;
+    private final MethodHandle cacheSetHandle;
+    private final MethodHandle cacheGetHandle;
+    private final MethodHandle cacheSizeHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
@@ -352,6 +443,166 @@ public final class NativeLibrary implements AutoCloseable {
             "simjot_string_contains_ci",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
         );
+        
+        // JSON parsing handles
+        this.jsonGetStringHandle = optionalHandle("simjot_json_get_string",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.jsonGetIntHandle = optionalHandle("simjot_json_get_int",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.jsonHasKeyHandle = optionalHandle("simjot_json_has_key",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.jsonCountKeysHandle = optionalHandle("simjot_json_count_keys",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.jsonGetKeysHandle = optionalHandle("simjot_json_get_keys",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.jsonGetPathHandle = optionalHandle("simjot_json_get_path",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // Date/time handles
+        this.timeNowMillisHandle = optionalHandle("simjot_time_now_millis",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG));
+        this.timeFormatHandle = optionalHandle("simjot_time_format",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.timeFormatNowHandle = optionalHandle("simjot_time_format_now",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.timeParseHandle = optionalHandle("simjot_time_parse",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.timeRelativeHandle = optionalHandle("simjot_time_relative",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // Pattern matching handles
+        this.patternFindHandle = optionalHandle("simjot_pattern_find",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.patternExtractAfterHandle = optionalHandle("simjot_pattern_extract_after",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.patternReplaceAllHandle = optionalHandle("simjot_pattern_replace_all",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.patternCollapseSpacesHandle = optionalHandle("simjot_pattern_collapse_spaces",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // Base64/encoding handles
+        this.base64EncodeHandle = optionalHandle("simjot_base64_encode",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.base64DecodeHandle = optionalHandle("simjot_base64_decode",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.utf8StrlenHandle = optionalHandle("simjot_utf8_strlen",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.unicodeUnescapeHandle = optionalHandle("simjot_unicode_unescape",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hexEncodeHandle = optionalHandle("simjot_hex_encode",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hexDecodeHandle = optionalHandle("simjot_hex_decode",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // Poetry analysis handles
+        this.poetryAnalyzeSoundsHandle = optionalHandle("simjot_poetry_analyze_sounds",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.poetryGetSoundDeviceHandle = optionalHandle("simjot_poetry_get_sound_device",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.poetryAnalyzeThemesHandle = optionalHandle("simjot_poetry_analyze_themes",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.poetryGetThemeScoreHandle = optionalHandle("simjot_poetry_get_theme_score",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS));
+        this.poetryGetThemesHandle = optionalHandle("simjot_poetry_get_themes",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.poetryAnalyzeVocabHandle = optionalHandle("simjot_poetry_analyze_vocab",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.poetryGetVocabStatsHandle = optionalHandle("simjot_poetry_get_vocab_stats",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.poetryCountSyllablesHandle = optionalHandle("simjot_poetry_count_syllables",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.poetryAnalyzeMeterHandle = optionalHandle("simjot_poetry_analyze_meter",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.poetryGetLineSyllablesHandle = optionalHandle("simjot_poetry_get_line_syllables",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.poetryDetectMeterHandle = optionalHandle("simjot_poetry_detect_meter",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // Rhyme engine handles
+        this.rhymeAddWordHandle = optionalHandle("simjot_rhyme_add_word",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        this.rhymeAddWordsHandle = optionalHandle("simjot_rhyme_add_words",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.rhymeFindHandle = optionalHandle("simjot_rhyme_find",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.rhymeGetResultHandle = optionalHandle("simjot_rhyme_get_result",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.rhymeGetAllResultsHandle = optionalHandle("simjot_rhyme_get_all_results",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.rhymeCheckHandle = optionalHandle("simjot_rhyme_check",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.rhymeDetectSchemeHandle = optionalHandle("simjot_rhyme_detect_scheme",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.rhymeClearHandle = optionalHandle("simjot_rhyme_clear", FunctionDescriptor.ofVoid());
+        this.rhymeDbSizeHandle = optionalHandle("simjot_rhyme_db_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        
+        // Math utilities handles
+        this.mathVec2LengthHandle = optionalHandle("simjot_math_vec2_length",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+        this.mathVec2DistanceHandle = optionalHandle("simjot_math_vec2_distance",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+        this.mathEaseHandle = optionalHandle("simjot_math_ease",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_INT, ValueLayout.JAVA_DOUBLE));
+        this.mathColorBlendHandle = optionalHandle("simjot_math_color_blend",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_DOUBLE));
+        this.mathHslToRgbHandle = optionalHandle("simjot_math_hsl_to_rgb",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+        this.mathLerpHandle = optionalHandle("simjot_math_lerp",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+        this.mathClampHandle = optionalHandle("simjot_math_clamp",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+        
+        // Concurrent/task handles
+        this.taskCreateHandle = optionalHandle("simjot_task_create",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.taskPendingCountHandle = optionalHandle("simjot_task_pending_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.parallelGetHwThreadsHandle = optionalHandle("simjot_parallel_get_hw_threads",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.atomicIncHandle = optionalHandle("simjot_atomic_inc",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
+        this.atomicGetHandle = optionalHandle("simjot_atomic_get",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
+        this.hrtimeNsHandle = optionalHandle("simjot_hrtime_ns",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG));
+        this.monotonicMsHandle = optionalHandle("simjot_monotonic_ms",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG));
+        
+        // Collection handles
+        this.setCreateHandle = optionalHandle("simjot_set_create", FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.setAddHandle = optionalHandle("simjot_set_add",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.setContainsHandle = optionalHandle("simjot_set_contains",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.setSizeHandle = optionalHandle("simjot_set_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.setClearHandle = optionalHandle("simjot_set_clear",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+        this.mapCreateHandle = optionalHandle("simjot_map_create", FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.mapSetHandle = optionalHandle("simjot_map_set",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.mapGetHandle = optionalHandle("simjot_map_get",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mapHasHandle = optionalHandle("simjot_map_has",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.mapSizeHandle = optionalHandle("simjot_map_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.freqCreateHandle = optionalHandle("simjot_freq_create", FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.freqAddHandle = optionalHandle("simjot_freq_add",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.freqGetHandle = optionalHandle("simjot_freq_get",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.freqTopNHandle = optionalHandle("simjot_freq_top_n",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.cacheCreateHandle = optionalHandle("simjot_cache_create",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.cacheSetHandle = optionalHandle("simjot_cache_set",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.cacheGetHandle = optionalHandle("simjot_cache_get",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.cacheSizeHandle = optionalHandle("simjot_cache_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {

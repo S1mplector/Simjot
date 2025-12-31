@@ -229,6 +229,66 @@ int32_t simjot_cache_get(int32_t cache_id, const char* key, char* output, int32_
 int32_t simjot_cache_size(int32_t cache_id);
 void simjot_cache_clear(int32_t cache_id);
 
+/* SIMD operations */
+int32_t simjot_simd_strlen(const char* str);
+int32_t simjot_simd_memchr(const void* haystack, int needle, int32_t len);
+int32_t simjot_simd_strcasechr(const char* str, int c);
+int64_t simjot_simd_sum_i32(const int32_t* arr, int32_t len);
+double simjot_simd_sum_f64(const double* arr, int32_t len);
+void simjot_simd_minmax_f64(const double* arr, int32_t len, double* out_min, double* out_max);
+int32_t simjot_simd_memcmp(const void* a, const void* b, int32_t len);
+int32_t simjot_simd_support_level(void);
+
+/* Memory pool operations */
+int32_t simjot_pool_create(int32_t block_size, int32_t initial_blocks);
+void* simjot_pool_alloc(int32_t pool_id);
+void simjot_pool_free(int32_t pool_id, void* ptr);
+void simjot_pool_stats(int32_t pool_id, int32_t* total, int32_t* used, int32_t* block_size);
+void simjot_pool_destroy(int32_t pool_id);
+
+/* Arena allocator */
+int32_t simjot_arena_create(void);
+void* simjot_arena_alloc(int32_t arena_id, int32_t size, int32_t alignment);
+const char* simjot_arena_strdup(int32_t arena_id, const char* str);
+void simjot_arena_reset(int32_t arena_id);
+void simjot_arena_destroy(int32_t arena_id);
+void simjot_arena_stats(int32_t arena_id, int64_t* total_allocated, int64_t* total_used);
+
+/* String interning */
+int32_t simjot_intern_init(void);
+const char* simjot_intern(const char* str);
+int32_t simjot_intern_contains(const char* str);
+int32_t simjot_intern_count(void);
+void simjot_intern_clear(void);
+
+/* Scratch buffer */
+void* simjot_scratch_alloc(int32_t size);
+void simjot_scratch_reset(void);
+int32_t simjot_scratch_capacity(void);
+
+/* File system operations */
+int64_t simjot_fs_size(const char* path);
+int64_t simjot_fs_mtime(const char* path);
+int32_t simjot_fs_exists(const char* path);
+int32_t simjot_fs_is_dir(const char* path);
+int32_t simjot_fs_is_file(const char* path);
+int32_t simjot_fs_count(const char* path, int32_t max_depth, int32_t* file_count, int32_t* dir_count, int64_t* total_size);
+int32_t simjot_fs_list_recursive(const char* path, const char* extension, int32_t max_depth, char* output, int32_t output_len);
+int32_t simjot_fs_find(const char* path, const char* pattern, char* output, int32_t output_len);
+int32_t simjot_fs_read_all(const char* path, uint8_t* output, int32_t output_len);
+int32_t simjot_fs_write_all(const char* path, const uint8_t* data, int32_t len);
+int32_t simjot_fs_append(const char* path, const uint8_t* data, int32_t len);
+int32_t simjot_fs_mkdir(const char* path);
+int32_t simjot_fs_remove(const char* path);
+int32_t simjot_fs_rename(const char* old_path, const char* new_path);
+int32_t simjot_fs_watch_create(const char* path);
+int32_t simjot_fs_watch_poll(int32_t watch_id, int32_t timeout_ms);
+void simjot_fs_watch_destroy(int32_t watch_id);
+int32_t simjot_fs_extension(const char* path, char* output, int32_t output_len);
+int32_t simjot_fs_basename(const char* path, char* output, int32_t output_len);
+int32_t simjot_fs_dirname(const char* path, char* output, int32_t output_len);
+int32_t simjot_fs_join(const char* base, const char* child, char* output, int32_t output_len);
+
 #ifdef __cplusplus
 }
 #endif
