@@ -130,6 +130,105 @@ int32_t simjot_unicode_unescape(const char* input, char* output, int32_t output_
 int32_t simjot_hex_encode(const uint8_t* input, int32_t input_len, char* output, int32_t output_len);
 int32_t simjot_hex_decode(const char* input, uint8_t* output, int32_t output_len);
 
+/* Poetry analysis */
+int32_t simjot_poetry_analyze_sounds(const char* text);
+int32_t simjot_poetry_get_sound_device(int32_t index, char* type_buf, int32_t type_len, char* pattern_buf, int32_t pattern_len, int32_t* line_number);
+int32_t simjot_poetry_analyze_themes(const char* text);
+double simjot_poetry_get_theme_score(const char* theme);
+int32_t simjot_poetry_get_themes(char* output, int32_t output_len);
+int32_t simjot_poetry_analyze_vocab(const char* text);
+void simjot_poetry_get_vocab_stats(int32_t* total, int32_t* unique, double* diversity, double* avg_len);
+int32_t simjot_poetry_count_syllables(const char* word);
+int32_t simjot_poetry_analyze_meter(const char* text);
+int32_t simjot_poetry_get_line_syllables(int32_t line_index);
+int32_t simjot_poetry_detect_meter(char* output, int32_t output_len);
+
+/* Rhyme engine */
+void simjot_rhyme_add_word(const char* word);
+int32_t simjot_rhyme_add_words(const char* words);
+int32_t simjot_rhyme_find(const char* word, int32_t max_results);
+int32_t simjot_rhyme_get_result(int32_t index, char* output, int32_t output_len);
+int32_t simjot_rhyme_get_all_results(char* output, int32_t output_len);
+int32_t simjot_rhyme_get_key(const char* word, char* output, int32_t output_len);
+int32_t simjot_rhyme_check(const char* word1, const char* word2);
+int32_t simjot_rhyme_detect_scheme(const char* text, char* output, int32_t output_len);
+int32_t simjot_rhyme_get_pair_count(void);
+int32_t simjot_rhyme_get_pair(int32_t index, int32_t* line1, int32_t* line2);
+void simjot_rhyme_clear(void);
+int32_t simjot_rhyme_db_size(void);
+
+/* Math utilities */
+double simjot_math_vec2_length(double x, double y);
+double simjot_math_vec2_dot(double x1, double y1, double x2, double y2);
+double simjot_math_vec2_cross(double x1, double y1, double x2, double y2);
+void simjot_math_vec2_normalize(double x, double y, double* out_x, double* out_y);
+void simjot_math_vec2_rotate(double x, double y, double angle_rad, double* out_x, double* out_y);
+double simjot_math_vec2_angle(double x, double y);
+double simjot_math_vec2_distance(double x1, double y1, double x2, double y2);
+void simjot_math_bezier_quad(double p0x, double p0y, double p1x, double p1y, double p2x, double p2y, double t, double* out_x, double* out_y);
+void simjot_math_bezier_cubic(double p0x, double p0y, double p1x, double p1y, double p2x, double p2y, double p3x, double p3y, double t, double* out_x, double* out_y);
+double simjot_math_ease(int32_t type, double t);
+uint32_t simjot_math_color_blend(uint32_t color1, uint32_t color2, double t);
+uint32_t simjot_math_hsl_to_rgb(double h, double s, double l);
+void simjot_math_rgb_to_hsl(uint32_t argb, double* h, double* s, double* l);
+int32_t simjot_math_compute_stats(const double* data, int32_t count);
+double simjot_math_get_stat(int32_t which);
+double simjot_math_deg_to_rad(double degrees);
+double simjot_math_rad_to_deg(double radians);
+double simjot_math_normalize_angle(double radians);
+double simjot_math_lerp(double a, double b, double t);
+double simjot_math_clamp(double value, double min_val, double max_val);
+double simjot_math_map_range(double value, double in_min, double in_max, double out_min, double out_max);
+
+/* Concurrent/task utilities */
+int32_t simjot_task_create(const char* data, int32_t priority);
+int32_t simjot_task_pending_count(void);
+int32_t simjot_task_pop(char* data_out, int32_t data_len, int32_t timeout_ms);
+void simjot_task_complete(int32_t task_id, const char* result);
+void simjot_task_clear(void);
+void simjot_task_stop(void);
+void simjot_parallel_set_threads(int32_t count);
+int32_t simjot_parallel_get_hw_threads(void);
+void simjot_thread_sleep(int32_t milliseconds);
+int64_t simjot_thread_id(void);
+int64_t simjot_atomic_inc(int32_t counter_id);
+int64_t simjot_atomic_dec(int32_t counter_id);
+int64_t simjot_atomic_get(int32_t counter_id);
+void simjot_atomic_set(int32_t counter_id, int64_t value);
+int32_t simjot_atomic_cas(int32_t counter_id, int64_t expected, int64_t desired);
+int64_t simjot_atomic_add(int32_t counter_id, int64_t value);
+int64_t simjot_hrtime_ns(void);
+int64_t simjot_monotonic_ms(void);
+
+/* Collection utilities */
+int32_t simjot_set_create(void);
+void simjot_set_add(int32_t set_id, const char* str);
+int32_t simjot_set_contains(int32_t set_id, const char* str);
+void simjot_set_remove(int32_t set_id, const char* str);
+int32_t simjot_set_size(int32_t set_id);
+void simjot_set_clear(int32_t set_id);
+int32_t simjot_set_add_bulk(int32_t set_id, const char* strings);
+int32_t simjot_map_create(void);
+void simjot_map_set(int32_t map_id, const char* key, const char* value);
+int32_t simjot_map_get(int32_t map_id, const char* key, char* output, int32_t output_len);
+int32_t simjot_map_has(int32_t map_id, const char* key);
+void simjot_map_remove(int32_t map_id, const char* key);
+int32_t simjot_map_size(int32_t map_id);
+void simjot_map_clear(int32_t map_id);
+int32_t simjot_freq_create(void);
+void simjot_freq_add(int32_t map_id, const char* str, int32_t count);
+int32_t simjot_freq_get(int32_t map_id, const char* str);
+int32_t simjot_freq_top_n(int32_t map_id, int32_t n, char* output, int32_t output_len);
+int32_t simjot_freq_unique_count(int32_t map_id);
+int32_t simjot_freq_total_count(int32_t map_id);
+void simjot_freq_clear(int32_t map_id);
+int32_t simjot_freq_add_text(int32_t map_id, const char* text);
+int32_t simjot_cache_create(int32_t max_size);
+void simjot_cache_set(int32_t cache_id, const char* key, const char* value);
+int32_t simjot_cache_get(int32_t cache_id, const char* key, char* output, int32_t output_len);
+int32_t simjot_cache_size(int32_t cache_id);
+void simjot_cache_clear(int32_t cache_id);
+
 #ifdef __cplusplus
 }
 #endif
