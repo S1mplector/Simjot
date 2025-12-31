@@ -2476,4 +2476,153 @@ public final class NativeAccess {
             lib.internClear();
         } catch (Throwable ignored) {}
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPONENT PROFILER API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static Boolean profilerInit(int sampleIntervalMs) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerInit(sampleIntervalMs);
+        } catch (Throwable t) {
+            IoLog.warn("native-profiler", "Native profiler init failed.", t);
+            return null;
+        }
+    }
+
+    public static Boolean profilerStart() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerStart();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Boolean profilerStop() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerStop();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static void profilerReset() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.profilerReset();
+        } catch (Throwable ignored) {}
+    }
+
+    public static Integer profilerRegisterComponent(String name) {
+        NativeLibrary lib = library();
+        if (lib == null || name == null) return null;
+        try {
+            return lib.profilerRegisterComponent(name);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Boolean profilerRegisterThread(String componentName, long threadId) {
+        NativeLibrary lib = library();
+        if (lib == null || componentName == null) return null;
+        try {
+            return lib.profilerRegisterThread(componentName, threadId);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Boolean profilerUnregisterThread(String componentName, long threadId) {
+        NativeLibrary lib = library();
+        if (lib == null || componentName == null) return null;
+        try {
+            return lib.profilerUnregisterThread(componentName, threadId);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static void profilerTrackAlloc(String componentName, long bytes) {
+        NativeLibrary lib = library();
+        if (lib == null || componentName == null) return;
+        try {
+            lib.profilerTrackAlloc(componentName, bytes);
+        } catch (Throwable ignored) {}
+    }
+
+    public static void profilerTrackFree(String componentName, long bytes) {
+        NativeLibrary lib = library();
+        if (lib == null || componentName == null) return;
+        try {
+            lib.profilerTrackFree(componentName, bytes);
+        } catch (Throwable ignored) {}
+    }
+
+    public static Boolean profilerSample() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerSample();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Integer profilerComponentCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerComponentCount();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] profilerGetComponentSnapshot(int index) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerGetComponentSnapshot(index);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] profilerGetSummary() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerGetSummary();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String profilerPrintReport() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerPrintReport();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String profilerStatusLine() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerStatusLine();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
 }

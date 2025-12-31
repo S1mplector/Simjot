@@ -42,3 +42,13 @@ if (SIMJOT_NATIVE_BUILD_TESTS)
     enable_testing()
     add_test(NAME simjot_native_cli COMMAND simjot_native_cli)
 endif()
+
+# Standalone profiler CLI tool
+add_executable(profiler_cli tests/profiler_cli.c)
+target_include_directories(profiler_cli PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+if(APPLE)
+    target_link_libraries(profiler_cli PRIVATE "-framework CoreFoundation")
+endif()
+
+set_target_properties(profiler_cli PROPERTIES OUTPUT_NAME "simjot_profiler")

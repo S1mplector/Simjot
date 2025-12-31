@@ -426,6 +426,39 @@ void simjot_force_halt(void);
 /* Get monotonic time in milliseconds */
 int64_t simjot_monotonic_time_ms(void);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * COMPONENT PROFILER - Per-component CPU and memory tracking
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Initialize profiler with sampling interval in milliseconds */
+int32_t simjot_profiler_init(int32_t sample_interval_ms);
+
+/* Start/stop profiling */
+int32_t simjot_profiler_start(void);
+int32_t simjot_profiler_stop(void);
+void simjot_profiler_reset(void);
+
+/* Component registration */
+int32_t simjot_profiler_register_component(const char* name);
+int32_t simjot_profiler_register_thread(const char* component_name, uint64_t thread_id);
+int32_t simjot_profiler_unregister_thread(const char* component_name, uint64_t thread_id);
+
+/* Memory tracking */
+void simjot_profiler_track_alloc(const char* component_name, int64_t bytes);
+void simjot_profiler_track_free(const char* component_name, int64_t bytes);
+
+/* Sampling - call periodically to update metrics */
+int32_t simjot_profiler_sample(void);
+
+/* Snapshot/reporting */
+int32_t simjot_profiler_component_count(void);
+int32_t simjot_profiler_get_component_snapshot(int32_t index, uint8_t* out, int32_t out_len);
+int32_t simjot_profiler_get_summary(uint8_t* out, int32_t out_len);
+
+/* CLI output - returns length written */
+int32_t simjot_profiler_print_report(char* out, int32_t out_len);
+int32_t simjot_profiler_status_line(char* out, int32_t out_len);
+
 #ifdef __cplusplus
 }
 #endif
