@@ -78,6 +78,7 @@ main/ui/features/settings/AppearanceSettingsPage$AccentRenderer.class
 main/ui/components/editor/LinkManager$2.class
 main/ui/dialog/file/FileIconProvider$FileIcon.class
 main/ui/components/combobox/ModernComboBoxUI.class
+main/core/poetry/ScansionEngine$MeterProfile.class
 main/ui/components/clocks/FlipClock.class
 main/ui/features/entries/NotetakingPanel$7.class
 main/ui/features/drawing/DrawingPanel$ModernComboBoxRenderer.class
@@ -238,6 +239,7 @@ main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog$1.class
 main/ui/features/entries/GlobalSearchDialog$SearchQuery.class
 main/ui/features/entries/NotebookEntriesPanel$MetaSnapshot.class
 main/ui/components/containers/TranslucentPanel.class
+main/core/poetry/ScansionEngine$MeterPattern.class
 main/ui/features/entries/NotetakingPanel$2.class
 main/core/sim/engine/TurnManager.class
 main/ui/components/containers/RoundedPanel.class
@@ -380,6 +382,7 @@ main/ui/features/settings/SimSettingsPage.class
 main/ui/features/poetry/StatsSidebarPanel$3.class
 main/ui/features/notebooks/NotebookManagerPanel$CreateNotebookDialog$TypeCard$1.class
 main/ui/dialog/file/SimjotFileChooser$Mode.class
+main/ui/features/settings/GeneralSettingsPage$1.class
 main/infrastructure/io/CrashReporter.class
 main/infrastructure/backup/NotebookInfo.class
 main/ui/features/notebooks/NotebookManagerPanel$4.class
@@ -390,6 +393,7 @@ main/ui/features/entries/EntryPanel$4.class
 main/core/spelling/AutocorrectDatabase.class
 main/ui/features/drawing/DrawingChooserDialog$3.class
 main/ui/components/indicators/SaveIndicatorPanel.class
+main/core/poetry/PoetryAnalyzer$FootProfile.class
 main/core/poetry/LineBreakEngine$BreakSuggestion.class
 main/infrastructure/monitoring/RamMonitor$1.class
 main/core/AppInfo.class

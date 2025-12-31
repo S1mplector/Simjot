@@ -60,6 +60,16 @@ public class ScansionEngine {
         }
     }
     
+    private static final List<MeterPattern> METER_PATTERNS = List.of(
+        new MeterPattern(FootType.IAMB, "01"),
+        new MeterPattern(FootType.TROCHEE, "10"),
+        new MeterPattern(FootType.SPONDEE, "11"),
+        new MeterPattern(FootType.PYRRHIC, "00"),
+        new MeterPattern(FootType.ANAPEST, "001"),
+        new MeterPattern(FootType.DACTYL, "100"),
+        new MeterPattern(FootType.AMPHIBRACH, "010")
+    );
+    
     /**
      * Result of scansion analysis for a single line.
      */
@@ -123,6 +133,39 @@ public class ScansionEngine {
             this.syllables = Collections.unmodifiableList(syllables);
             this.startIndex = startIndex;
             this.isSubstitution = isSubstitution;
+        }
+    }
+    
+    private static class MeterPattern {
+        final FootType footType;
+        final String pattern;
+        
+        MeterPattern(FootType footType, String pattern) {
+            this.footType = footType;
+            this.pattern = pattern;
+        }
+    }
+    
+    private static class MeterProfile {
+        final FootType dominantFoot;
+        final int footSize;
+        final int footCount;
+        final int startOffset;
+        final boolean anacrusis;
+        final boolean feminineEnding;
+        final double mismatchRatio;
+        final String meterName;
+        
+        MeterProfile(FootType dominantFoot, int footSize, int footCount, int startOffset,
+                     boolean anacrusis, boolean feminineEnding, double mismatchRatio, String meterName) {
+            this.dominantFoot = dominantFoot;
+            this.footSize = footSize;
+            this.footCount = footCount;
+            this.startOffset = startOffset;
+            this.anacrusis = anacrusis;
+            this.feminineEnding = feminineEnding;
+            this.mismatchRatio = mismatchRatio;
+            this.meterName = meterName;
         }
     }
     
@@ -243,11 +286,12 @@ public class ScansionEngine {
         // Detect caesura (natural pause, typically mid-line punctuation)
         int caesura = detectCaesura(line, syllables);
         
-        // Parse into feet and determine meter
-        List<FootInfo> feet = parseIntoFeet(syllables);
-        String meterName = determineMeter(syllables, feet);
-        double confidence = calculateConfidence(syllables, feet, meterName);
-        List<String> substitutions = detectSubstitutions(feet, meterName);
+        // Determine best-fit meter and parse into feet
+        MeterProfile profile = determineBestMeter(syllables);
+        List<FootInfo> feet = parseIntoFeet(syllables, profile);
+        String meterName = profile != null ? profile.meterName : "Unknown";
+        double confidence = calculateConfidence(syllables, feet, profile);
+        List<String> substitutions = detectSubstitutions(feet, profile);
         
         return new LineScansion(line, syllables, feet, meterName, notation.toString(),
                 caesura, confidence, substitutions);
@@ -362,39 +406,44 @@ public class ScansionEngine {
     /**
      * Parse syllables into metrical feet.
      */
-    private List<FootInfo> parseIntoFeet(List<SyllableInfo> syllables) {
+    private List<FootInfo> parseIntoFeet(List<SyllableInfo> syllables, MeterProfile profile) {
         List<FootInfo> feet = new ArrayList<>();
         if (syllables.isEmpty()) return feet;
         
-        // Try to detect the dominant foot type first
-        FootType dominant = detectDominantFoot(syllables);
-        int footSize = (dominant == FootType.ANAPEST || dominant == FootType.DACTYL || 
-                       dominant == FootType.AMPHIBRACH) ? 3 : 2;
+        int footSize = profile != null ? profile.footSize : 2;
+        int start = profile != null ? profile.startOffset : 0;
+        int end = syllables.size();
         
-        int i = 0;
-        while (i < syllables.size()) {
-            int remaining = syllables.size() - i;
-            
-            if (remaining >= 3 && footSize == 3) {
-                // Try three-syllable foot
-                List<SyllableInfo> group = syllables.subList(i, i + 3);
-                FootType type = classifyFoot(group);
-                boolean isSub = (type != dominant && dominant != FootType.UNKNOWN);
-                feet.add(new FootInfo(type, new ArrayList<>(group), i, isSub));
-                i += 3;
-            } else if (remaining >= 2) {
-                // Two-syllable foot
-                List<SyllableInfo> group = syllables.subList(i, i + 2);
-                FootType type = classifyFoot(group);
-                boolean isSub = (type != dominant && dominant != FootType.UNKNOWN);
-                feet.add(new FootInfo(type, new ArrayList<>(group), i, isSub));
-                i += 2;
-            } else {
-                // Single remaining syllable (catalexis)
-                List<SyllableInfo> group = syllables.subList(i, i + 1);
-                feet.add(new FootInfo(FootType.UNKNOWN, new ArrayList<>(group), i, false));
-                i++;
+        if (profile != null && profile.feminineEnding && end > start) {
+            end -= 1;
+        }
+        
+        if (start > 0) {
+            List<SyllableInfo> extra = new ArrayList<>(syllables.subList(0, start));
+            feet.add(new FootInfo(FootType.UNKNOWN, extra, 0, false));
+        }
+        
+        int i = start;
+        while (i + footSize <= end) {
+            List<SyllableInfo> group = syllables.subList(i, i + footSize);
+            FootType type = classifyFoot(group);
+            if (type == FootType.UNKNOWN) {
+                type = closestFoot(group);
             }
+            boolean isSub = profile != null && profile.dominantFoot != FootType.UNKNOWN &&
+                    type != FootType.UNKNOWN && type != profile.dominantFoot;
+            feet.add(new FootInfo(type, new ArrayList<>(group), i, isSub));
+            i += footSize;
+        }
+        
+        if (i < end) {
+            List<SyllableInfo> extra = new ArrayList<>(syllables.subList(i, end));
+            feet.add(new FootInfo(FootType.UNKNOWN, extra, i, false));
+        }
+        
+        if (profile != null && profile.feminineEnding && end < syllables.size()) {
+            List<SyllableInfo> extra = new ArrayList<>(syllables.subList(end, syllables.size()));
+            feet.add(new FootInfo(FootType.UNKNOWN, extra, end, false));
         }
         
         return feet;
@@ -425,66 +474,129 @@ public class ScansionEngine {
     }
     
     /**
-     * Detect the dominant foot type in the line.
+     * Find the closest matching foot type when there is no exact match.
      */
-    private FootType detectDominantFoot(List<SyllableInfo> syllables) {
-        if (syllables.size() < 2) return FootType.UNKNOWN;
+    private FootType closestFoot(List<SyllableInfo> syllables) {
+        String pattern = buildStressPattern(syllables);
+        int len = pattern.length();
+        int bestDistance = Integer.MAX_VALUE;
+        FootType bestType = FootType.UNKNOWN;
+        boolean tie = false;
         
-        // Count patterns
-        int iambic = 0, trochaic = 0, anapestic = 0, dactylic = 0;
-        
-        for (int i = 0; i < syllables.size() - 1; i += 2) {
-            boolean s1 = syllables.get(i).stressed;
-            boolean s2 = syllables.get(i + 1).stressed;
-            if (!s1 && s2) iambic++;
-            else if (s1 && !s2) trochaic++;
-        }
-        
-        for (int i = 0; i < syllables.size() - 2; i += 3) {
-            boolean s1 = syllables.get(i).stressed;
-            boolean s2 = syllables.get(i + 1).stressed;
-            boolean s3 = syllables.get(i + 2).stressed;
-            if (!s1 && !s2 && s3) anapestic++;
-            else if (s1 && !s2 && !s3) dactylic++;
-        }
-        
-        int max = Math.max(Math.max(iambic, trochaic), Math.max(anapestic, dactylic));
-        if (max == 0) return FootType.UNKNOWN;
-        
-        if (max == iambic) return FootType.IAMB;
-        if (max == trochaic) return FootType.TROCHEE;
-        if (max == anapestic) return FootType.ANAPEST;
-        if (max == dactylic) return FootType.DACTYL;
-        
-        return FootType.UNKNOWN;
-    }
-    
-    /**
-     * Determine the meter name based on analysis.
-     */
-    private String determineMeter(List<SyllableInfo> syllables, List<FootInfo> feet) {
-        if (feet.isEmpty()) return "Unknown";
-        
-        // Count foot types
-        Map<FootType, Integer> counts = new EnumMap<>(FootType.class);
-        for (FootInfo f : feet) {
-            counts.merge(f.type, 1, Integer::sum);
-        }
-        
-        // Find dominant foot
-        FootType dominant = FootType.UNKNOWN;
-        int maxCount = 0;
-        for (Map.Entry<FootType, Integer> e : counts.entrySet()) {
-            if (e.getValue() > maxCount && e.getKey() != FootType.UNKNOWN) {
-                maxCount = e.getValue();
-                dominant = e.getKey();
+        for (MeterPattern candidate : METER_PATTERNS) {
+            if (candidate.pattern.length() != len) continue;
+            int distance = hammingDistance(pattern, candidate.pattern);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestType = candidate.footType;
+                tie = false;
+            } else if (distance == bestDistance) {
+                tie = true;
             }
         }
         
-        if (dominant == FootType.UNKNOWN) return "Unknown";
+        return tie ? FootType.UNKNOWN : bestType;
+    }
+    
+    private int hammingDistance(String a, String b) {
+        int len = Math.min(a.length(), b.length());
+        int distance = Math.abs(a.length() - b.length());
+        for (int i = 0; i < len; i++) {
+            if (a.charAt(i) != b.charAt(i)) distance++;
+        }
+        return distance;
+    }
+    
+    private String buildStressPattern(List<SyllableInfo> syllables) {
+        StringBuilder sb = new StringBuilder();
+        for (SyllableInfo syl : syllables) {
+            sb.append(syl.stressed ? '1' : '0');
+        }
+        return sb.toString();
+    }
+    
+    private MeterProfile determineBestMeter(List<SyllableInfo> syllables) {
+        String stress = buildStressPattern(syllables);
+        if (stress.isEmpty()) {
+            return new MeterProfile(FootType.UNKNOWN, 0, 0, 0, false, false, 1.0, "Unknown");
+        }
         
-        // Determine meter length
-        String length = switch (feet.size()) {
+        MeterProfile best = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        
+        for (MeterPattern candidate : METER_PATTERNS) {
+            MeterProfile profile = scoreCandidate(stress, candidate);
+            if (profile == null) continue;
+            double score = 1.0 - profile.mismatchRatio;
+            if (profile.anacrusis) score -= 0.05;
+            if (profile.feminineEnding) score -= 0.03;
+            if (score > bestScore) {
+                bestScore = score;
+                best = profile;
+            }
+        }
+        
+        if (best == null) {
+            return new MeterProfile(FootType.UNKNOWN, 0, 0, 0, false, false, 1.0, "Unknown");
+        }
+        return best;
+    }
+    
+    private MeterProfile scoreCandidate(String stress, MeterPattern candidate) {
+        int n = stress.length();
+        int footSize = candidate.pattern.length();
+        MeterProfile best = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        
+        for (int offset = 0; offset <= 1; offset++) {
+            boolean anacrusis = offset == 1;
+            if (anacrusis && (n < 2 || stress.charAt(0) != '0')) {
+                continue;
+            }
+            
+            int start = offset;
+            int available = n - start;
+            boolean feminine = false;
+            if (available > 1 && available % footSize == 1 && stress.charAt(n - 1) == '0') {
+                feminine = true;
+                available -= 1;
+            }
+            
+            int footCount = available / footSize;
+            if (footCount == 0) continue;
+            
+            int expectedLen = footCount * footSize;
+            int mismatches = 0;
+            for (int i = 0; i < expectedLen; i++) {
+                char expected = candidate.pattern.charAt(i % footSize);
+                char actual = stress.charAt(start + i);
+                if (expected != actual) mismatches++;
+            }
+            
+            double mismatchRatio = expectedLen > 0 ? (double) mismatches / expectedLen : 1.0;
+            int extra = n - (start + expectedLen);
+            double penalty = mismatchRatio + (extra * 0.2);
+            if (anacrusis) penalty += 0.05;
+            if (feminine) penalty -= 0.1;
+            double score = 1.0 - penalty;
+            
+            String meterName = formatMeterName(candidate.footType, footCount);
+            MeterProfile profile = new MeterProfile(candidate.footType, footSize, footCount, start,
+                    anacrusis, feminine, mismatchRatio, meterName);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                best = profile;
+            }
+        }
+        
+        return best;
+    }
+    
+    private String formatMeterName(FootType foot, int footCount) {
+        if (foot == FootType.UNKNOWN || footCount <= 0) return "Unknown";
+        
+        String length = switch (footCount) {
             case 1 -> "monometer";
             case 2 -> "dimeter";
             case 3 -> "trimeter";
@@ -492,16 +604,18 @@ public class ScansionEngine {
             case 5 -> "pentameter";
             case 6 -> "hexameter";
             case 7 -> "heptameter";
-            default -> feet.size() + "-foot";
+            case 8 -> "octameter";
+            default -> footCount + "-foot";
         };
         
-        String type = switch (dominant) {
+        String type = switch (foot) {
             case IAMB -> "Iambic";
             case TROCHEE -> "Trochaic";
             case SPONDEE -> "Spondaic";
             case ANAPEST -> "Anapestic";
             case DACTYL -> "Dactylic";
             case AMPHIBRACH -> "Amphibrachic";
+            case PYRRHIC -> "Pyrrhic";
             default -> "Mixed";
         };
         
@@ -511,32 +625,47 @@ public class ScansionEngine {
     /**
      * Calculate confidence in the meter analysis.
      */
-    private double calculateConfidence(List<SyllableInfo> syllables, List<FootInfo> feet, String meterName) {
-        if (feet.isEmpty() || meterName.equals("Unknown")) return 0.0;
+    private double calculateConfidence(List<SyllableInfo> syllables, List<FootInfo> feet, MeterProfile profile) {
+        if (feet.isEmpty() || profile == null || profile.meterName.equals("Unknown")) return 0.0;
         
-        // Base confidence on syllable stress confidence and foot consistency
         double sylConfidence = syllables.stream()
                 .mapToDouble(s -> s.stressConfidence)
                 .average().orElse(0.5);
         
-        // Count non-substitution feet
-        long regular = feet.stream().filter(f -> !f.isSubstitution).count();
-        double footConsistency = (double) regular / feet.size();
+        int counted = 0;
+        int regular = 0;
+        for (FootInfo foot : feet) {
+            if (foot.type == FootType.UNKNOWN) continue;
+            counted++;
+            if (!foot.isSubstitution) regular++;
+        }
+        double footConsistency = counted > 0 ? (double) regular / counted : 0.0;
+        double patternScore = Math.max(0.0, 1.0 - profile.mismatchRatio);
         
-        return (sylConfidence * 0.4 + footConsistency * 0.6);
+        double confidence = (sylConfidence * 0.35) + (footConsistency * 0.45) + (patternScore * 0.2);
+        return Math.max(0.0, Math.min(1.0, confidence));
     }
     
     /**
-     * Detect metrical substitutions.
+     * Detect metrical substitutions and extrametrical features.
      */
-    private List<String> detectSubstitutions(List<FootInfo> feet, String meterName) {
+    private List<String> detectSubstitutions(List<FootInfo> feet, MeterProfile profile) {
         List<String> substitutions = new ArrayList<>();
+        
+        if (profile != null) {
+            if (profile.anacrusis) {
+                substitutions.add("Anacrusis (extra unstressed opening)");
+            }
+            if (profile.feminineEnding) {
+                substitutions.add("Feminine ending (extra unstressed closing)");
+            }
+        }
         
         for (int i = 0; i < feet.size(); i++) {
             FootInfo foot = feet.get(i);
-            if (foot.isSubstitution) {
-                substitutions.add(String.format("Foot %d: %s substitution (%s)", 
-                    i + 1, foot.type.name().toLowerCase(), foot.type.description));
+            if (foot.isSubstitution && foot.type != FootType.UNKNOWN) {
+                substitutions.add(String.format("Foot %d: %s substitution (%s)",
+                    i + 1, foot.type.name().toLowerCase(Locale.ROOT), foot.type.description));
             }
         }
         

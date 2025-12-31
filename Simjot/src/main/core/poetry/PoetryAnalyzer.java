@@ -218,17 +218,23 @@ public final class PoetryAnalyzer {
     public static class PhoneticAnalysis {
         public final String rhymeScheme;
         public final Map<String, List<Integer>> rhymeGroups;
+        public final Map<String, List<Integer>> nearRhymeGroups;
         public final List<SoundDevice> alliterations;
         public final List<SoundDevice> assonances;
         public final List<SoundDevice> consonances;
+        public final List<SoundDevice> internalRhymes;
         public final double density;
         
         public PhoneticAnalysis(String rhymeScheme, Map<String, List<Integer>> rhymeGroups,
+                               Map<String, List<Integer>> nearRhymeGroups,
                                List<SoundDevice> alliterations, List<SoundDevice> assonances,
-                               List<SoundDevice> consonances, double density) {
+                               List<SoundDevice> consonances, List<SoundDevice> internalRhymes,
+                               double density) {
             this.rhymeScheme = rhymeScheme; this.rhymeGroups = rhymeGroups;
+            this.nearRhymeGroups = nearRhymeGroups;
             this.alliterations = alliterations; this.assonances = assonances;
-            this.consonances = consonances; this.density = density;
+            this.consonances = consonances; this.internalRhymes = internalRhymes;
+            this.density = density;
         }
     }
     
@@ -269,15 +275,43 @@ public final class PoetryAnalyzer {
         public final List<String> topWords;
         public final int polysyllabic;
         public final double readability;
+        public final double lexicalDensity;
+        public final double avgSyllablesPerWord;
+        public final double polysyllabicRatio;
+        public final double mattr;
+        public final double mtld;
+        public final double yulesK;
+        public final double simpsonsD;
+        public final double gunningFog;
+        public final double smogIndex;
+        public final double colemanLiauIndex;
+        public final double automatedReadabilityIndex;
+        public final double lexicalSophistication;
         
         public LexicalAnalysis(int totalWords, int uniqueWords, double typeTokenRatio,
                               double avgWordLength, Map<String, Integer> wordFrequency,
                               Map<String, Integer> posDistribution, List<String> topWords,
-                              int polysyllabic, double readability) {
+                              int polysyllabic, double readability, double lexicalDensity,
+                              double avgSyllablesPerWord, double polysyllabicRatio,
+                              double mattr, double mtld, double yulesK, double simpsonsD,
+                              double gunningFog, double smogIndex, double colemanLiauIndex,
+                              double automatedReadabilityIndex, double lexicalSophistication) {
             this.totalWords = totalWords; this.uniqueWords = uniqueWords;
             this.typeTokenRatio = typeTokenRatio; this.avgWordLength = avgWordLength;
             this.wordFrequency = wordFrequency; this.posDistribution = posDistribution;
             this.topWords = topWords; this.polysyllabic = polysyllabic; this.readability = readability;
+            this.lexicalDensity = lexicalDensity;
+            this.avgSyllablesPerWord = avgSyllablesPerWord;
+            this.polysyllabicRatio = polysyllabicRatio;
+            this.mattr = mattr;
+            this.mtld = mtld;
+            this.yulesK = yulesK;
+            this.simpsonsD = simpsonsD;
+            this.gunningFog = gunningFog;
+            this.smogIndex = smogIndex;
+            this.colemanLiauIndex = colemanLiauIndex;
+            this.automatedReadabilityIndex = automatedReadabilityIndex;
+            this.lexicalSophistication = lexicalSophistication;
         }
     }
     
@@ -392,41 +426,168 @@ public final class PoetryAnalyzer {
             identifyFeet(stress.toString()), syllables);
     }
     
+    private static class FootProfile {
+        final FootType dominantFoot;
+        final int footSize;
+        final int startOffset;
+        final boolean feminineEnding;
+        
+        FootProfile(FootType dominantFoot, int footSize, int startOffset, boolean feminineEnding) {
+            this.dominantFoot = dominantFoot;
+            this.footSize = footSize;
+            this.startOffset = startOffset;
+            this.feminineEnding = feminineEnding;
+        }
+    }
+    
     private static List<FootType> identifyFeet(String pattern) {
         List<FootType> feet = new ArrayList<>();
         int i = 0;
-        while (i < pattern.length()) {
-            // Try 3-syllable feet first
-            if (i + 2 < pattern.length()) {
-                String s3 = pattern.substring(i, i + 3);
-                if (s3.equals("001")) { feet.add(FootType.ANAPEST); i += 3; continue; }
-                if (s3.equals("100")) { feet.add(FootType.DACTYL); i += 3; continue; }
-                if (s3.equals("010")) { feet.add(FootType.AMPHIBRACH); i += 3; continue; }
-                if (s3.equals("101")) { feet.add(FootType.CRETIC); i += 3; continue; }
-            }
-            // Try 2-syllable feet
-            if (i + 1 < pattern.length()) {
-                String s2 = pattern.substring(i, i + 2);
-                if (s2.equals("01")) { feet.add(FootType.IAMB); i += 2; continue; }
-                if (s2.equals("10")) { feet.add(FootType.TROCHEE); i += 2; continue; }
-                if (s2.equals("11")) { feet.add(FootType.SPONDEE); i += 2; continue; }
-                if (s2.equals("00")) { feet.add(FootType.PYRRHIC); i += 2; continue; }
-            }
-            // Single syllable - skip
-            i++;
+        if (pattern == null || pattern.isEmpty()) return feet;
+        
+        FootProfile profile = determineFootProfile(pattern);
+        int footSize = profile.footSize;
+        i = profile.startOffset;
+        int end = pattern.length();
+        if (profile.feminineEnding && end > i) end -= 1;
+        
+        while (i + footSize <= end) {
+            String chunk = pattern.substring(i, i + footSize);
+            FootType type = classifyFootPattern(chunk);
+            if (type == null) type = closestFootPattern(chunk);
+            if (type != null) feet.add(type);
+            i += footSize;
         }
         return feet;
+    }
+    
+    private static FootProfile determineFootProfile(String pattern) {
+        FootProfile best = new FootProfile(FootType.IAMB, 2, 0, false);
+        double bestScore = Double.NEGATIVE_INFINITY;
+        
+        Map<FootType, String> candidates = Map.of(
+            FootType.IAMB, "01",
+            FootType.TROCHEE, "10",
+            FootType.SPONDEE, "11",
+            FootType.PYRRHIC, "00",
+            FootType.ANAPEST, "001",
+            FootType.DACTYL, "100",
+            FootType.AMPHIBRACH, "010",
+            FootType.CRETIC, "101"
+        );
+        
+        for (var entry : candidates.entrySet()) {
+            String footPattern = entry.getValue();
+            int footSize = footPattern.length();
+            FootProfile scored = scoreFootProfile(pattern, entry.getKey(), footPattern, footSize);
+            double score = 1.0 - calculateMismatchRatio(pattern, footPattern, scored.startOffset, scored.feminineEnding);
+            if (score > bestScore) {
+                bestScore = score;
+                best = scored;
+            }
+        }
+        
+        return best;
+    }
+    
+    private static FootProfile scoreFootProfile(String pattern, FootType footType, String footPattern, int footSize) {
+        int bestOffset = 0;
+        boolean bestFeminine = false;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        
+        for (int offset = 0; offset <= 1; offset++) {
+            if (offset == 1 && (pattern.length() < 2 || pattern.charAt(0) != '0')) continue;
+            boolean feminine = false;
+            int available = pattern.length() - offset;
+            if (available > 1 && available % footSize == 1 && pattern.charAt(pattern.length() - 1) == '0') {
+                feminine = true;
+            }
+            double mismatch = calculateMismatchRatio(pattern, footPattern, offset, feminine);
+            double score = 1.0 - mismatch - (offset == 1 ? 0.05 : 0.0) - (feminine ? 0.03 : 0.0);
+            if (score > bestScore) {
+                bestScore = score;
+                bestOffset = offset;
+                bestFeminine = feminine;
+            }
+        }
+        
+        return new FootProfile(footType, footSize, bestOffset, bestFeminine);
+    }
+    
+    private static double calculateMismatchRatio(String pattern, String footPattern, int offset, boolean feminine) {
+        int available = pattern.length() - offset;
+        if (feminine && available > 1) available -= 1;
+        int footCount = available / footPattern.length();
+        if (footCount <= 0) return 1.0;
+        int expectedLen = footCount * footPattern.length();
+        int mismatches = 0;
+        for (int i = 0; i < expectedLen; i++) {
+            char expected = footPattern.charAt(i % footPattern.length());
+            char actual = pattern.charAt(offset + i);
+            if (expected != actual) mismatches++;
+        }
+        return expectedLen > 0 ? (double) mismatches / expectedLen : 1.0;
+    }
+    
+    private static FootType classifyFootPattern(String pattern) {
+        return switch (pattern) {
+            case "01" -> FootType.IAMB;
+            case "10" -> FootType.TROCHEE;
+            case "11" -> FootType.SPONDEE;
+            case "00" -> FootType.PYRRHIC;
+            case "001" -> FootType.ANAPEST;
+            case "100" -> FootType.DACTYL;
+            case "010" -> FootType.AMPHIBRACH;
+            case "101" -> FootType.CRETIC;
+            default -> null;
+        };
+    }
+    
+    private static FootType closestFootPattern(String pattern) {
+        Map<FootType, String> candidates = Map.of(
+            FootType.IAMB, "01",
+            FootType.TROCHEE, "10",
+            FootType.SPONDEE, "11",
+            FootType.PYRRHIC, "00",
+            FootType.ANAPEST, "001",
+            FootType.DACTYL, "100",
+            FootType.AMPHIBRACH, "010",
+            FootType.CRETIC, "101"
+        );
+        
+        int bestDistance = Integer.MAX_VALUE;
+        FootType best = null;
+        boolean tie = false;
+        
+        for (var entry : candidates.entrySet()) {
+            if (entry.getValue().length() != pattern.length()) continue;
+            int distance = 0;
+            for (int i = 0; i < pattern.length(); i++) {
+                if (pattern.charAt(i) != entry.getValue().charAt(i)) distance++;
+            }
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = entry.getKey();
+                tie = false;
+            } else if (distance == bestDistance) {
+                tie = true;
+            }
+        }
+        
+        return tie ? null : best;
     }
     
     public static PhoneticAnalysis analyzePhonetics(String text) {
         List<String> lines = getContentLines(text);
         String scheme = detectRhymeScheme(lines);
         Map<String, List<Integer>> groups = groupRhymes(lines);
+        Map<String, List<Integer>> nearGroups = groupNearRhymes(lines);
         List<SoundDevice> allit = detectAlliteration(lines);
         List<SoundDevice> asson = detectAssonance(lines);
         List<SoundDevice> conson = detectConsonance(lines);
-        double density = lines.isEmpty() ? 0 : (double)(allit.size() + asson.size() + conson.size()) / lines.size();
-        return new PhoneticAnalysis(scheme, groups, allit, asson, conson, density);
+        List<SoundDevice> internal = detectInternalRhymes(lines);
+        double density = lines.isEmpty() ? 0 : (double)(allit.size() + asson.size() + conson.size() + internal.size()) / lines.size();
+        return new PhoneticAnalysis(scheme, groups, nearGroups, allit, asson, conson, internal, density);
     }
     
     public static String detectRhymeScheme(List<String> lines) {
@@ -473,36 +634,42 @@ public final class PoetryAnalyzer {
     }
     
     public static LexicalAnalysis analyzeLexical(String text) {
-        List<String> words = new ArrayList<>();
-        for (String l : PoetryUtils.splitLines(text)) words.addAll(PoetryUtils.wordsInLine(l));
-        if (words.isEmpty()) return emptyLexical();
+        VocabularyAnalyzer analyzer = new VocabularyAnalyzer();
+        VocabularyAnalyzer.VocabularyAnalysis analysis = analyzer.analyze(text);
+        if (analysis.totalWords == 0) return emptyLexical();
         
-        Map<String, Integer> freq = new HashMap<>();
-        Map<String, Integer> pos = new HashMap<>();
-        Set<String> unique = new HashSet<>();
-        int totalLen = 0, poly = 0;
-        
-        for (String w : words) {
-            String lower = w.toLowerCase(Locale.ROOT);
-            unique.add(lower);
-            freq.merge(lower, 1, Integer::sum);
-            totalLen += w.length();
-            if (PoetryUtils.countSyllables(w) >= 3) poly++;
-            pos.merge(PoetryDictionary.getPOS(w), 1, Integer::sum);
-        }
-        
+        Map<String, Integer> freq = analysis.wordFrequencies;
+        Map<String, Integer> pos = analysis.posDistribution;
         List<String> top = freq.entrySet().stream()
             .filter(e -> !PoetryDictionary.isFunctionWord(e.getKey()))
             .sorted((a, b) -> b.getValue() - a.getValue())
-            .limit(10).map(Map.Entry::getKey).collect(Collectors.toList());
+            .limit(10)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
         
-        double ttr = (double) unique.size() / words.size();
-        double avgLen = (double) totalLen / words.size();
-        int sentences = (int) text.chars().filter(c -> c == '.' || c == '!' || c == '?').count();
-        int totalSyl = words.stream().mapToInt(PoetryUtils::countSyllables).sum();
-        double read = sentences > 0 ? 206.835 - (1.015 * words.size() / sentences) - (84.6 * totalSyl / words.size()) : 0;
-        
-        return new LexicalAnalysis(words.size(), unique.size(), ttr, avgLen, freq, pos, top, poly, read);
+        return new LexicalAnalysis(
+            analysis.totalWords,
+            analysis.uniqueWords,
+            analysis.typeTokenRatio,
+            analysis.avgWordLength,
+            freq,
+            pos,
+            top,
+            analysis.polysyllabicWords,
+            analysis.fleschReadingEase,
+            analysis.lexicalDensity,
+            analysis.avgSyllablesPerWord,
+            analysis.polysyllabicRatio,
+            analysis.mattr,
+            analysis.mtld,
+            analysis.yulesK,
+            analysis.simpsonsD,
+            analysis.gunningFog,
+            analysis.smogIndex,
+            analysis.colemanLiauIndex,
+            analysis.automatedReadabilityIndex,
+            analysis.lexicalSophistication
+        );
     }
     
     public static SentimentAnalysis analyzeSentiment(String text) {
@@ -630,6 +797,19 @@ public final class PoetryAnalyzer {
         return g;
     }
     
+    private static Map<String, List<Integer>> groupNearRhymes(List<String> lines) {
+        Map<String, List<Integer>> g = new LinkedHashMap<>();
+        for (int i = 0; i < lines.size(); i++) {
+            String end = PoetryUtils.endWord(lines.get(i));
+            if (end != null) {
+                String key = PoetryUtils.nearRhymeKey(end);
+                if (key != null) g.computeIfAbsent(key, k -> new ArrayList<>()).add(i + 1);
+            }
+        }
+        g.entrySet().removeIf(e -> e.getValue().size() < 2);
+        return g;
+    }
+    
     private static List<SoundDevice> detectAlliteration(List<String> lines) {
         List<SoundDevice> r = new ArrayList<>();
         for (int i = 0; i < lines.size(); i++) {
@@ -668,6 +848,24 @@ public final class PoetryAnalyzer {
             for (String w : PoetryUtils.wordsInLine(lines.get(i))) {
                 String end = getEndConsonants(w.toLowerCase());
                 if (!end.isEmpty()) m.computeIfAbsent(end, k -> new ArrayList<>()).add(w);
+            }
+            for (var e : m.entrySet()) if (e.getValue().size() >= 2)
+                r.add(new SoundDevice(i + 1, e.getKey(), e.getValue()));
+        }
+        return r;
+    }
+    
+    private static List<SoundDevice> detectInternalRhymes(List<String> lines) {
+        List<SoundDevice> r = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            Map<String, List<String>> m = new HashMap<>();
+            for (String w : PoetryUtils.wordsInLine(lines.get(i))) {
+                String lower = w.toLowerCase(Locale.ROOT);
+                if (PoetryDictionary.isFunctionWord(lower)) continue;
+                String key = PoetryUtils.rhymeKey(w);
+                if (key != null && key.length() >= 2) {
+                    m.computeIfAbsent(key, k -> new ArrayList<>()).add(w);
+                }
             }
             for (var e : m.entrySet()) if (e.getValue().size() >= 2)
                 r.add(new SoundDevice(i + 1, e.getKey(), e.getValue()));
@@ -775,13 +973,15 @@ public final class PoetryAnalyzer {
         return new ProsodicAnalysis("N/A", null, null, 0, 0, Collections.emptyList(), Collections.emptyMap());
     }
     private static PhoneticAnalysis emptyPhonetics() {
-        return new PhoneticAnalysis("", Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0);
+        return new PhoneticAnalysis("", Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0);
     }
     private static StructuralAnalysis emptyStructure() {
         return new StructuralAnalysis("Empty", 0, 0, Collections.emptyList(), Collections.emptyList(), false, null, 0, 0);
     }
     private static LexicalAnalysis emptyLexical() {
-        return new LexicalAnalysis(0, 0, 0, 0, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList(), 0, 0);
+        return new LexicalAnalysis(0, 0, 0, 0, Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyList(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
     private static SentimentAnalysis emptySentiment() {
         return new SentimentAnalysis("N/A", 0, 0, 0, 0, Collections.emptyList(), Collections.emptyList(), Collections.emptyMap());

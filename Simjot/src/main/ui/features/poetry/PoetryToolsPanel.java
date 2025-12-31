@@ -468,6 +468,21 @@ public class PoetryToolsPanel extends JPanel {
                             result.fleschReadingEase, getReadabilityLabel(result.fleschReadingEase)), defaultStyle);
                     doc.insertString(doc.getLength(), String.format("  Flesch-Kincaid Grade: %.1f\n\n",
                             result.fleschKincaidGrade), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  Gunning Fog: %.1f\n", result.gunningFog), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  SMOG: %.1f\n", result.smogIndex), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  Coleman-Liau: %.1f\n", result.colemanLiauIndex), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  ARI: %.1f\n\n", result.automatedReadabilityIndex), defaultStyle);
+                    
+                    doc.insertString(doc.getLength(), "Lexical Diversity\n", headerStyle);
+                    doc.insertString(doc.getLength(), String.format("  MATTR (50): %.3f\n", result.mattr), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  MTLD: %.1f\n", result.mtld), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  Yule's K: %.1f\n", result.yulesK), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  Simpson's D: %.3f\n\n", result.simpsonsD), defaultStyle);
+                    
+                    doc.insertString(doc.getLength(), "Lexical Sophistication\n", headerStyle);
+                    doc.insertString(doc.getLength(), String.format("  Avg Syllables/Word: %.2f\n", result.avgSyllablesPerWord), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  Polysyllabic Ratio: %.1f%%\n", result.polysyllabicRatio * 100), defaultStyle);
+                    doc.insertString(doc.getLength(), String.format("  Sophistication: %.1f%%\n\n", result.lexicalSophistication * 100), defaultStyle);
                     
                     // Keywords
                     if (!result.keywords.isEmpty()) {

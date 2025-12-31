@@ -447,6 +447,12 @@ public class PoetryAnalysisPanel extends JPanel {
             for (var e : ph.rhymeGroups.entrySet()) {
                 sb.append("Lines ").append(e.getValue()).append(" rhyme (").append(e.getKey()).append(")\n");
             }
+            if (!ph.nearRhymeGroups.isEmpty()) {
+                sb.append("\nNear Rhymes:\n");
+                for (var e : ph.nearRhymeGroups.entrySet()) {
+                    sb.append("Lines ").append(e.getValue()).append(" near-rhyme (").append(e.getKey()).append(")\n");
+                }
+            }
             groups.setText(sb.toString());
             rhymePanel.add(groups, BorderLayout.CENTER);
         }
@@ -460,6 +466,7 @@ public class PoetryAnalysisPanel extends JPanel {
         addSoundDeviceSection(soundPanel, "Alliteration", ph.alliterations);
         addSoundDeviceSection(soundPanel, "Assonance", ph.assonances);
         addSoundDeviceSection(soundPanel, "Consonance", ph.consonances);
+        addSoundDeviceSection(soundPanel, "Internal Rhymes", ph.internalRhymes);
         
         panel.add(createSectionPanel("Sound Devices", soundPanel));
         
@@ -563,11 +570,31 @@ public class PoetryAnalysisPanel extends JPanel {
         addLabelValue(statsPanel, "Total Words:", String.valueOf(l.totalWords));
         addLabelValue(statsPanel, "Unique Words:", String.valueOf(l.uniqueWords));
         addLabelValue(statsPanel, "Type-Token Ratio:", String.format("%.4f", l.typeTokenRatio));
+        addLabelValue(statsPanel, "Lexical Density:", String.format("%.1f%%", l.lexicalDensity * 100));
         addLabelValue(statsPanel, "Avg Word Length:", String.format("%.2f", l.avgWordLength));
+        addLabelValue(statsPanel, "Avg Syllables/Word:", String.format("%.2f", l.avgSyllablesPerWord));
         addLabelValue(statsPanel, "Polysyllabic Words:", String.valueOf(l.polysyllabic));
+        addLabelValue(statsPanel, "Polysyllabic Ratio:", String.format("%.1f%%", l.polysyllabicRatio * 100));
+        addLabelValue(statsPanel, "Lexical Sophistication:", String.format("%.1f%%", l.lexicalSophistication * 100));
         addLabelValue(statsPanel, "Readability Score:", String.format("%.1f", l.readability));
         
         panel.add(createSectionPanel("Vocabulary Statistics", statsPanel));
+        
+        JPanel diversityPanel = new JPanel(new GridLayout(0, 2, 10, 5));
+        diversityPanel.setOpaque(false);
+        addLabelValue(diversityPanel, "MATTR (50):", String.format("%.3f", l.mattr));
+        addLabelValue(diversityPanel, "MTLD:", String.format("%.1f", l.mtld));
+        addLabelValue(diversityPanel, "Yule's K:", String.format("%.1f", l.yulesK));
+        addLabelValue(diversityPanel, "Simpson's D:", String.format("%.3f", l.simpsonsD));
+        panel.add(createSectionPanel("Lexical Diversity", diversityPanel));
+        
+        JPanel readabilityPanel = new JPanel(new GridLayout(0, 2, 10, 5));
+        readabilityPanel.setOpaque(false);
+        addLabelValue(readabilityPanel, "Gunning Fog:", String.format("%.1f", l.gunningFog));
+        addLabelValue(readabilityPanel, "SMOG:", String.format("%.1f", l.smogIndex));
+        addLabelValue(readabilityPanel, "Coleman-Liau:", String.format("%.1f", l.colemanLiauIndex));
+        addLabelValue(readabilityPanel, "ARI:", String.format("%.1f", l.automatedReadabilityIndex));
+        panel.add(createSectionPanel("Readability Indices", readabilityPanel));
         
         // Top words
         if (!l.topWords.isEmpty()) {
