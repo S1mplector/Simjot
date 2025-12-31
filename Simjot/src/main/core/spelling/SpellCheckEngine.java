@@ -18,6 +18,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * SpellCheckEngine - A comprehensive spell checking and autocorrect engine.
  */
@@ -31,9 +33,14 @@ public class SpellCheckEngine {
     private final Map<String, Boolean> spellCheckCache = new ConcurrentHashMap<>();
     private final Map<String, List<String>> suggestionCache = new ConcurrentHashMap<>();
     private static final Pattern WORD_PATTERN = Pattern.compile("[a-zA-Z']+");
+    private final boolean useNativeDictionary;
     
     private SpellCheckEngine() {
-        loadDefaultDictionary();
+        useNativeDictionary = NativeAccess.dictionaryReady();
+        if (!useNativeDictionary) {
+            loadDefaultDictionary();
+        }
+        loadWordFrequencies();
         loadAutocorrectMappings();
     }
     
@@ -47,7 +54,9 @@ public class SpellCheckEngine {
         for (String word : WordDatabase.getCommonWords()) {
             dictionary.add(word.toLowerCase(Locale.ROOT).trim());
         }
-        // High frequency words for ranking
+    }
+
+    private void loadWordFrequencies() {
         String[] highFreq = {"the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with"};
         int freq = 10000;
         for (String w : highFreq) wordFrequency.put(w, freq--);
@@ -65,7 +74,7 @@ public class SpellCheckEngine {
         Boolean cached = spellCheckCache.get(lower);
         if (cached != null) return cached;
         
-        boolean correct = dictionary.contains(lower) || userDictionary.contains(lower);
+        boolean correct = isInAnyDictionary(lower);
         
         // Check word forms (possessives, plurals, verb forms)
         if (!correct) correct = checkWordForms(lower);
@@ -78,34 +87,34 @@ public class SpellCheckEngine {
         // Possessives
         if (lower.endsWith("'s") && lower.length() > 2) {
             String base = lower.substring(0, lower.length() - 2);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
+            if (isInAnyDictionary(base)) return true;
         }
         // Plurals
         if (lower.endsWith("s") && lower.length() > 2) {
             String base = lower.substring(0, lower.length() - 1);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
+            if (isInAnyDictionary(base)) return true;
         }
         if (lower.endsWith("es") && lower.length() > 3) {
             String base = lower.substring(0, lower.length() - 2);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
+            if (isInAnyDictionary(base)) return true;
         }
         // Past tense
         if (lower.endsWith("ed") && lower.length() > 3) {
             String base = lower.substring(0, lower.length() - 2);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
+            if (isInAnyDictionary(base)) return true;
             base = lower.substring(0, lower.length() - 1);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
+            if (isInAnyDictionary(base)) return true;
         }
         // Present participle
         if (lower.endsWith("ing") && lower.length() > 4) {
             String base = lower.substring(0, lower.length() - 3);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
-            if (dictionary.contains(base + "e") || userDictionary.contains(base + "e")) return true;
+            if (isInAnyDictionary(base)) return true;
+            if (isInAnyDictionary(base + "e")) return true;
         }
         // Adverbs
         if (lower.endsWith("ly") && lower.length() > 3) {
             String base = lower.substring(0, lower.length() - 2);
-            if (dictionary.contains(base) || userDictionary.contains(base)) return true;
+            if (isInAnyDictionary(base)) return true;
         }
         return false;
     }
@@ -178,19 +187,19 @@ public class SpellCheckEngine {
         // Deletions
         for (int i = 0; i < word.length(); i++) {
             String c = word.substring(0, i) + word.substring(i + 1);
-            if (dictionary.contains(c)) suggestions.add(c);
+            if (isInMainDictionary(c)) suggestions.add(c);
         }
         // Transpositions
         for (int i = 0; i < word.length() - 1; i++) {
             String c = word.substring(0, i) + word.charAt(i + 1) + word.charAt(i) + word.substring(i + 2);
-            if (dictionary.contains(c)) suggestions.add(c);
+            if (isInMainDictionary(c)) suggestions.add(c);
         }
         // Replacements
         for (int i = 0; i < word.length(); i++) {
             for (char ch = 'a'; ch <= 'z'; ch++) {
                 if (ch != word.charAt(i)) {
                     String c = word.substring(0, i) + ch + word.substring(i + 1);
-                    if (dictionary.contains(c)) suggestions.add(c);
+                    if (isInMainDictionary(c)) suggestions.add(c);
                 }
             }
         }
@@ -198,7 +207,7 @@ public class SpellCheckEngine {
         for (int i = 0; i <= word.length(); i++) {
             for (char ch = 'a'; ch <= 'z'; ch++) {
                 String c = word.substring(0, i) + ch + word.substring(i);
-                if (dictionary.contains(c)) suggestions.add(c);
+                if (isInMainDictionary(c)) suggestions.add(c);
             }
         }
     }
@@ -213,9 +222,23 @@ public class SpellCheckEngine {
         for (String w : ed1) {
             for (int i = 0; i < w.length(); i++) {
                 String c = w.substring(0, i) + w.substring(i + 1);
-                if (dictionary.contains(c)) suggestions.add(c);
+                if (isInMainDictionary(c)) suggestions.add(c);
             }
         }
+    }
+
+    private boolean isInMainDictionary(String word) {
+        if (word == null || word.isEmpty()) return false;
+        if (useNativeDictionary) {
+            return NativeAccess.dictionaryContains(word);
+        }
+        return dictionary.contains(word);
+    }
+
+    private boolean isInAnyDictionary(String word) {
+        if (word == null || word.isEmpty()) return false;
+        if (userDictionary.contains(word)) return true;
+        return isInMainDictionary(word);
     }
     
     private int levenshtein(String a, String b) {

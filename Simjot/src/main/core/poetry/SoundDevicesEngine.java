@@ -38,6 +38,8 @@ import java.util.regex.Pattern;
  * - Onomatopoeia detection
  * - Sound pattern clustering and scoring
  * - Visual highlighting data for UI
+ * 
+ * @author S1mplector
  */
 public class SoundDevicesEngine {
     
@@ -312,10 +314,6 @@ public class SoundDevicesEngine {
         }
     }
     
-    private boolean isContentWord(String word) {
-        return word != null && !PoetryDictionary.isFunctionWord(word);
-    }
-    
     /**
      * Detect alliteration (repeated initial consonant sounds).
      */
@@ -324,9 +322,7 @@ public class SoundDevicesEngine {
         Map<String, List<WordInfo>> soundGroups = new HashMap<>();
         
         for (WordInfo word : words) {
-            String lower = word.word.toLowerCase(Locale.ROOT);
-            if (!isContentWord(lower)) continue;
-            String sound = getInitialSound(lower);
+            String sound = getInitialSound(word.word.toLowerCase(Locale.ROOT));
             if (sound != null && !isVowelSound(sound)) {
                 soundGroups.computeIfAbsent(sound, k -> new ArrayList<>()).add(word);
             }
@@ -361,9 +357,7 @@ public class SoundDevicesEngine {
         Map<String, List<WordInfo>> soundGroups = new HashMap<>();
         
         for (WordInfo word : words) {
-            String lower = word.word.toLowerCase(Locale.ROOT);
-            if (!isContentWord(lower)) continue;
-            Set<String> vowelSounds = getVowelSounds(lower);
+            Set<String> vowelSounds = getVowelSounds(word.word.toLowerCase(Locale.ROOT));
             for (String sound : vowelSounds) {
                 soundGroups.computeIfAbsent(sound, k -> new ArrayList<>()).add(word);
             }
@@ -397,9 +391,7 @@ public class SoundDevicesEngine {
         Map<String, List<WordInfo>> soundGroups = new HashMap<>();
         
         for (WordInfo word : words) {
-            String lower = word.word.toLowerCase(Locale.ROOT);
-            if (!isContentWord(lower)) continue;
-            Set<String> consonantSounds = getConsonantSounds(lower);
+            Set<String> consonantSounds = getConsonantSounds(word.word.toLowerCase(Locale.ROOT));
             for (String sound : consonantSounds) {
                 soundGroups.computeIfAbsent(sound, k -> new ArrayList<>()).add(word);
             }
@@ -441,7 +433,6 @@ public class SoundDevicesEngine {
         
         for (WordInfo word : words) {
             String lower = word.word.toLowerCase(Locale.ROOT);
-            if (!isContentWord(lower)) continue;
             if (containsSibilant(lower)) {
                 sibilantWords.add(word);
             }
@@ -457,42 +448,6 @@ public class SoundDevicesEngine {
                     double strength = Math.min(1.0, cluster.size() / 4.0);
                     devices.add(new SoundDevice(SoundDevice.Type.SIBILANCE, matches,
                             "s/sh/z", lineNumber, strength));
-                }
-            }
-        }
-        
-        return devices;
-    }
-    
-    /**
-     * Detect internal rhymes (repeated end sounds within a line).
-     */
-    private List<SoundDevice> detectInternalRhymes(List<WordInfo> words, int lineNumber) {
-        List<SoundDevice> devices = new ArrayList<>();
-        Map<String, List<WordInfo>> rhymeGroups = new HashMap<>();
-        
-        for (WordInfo word : words) {
-            String lower = word.word.toLowerCase(Locale.ROOT);
-            if (!isContentWord(lower)) continue;
-            String key = PoetryUtils.rhymeKey(lower);
-            if (key != null && key.length() >= 2) {
-                rhymeGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(word);
-            }
-        }
-        
-        for (Map.Entry<String, List<WordInfo>> entry : rhymeGroups.entrySet()) {
-            List<WordInfo> group = entry.getValue();
-            if (group.size() < 2) continue;
-            
-            List<List<WordInfo>> clusters = clusterByProximity(group, 6);
-            for (List<WordInfo> cluster : clusters) {
-                if (cluster.size() >= 2) {
-                    List<WordMatch> matches = cluster.stream()
-                            .map(w -> new WordMatch(w.word, w.start, w.end, entry.getKey(), w.index))
-                            .toList();
-                    double strength = Math.min(1.0, cluster.size() / 3.0);
-                    devices.add(new SoundDevice(SoundDevice.Type.INTERNAL_RHYME, matches,
-                            entry.getKey(), lineNumber, strength));
                 }
             }
         }
