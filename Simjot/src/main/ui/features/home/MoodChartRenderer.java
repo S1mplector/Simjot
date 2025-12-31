@@ -12,13 +12,23 @@
 
 package main.ui.features.home;
 
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.Point;
 import java.awt.geom.Path2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+
 import javax.swing.JComponent;
+
+import main.infrastructure.ffi.NativeAccess;
 
 final class MoodChartRenderer {
     private static final int MARGIN = 60;
@@ -75,58 +85,65 @@ final class MoodChartRenderer {
         };
 
         int n = days.size();
-        if (settings.isShowFill()) {
-            LinearGradientPaint fillPaint = new LinearGradientPaint(
-                new Point(0, MARGIN), new Point(0, height - MARGIN),
-                new float[]{0f, 0.5f, 1f},
-                new Color[]{new Color(40,160,90,60), new Color(230,160,50,50), new Color(200,60,60,70)}
-            );
-            g2.setPaint(fillPaint);
-            int i = 0;
-            while (i < n) {
-                while (i < n && (yPtsDaily == null || yPtsDaily[i] == Integer.MIN_VALUE)) i++;
-                if (i >= n) break;
-                Path2D p = new Path2D.Double();
-                int start = i;
-                p.moveTo(xPts[i], yPtsDaily[i]);
-                i++;
-                while (i < n && yPtsDaily[i] != Integer.MIN_VALUE) { p.lineTo(xPts[i], yPtsDaily[i]); i++; }
-                int end = i-1;
-                p.lineTo(xPts[end], height - MARGIN);
-                p.lineTo(xPts[start], height - MARGIN);
-                p.closePath();
-                g2.fill(p);
+        
+        // Try native chart rendering first
+        boolean usedNative = tryPaintNativeChart(g2, values, w, h, MARGIN, height);
+        
+        if (!usedNative) {
+            // Java fallback: fill area and draw lines
+            if (settings.isShowFill()) {
+                LinearGradientPaint fillPaint = new LinearGradientPaint(
+                    new Point(0, MARGIN), new Point(0, height - MARGIN),
+                    new float[]{0f, 0.5f, 1f},
+                    new Color[]{new Color(40,160,90,60), new Color(230,160,50,50), new Color(200,60,60,70)}
+                );
+                g2.setPaint(fillPaint);
+                int i = 0;
+                while (i < n) {
+                    while (i < n && (yPtsDaily == null || yPtsDaily[i] == Integer.MIN_VALUE)) i++;
+                    if (i >= n) break;
+                    Path2D p = new Path2D.Double();
+                    int start = i;
+                    p.moveTo(xPts[i], yPtsDaily[i]);
+                    i++;
+                    while (i < n && yPtsDaily[i] != Integer.MIN_VALUE) { p.lineTo(xPts[i], yPtsDaily[i]); i++; }
+                    int end = i-1;
+                    p.lineTo(xPts[end], height - MARGIN);
+                    p.lineTo(xPts[start], height - MARGIN);
+                    p.closePath();
+                    g2.fill(p);
+                }
+            }
+
+            Integer lastX = null, lastY = null;
+            for (int i = 0; i < n; i++) {
+                if (yPtsDaily != null && yPtsDaily[i] != Integer.MIN_VALUE) {
+                    int x = xPts[i];
+                    int y = yPtsDaily[i];
+                    if (lastX != null && lastY != null) {
+                        g2.setColor(new Color(0,120,215));
+                        g2.setStroke(new BasicStroke(2f));
+                        g2.drawLine(lastX, lastY, x, y);
+                    }
+                    Double v = values.get(i);
+                    g2.setColor(colorFor.apply(v));
+                    g2.fillOval(x-3,y-3,6,6);
+                    lastX = x; lastY = y;
+                } else { lastX = null; lastY = null; }
             }
         }
 
-        Integer lastX = null, lastY = null;
-        for (int i = 0; i < n; i++) {
-            if (yPtsDaily != null && yPtsDaily[i] != Integer.MIN_VALUE) {
-                int x = xPts[i];
-                int y = yPtsDaily[i];
-                if (lastX != null && lastY != null) {
-                    g2.setColor(new Color(0,120,215));
-                    g2.setStroke(new BasicStroke(2f));
-                    g2.drawLine(lastX, lastY, x, y);
-                }
-                Double v = values.get(i);
-                g2.setColor(colorFor.apply(v));
-                g2.fillOval(x-3,y-3,6,6);
-                lastX = x; lastY = y;
-            } else { lastX = null; lastY = null; }
-        }
-
         if (settings.isShowTrend() && yPtsTrend != null) {
-            lastX = null; lastY = null;
+            Integer trendLastX = null, trendLastY = null;
             g2.setColor(new Color(100,60,180));
             g2.setStroke(new BasicStroke(1.5f));
             for (int i = 0; i < n; i++) {
                 if (yPtsTrend[i] != Integer.MIN_VALUE) {
                     int x = xPts[i];
                     int y = yPtsTrend[i];
-                    if (lastX != null && lastY != null) g2.drawLine(lastX, lastY, x, y);
-                    lastX = x; lastY = y;
-                } else { lastX = null; lastY = null; }
+                    if (trendLastX != null && trendLastY != null) g2.drawLine(trendLastX, trendLastY, x, y);
+                    trendLastX = x; trendLastY = y;
+                } else { trendLastX = null; trendLastY = null; }
             }
         }
 
@@ -210,5 +227,64 @@ final class MoodChartRenderer {
             else yPtsTrend[i] = height - MARGIN - (int)((sum/cnt) / 100.0 * h);
         }
         cacheDirty = false;
+    }
+
+    /**
+     * Try to paint chart content using native C graphics library.
+     * @return true if native rendering was used, false to fall back to Java
+     */
+    private boolean tryPaintNativeChart(Graphics2D g2, List<Double> values, int chartW, int chartH, int margin, int totalHeight) {
+        // Native chart rendering disabled - Java rendering provides better integration
+        // with interactive features (hover, tooltips, fill gradients)
+        // Native methods (tryNativeSparkline, tryNativeBarChart, tryNativeHeatmap) are
+        // available for use in other contexts like thumbnails or exports
+        return false;
+    }
+
+    /**
+     * Try to render sparkline using native C graphics library.
+     * @return BufferedImage with chart or null if native unavailable
+     */
+    BufferedImage tryNativeSparkline(List<Double> values, int chartWidth, int chartHeight, int bgColor) {
+        if (values == null || values.isEmpty()) return null;
+        
+        // Convert values to int array, replacing nulls with -1
+        int[] intValues = new int[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            Double v = values.get(i);
+            intValues[i] = (v == null) ? -1 : (int) Math.round(v);
+        }
+        
+        return NativeAccess.moodSparkline(intValues, chartWidth, chartHeight, bgColor, 2);
+    }
+
+    /**
+     * Try to render bar chart using native C graphics library.
+     */
+    BufferedImage tryNativeBarChart(List<Double> values, int chartWidth, int chartHeight, int bgColor) {
+        if (values == null || values.isEmpty()) return null;
+        
+        int[] intValues = new int[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            Double v = values.get(i);
+            intValues[i] = (v == null) ? -1 : (int) Math.round(v);
+        }
+        
+        return NativeAccess.moodBarChart(intValues, chartWidth, chartHeight, bgColor, 2);
+    }
+
+    /**
+     * Try to render heatmap using native C graphics library.
+     */
+    BufferedImage tryNativeHeatmap(List<Double> values, int cols, int cellSize, int bgColor, int emptyColor) {
+        if (values == null || values.isEmpty()) return null;
+        
+        int[] intValues = new int[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            Double v = values.get(i);
+            intValues[i] = (v == null) ? -1 : (int) Math.round(v);
+        }
+        
+        return NativeAccess.moodHeatmap(intValues, cols, cellSize, 2, bgColor, emptyColor);
     }
 }

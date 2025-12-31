@@ -232,6 +232,34 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle levenshteinHandle;
     private final MethodHandle damerauLevenshteinHandle;
     
+    // Additional text utility handles
+    private final MethodHandle textSyllableCountHandle;
+    private final MethodHandle textAnalyzeHandle;
+    private final MethodHandle textIsAsciiHandle;
+    private final MethodHandle textIsAlnumHandle;
+    private final MethodHandle textIsSafeFilenameHandle;
+    private final MethodHandle parseIntHandle;
+    private final MethodHandle parseBoolHandle;
+    
+    // Math utility handles
+    private final MethodHandle mathMeanHandle;
+    private final MethodHandle mathVarianceHandle;
+    private final MethodHandle mathStddevHandle;
+    private final MethodHandle mathMinHandle;
+    private final MethodHandle mathMaxHandle;
+    private final MethodHandle mathSumHandle;
+    private final MethodHandle mathClampIntHandle;
+    private final MethodHandle mathStatsHandle;
+    
+    // File utility handles
+    private final MethodHandle fileSizeHandle;
+    private final MethodHandle fileMtimeHandle;
+    private final MethodHandle fileExistsHandle;
+    private final MethodHandle fileIsFileHandle;
+    private final MethodHandle fileIsDirHandle;
+    private final MethodHandle diskAvailableHandle;
+    private final MethodHandle dirCountHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();

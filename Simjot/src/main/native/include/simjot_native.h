@@ -588,6 +588,112 @@ int32_t simjot_damerau_levenshtein(const char* a, const char* b);
 int32_t simjot_levenshtein_batch(const char* word, const char* candidates, int32_t candidates_len,
                                   int32_t* distances, int32_t max_results);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * TEXT UTILITIES
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* String sanitization */
+char* simjot_text_sanitize(const char* input);
+char* simjot_text_collapse_whitespace(const char* input);
+char* simjot_text_strip_html(const char* input);
+char* simjot_text_to_lower(const char* input);
+char* simjot_text_to_upper(const char* input);
+char* simjot_text_title_case(const char* input);
+
+/* Text statistics */
+int32_t simjot_text_word_count(const char* text);
+int32_t simjot_text_char_count(const char* text);
+int32_t simjot_text_line_count(const char* text);
+int32_t simjot_text_sentence_count(const char* text);
+int32_t simjot_text_syllable_count(const char* word);
+int32_t simjot_text_analyze(const char* text, int32_t* out_stats, int32_t stats_count);
+
+/* Text validation */
+int32_t simjot_text_is_ascii(const char* text);
+int32_t simjot_text_is_alnum(const char* text);
+int32_t simjot_text_is_identifier(const char* text);
+int32_t simjot_text_is_email(const char* text);
+int32_t simjot_text_is_safe_filename(const char* text);
+
+/* Parsing */
+int32_t simjot_parse_int(const char* text, int32_t default_val);
+double simjot_parse_double(const char* text, double default_val);
+int32_t simjot_parse_bool(const char* text, int32_t default_val);
+
+/* String extraction */
+char* simjot_text_first_words(const char* text, int32_t count);
+char* simjot_text_first_line(const char* text);
+char* simjot_text_ellipsis(const char* text, int32_t max_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MATH UTILITIES
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Basic statistics */
+double simjot_math_mean(const double* values, int32_t count);
+double simjot_math_mean_int(const int32_t* values, int32_t count);
+double simjot_math_variance(const double* values, int32_t count);
+double simjot_math_stddev(const double* values, int32_t count);
+double simjot_math_min(const double* values, int32_t count);
+double simjot_math_max(const double* values, int32_t count);
+double simjot_math_sum(const double* values, int32_t count);
+double simjot_math_median(double* values, int32_t count);
+double simjot_math_percentile(double* values, int32_t count, double percentile);
+
+/* Moving averages */
+int32_t simjot_math_sma(const double* values, int32_t count, int32_t window, double* out);
+int32_t simjot_math_ema(const double* values, int32_t count, double alpha, double* out);
+
+/* Correlation & regression */
+double simjot_math_correlation(const double* x, const double* y, int32_t count);
+double simjot_math_linear_regression(const double* x, const double* y, int32_t count,
+                                      double* out_slope, double* out_intercept);
+
+/* Clamping & normalization */
+int32_t simjot_math_clamp_int(int32_t value, int32_t min, int32_t max);
+double simjot_math_clamp(double value, double min, double max);
+double simjot_math_lerp(double a, double b, double t);
+double simjot_math_inverse_lerp(double a, double b, double value);
+int32_t simjot_math_normalize(const double* values, int32_t count, double* out);
+
+/* Comprehensive stats */
+int32_t simjot_math_stats(const double* values, int32_t count, double* out, int32_t out_count);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FILE UTILITIES
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* File information */
+int64_t simjot_file_size(const char* path);
+int64_t simjot_file_mtime(const char* path);
+int32_t simjot_file_exists(const char* path);
+int32_t simjot_file_is_file(const char* path);
+int32_t simjot_file_is_dir(const char* path);
+int32_t simjot_file_is_readable(const char* path);
+int32_t simjot_file_is_writable(const char* path);
+
+/* Disk space */
+int64_t simjot_disk_available(const char* path);
+int64_t simjot_disk_total(const char* path);
+
+/* File operations */
+char* simjot_file_read(const char* path, int64_t* out_size);
+char* simjot_file_read_text(const char* path);
+int32_t simjot_file_write_atomic(const char* path, const char* data, int64_t size);
+int32_t simjot_file_copy(const char* src, const char* dst);
+int32_t simjot_file_delete(const char* path);
+int32_t simjot_mkdir_p(const char* path);
+
+/* Directory listing */
+int32_t simjot_dir_count(const char* path, const char* extension);
+int32_t simjot_dir_list(const char* path, const char* extension, char* out_names, int32_t out_size);
+
+/* Path utilities */
+const char* simjot_path_basename(const char* path);
+const char* simjot_path_extension(const char* path);
+char* simjot_path_dirname(const char* path);
+char* simjot_path_join(const char* dir, const char* name);
+
 #ifdef __cplusplus
 }
 #endif
