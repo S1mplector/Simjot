@@ -18,6 +18,8 @@ import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * Minimal local memory store.
  * - facts: user preferences or recurring statements (manual/API-fed later)

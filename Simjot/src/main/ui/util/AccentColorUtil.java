@@ -30,6 +30,8 @@ import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
+import main.infrastructure.ffi.NativeAccess;
+
 public final class AccentColorUtil {
     private AccentColorUtil() {}
 

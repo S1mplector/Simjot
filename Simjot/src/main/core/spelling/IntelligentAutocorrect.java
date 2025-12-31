@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * IntelligentAutocorrect - Context-aware autocorrection engine.
  * 

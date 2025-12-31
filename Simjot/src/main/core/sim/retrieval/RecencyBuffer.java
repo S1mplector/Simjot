@@ -18,6 +18,8 @@ import java.util.Iterator;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * Thread-safe buffer of recent snippets with timestamps for lightweight recency-aware context.
  */
