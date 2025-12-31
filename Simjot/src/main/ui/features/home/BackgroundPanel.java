@@ -164,7 +164,21 @@ public class BackgroundPanel extends JPanel {
 		// Ensure background tasks are stopped so the JVM can exit cleanly
 		try { if (resizeDebounce != null) { resizeDebounce.stop(); resizeDebounce = null; } } catch (Throwable ignored) {}
 		try { if (currentWorker != null) { currentWorker.cancel(true); currentWorker = null; } } catch (Throwable ignored) {}
+		// Dispose cached images to free memory
+		disposeImages();
 		super.removeNotify();
+	}
+	
+	/**
+	 * Dispose cached images to free memory.
+	 */
+	public void disposeImages() {
+		if (cachedScaled != null) {
+			cachedScaled.flush();
+			cachedScaled = null;
+		}
+		cachedPanelW = cachedPanelH = -1;
+		cachedOpacity = -1f;
 	}
 	
 	// Recompute the cached scaled image off-EDT

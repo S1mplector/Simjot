@@ -15,12 +15,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,11 +42,26 @@ import main.infrastructure.io.ResourceLoader;
 public final class PoetryDictionary {
     private PoetryDictionary() {}
     
-    private static volatile boolean loaded = false;
-    private static final Map<String, WordEntry> dictionary = new ConcurrentHashMap<>();
+    // LRU cache limits - avoid loading entire dictionary into memory
+    private static final int MAX_WORD_CACHE = 512;
+    private static final int MAX_STRESS_CACHE = 256;
     
-    // Cache for computed stress patterns
-    private static final Map<String, int[]> stressCache = new ConcurrentHashMap<>();
+    // Small LRU cache for word entries (only used when native unavailable)
+    private static final Map<String, WordEntry> dictionary = new LinkedHashMap<>(128, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, WordEntry> eldest) {
+            return size() > MAX_WORD_CACHE;
+        }
+    };
+    
+    // LRU cache for computed stress patterns
+    private static final Map<String, int[]> stressCache = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, int[]> eldest) {
+            return size() > MAX_STRESS_CACHE;
+        }
+    };
+    
+    // Track which letter files have been loaded (lazy loading)
+    private static final boolean[] letterLoaded = new boolean[26];
     
     /**
      * Word entry from dictionary.
@@ -112,30 +127,25 @@ public final class PoetryDictionary {
     }
     
     /**
-     * Ensure dictionary is loaded.
+     * Lazy-load only the letter file needed for a word (Java fallback only).
      */
-    public static void ensureLoaded() {
-        if (loaded) return;
+    private static void ensureLetterLoaded(char letter) {
+        // Native dictionary handles everything - skip Java loading
+        if (NativeAccess.dictionaryReady()) return;
+        
+        int idx = Character.toLowerCase(letter) - 'a';
+        if (idx < 0 || idx >= 26 || letterLoaded[idx]) return;
+        
         synchronized (PoetryDictionary.class) {
-            if (loaded) return;
-            loadDictionary();
-            loaded = true;
-        }
-    }
-    
-    /**
-     * Load dictionary from resources.
-     */
-    private static void loadDictionary() {
-        for (char c = 'a'; c <= 'z'; c++) {
-            String path = "simple-english-dictionary/data/" + c + ".json";
+            if (letterLoaded[idx]) return;
+            String path = "simple-english-dictionary/data/" + Character.toLowerCase(letter) + ".json";
             try (InputStream in = ResourceLoader.getResourceAsStream(path)) {
-                if (in == null) continue;
-                String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                parseJsonChunk(json);
-            } catch (Throwable ignored) {
-                // Fail-safe: skip malformed file
-            }
+                if (in != null) {
+                    String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                    parseJsonChunk(json);
+                }
+            } catch (Throwable ignored) {}
+            letterLoaded[idx] = true;
         }
     }
     
@@ -305,6 +315,7 @@ public final class PoetryDictionary {
         String key = word.toLowerCase(Locale.ROOT);
         WordEntry cached = dictionary.get(key);
         if (cached != null) return cached;
+        // Try native dictionary first (preferred - no memory overhead)
         if (NativeAccess.dictionaryReady()) {
             NativeAccess.NativeDictionaryEntry nativeEntry = NativeAccess.dictionaryLookup(word);
             if (nativeEntry == null) return null;
@@ -313,7 +324,8 @@ public final class PoetryDictionary {
             dictionary.put(key, entry);
             return entry;
         }
-        ensureLoaded();
+        // Fallback: lazy-load only the letter file needed
+        if (!key.isEmpty()) ensureLetterLoaded(key.charAt(0));
         return dictionary.get(key);
     }
     
@@ -324,10 +336,12 @@ public final class PoetryDictionary {
         if (word == null) return false;
         String key = word.toLowerCase(Locale.ROOT);
         if (dictionary.containsKey(key)) return true;
+        // Try native dictionary first (preferred)
         if (NativeAccess.dictionaryReady()) {
             return NativeAccess.dictionaryContains(word);
         }
-        ensureLoaded();
+        // Fallback: lazy-load only the letter file needed
+        if (!key.isEmpty()) ensureLetterLoaded(key.charAt(0));
         return dictionary.containsKey(key);
     }
     
@@ -523,9 +537,11 @@ public final class PoetryDictionary {
     
     /**
      * Get all words in the dictionary.
+     * Note: Returns only cached words to avoid loading entire dictionary into memory.
+     * Use native dictionary for full word list when available.
      */
     public static Set<String> getAllWords() {
-        ensureLoaded();
+        // Return only currently cached words - don't load entire dictionary
         return Collections.unmodifiableSet(dictionary.keySet());
     }
     
@@ -535,7 +551,7 @@ public final class PoetryDictionary {
     public static int size() {
         Integer nativeSize = NativeAccess.dictionarySize();
         if (nativeSize != null && nativeSize > 0) return nativeSize;
-        ensureLoaded();
+        // Return cached count only - don't load entire dictionary!
         return dictionary.size();
     }
 }

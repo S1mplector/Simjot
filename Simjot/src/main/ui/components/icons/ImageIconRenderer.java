@@ -25,10 +25,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.SoftReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -51,9 +52,35 @@ public final class ImageIconRenderer {
         @Override public int hashCode(){ int h = path.hashCode()*31 + size*3 + (shadow?1:0); return h*31 + tint; }
     }
 
-    private static final Map<Key, BufferedImage> CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, BufferedImage> SOURCE_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, String> ID_TO_PATH_CACHE = new ConcurrentHashMap<>();
+    // LRU cache limits to prevent unbounded memory growth
+    private static final int MAX_SCALED_CACHE = 256;
+    private static final int MAX_SOURCE_CACHE = 64;
+    private static final int MAX_ID_CACHE = 512;
+
+    // LRU cache for scaled icons (path+size+shadow -> image)
+    private static final Map<Key, BufferedImage> CACHE = new LinkedHashMap<>(128, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<Key, BufferedImage> eldest) {
+            if (size() > MAX_SCALED_CACHE) {
+                eldest.getValue().flush(); // Release native resources
+                return true;
+            }
+            return false;
+        }
+    };
+
+    // SoftReference cache for source images - GC can reclaim under memory pressure
+    private static final Map<String, SoftReference<BufferedImage>> SOURCE_CACHE = new LinkedHashMap<>(32, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, SoftReference<BufferedImage>> eldest) {
+            return size() > MAX_SOURCE_CACHE;
+        }
+    };
+
+    // Simple LRU for ID->path mappings (strings only, low memory)
+    private static final Map<String, String> ID_TO_PATH_CACHE = new LinkedHashMap<>(128, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > MAX_ID_CACHE;
+        }
+    };
     private static final String ID_CACHE_MISS = "__missing__";
     private static final String CUSTOM_PNG_DIR = "img/icons/original/";
     private static final String STREAMLINE_SVG_DIR = "img/icons/streamline-ultimate-light---free--24x24-SVG/";
@@ -239,8 +266,11 @@ public final class ImageIconRenderer {
     }
 
     private static BufferedImage loadRasterImage(String path){
-        BufferedImage cached = SOURCE_CACHE.get(path);
-        if (cached != null) return cached;
+        SoftReference<BufferedImage> ref = SOURCE_CACHE.get(path);
+        if (ref != null) {
+            BufferedImage cached = ref.get();
+            if (cached != null) return cached;
+        }
         Image imgRaw = ResourceLoader.createImage("Simjot/" + path);
         if (imgRaw == null) return null;
 
@@ -256,7 +286,7 @@ public final class ImageIconRenderer {
         gsrc.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
         gsrc.drawImage(imgRaw, 0, 0, null);
         gsrc.dispose();
-        SOURCE_CACHE.put(path, src);
+        SOURCE_CACHE.put(path, new SoftReference<>(src));
         return src;
     }
 

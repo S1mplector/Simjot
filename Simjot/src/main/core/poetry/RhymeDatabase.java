@@ -28,47 +28,59 @@ import main.infrastructure.io.ResourceLoader;
 public final class RhymeDatabase {
     private RhymeDatabase() {}
     
+    // Static rhyme/synonym groups (small, fixed data - ~10KB total)
     private static Map<String, List<String>> rhymeGroups;
     private static Map<String, List<String>> synonymGroups;
+    
+    // Java fallback dictionary - only loaded when native unavailable
+    // This is expensive (~20MB+) so avoid loading when possible
     private static Map<String, List<String>> dictRhymesByKey;
     private static boolean dictionaryLoaded = false;
+    private static boolean nativeAvailable = false;
+    private static boolean nativeChecked = false;
+    
+    private static boolean isNativeAvailable() {
+        if (!nativeChecked) {
+            nativeChecked = true;
+            nativeAvailable = NativeAccess.dictionaryReady();
+        }
+        return nativeAvailable;
+    }
     
     public static List<String> getRhymesFor(String word) {
         if (word == null) return Collections.emptyList();
         
-        // Try native rhyme engine first (fastest)
+        // Try native rhyme engine first (fastest, no memory overhead)
         List<String> nativeRhymes = NativeAccess.rhymeFind(word, 20);
         if (nativeRhymes != null && !nativeRhymes.isEmpty()) {
             return nativeRhymes.size() > 10 ? nativeRhymes.subList(0, 10) : nativeRhymes;
         }
         
+        // Try native dictionary rhymes
+        List<String> dictRhymes = NativeAccess.dictionaryRhymes(word, 64);
+        if (dictRhymes != null && !dictRhymes.isEmpty()) {
+            List<String> filtered = new ArrayList<>();
+            for (String w : dictRhymes) {
+                if (!w.equalsIgnoreCase(word)) filtered.add(w);
+            }
+            return filtered.size() > 10 ? filtered.subList(0, 10) : filtered;
+        }
+        
+        // If native is available but returned nothing, use built-in rhyme groups only
+        // Avoid loading expensive Java dictionary
+        if (isNativeAvailable()) {
+            return getBuiltInRhymes(word);
+        }
+        
+        // Fallback: use built-in groups + Java dictionary (expensive)
         String key = PoetryUtils.rhymeKey(word);
         if (key == null) return Collections.emptyList();
         
-        initRhymes();
-        List<String> result = new ArrayList<>();
+        List<String> result = getBuiltInRhymes(word);
         
-        // Check all rhyme groups for matches
-        for (Map.Entry<String, List<String>> e : rhymeGroups.entrySet()) {
-            if (key.endsWith(e.getKey()) || e.getKey().endsWith(key)) {
-                for (String w : e.getValue()) {
-                    if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
-                        result.add(w);
-                    }
-                }
-            }
-        }
-        
-        // Augment with dictionary-based rhymes (native when available, Java fallback otherwise)
-        List<String> dict = NativeAccess.dictionaryRhymes(word, 64);
-        if (dict != null) {
-            for (String w : dict) {
-                if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
-                    result.add(w);
-                }
-            }
-        } else {
-            ensureDictionaryLoaded();
+        // Only load Java dictionary if native is truly unavailable
+        ensureDictionaryLoaded();
+        if (dictRhymesByKey != null) {
             List<String> fallback = dictRhymesByKey.get(key);
             if (fallback != null) {
                 for (String w : fallback) {
@@ -79,6 +91,25 @@ public final class RhymeDatabase {
             }
         }
         return result.size() > 10 ? result.subList(0, 10) : result;
+    }
+    
+    private static List<String> getBuiltInRhymes(String word) {
+        String key = PoetryUtils.rhymeKey(word);
+        if (key == null) return new ArrayList<>();
+        
+        initRhymes();
+        List<String> result = new ArrayList<>();
+        
+        for (Map.Entry<String, List<String>> e : rhymeGroups.entrySet()) {
+            if (key.endsWith(e.getKey()) || e.getKey().endsWith(key)) {
+                for (String w : e.getValue()) {
+                    if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
+                        result.add(w);
+                    }
+                }
+            }
+        }
+        return result;
     }
     
     public static List<String> getSynonymsFor(String word) {
@@ -201,6 +232,13 @@ public final class RhymeDatabase {
 
     private static synchronized void ensureDictionaryLoaded() {
         if (dictionaryLoaded) return;
+        
+        // Skip Java dictionary loading if native is available
+        if (isNativeAvailable()) {
+            dictionaryLoaded = true;
+            return;
+        }
+        
         dictRhymesByKey = new HashMap<>();
 
         // Load lightweight word list from the simple dictionary JSON files (a.json ... z.json)

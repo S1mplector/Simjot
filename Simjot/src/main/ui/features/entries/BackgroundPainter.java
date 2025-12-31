@@ -12,10 +12,17 @@
 
 package main.ui.features.entries;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
+
 import main.infrastructure.io.ResourceLoader;
 
 /**
@@ -105,5 +112,20 @@ public class BackgroundPainter {
         g.setColor(Color.WHITE);
         g.fillRect(0, 0, comp.getWidth(), comp.getHeight());
         
+    }
+    
+    /**
+     * Dispose cached images to free memory.
+     * Call this when the component using this painter is hidden or disposed.
+     */
+    public void dispose() {
+        if (cachedScaled != null) {
+            cachedScaled.flush();
+            cachedScaled = null;
+        }
+        backgroundImage = null;
+        cachedPanelW = cachedPanelH = -1;
+        cachedOpacity = -1f;
+        cachedBgPath = null;
     }
 }
