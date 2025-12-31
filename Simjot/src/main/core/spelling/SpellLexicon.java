@@ -2,11 +2,11 @@ package main.core.spelling;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import main.infrastructure.ffi.NativeAccess;
 
@@ -19,7 +19,13 @@ import main.infrastructure.ffi.NativeAccess;
 final class SpellLexicon {
     private SpellLexicon() {}
 
-    private static final Map<String, Boolean> membershipCache = new ConcurrentHashMap<>();
+    private static final int MEMBERSHIP_CACHE_SIZE = 4096;
+    private static final Map<String, Boolean> membershipCache = Collections.synchronizedMap(
+        new LinkedHashMap<>(512, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, Boolean> e) {
+                return size() > MEMBERSHIP_CACHE_SIZE;
+            }
+        });
     private static final Set<String> FUNCTION_WORDS = Set.of(
             "a","an","and","are","as","at","be","but","by","for","if","in","into","is","it",
             "no","not","of","on","or","such","that","the","their","then","there","these",

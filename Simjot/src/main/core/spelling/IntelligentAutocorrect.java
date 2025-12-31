@@ -15,6 +15,8 @@ package main.core.spelling;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,10 +41,35 @@ public class IntelligentAutocorrect {
     
     private static IntelligentAutocorrect instance;
     
+    // Static corrections from database (fixed size, unbounded OK)
     private final Map<String, String> corrections = new ConcurrentHashMap<>();
-    private final Map<String, String> userCorrections = new ConcurrentHashMap<>();
-    private final Map<String, Integer> userWordFrequency = new ConcurrentHashMap<>();
-    private final Set<String> ignoredWords = ConcurrentHashMap.newKeySet();
+    
+    // User-driven caches - bounded to prevent memory growth
+    private static final int USER_CACHE_SIZE = 1024;
+    private static final int IGNORED_WORDS_SIZE = 512;
+    
+    private final Map<String, String> userCorrections = Collections.synchronizedMap(
+        new LinkedHashMap<>(128, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, String> e) {
+                return size() > USER_CACHE_SIZE;
+            }
+        });
+    private final Map<String, Integer> userWordFrequency = Collections.synchronizedMap(
+        new LinkedHashMap<>(128, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, Integer> e) {
+                return size() > USER_CACHE_SIZE;
+            }
+        });
+    private final Set<String> ignoredWords = Collections.synchronizedSet(
+        new LinkedHashSet<>() {
+            @Override public boolean add(String e) {
+                if (size() >= IGNORED_WORDS_SIZE) {
+                    var it = iterator();
+                    if (it.hasNext()) { it.next(); it.remove(); }
+                }
+                return super.add(e);
+            }
+        });
     private final SpellCheckEngine spellChecker;
     
     // Keyboard layout for adjacent key detection

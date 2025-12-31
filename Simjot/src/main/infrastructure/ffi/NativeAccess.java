@@ -28,7 +28,9 @@ import main.infrastructure.io.IoLog;
 import main.infrastructure.io.ResourceLoader;
 
 /**
- * Lazily loads the native library and provides safe fallbacks.
+ * Lazily loads the native library and provides fallbacks, even if not ideal.
+ * 
+ * Meant to be 
  * 
  * @author S1mplector
  */

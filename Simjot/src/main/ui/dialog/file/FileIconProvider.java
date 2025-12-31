@@ -20,9 +20,10 @@ import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -46,9 +47,22 @@ public final class FileIconProvider {
     
     private static final FileSystemView FILE_SYSTEM_VIEW = FileSystemView.getFileSystemView();
     
-    // Icon cache for performance
-    private static final Map<String, Icon> EXTENSION_ICON_CACHE = new ConcurrentHashMap<>();
-    private static final Map<File, Icon> FILE_ICON_CACHE = new ConcurrentHashMap<>();
+    // LRU-bounded icon caches for memory efficiency
+    private static final int EXTENSION_CACHE_SIZE = 128;
+    private static final int FILE_CACHE_SIZE = 256;
+    
+    private static final Map<String, Icon> EXTENSION_ICON_CACHE = Collections.synchronizedMap(
+        new LinkedHashMap<>(64, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, Icon> e) {
+                return size() > EXTENSION_CACHE_SIZE;
+            }
+        });
+    private static final Map<File, Icon> FILE_ICON_CACHE = Collections.synchronizedMap(
+        new LinkedHashMap<>(128, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<File, Icon> e) {
+                return size() > FILE_CACHE_SIZE;
+            }
+        });
     
     // Standard icon sizes
     public static final int SMALL_ICON_SIZE = 16;

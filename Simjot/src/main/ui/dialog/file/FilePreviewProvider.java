@@ -23,9 +23,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -58,9 +60,14 @@ public final class FilePreviewProvider {
     private static final int TEXT_PREVIEW_LINES = 10;
     private static final int TEXT_PREVIEW_MAX_CHARS = 500;
     
-    // Cache for generated thumbnails
-    private static final ConcurrentHashMap<String, ImageIcon> THUMBNAIL_CACHE = new ConcurrentHashMap<>();
+    // LRU-bounded cache for generated thumbnails
     private static final int MAX_CACHE_SIZE = 100;
+    private static final Map<String, ImageIcon> THUMBNAIL_CACHE = Collections.synchronizedMap(
+        new LinkedHashMap<>(64, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, ImageIcon> e) {
+                return size() > MAX_CACHE_SIZE;
+            }
+        });
     
     // Background executor for preview generation
     private static final ExecutorService previewExecutor = Executors.newFixedThreadPool(2);
@@ -207,10 +214,8 @@ public final class FilePreviewProvider {
             BufferedImage thumbnail = createThumbnail(original, size);
             ImageIcon icon = new ImageIcon(thumbnail);
             
-            // Add to cache (with size limit)
-            if (THUMBNAIL_CACHE.size() < MAX_CACHE_SIZE) {
-                THUMBNAIL_CACHE.put(cacheKey, icon);
-            }
+            // Add to LRU cache (automatic eviction)
+            THUMBNAIL_CACHE.put(cacheKey, icon);
             
             return icon;
         } catch (IOException e) {

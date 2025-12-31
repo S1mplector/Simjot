@@ -15,6 +15,7 @@ package main.core.spelling;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -38,8 +39,24 @@ public class SpellCheckEngine {
     private final Set<String> userDictionary = ConcurrentHashMap.newKeySet();
     private final Map<String, String> autocorrectMap = new ConcurrentHashMap<>();
     private final Map<String, Integer> wordFrequency = new ConcurrentHashMap<>();
-    private final Map<String, Boolean> spellCheckCache = new ConcurrentHashMap<>();
-    private final Map<String, List<String>> suggestionCache = new ConcurrentHashMap<>();
+    
+    // LRU-bounded caches to limit memory usage
+    private static final int SPELL_CACHE_SIZE = 2048;
+    private static final int SUGGESTION_CACHE_SIZE = 512;
+    
+    private final Map<String, Boolean> spellCheckCache = Collections.synchronizedMap(
+        new LinkedHashMap<>(256, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, Boolean> e) {
+                return size() > SPELL_CACHE_SIZE;
+            }
+        });
+    private final Map<String, List<String>> suggestionCache = Collections.synchronizedMap(
+        new LinkedHashMap<>(64, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, List<String>> e) {
+                return size() > SUGGESTION_CACHE_SIZE;
+            }
+        });
+    
     private static final Pattern WORD_PATTERN = Pattern.compile("[a-zA-Z']+");
     private final boolean useNativeSpell;
     private final boolean useNativeDictionary;
