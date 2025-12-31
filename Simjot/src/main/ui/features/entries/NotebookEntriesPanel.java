@@ -425,31 +425,53 @@ public class NotebookEntriesPanel extends JPanel {
         File folder = nb.getFolder();
         java.util.Set<String> exts = app.getEditorFactory().getRegisteredExtensions();
         
-        // Try native directory listing first for speed
+        // Build extensions string for native call (e.g. ".txt,.md,.rtf")
+        String extString = String.join(",", exts);
+        
+        // Try native directory listing first for maximum performance
         File[] arr = null;
-        try {
-            java.nio.file.Path folderPath = folder.toPath();
-            if (java.nio.file.Files.isDirectory(folderPath)) {
-                try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.list(folderPath)) {
-                    arr = stream
-                        .filter(p -> {
-                            String name = p.getFileName().toString();
-                            if (name.startsWith(".")) return false;
-                            String s = name.toLowerCase();
-                            int dot = s.lastIndexOf('.');
-                            String ext = dot >= 0 ? s.substring(dot) : "";
-                            return exts.contains(ext);
-                        })
-                        .map(java.nio.file.Path::toFile)
-                        .toArray(File[]::new);
+        String nativeResult = main.infrastructure.ffi.NativeAccess.fsListFiltered(
+            folder.getAbsolutePath(), extString, false);
+        
+        if (nativeResult != null && !nativeResult.isEmpty()) {
+            // Parse native result: type|mtime|size|name\n
+            java.util.List<File> files = new java.util.ArrayList<>();
+            for (String line : nativeResult.split("\n")) {
+                if (line.isEmpty()) continue;
+                String[] parts = line.split("\\|", 4);
+                if (parts.length >= 4 && "f".equals(parts[0])) {
+                    // Only include files, not directories
+                    files.add(new File(folder, parts[3]));
                 }
             }
-        } catch (Exception e) {
-            // Fall back to old File API
-            arr = null;
+            arr = files.toArray(new File[0]);
         }
         
-        // Fallback to File.listFiles if NIO failed
+        // Fallback to NIO if native failed
+        if (arr == null) {
+            try {
+                java.nio.file.Path folderPath = folder.toPath();
+                if (java.nio.file.Files.isDirectory(folderPath)) {
+                    try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.list(folderPath)) {
+                        arr = stream
+                            .filter(p -> {
+                                String name = p.getFileName().toString();
+                                if (name.startsWith(".")) return false;
+                                String s = name.toLowerCase();
+                                int dot = s.lastIndexOf('.');
+                                String ext = dot >= 0 ? s.substring(dot) : "";
+                                return exts.contains(ext);
+                            })
+                            .map(java.nio.file.Path::toFile)
+                            .toArray(File[]::new);
+                    }
+                }
+            } catch (Exception e) {
+                arr = null;
+            }
+        }
+        
+        // Final fallback to File.listFiles
         if (arr == null) {
             arr = folder.listFiles((d,name)->{
                 if (name.startsWith(".")) return false;

@@ -288,6 +288,8 @@ int32_t simjot_fs_extension(const char* path, char* output, int32_t output_len);
 int32_t simjot_fs_basename(const char* path, char* output, int32_t output_len);
 int32_t simjot_fs_dirname(const char* path, char* output, int32_t output_len);
 int32_t simjot_fs_join(const char* base, const char* child, char* output, int32_t output_len);
+int32_t simjot_fs_list_filtered(const char* dir_path, const char* extensions, int32_t include_hidden, char* output, int32_t output_len);
+int32_t simjot_fs_count_entries(const char* dir_path, int32_t include_hidden);
 
 #ifdef __cplusplus
 }

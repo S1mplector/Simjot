@@ -1690,6 +1690,38 @@ public final class NativeAccess {
         }
     }
 
+    /**
+     * List directory entries with extension filtering using native implementation.
+     * Returns entries as newline-separated strings: type|mtime|size|name
+     * 
+     * @param dirPath Directory to list
+     * @param extensions Comma-separated extensions (e.g. ".txt,.md") or null for all
+     * @param includeHidden Whether to include hidden files
+     * @return Formatted string with entries, or null on error/unavailable
+     */
+    public static String fsListFiltered(String dirPath, String extensions, boolean includeHidden) {
+        NativeLibrary lib = library();
+        if (lib == null || dirPath == null) return null;
+        try {
+            return lib.fsListFiltered(dirPath, extensions, includeHidden);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Count entries in a directory (fast, no stat calls).
+     */
+    public static int fsCountEntries(String dirPath, boolean includeHidden) {
+        NativeLibrary lib = library();
+        if (lib == null || dirPath == null) return -1;
+        try {
+            return lib.fsCountEntries(dirPath, includeHidden);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════

@@ -94,6 +94,31 @@ public class IntelligentAutocorrect {
     private static final Pattern DOUBLE_SPACE = Pattern.compile("  +");
     private static final Pattern STARTS_WITH_LOWERCASE_I = Pattern.compile("\\bi\\b");
     
+    // Common words that should NEVER be autocorrected - these are valid words
+    // that the adjacent key correction might incorrectly change
+    private static final Set<String> NEVER_CORRECT = Set.of(
+        // Very common short words
+        "a", "i", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it",
+        "me", "my", "no", "of", "on", "or", "so", "to", "up", "us", "we",
+        // Common 3-letter words
+        "all", "and", "any", "are", "but", "can", "did", "for", "get", "got", "had", "has",
+        "her", "him", "his", "how", "its", "let", "may", "new", "not", "now", "off", "old",
+        "one", "our", "out", "own", "put", "say", "see", "she", "the", "too", "two", "use",
+        "was", "way", "who", "why", "yes", "yet", "you",
+        // Common 4-letter words often misdetected  
+        "also", "back", "been", "both", "come", "does", "down", "each", "even", "find",
+        "from", "give", "good", "have", "here", "into", "just", "know", "last", "like",
+        "long", "look", "made", "make", "many", "more", "most", "much", "must", "need",
+        "only", "over", "said", "same", "some", "such", "take", "tell", "than", "that",
+        "them", "then", "they", "this", "time", "very", "want", "well", "went", "were",
+        "what", "when", "will", "with", "work", "would", "year", "your",
+        // Common filler/interjection words
+        "uh", "um", "oh", "ah", "eh", "er", "hm", "mm", "ok", "okay",
+        // Words that adjacent-key often breaks
+        "thing", "think", "those", "these", "there", "where", "which", "while", "being",
+        "going", "doing", "having", "making", "taking", "coming", "getting"
+    );
+    
     private IntelligentAutocorrect() {
         spellChecker = SpellCheckEngine.get();
         loadCorrections();
@@ -160,6 +185,10 @@ public class IntelligentAutocorrect {
         if (word == null || word.length() <= 1) return null;
         
         String lower = word.toLowerCase(Locale.ROOT);
+        
+        // CRITICAL: Never autocorrect common valid words
+        // This prevents adjacent-key corrections from breaking valid words
+        if (NEVER_CORRECT.contains(lower)) return null;
         
         // Check if word is in ignore list
         if (ignoredWords.contains(lower)) return null;

@@ -2,7 +2,7 @@
  * @file fs_ops.c
  * @brief Native File System Operations for Simjot
  * 
- * High-performance file system operations including:
+ * High-performance file listing operations including:
  * - Fast directory traversal
  * - File watching (platform-specific)
  * - Batch file operations
@@ -583,6 +583,158 @@ int32_t simjot_fs_dirname(const char* path, char* output, int32_t output_len) {
     output[len] = '\0';
     
     return len;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * HIGH-PERFORMANCE DIRECTORY LISTING
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief List directory entries with extension filtering
+ * 
+ * Returns entries as newline-separated strings in format:
+ * type|mtime|size|name\n
+ * 
+ * Where type is 'f' for file, 'd' for directory
+ * 
+ * @param dir_path Directory to list
+ * @param extensions Comma-separated extensions to include (e.g. ".txt,.md") or NULL for all
+ * @param include_hidden Whether to include hidden files (starting with .)
+ * @param output Output buffer for results
+ * @param output_len Size of output buffer
+ * @return Number of bytes written, or -1 on error
+ */
+int32_t simjot_fs_list_filtered(const char* dir_path, const char* extensions, 
+                                 int32_t include_hidden, char* output, int32_t output_len) {
+    if (!dir_path || !output || output_len <= 0) return -1;
+    
+    DIR* dir = opendir(dir_path);
+    if (!dir) return -1;
+    
+    /* Parse extensions into array for fast matching */
+    #define MAX_EXTS 32
+    const char* ext_list[MAX_EXTS];
+    int32_t ext_count = 0;
+    char ext_buf[512];
+    
+    if (extensions && extensions[0]) {
+        strncpy(ext_buf, extensions, sizeof(ext_buf) - 1);
+        ext_buf[sizeof(ext_buf) - 1] = '\0';
+        
+        char* token = strtok(ext_buf, ",");
+        while (token && ext_count < MAX_EXTS) {
+            /* Trim whitespace */
+            while (*token == ' ') token++;
+            if (*token) {
+                ext_list[ext_count++] = token;
+            }
+            token = strtok(NULL, ",");
+        }
+    }
+    
+    int32_t written = 0;
+    struct dirent* entry;
+    char full_path[4096];
+    int32_t dir_len = (int32_t)strlen(dir_path);
+    
+    while ((entry = readdir(dir)) != NULL) {
+        const char* name = entry->d_name;
+        
+        /* Skip . and .. */
+        if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
+            continue;
+        }
+        
+        /* Skip hidden files if requested */
+        if (!include_hidden && name[0] == '.') {
+            continue;
+        }
+        
+        /* Check extension filter if specified */
+        if (ext_count > 0) {
+            const char* dot = strrchr(name, '.');
+            int32_t matched = 0;
+            if (dot) {
+                for (int32_t i = 0; i < ext_count; i++) {
+                    if (strcasecmp(dot, ext_list[i]) == 0) {
+                        matched = 1;
+                        break;
+                    }
+                }
+            }
+            if (!matched) continue;
+        }
+        
+        /* Build full path for stat */
+        if (dir_len + 1 + strlen(name) >= sizeof(full_path)) continue;
+        snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, name);
+        
+        struct stat st;
+        if (stat(full_path, &st) != 0) continue;
+        
+        char type = S_ISDIR(st.st_mode) ? 'd' : 'f';
+        int64_t mtime = (int64_t)st.st_mtime * 1000;
+        int64_t size = st.st_size;
+        
+        /* Format: type|mtime|size|name\n */
+        int32_t name_len = (int32_t)strlen(name);
+        int32_t needed = 1 + 1 + 20 + 1 + 20 + 1 + name_len + 1; /* type|mtime|size|name\n */
+        
+        if (written + needed >= output_len) {
+            /* Buffer full */
+            break;
+        }
+        
+        int32_t line_len = snprintf(output + written, output_len - written,
+                                    "%c|%lld|%lld|%s\n", type, mtime, size, name);
+        if (line_len > 0) {
+            written += line_len;
+        }
+    }
+    
+    closedir(dir);
+    
+    if (written > 0) {
+        output[written] = '\0';
+    } else {
+        output[0] = '\0';
+    }
+    
+    return written;
+    #undef MAX_EXTS
+}
+
+/**
+ * @brief Count entries in a directory (fast, no stat calls)
+ */
+int32_t simjot_fs_count_entries(const char* dir_path, int32_t include_hidden) {
+    if (!dir_path) return -1;
+    
+    DIR* dir = opendir(dir_path);
+    if (!dir) return -1;
+    
+    int32_t count = 0;
+    struct dirent* entry;
+    
+    while ((entry = readdir(dir)) != NULL) {
+        const char* name = entry->d_name;
+        
+        /* Skip . and .. */
+        if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
+            continue;
+        }
+        
+        /* Skip hidden files if requested */
+        if (!include_hidden && name[0] == '.') {
+            continue;
+        }
+        
+        count++;
+    }
+    
+    closedir(dir);
+    return count;
 }
 
 /**

@@ -1983,6 +1983,56 @@ public final class NativeLibrary implements AutoCloseable {
     public String fsBasename(String path) { return null; }
     public String fsDirname(String path) { return null; }
     public String fsJoin(String base, String child) { return null; }
+    
+    /**
+     * List directory entries with extension filtering.
+     * Returns entries as newline-separated strings: type|mtime|size|name
+     * @param dirPath Directory to list
+     * @param extensions Comma-separated extensions (e.g. ".txt,.md") or null for all
+     * @param includeHidden Whether to include hidden files
+     * @return Formatted string with entries, or null on error
+     */
+    public String fsListFiltered(String dirPath, String extensions, boolean includeHidden) {
+        if (dirPath == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(dirPath);
+            MemorySegment cExts = (extensions != null) ? tempArena.allocateFrom(extensions) : MemorySegment.NULL;
+            MemorySegment outBuf = tempArena.allocate(65536); // 64KB buffer
+            
+            MethodHandle handle = optionalHandle("simjot_fs_list_filtered",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, 
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, 
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            
+            int written = (int) handle.invokeExact(cPath, cExts, includeHidden ? 1 : 0, outBuf, 65536);
+            if (written <= 0) return null;
+            
+            byte[] bytes = new byte[written];
+            outBuf.asByteBuffer().get(bytes);
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    /**
+     * Count entries in a directory (fast, no stat calls).
+     */
+    public int fsCountEntries(String dirPath, boolean includeHidden) {
+        if (dirPath == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cPath = tempArena.allocateFrom(dirPath);
+            
+            MethodHandle handle = optionalHandle("simjot_fs_count_entries",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            
+            return (int) handle.invokeExact(cPath, includeHidden ? 1 : 0);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // MEMORY POOL API (placeholder)
