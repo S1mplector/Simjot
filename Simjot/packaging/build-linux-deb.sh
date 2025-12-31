@@ -173,7 +173,7 @@ log_ok "Runtime created at $RUNTIME_DIR"
 # ============================================================================
 # Step 3: Build the .deb package (jpackage)
 # ============================================================================
-log_inrfo "Creating .deb package..."
+log_info "Creating .deb package..."
 
 JPKG_ARGS=(
     --type deb
@@ -191,6 +191,7 @@ JPKG_ARGS=(
     --linux-menu-group "Office"
     --linux-deb-maintainer "$MAINTAINER"
     --java-options "-Xmx1G"
+    --java-options "--enable-preview"
 )
 
 if [[ -f "$ICON_PNG" ]]; then
@@ -203,6 +204,55 @@ if [[ "$VERBOSE" == true ]]; then
     JPKG_ARGS+=(--verbose)
 fi
 
+# Build native library if not already built
+NATIVE_DIR="$ROOT_DIR/src/main/native"
+NATIVE_LIB="$NATIVE_DIR/build/libsimjot_native.so"
+if [[ -d "$NATIVE_DIR" ]]; then
+    if [[ ! -f "$NATIVE_LIB" ]]; then
+        log_info "Building native library..."
+        if [[ -f "$ROOT_DIR/compile-native.sh" ]]; then
+            "$ROOT_DIR/compile-native.sh" --clean
+        else
+            mkdir -p "$NATIVE_DIR/build"
+            cd "$NATIVE_DIR/build"
+            cmake .. -DCMAKE_BUILD_TYPE=Release
+            make -j$(nproc)
+            cd "$ROOT_DIR"
+        fi
+    fi
+    if [[ -f "$NATIVE_LIB" ]]; then
+        log_info "Bundling native library..."
+        mkdir -p "$ROOT_DIR/target/lib"
+        cp "$NATIVE_LIB" "$ROOT_DIR/target/lib/"
+        JPKG_ARGS+=(--input "$ROOT_DIR/target")
+        log_ok "Native library bundled"
+    fi
+fi
+
 jpackage "${JPKG_ARGS[@]}"
+
+# ============================================================================
+# Summary
+# ============================================================================
+DEB_FILE=$(ls -t "$DIST_DIR"/*.deb 2>/dev/null | head -1)
+echo ""
+echo "============================================="
+echo "Build Complete!"
+echo "============================================="
+echo ""
+if [[ -n "$DEB_FILE" ]]; then
+    echo "Output:"
+    echo "  📦 DEB Package: $DEB_FILE"
+    echo "  📁 Size: $(du -h "$DEB_FILE" | cut -f1)"
+    echo ""
+    echo "To install:"
+    echo "  sudo dpkg -i $DEB_FILE"
+    echo ""
+    echo "To run after install:"
+    echo "  $PACKAGE_NAME"
+else
+    log_warn "DEB file not found in $DIST_DIR"
+fi
+echo ""
 
 log_ok "Deb package created in: $DIST_DIR"

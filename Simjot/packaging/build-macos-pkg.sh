@@ -247,6 +247,7 @@ JPKG_ARGS=(
     --java-options "-Dapple.laf.useScreenMenuBar=true"
     --java-options "-Dapple.awt.application.name=$APP_NAME"
     --java-options "-Dcom.apple.mrj.application.apple.menu.about.name=$APP_NAME"
+    --java-options "--enable-preview"
 )
 
 # Add icon if available
@@ -259,6 +260,39 @@ rm -rf "$BUILD_DIR/$APP_NAME.app"
 
 jpackage "${JPKG_ARGS[@]}"
 log_ok "App bundle created: $APP_NAME.app"
+
+# ============================================================================
+# Step 4b: Bundle Native Library
+# ============================================================================
+NATIVE_DIR="$ROOT_DIR/src/main/native"
+NATIVE_LIB="$NATIVE_DIR/build/libsimjot_native.dylib"
+APP_MACOS_DIR="$BUILD_DIR/$APP_NAME.app/Contents/app"
+
+if [[ -d "$NATIVE_DIR" ]]; then
+    # Build native library if not already built
+    if [[ ! -f "$NATIVE_LIB" ]]; then
+        log_info "Building native library..."
+        if [[ -f "$ROOT_DIR/compile-native.sh" ]]; then
+            "$ROOT_DIR/compile-native.sh" --clean
+        else
+            mkdir -p "$NATIVE_DIR/build"
+            cd "$NATIVE_DIR/build"
+            cmake .. -DCMAKE_BUILD_TYPE=Release
+            make -j$(sysctl -n hw.ncpu)
+            cd "$ROOT_DIR"
+        fi
+    fi
+    
+    # Bundle into app
+    if [[ -f "$NATIVE_LIB" ]]; then
+        log_info "Bundling native library into app..."
+        mkdir -p "$APP_MACOS_DIR"
+        cp "$NATIVE_LIB" "$APP_MACOS_DIR/"
+        log_ok "Native library bundled: libsimjot_native.dylib"
+    else
+        log_warn "Native library not found at $NATIVE_LIB"
+    fi
+fi
 
 # ============================================================================
 # Step 5: Post-process Info.plist for better macOS integration
@@ -327,6 +361,10 @@ pkgbuild \
 # Create distribution XML for customizable installer
 DIST_XML="$BUILD_DIR/distribution.xml"
 
+# Create resources directory early for background image check
+RESOURCES_DIR="$BUILD_DIR/resources"
+mkdir -p "$RESOURCES_DIR"
+
 # Check for optional background image
 BG_IMAGE_TAG=""
 if [[ -f "$SCRIPT_DIR/installer-background.png" ]]; then
@@ -368,8 +406,6 @@ cat > "$DIST_XML" <<EOF
 EOF
 
 # Create welcome and conclusion HTML files
-RESOURCES_DIR="$BUILD_DIR/resources"
-mkdir -p "$RESOURCES_DIR"
 
 cat > "$RESOURCES_DIR/welcome.html" <<EOF
 <!DOCTYPE html>
