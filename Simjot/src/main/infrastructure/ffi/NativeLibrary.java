@@ -49,6 +49,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle countSyllablesHandle;
     private final MethodHandle atomicWriteHandle;
     private final MethodHandle ensureSpaceHandle;
+    private final MethodHandle copyFileHandle;
     private final MethodHandle rhymeKeyHandle;
     private final MethodHandle nearRhymeKeyHandle;
     private final MethodHandle listDirSizeHandle;
@@ -139,6 +140,11 @@ public final class NativeLibrary implements AutoCloseable {
         this.ensureSpaceHandle = linker.downcallHandle(
             lookup.find("simjot_ensure_space").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        this.copyFileHandle = optionalHandle(
+            "simjot_copy_file",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
         );
 
         this.dictSetBasePathHandle = optionalHandle(
@@ -459,6 +465,18 @@ public final class NativeLibrary implements AutoCloseable {
             return (int) ensureSpaceHandle.invokeExact(cPath, bytesNeeded);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_ensure_space", t);
+        }
+    }
+
+    public Boolean copyFile(Path src, Path dst, boolean copyAttributes) {
+        if (copyFileHandle == null || src == null || dst == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cSrc = tempArena.allocateFrom(src.toString());
+            MemorySegment cDst = tempArena.allocateFrom(dst.toString());
+            int ok = (int) copyFileHandle.invokeExact(cSrc, cDst, copyAttributes ? 1 : 0);
+            return ok != 0;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_copy_file", t);
         }
     }
     

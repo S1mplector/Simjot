@@ -39,6 +39,7 @@ import main.core.security.crypto.ContentType;
 import main.core.security.crypto.CryptoConfig;
 import main.core.security.crypto.CryptoException;
 import main.core.security.crypto.SimjotCrypto;
+import main.infrastructure.io.FileIO;
 
 /**
  * Reusable backup utilities. Not automatically scheduled; call from app logic.
@@ -154,7 +155,7 @@ public final class BackupManager {
                     Files.createDirectories(dest);
                 } else {
                     Files.createDirectories(dest.getParent());
-                    Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+                    FileIO.copyFile(path, dest, true);
                 }
             } catch (IOException ignored) {}
         });
@@ -166,7 +167,7 @@ public final class BackupManager {
         if (src.isDirectory()) copyDirectory(src.toPath(), dst.toPath());
         else {
             Files.createDirectories(Objects.requireNonNull(dst.getParentFile()).toPath());
-            Files.copy(src.toPath(), dst.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            FileIO.copyFile(src.toPath(), dst.toPath(), true);
         }
     }
 
@@ -248,7 +249,7 @@ public final class BackupManager {
                         Files.createDirectories(dest);
                     } else {
                         Files.createDirectories(Objects.requireNonNull(dest.getParent()));
-                        Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+                        FileIO.copyFile(path, dest, true);
                     }
                 } catch (IOException ignored) {}
             });

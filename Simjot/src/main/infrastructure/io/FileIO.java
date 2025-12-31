@@ -126,6 +126,19 @@ public final class FileIO {
         }
     }
 
+    public static void copyFile(Path src, Path dst, boolean copyAttributes) throws IOException {
+        if (src == null || dst == null) throw new IllegalArgumentException("source or destination is null");
+        Path parent = dst.getParent();
+        if (parent != null) Files.createDirectories(parent);
+        Boolean nativeOk = NativeAccess.copyFile(src, dst, copyAttributes);
+        if (Boolean.TRUE.equals(nativeOk)) return;
+        if (copyAttributes) {
+            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+        } else {
+            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     public static void cleanupTempFiles(Path root, String suffix, long olderThanMs) {
         if (root == null || suffix == null) return;
         long now = System.currentTimeMillis();

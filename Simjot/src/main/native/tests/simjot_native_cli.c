@@ -1,3 +1,28 @@
+/*
+ * SIMJOT - PROPRIETARY
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * 
+ * This source code is licensed under the Simjot Source-Available Personal Use License.
+ * You may view and study this code for personal, non-commercial use.
+ * Distribution, commercial use, and derivative works are strictly prohibited.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
+ /**
+  * Simjot Native CLI Tests
+  * Designed to validate the functionality of the Simjot native library.
+  * Covers arithmetic, string manipulation, dictionary access, file hashing, directory listing, atomic writes
+  * file copying, and disk space checking.
+  * Depends on a dictionary file for some tests; set SIMJOT_DICT_PATH environment variable to enable those.
+  * Uses temporary files and directories for testing file I/O operations.
+  * Reports results to standard output, indicating pass/fail status for each test.
+  * Exits with code 0 if all tests pass, or 1 if any tests fail.
+  * 
+  * @author S1mplector
+  */
+
 #include "simjot_native.h"
 
 #include <stdint.h>
@@ -336,6 +361,38 @@ int main(void) {
         remove(tmp_path);
     } else {
         fprintf(stderr, "[FAIL] tmpnam failed for atomic write test\n");
+        failures++;
+    }
+
+    char copy_src[L_tmpnam];
+    char copy_dst[L_tmpnam];
+    if (make_temp_path(copy_src, sizeof(copy_src)) && make_temp_path(copy_dst, sizeof(copy_dst))) {
+        const char* payload = "copy fast path";
+        if (write_file(copy_src, payload)) {
+            if (simjot_copy_file(copy_src, copy_dst, 1)) {
+                FILE* f = fopen(copy_dst, "rb");
+                if (f) {
+                    char buf[64] = {0};
+                    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+                    fclose(f);
+                    buf[n] = '\0';
+                    expect_str("simjot_copy_file", buf, payload);
+                } else {
+                    fprintf(stderr, "[FAIL] simjot_copy_file: read back failed\n");
+                    failures++;
+                }
+            } else {
+                fprintf(stderr, "[FAIL] simjot_copy_file: call failed\n");
+                failures++;
+            }
+        } else {
+            fprintf(stderr, "[FAIL] write temp file for copy test\n");
+            failures++;
+        }
+        remove(copy_src);
+        remove(copy_dst);
+    } else {
+        fprintf(stderr, "[FAIL] tmpnam failed for copy test\n");
         failures++;
     }
 

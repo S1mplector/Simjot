@@ -10,6 +10,18 @@
  * See LICENSE.md for full terms.
  */
 
+/**
+ * EntryHistoryManager is responsible for managing the history of file entries,
+ * including creating snapshots and maintaining a manifest of changes.
+ * It provides functionality to record, retrieve, and restore snapshots of file entries.
+ * Furthermore, it ensures that only a specified number of recent snapshots are retained,
+ * pruning older ones as necessary.
+ * It is designed to facilitate version control and data recovery for file entries.
+ * It is thread-safe and handles I/O exceptions gracefully, logging warnings when operations fail.
+ * 
+ * @author S1mplector
+ */
+
 package main.infrastructure.backup;
 
 import java.io.File;
@@ -17,12 +29,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+
 import main.infrastructure.io.FileIO;
 import main.infrastructure.io.IoLog;
 
@@ -60,7 +72,7 @@ public final class EntryHistoryManager {
             String backupName = entryFile.getName() + "." + ts + ".bak";
             File backupFile = new File(historyRoot, backupName);
             FileIO.ensureSpace(backupFile.toPath(), entryFile.length() + 4096L, "entry history snapshot");
-            Files.copy(entryFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            FileIO.copyFile(entryFile.toPath(), backupFile.toPath(), false);
             String checksum = FileIO.sha256(entryFile.toPath());
             long size = entryFile.length();
 
@@ -89,7 +101,7 @@ public final class EntryHistoryManager {
     public static boolean restoreSnapshot(File entryFile, Snapshot snap) {
         if (entryFile == null || snap == null || snap.file == null || !snap.file.exists()) return false;
         try {
-            Files.copy(snap.file.toPath(), entryFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            FileIO.copyFile(snap.file.toPath(), entryFile.toPath(), false);
             return true;
         } catch (IOException e) {
             IoLog.warn("entry-history-restore", "Failed to restore snapshot " + snap.file, e);

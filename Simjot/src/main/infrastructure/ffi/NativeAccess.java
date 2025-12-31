@@ -130,6 +130,17 @@ public final class NativeAccess {
         }
     }
 
+    public static Boolean copyFile(Path src, Path dst, boolean copyAttributes) {
+        NativeLibrary lib = library();
+        if (lib == null || src == null || dst == null) return null;
+        try {
+            return lib.copyFile(src, dst, copyAttributes);
+        } catch (Throwable t) {
+            IoLog.warn("native-copy", "Native file copy failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
     public static List<NativeDirEntry> listDirectory(Path dir, boolean includeHidden) {
         NativeLibrary lib = library();
         if (lib == null || dir == null) return null;

@@ -1,9 +1,25 @@
+/*
+ * SIMJOT - PROPRIETARY
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * 
+ * This source code is licensed under the Simjot Source-Available Personal Use License.
+ * You may view and study this code for personal, non-commercial use.
+ * Distribution, commercial use, and derivative works are strictly prohibited.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
 /**
  * File I/O helpers for atomic writes and space checks.
+ * Meant to be used only on POSIX systems, but stubs are provided for Windows.
+ * @author S1mplector
+ * 
  */
 
 #include "simjot_native.h"
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +29,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/statvfs.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#if defined(__APPLE__)
+#include <copyfile.h>
+#else
+#include <sys/sendfile.h>
+#include <sys/syscall.h>
+#endif
 #endif
 
 #ifndef _WIN32
@@ -42,6 +66,85 @@ static const char* simjot_basename(const char* path) {
     const char* slash = strrchr(path, '/');
     return slash ? slash + 1 : path;
 }
+
+#if !defined(__APPLE__)
+static int simjot_copy_with_copy_file_range(int in_fd, int out_fd, off_t total) {
+#if defined(__linux__) && defined(__NR_copy_file_range)
+    off_t in_off = 0;
+    off_t out_off = 0;
+    while (in_off < total) {
+        size_t remaining = (size_t)(total - in_off);
+        size_t chunk = remaining > (1u << 30) ? (1u << 30) : remaining;
+        ssize_t n = (ssize_t)syscall(__NR_copy_file_range, in_fd, &in_off, out_fd, &out_off, chunk, 0);
+        if (n > 0) continue;
+        if (n == 0) break;
+        if (errno == EINTR) continue;
+        if (errno == EXDEV || errno == ENOSYS || errno == EOPNOTSUPP || errno == EINVAL) return 0;
+        return -1;
+    }
+    return 1;
+#else
+    (void)in_fd;
+    (void)out_fd;
+    (void)total;
+    return 0;
+#endif
+}
+
+static int simjot_copy_with_sendfile(int in_fd, int out_fd, off_t total) {
+#if defined(__linux__)
+    off_t offset = 0;
+    while (offset < total) {
+        size_t remaining = (size_t)(total - offset);
+        size_t chunk = remaining > (1u << 30) ? (1u << 30) : remaining;
+        ssize_t n = sendfile(out_fd, in_fd, &offset, chunk);
+        if (n > 0) continue;
+        if (n == 0) break;
+        if (errno == EINTR) continue;
+        if (errno == EINVAL || errno == ENOSYS || errno == EOPNOTSUPP) return 0;
+        return -1;
+    }
+    return 1;
+#else
+    (void)in_fd;
+    (void)out_fd;
+    (void)total;
+    return 0;
+#endif
+}
+
+static int simjot_copy_with_read_write(int in_fd, int out_fd) {
+    uint8_t buf[131072];
+    while (1) {
+        ssize_t n = read(in_fd, buf, sizeof(buf));
+        if (n == 0) return 1;
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            return 0;
+        }
+        ssize_t written = 0;
+        while (written < n) {
+            ssize_t w = write(out_fd, buf + written, (size_t)(n - written));
+            if (w < 0) {
+                if (errno == EINTR) continue;
+                return 0;
+            }
+            written += w;
+        }
+    }
+}
+
+static void simjot_copy_attrs(int out_fd, const struct stat* st) {
+    if (!st) return;
+    (void)fchmod(out_fd, st->st_mode & 07777);
+#if defined(__linux__)
+    struct timespec times[2];
+    times[0] = st->st_atim;
+    times[1] = st->st_mtim;
+    (void)futimens(out_fd, times);
+#endif
+}
+#endif
 
 int32_t simjot_atomic_write(const char* target_path, const uint8_t* data, int32_t data_len, int32_t fsync_file, int32_t fsync_dir) {
     if (!target_path || !data || data_len < 0) return 0;
@@ -125,6 +228,52 @@ int32_t simjot_ensure_space(const char* path, uint64_t bytes_needed) {
     unsigned long long avail = (unsigned long long)fs.f_bavail * block;
     return (avail < bytes_needed) ? 0 : 1;
 }
+
+int32_t simjot_copy_file(const char* src_path, const char* dst_path, int32_t copy_attrs) {
+    if (!src_path || !dst_path) return 0;
+#if defined(__APPLE__)
+    uint32_t flags = COPYFILE_DATA;
+    if (copy_attrs) flags |= COPYFILE_STAT;
+    return copyfile(src_path, dst_path, NULL, flags) == 0;
+#else
+    int in_fd = open(src_path, O_RDONLY);
+    if (in_fd < 0) return 0;
+    struct stat st;
+    if (fstat(in_fd, &st) != 0) {
+        close(in_fd);
+        return 0;
+    }
+    mode_t mode = copy_attrs ? (st.st_mode & 0777) : 0666;
+    if (mode == 0) mode = 0666;
+    int out_fd = open(dst_path, O_WRONLY | O_CREAT | O_TRUNC, mode);
+    if (out_fd < 0) {
+        close(in_fd);
+        return 0;
+    }
+#ifdef POSIX_FADV_SEQUENTIAL
+    (void)posix_fadvise(in_fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+    int result = simjot_copy_with_copy_file_range(in_fd, out_fd, st.st_size);
+    if (result == 0) {
+        (void)lseek(in_fd, 0, SEEK_SET);
+        (void)lseek(out_fd, 0, SEEK_SET);
+        (void)ftruncate(out_fd, 0);
+        result = simjot_copy_with_sendfile(in_fd, out_fd, st.st_size);
+    }
+    if (result == 0) {
+        (void)lseek(in_fd, 0, SEEK_SET);
+        (void)lseek(out_fd, 0, SEEK_SET);
+        (void)ftruncate(out_fd, 0);
+        result = simjot_copy_with_read_write(in_fd, out_fd) ? 1 : -1;
+    }
+    if (result == 1 && copy_attrs) {
+        simjot_copy_attrs(out_fd, &st);
+    }
+    close(out_fd);
+    close(in_fd);
+    return result == 1;
+#endif
+}
 #else
 int32_t simjot_atomic_write(const char* target_path, const uint8_t* data, int32_t data_len, int32_t fsync_file, int32_t fsync_dir) {
     (void)target_path;
@@ -139,5 +288,12 @@ int32_t simjot_ensure_space(const char* path, uint64_t bytes_needed) {
     (void)path;
     (void)bytes_needed;
     return -1;
+}
+
+int32_t simjot_copy_file(const char* src_path, const char* dst_path, int32_t copy_attrs) {
+    (void)src_path;
+    (void)dst_path;
+    (void)copy_attrs;
+    return 0;
 }
 #endif
