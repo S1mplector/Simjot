@@ -411,6 +411,10 @@ public class ScansionEngine {
         if (syllables.isEmpty()) return feet;
         
         int footSize = profile != null ? profile.footSize : 2;
+        if (footSize <= 0) {
+            feet.add(new FootInfo(FootType.UNKNOWN, new ArrayList<>(syllables), 0, false));
+            return feet;
+        }
         int start = profile != null ? profile.startOffset : 0;
         int end = syllables.size();
         
@@ -519,6 +523,9 @@ public class ScansionEngine {
         String stress = buildStressPattern(syllables);
         if (stress.isEmpty()) {
             return new MeterProfile(FootType.UNKNOWN, 0, 0, 0, false, false, 1.0, "Unknown");
+        }
+        if (stress.length() < 2) {
+            return new MeterProfile(FootType.UNKNOWN, 1, stress.length(), 0, false, false, 1.0, "Unknown");
         }
         
         MeterProfile best = null;

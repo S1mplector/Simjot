@@ -19,9 +19,11 @@ import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Window;
 import java.io.BufferedReader;
@@ -33,7 +35,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Random;
 
 import javax.swing.BorderFactory;
@@ -61,6 +65,7 @@ import javax.swing.text.StyledDocument;
 import javax.swing.text.StyledEditorKit;
 
 import main.core.export.PoemExporter;
+import main.core.poetry.PoetryUtils;
 import main.core.poetry.ScansionEngine;
 import main.core.poetry.SoundDevicesEngine;
 import main.core.poetry.ThematicAnalyzer;
@@ -78,6 +83,7 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
@@ -144,6 +150,15 @@ public class PoemPanel extends AbstractEditorPanel {
     // Word highlight for rhymes dock
     private Object currentWordHighlight;
     private final WordOutlineHighlightPainter wordHighlightPainter = new WordOutlineHighlightPainter(new Color(100, 149, 237, 120));
+    // Guided writing overlays
+    private boolean guidedModeEnabled = false;
+    private GuidedFormConfig guidedFormConfig;
+    private Object guidedLineHighlight;
+    private final List<Object> guidedRhymeHighlights = new ArrayList<>();
+    private final Color guidedLineBaseColor = new Color(255, 196, 120);
+    private String baseToolkitHint = "";
+    private Font baseToolkitHintFont;
+    private Color baseToolkitHintColor;
     // Poetry analysis engines
     private final VocabularyAnalyzer vocabularyAnalyzer = new VocabularyAnalyzer();
     private final ThematicAnalyzer thematicAnalyzer = new ThematicAnalyzer();
@@ -196,6 +211,20 @@ public class PoemPanel extends AbstractEditorPanel {
             if (end > start) return text.substring(start, end);
         } catch (Throwable ignored) {}
         return null;
+    }
+    
+    private static class GuidedFormConfig {
+        final String label;
+        final int[] syllableTargets;
+        final String rhymeScheme;
+        final int expectedLines;
+        
+        GuidedFormConfig(String label, int[] syllableTargets, String rhymeScheme, int expectedLines) {
+            this.label = label;
+            this.syllableTargets = syllableTargets;
+            this.rhymeScheme = rhymeScheme;
+            this.expectedLines = expectedLines;
+        }
     }
 
     // Unified constructor: if poemFileToEdit is non-null, load it and save updates to same file
@@ -463,6 +492,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                updateGuidedWriting();
                 schedulePoetryAnalysis();
             }
             @Override
@@ -472,6 +502,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                updateGuidedWriting();
                 schedulePoetryAnalysis();
             }
             @Override
@@ -481,6 +512,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
                 if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                updateGuidedWriting();
                 schedulePoetryAnalysis();
             }
         });
@@ -494,6 +526,7 @@ public class PoemPanel extends AbstractEditorPanel {
             if (statsPanel != null && statsPanel.isVisible()) {
                 statsPanel.setHighlightedLine(getCaretLineIndex());
             }
+            updateGuidedWriting();
         });
         // Autosave on title change as well
         poemTitleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -572,6 +605,7 @@ public class PoemPanel extends AbstractEditorPanel {
         refreshToolkitStatus();
         // Run initial poetry analysis
         schedulePoetryAnalysis();
+        guidedFormConfig = guidedConfigForPreset((String) formPresetBox.getSelectedItem());
     }
 
     private void updateStanzaCount(JLabel label) {
@@ -616,6 +650,12 @@ public class PoemPanel extends AbstractEditorPanel {
         formPresetBox.addActionListener(e -> applyFormPreset((String) formPresetBox.getSelectedItem()));
         row.add(formPresetBox);
 
+        RoundedToggleButton guidedToggle = new RoundedToggleButton("Guided");
+        guidedToggle.setPreferredSize(new Dimension(100, 28));
+        guidedToggle.setToolTipText("Highlight rhyme targets and form cues");
+        guidedToggle.addActionListener(e -> setGuidedMode(guidedToggle.isSelected()));
+        row.add(guidedToggle);
+
         JButton rescanBtn = new RoundedButton("Rescan");
         rescanBtn.putClientProperty("iconId", "rescan");
         rescanBtn.setFocusable(false);
@@ -635,6 +675,9 @@ public class PoemPanel extends AbstractEditorPanel {
         toolkitHintLabel = new JLabel("Choose a form to set gentle line targets.");
         toolkitHintLabel.setForeground(new Color(90, 90, 90));
         toolkitHintLabel.setFont(new Font("SansSerif", Font.ITALIC, 11));
+        baseToolkitHint = toolkitHintLabel.getText();
+        baseToolkitHintFont = toolkitHintLabel.getFont();
+        baseToolkitHintColor = toolkitHintLabel.getForeground();
 
         JPanel wrapper = new JPanel();
         wrapper.setOpaque(false);
@@ -679,11 +722,51 @@ public class PoemPanel extends AbstractEditorPanel {
         }
         statsPanel.updateFromText(poemEditor.getText());
         refreshToolkitStatus();
+        guidedFormConfig = guidedConfigForPreset(preset);
+        updateGuidedWriting();
     }
 
     private void setToolkitHint(String text) {
-        if (toolkitHintLabel != null && text != null) {
-            toolkitHintLabel.setText(text);
+        baseToolkitHint = text == null ? "" : text;
+        updateGuidedHint(null);
+    }
+    
+    private void updateGuidedHint(String guidedText) {
+        if (toolkitHintLabel == null) return;
+        if (!guidedModeEnabled || guidedText == null || guidedText.isBlank()) {
+            toolkitHintLabel.setText(baseToolkitHint);
+            if (baseToolkitHintFont != null) toolkitHintLabel.setFont(baseToolkitHintFont);
+            if (baseToolkitHintColor != null) toolkitHintLabel.setForeground(baseToolkitHintColor);
+            return;
+        }
+        if (baseToolkitHint == null || baseToolkitHint.isBlank()) {
+            toolkitHintLabel.setText(guidedText);
+        } else {
+            toolkitHintLabel.setText(baseToolkitHint + "  |  " + guidedText);
+        }
+        if (baseToolkitHintFont != null) {
+            int style = baseToolkitHintFont.getStyle() | Font.BOLD;
+            toolkitHintLabel.setFont(baseToolkitHintFont.deriveFont(style));
+        }
+        toolkitHintLabel.setForeground(new Color(80, 70, 60));
+    }
+    
+    private GuidedFormConfig guidedConfigForPreset(String preset) {
+        if (preset == null) return null;
+        switch (preset) {
+            case "Haiku (5/7/5)":
+                return new GuidedFormConfig("Haiku", new int[]{5, 7, 5}, null, 3);
+            case "Limerick (9/9/6/6/9)":
+                return new GuidedFormConfig("Limerick", new int[]{9, 9, 6, 6, 9}, "AABBA", 5);
+            case "Sonnet (14x10)": {
+                int[] tenBeat = new int[14];
+                for (int i = 0; i < tenBeat.length; i++) tenBeat[i] = 10;
+                return new GuidedFormConfig("Sonnet", tenBeat, "ABABCDCDEFEFGG", 14);
+            }
+            case "Octosyllabic quatrain":
+                return new GuidedFormConfig("Octosyllabic", new int[]{8, 8, 8, 8}, "ABAB", 4);
+            default:
+                return null;
         }
     }
 
@@ -695,6 +778,279 @@ public class PoemPanel extends AbstractEditorPanel {
         sb.append("Active form: ").append(active != null && !active.isBlank() ? active : "None");
         sb.append(" • Detected: ").append(detected != null && !detected.isBlank() ? detected : "—");
         toolkitStatusLabel.setText(sb.toString());
+    }
+    
+    private void setGuidedMode(boolean enabled) {
+        guidedModeEnabled = enabled;
+        updateGuidedWriting();
+    }
+    
+    private static class GuidedLineState {
+        final int contentLineOrdinal;
+        final int totalContentLines;
+        final List<Integer> contentLineToTextLine;
+        final boolean caretLineBlank;
+        
+        GuidedLineState(int contentLineOrdinal, int totalContentLines,
+                        List<Integer> contentLineToTextLine, boolean caretLineBlank) {
+            this.contentLineOrdinal = contentLineOrdinal;
+            this.totalContentLines = totalContentLines;
+            this.contentLineToTextLine = contentLineToTextLine;
+            this.caretLineBlank = caretLineBlank;
+        }
+    }
+    
+    private GuidedLineState buildGuidedLineState(String text, int caretLineIndex) {
+        String[] lines = text.split("\n", -1);
+        List<Integer> contentLineToTextLine = new ArrayList<>();
+        int contentOrdinal = 0;
+        int caretOrdinal = -1;
+        boolean caretBlank = true;
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            boolean blank = line == null || line.trim().isEmpty();
+            if (!blank) {
+                contentLineToTextLine.add(i);
+                if (i == caretLineIndex) {
+                    caretOrdinal = contentOrdinal;
+                    caretBlank = false;
+                }
+                contentOrdinal++;
+            } else if (i == caretLineIndex) {
+                caretOrdinal = contentOrdinal;
+                caretBlank = true;
+            }
+        }
+        
+        if (caretLineIndex >= lines.length) {
+            caretOrdinal = contentOrdinal;
+            caretBlank = true;
+        }
+        
+        return new GuidedLineState(caretOrdinal, contentOrdinal, contentLineToTextLine, caretBlank);
+    }
+    
+    private void updateGuidedWriting() {
+        clearGuidedHighlights();
+        if (!guidedModeEnabled) {
+            updateGuidedHint(null);
+            return;
+        }
+        if (guidedFormConfig == null) {
+            updateGuidedHint("Guided mode needs a form preset.");
+            return;
+        }
+        if (poemEditor == null) return;
+        
+        String text = poemEditor.getText();
+        if (text == null) {
+            updateGuidedHint(null);
+            return;
+        }
+        
+        int caretLine = getCaretLineIndex();
+        if (caretLine < 0) {
+            updateGuidedHint(null);
+            return;
+        }
+        
+        GuidedLineState state = buildGuidedLineState(text, caretLine);
+        if (guidedFormConfig.expectedLines > 0 && state.contentLineOrdinal >= guidedFormConfig.expectedLines) {
+            updateGuidedHint("Guided: form complete (" + guidedFormConfig.expectedLines + " lines).");
+            return;
+        }
+        if (state.contentLineOrdinal < 0) {
+            updateGuidedHint(null);
+            return;
+        }
+        
+        int lineOrdinal = Math.max(0, state.contentLineOrdinal);
+        int targetSyllables = targetSyllablesFor(guidedFormConfig, lineOrdinal);
+        char rhymeLetter = rhymeLetterFor(guidedFormConfig, lineOrdinal);
+        List<Integer> rhymeLines = new ArrayList<>();
+        String lineText = getLineText(text, caretLine);
+        int currentSyllables = 0;
+        try {
+            if (lineText != null && !lineText.isBlank()) {
+                currentSyllables = PoetryUtils.countSyllablesInLine(lineText);
+            }
+        } catch (Throwable ignored) {}
+        
+        try {
+            int[] lineBounds = getLineBounds(text, caretLine);
+            if (lineBounds != null) {
+                int start = lineBounds[0];
+                int end = lineBounds[1];
+                if (start == end && start < text.length()) end = start + 1;
+                if (end > start) {
+                    String badge = buildGuideBadge(targetSyllables, rhymeLetter, currentSyllables);
+                    Color accent = rhymeLetter != 0 ? colorForRhymeLetter(rhymeLetter) : guidedLineBaseColor;
+                    guidedLineHighlight = poemEditor.getHighlighter()
+                            .addHighlight(start, end,
+                                    new GuidedLineHighlightPainter(guidedLineBaseColor, accent, badge));
+                }
+            }
+        } catch (BadLocationException ignored) {}
+        
+        if (rhymeLetter != 0) {
+            for (int i = 0; i < lineOrdinal && i < state.contentLineToTextLine.size(); i++) {
+                if (rhymeLetterFor(guidedFormConfig, i) != rhymeLetter) continue;
+                int textLine = state.contentLineToTextLine.get(i);
+                int[] bounds = getLastWordBounds(text, textLine);
+                if (bounds != null && bounds[1] > bounds[0]) {
+                    try {
+                        Object h = poemEditor.getHighlighter()
+                                .addHighlight(bounds[0], bounds[1],
+                                        new GuidedAnchorHighlightPainter(colorForRhymeLetter(rhymeLetter),
+                                                String.valueOf(rhymeLetter)));
+                        guidedRhymeHighlights.add(h);
+                        rhymeLines.add(i + 1);
+                    } catch (BadLocationException ignored) {}
+                }
+            }
+        }
+        
+        String guidedHint = buildGuidedHint(guidedFormConfig, state, lineOrdinal, targetSyllables,
+                currentSyllables, rhymeLetter, rhymeLines);
+        updateGuidedHint(guidedHint);
+    }
+    
+    private void clearGuidedHighlights() {
+        if (poemEditor == null) return;
+        Highlighter hl = poemEditor.getHighlighter();
+        if (guidedLineHighlight != null) {
+            hl.removeHighlight(guidedLineHighlight);
+            guidedLineHighlight = null;
+        }
+        for (Object h : guidedRhymeHighlights) {
+            hl.removeHighlight(h);
+        }
+        guidedRhymeHighlights.clear();
+    }
+    
+    private String buildGuidedHint(GuidedFormConfig config, GuidedLineState state, int lineOrdinal,
+                                  int targetSyllables, int currentSyllables,
+                                  char rhymeLetter, List<Integer> rhymeLines) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Guided: ");
+        if (state.caretLineBlank) sb.append("next ");
+        sb.append("line ").append(lineOrdinal + 1);
+        if (config.expectedLines > 0) sb.append("/").append(config.expectedLines);
+        if (targetSyllables > 0) {
+            sb.append(", target ").append(targetSyllables).append(" syllables");
+            int diff = targetSyllables - Math.max(0, currentSyllables);
+            sb.append(" (current ").append(Math.max(0, currentSyllables));
+            if (diff > 0) {
+                sb.append(", ").append(diff).append(" to go");
+            } else if (diff < 0) {
+                sb.append(", ").append(-diff).append(" over");
+            }
+            sb.append(")");
+        }
+        if (rhymeLetter != 0) {
+            sb.append(", rhyme ").append(rhymeLetter);
+            if (rhymeLines.isEmpty()) {
+                sb.append(" (establish)");
+            } else {
+                sb.append(" with line");
+                if (rhymeLines.size() > 1) sb.append("s ");
+                else sb.append(" ");
+                sb.append(joinLineNumbers(rhymeLines));
+            }
+        }
+        return sb.toString();
+    }
+    
+    private String buildGuideBadge(int targetSyllables, char rhymeLetter, int currentSyllables) {
+        if (targetSyllables <= 0 && rhymeLetter == 0) return null;
+        String syllablePart = null;
+        if (targetSyllables > 0) {
+            int current = Math.max(0, currentSyllables);
+            syllablePart = current + "/" + targetSyllables;
+        } else if (currentSyllables > 0) {
+            syllablePart = String.valueOf(currentSyllables);
+        }
+        String rhymePart = rhymeLetter != 0 ? String.valueOf(rhymeLetter) : null;
+        if (syllablePart != null && rhymePart != null) return syllablePart + " " + rhymePart;
+        if (syllablePart != null) return syllablePart;
+        return rhymePart;
+    }
+    
+    private Color colorForRhymeLetter(char letter) {
+        return switch (Character.toUpperCase(letter)) {
+            case 'A' -> new Color(90, 140, 220);
+            case 'B' -> new Color(90, 170, 120);
+            case 'C' -> new Color(190, 130, 90);
+            case 'D' -> new Color(150, 110, 200);
+            case 'E' -> new Color(200, 120, 140);
+            default -> new Color(140, 140, 140);
+        };
+    }
+    
+    private String joinLineNumbers(List<Integer> lines) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(lines.get(i));
+        }
+        return sb.toString();
+    }
+    
+    private int targetSyllablesFor(GuidedFormConfig config, int lineOrdinal) {
+        if (config == null || config.syllableTargets == null || config.syllableTargets.length == 0) return 0;
+        return config.syllableTargets[lineOrdinal % config.syllableTargets.length];
+    }
+    
+    private char rhymeLetterFor(GuidedFormConfig config, int lineOrdinal) {
+        if (config == null || config.rhymeScheme == null || config.rhymeScheme.isBlank()) return 0;
+        if (lineOrdinal < 0 || lineOrdinal >= config.rhymeScheme.length()) return 0;
+        return config.rhymeScheme.charAt(lineOrdinal);
+    }
+    
+    private int[] getLineBounds(String text, int lineIndex) {
+        if (text == null || lineIndex < 0) return null;
+        int line = 0;
+        int start = 0;
+        int len = text.length();
+        for (int i = 0; i < len && line < lineIndex; i++) {
+            if (text.charAt(i) == '\n') {
+                start = i + 1;
+                line++;
+            }
+        }
+        if (line != lineIndex) return null;
+        int end = text.indexOf('\n', start);
+        if (end < 0) end = len;
+        return new int[]{start, end};
+    }
+
+    private String getLineText(String text, int lineIndex) {
+        if (text == null || text.isEmpty()) return "";
+        int[] bounds = getLineBounds(text, lineIndex);
+        if (bounds == null) return "";
+        int start = Math.max(0, bounds[0]);
+        int end = Math.min(text.length(), bounds[1]);
+        if (end <= start) return "";
+        return text.substring(start, end);
+    }
+    
+    private int[] getLastWordBounds(String text, int lineIndex) {
+        int[] lineBounds = getLineBounds(text, lineIndex);
+        if (lineBounds == null) return null;
+        int start = lineBounds[0];
+        int end = lineBounds[1];
+        int i = end - 1;
+        while (i >= start && !isWordChar(text.charAt(i))) i--;
+        if (i < start) return null;
+        int wordEnd = i + 1;
+        while (i >= start && isWordChar(text.charAt(i))) i--;
+        int wordStart = i + 1;
+        return new int[]{wordStart, wordEnd};
+    }
+    
+    private boolean isWordChar(char c) {
+        return Character.isLetter(c) || c == '\'';
     }
 
     private void runPoetryAnalysis(String text) {
@@ -1252,9 +1608,22 @@ public class PoemPanel extends AbstractEditorPanel {
      */
     private static class WordOutlineHighlightPainter implements Highlighter.HighlightPainter {
         private final Color color;
+        private final int fillAlpha;
+        private final int strokeAlpha;
+        private final float strokeWidth;
         
         public WordOutlineHighlightPainter(Color color) {
             this.color = color;
+            this.fillAlpha = 40;
+            this.strokeAlpha = color.getAlpha();
+            this.strokeWidth = 1.5f;
+        }
+        
+        public WordOutlineHighlightPainter(Color color, int fillAlpha, int strokeAlpha, float strokeWidth) {
+            this.color = color;
+            this.fillAlpha = fillAlpha;
+            this.strokeAlpha = strokeAlpha;
+            this.strokeWidth = strokeWidth;
         }
         
         @Override
@@ -1274,13 +1643,120 @@ public class PoemPanel extends AbstractEditorPanel {
                 int h = r0.height + 2;
                 
                 // Fill with semi-transparent background
-                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 40));
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), fillAlpha));
                 g2.fillRoundRect(x, y, w, h, 6, 6);
                 
                 // Draw outline
-                g2.setColor(color);
-                g2.setStroke(new java.awt.BasicStroke(1.5f));
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), strokeAlpha));
+                g2.setStroke(new java.awt.BasicStroke(strokeWidth));
                 g2.drawRoundRect(x, y, w, h, 6, 6);
+                
+                g2.dispose();
+            } catch (BadLocationException ignored) {}
+        }
+    }
+    
+    private static class GuidedLineHighlightPainter implements Highlighter.HighlightPainter {
+        private final Color fillColor;
+        private final Color accentColor;
+        private final String badge;
+        
+        GuidedLineHighlightPainter(Color fillColor, Color accentColor, String badge) {
+            this.fillColor = fillColor;
+            this.accentColor = accentColor;
+            this.badge = badge;
+        }
+        
+        @Override
+        public void paint(Graphics g, int offs0, int offs1, java.awt.Shape bounds, javax.swing.text.JTextComponent c) {
+            try {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                java.awt.Rectangle r0 = c.modelToView(offs0);
+                if (r0 == null) { g2.dispose(); return; }
+                
+                Insets insets = c.getInsets();
+                int x = Math.max(insets.left, r0.x - 8);
+                int y = r0.y - 1;
+                int h = r0.height + 2;
+                int w = Math.max(0, c.getWidth() - x - insets.right - 6);
+                
+                g2.setColor(new Color(fillColor.getRed(), fillColor.getGreen(), fillColor.getBlue(), 80));
+                g2.fillRoundRect(x, y, w, h, 10, 10);
+                
+                g2.setColor(new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 210));
+                g2.fillRoundRect(x, y, 8, h, 8, 8);
+                
+                g2.setColor(new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 150));
+                g2.setStroke(new java.awt.BasicStroke(1.3f));
+                g2.drawRoundRect(x, y, w, h, 10, 10);
+                
+                if (badge != null && !badge.isBlank()) {
+                    Font font = c.getFont().deriveFont(Font.BOLD, 12f);
+                    g2.setFont(font);
+                    FontMetrics fm = g2.getFontMetrics();
+                    int padX = 7;
+                    int badgeW = fm.stringWidth(badge) + padX * 2;
+                    int badgeH = fm.getHeight() + 2;
+                    int bx = Math.max(x + 10, x + w - badgeW - 8);
+                    int by = y + (h - badgeH) / 2;
+                    
+                    g2.setColor(new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 220));
+                    g2.fillRoundRect(bx, by, badgeW, badgeH, 10, 10);
+                    g2.setColor(new Color(255, 255, 255, 220));
+                    g2.drawString(badge, bx + padX, by + fm.getAscent());
+                }
+                
+                g2.dispose();
+            } catch (BadLocationException ignored) {}
+        }
+    }
+    
+    private static class GuidedAnchorHighlightPainter implements Highlighter.HighlightPainter {
+        private final Color color;
+        private final String badge;
+        
+        GuidedAnchorHighlightPainter(Color color, String badge) {
+            this.color = color;
+            this.badge = badge;
+        }
+        
+        @Override
+        public void paint(Graphics g, int offs0, int offs1, java.awt.Shape bounds, javax.swing.text.JTextComponent c) {
+            try {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                java.awt.Rectangle r0 = c.modelToView(offs0);
+                java.awt.Rectangle r1 = c.modelToView(offs1);
+                if (r0 == null || r1 == null) { g2.dispose(); return; }
+                
+                int x = r0.x - 2;
+                int y = r0.y - 1;
+                int w = (r1.x + r1.width) - r0.x + 4;
+                int h = r0.height + 2;
+                
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 140));
+                g2.fillRoundRect(x, y, w, h, 8, 8);
+                
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 220));
+                g2.setStroke(new java.awt.BasicStroke(1.4f));
+                g2.drawRoundRect(x, y, w, h, 8, 8);
+                
+                if (badge != null && !badge.isBlank()) {
+                    Font font = c.getFont().deriveFont(Font.BOLD, 11f);
+                    g2.setFont(font);
+                    FontMetrics fm = g2.getFontMetrics();
+                    int badgeW = fm.stringWidth(badge) + 10;
+                    int badgeH = fm.getHeight() + 2;
+                    int bx = Math.min(c.getWidth() - badgeW - 6, x + w + 4);
+                    int by = y + (h - badgeH) / 2;
+                    g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 230));
+                    g2.fillRoundRect(bx, by, badgeW, badgeH, 8, 8);
+                    g2.setColor(new Color(255, 255, 255, 220));
+                    g2.drawString(badge, bx + 4, by + fm.getAscent());
+                }
                 
                 g2.dispose();
             } catch (BadLocationException ignored) {}
