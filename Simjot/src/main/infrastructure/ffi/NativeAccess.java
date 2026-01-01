@@ -3058,6 +3058,76 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // MATH UTILITIES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Compute mean using native SIMD-accelerated math.
+     * @return mean or NaN if native unavailable
+     */
+    public static double mathMean(double[] values) {
+        if (values == null || values.length == 0) return Double.NaN;
+        NativeLibrary lib = library();
+        if (lib == null) return Double.NaN;
+        return lib.mathMean(values);
+    }
+
+    /**
+     * Compute standard deviation using native SIMD-accelerated math.
+     * @return stddev or NaN if native unavailable
+     */
+    public static double mathStddev(double[] values) {
+        if (values == null || values.length < 2) return Double.NaN;
+        NativeLibrary lib = library();
+        if (lib == null) return Double.NaN;
+        return lib.mathStddev(values);
+    }
+
+    /**
+     * Compute variance using native SIMD-accelerated math.
+     * @return variance or NaN if native unavailable
+     */
+    public static double mathVariance(double[] values) {
+        if (values == null || values.length < 2) return Double.NaN;
+        NativeLibrary lib = library();
+        if (lib == null) return Double.NaN;
+        return lib.mathVariance(values);
+    }
+
+    /**
+     * Compute min using native SIMD-accelerated math.
+     * @return min or NaN if native unavailable
+     */
+    public static double mathMin(double[] values) {
+        if (values == null || values.length == 0) return Double.NaN;
+        NativeLibrary lib = library();
+        if (lib == null) return Double.NaN;
+        return lib.mathMin(values);
+    }
+
+    /**
+     * Compute max using native SIMD-accelerated math.
+     * @return max or NaN if native unavailable
+     */
+    public static double mathMax(double[] values) {
+        if (values == null || values.length == 0) return Double.NaN;
+        NativeLibrary lib = library();
+        if (lib == null) return Double.NaN;
+        return lib.mathMax(values);
+    }
+
+    /**
+     * Compute sum using native SIMD-accelerated math.
+     * @return sum or NaN if native unavailable
+     */
+    public static double mathSum(double[] values) {
+        if (values == null || values.length == 0) return Double.NaN;
+        NativeLibrary lib = library();
+        if (lib == null) return Double.NaN;
+        return lib.mathSum(values);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // LZ4 COMPRESSION API
     // ═══════════════════════════════════════════════════════════════════════════
 

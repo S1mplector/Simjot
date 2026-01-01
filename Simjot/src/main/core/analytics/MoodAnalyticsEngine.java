@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.AppDirectories;
 
 /**
@@ -424,6 +425,19 @@ public final class MoodAnalyticsEngine {
     }
 
     private double computeVolatility(List<Double> values, double mean) {
+        // Try native stddev computation (SIMD-accelerated, faster for large datasets)
+        double[] nonNull = values.stream()
+                .filter(v -> v != null)
+                .mapToDouble(Double::doubleValue)
+                .toArray();
+        if (nonNull.length >= 2) {
+            double nativeStddev = NativeAccess.mathStddev(nonNull);
+            if (!Double.isNaN(nativeStddev) && nativeStddev >= 0) {
+                return nativeStddev;
+            }
+        }
+        
+        // Java fallback
         double sumSq = 0;
         int count = 0;
 

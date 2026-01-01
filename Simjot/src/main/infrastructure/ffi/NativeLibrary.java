@@ -737,6 +737,56 @@ public final class NativeLibrary implements AutoCloseable {
         this.damerauLevenshteinHandle = optionalHandle("simjot_damerau_levenshtein",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         
+        // Additional text utility handles
+        this.textSyllableCountHandle = optionalHandle("simjot_text_syllable_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.textAnalyzeHandle = optionalHandle("simjot_text_analyze",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.textIsAsciiHandle = optionalHandle("simjot_text_is_ascii",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.textIsAlnumHandle = optionalHandle("simjot_text_is_alnum",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.textIsSafeFilenameHandle = optionalHandle("simjot_text_is_safe_filename",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.parseIntHandle = optionalHandle("simjot_parse_int",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.parseBoolHandle = optionalHandle("simjot_parse_bool",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        
+        // Math utility handles
+        this.mathMeanHandle = optionalHandle("simjot_math_mean",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathVarianceHandle = optionalHandle("simjot_math_variance",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathStddevHandle = optionalHandle("simjot_math_stddev",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathMinHandle = optionalHandle("simjot_math_min",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathMaxHandle = optionalHandle("simjot_math_max",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathSumHandle = optionalHandle("simjot_math_sum",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathClampIntHandle = optionalHandle("simjot_math_clamp_int",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.mathStatsHandle = optionalHandle("simjot_math_stats",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        
+        // File utility handles
+        this.fileSizeHandle = optionalHandle("simjot_file_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        this.fileMtimeHandle = optionalHandle("simjot_file_mtime",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        this.fileExistsHandle = optionalHandle("simjot_file_exists",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.fileIsFileHandle = optionalHandle("simjot_file_is_file",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.fileIsDirHandle = optionalHandle("simjot_file_is_dir",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.diskAvailableHandle = optionalHandle("simjot_disk_available",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        this.dirCountHandle = optionalHandle("simjot_dir_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        
         // LRU Cache handles (handle-based API)
         this.lruCacheCreateHandle = optionalHandle("simjot_lru_cache_create",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
@@ -3347,6 +3397,94 @@ public final class NativeLibrary implements AutoCloseable {
     public boolean internContains(String str) { return false; }
     public int internCount() { return 0; }
     public void internClear() {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MATH UTILITIES API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Compute mean of double array using native SIMD.
+     */
+    public double mathMean(double[] values) {
+        if (mathMeanHandle == null || values == null || values.length == 0) return Double.NaN;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(values.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(values);
+            return (double) mathMeanHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Compute standard deviation of double array using native SIMD.
+     */
+    public double mathStddev(double[] values) {
+        if (mathStddevHandle == null || values == null || values.length < 2) return Double.NaN;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(values.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(values);
+            return (double) mathStddevHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Compute variance of double array using native SIMD.
+     */
+    public double mathVariance(double[] values) {
+        if (mathVarianceHandle == null || values == null || values.length < 2) return Double.NaN;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(values.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(values);
+            return (double) mathVarianceHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Compute min of double array using native SIMD.
+     */
+    public double mathMin(double[] values) {
+        if (mathMinHandle == null || values == null || values.length == 0) return Double.NaN;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(values.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(values);
+            return (double) mathMinHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Compute max of double array using native SIMD.
+     */
+    public double mathMax(double[] values) {
+        if (mathMaxHandle == null || values == null || values.length == 0) return Double.NaN;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(values.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(values);
+            return (double) mathMaxHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Compute sum of double array using native SIMD.
+     */
+    public double mathSum(double[] values) {
+        if (mathSumHandle == null || values == null || values.length == 0) return Double.NaN;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(values.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(values);
+            return (double) mathSumHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LZ4 COMPRESSION API
