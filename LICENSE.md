@@ -52,7 +52,7 @@ All icon artwork in this project is the **exclusive intellectual property** of t
 
 <div align="center">
 
-**Lightning** ([@LightningTheAn1](https://x.com/LightningTheAn1))
+**Lightning Draws** ([@LightningTheAn1](https://x.com/LightningTheAn1))
 
 </div>
 
