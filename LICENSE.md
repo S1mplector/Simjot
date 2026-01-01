@@ -76,13 +76,13 @@ When using the icons in any project (personal or commercial), you **MUST** provi
 
 **In application UI, documentation, or credits:**
 ```
-Icons by Lightning (@LightningTheAn1)
+Icons by Lightning Draws (@LightningTheAn1)
 https://x.com/LightningTheAn1
 ```
 
 **In code comments or license files:**
 ```
-Icon artwork © Lightning (@LightningTheAn1) - https://x.com/LightningTheAn1
+Icon artwork © Lightning Draws (@LightningTheAn1) - https://x.com/LightningTheAn1
 Used with permission under the Simjot Icon License.
 ```
 
