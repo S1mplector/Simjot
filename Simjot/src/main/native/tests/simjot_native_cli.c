@@ -485,6 +485,101 @@ int main(void) {
     printf("[SKIP] simjot_atomic_write and simjot_ensure_space (Windows stub)\n");
 #endif
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HOTKEY MANAGER TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("\n=== Hotkey Manager Tests ===\n");
+    
+    // Test platform detection
+    int32_t platform = simjot_hotkey_get_platform();
+#if defined(__APPLE__) && defined(__MACH__)
+    expect_int("simjot_hotkey_get_platform (macOS)", platform, SIMJOT_PLATFORM_MACOS);
+#elif defined(_WIN32) || defined(_WIN64)
+    expect_int("simjot_hotkey_get_platform (Windows)", platform, SIMJOT_PLATFORM_WINDOWS);
+#elif defined(__linux__)
+    expect_int("simjot_hotkey_get_platform (Linux)", platform, SIMJOT_PLATFORM_LINUX);
+#else
+    printf("[INFO] simjot_hotkey_get_platform: %d (unknown platform)\n", platform);
+#endif
+
+    // Test primary modifier
+    int32_t primary_mod = simjot_hotkey_get_primary_modifier();
+#if defined(__APPLE__) && defined(__MACH__)
+    expect_int("simjot_hotkey_get_primary_modifier (macOS)", primary_mod, SIMJOT_MOD_META);
+#else
+    expect_int("simjot_hotkey_get_primary_modifier (non-macOS)", primary_mod, SIMJOT_MOD_CTRL);
+#endif
+
+    // Test hotkey check - Bold (Cmd/Ctrl + B)
+    int32_t bold_action = simjot_hotkey_check('B', primary_mod);
+    expect_int("simjot_hotkey_check(B, primary)", bold_action, SIMJOT_ACTION_BOLD);
+    
+    // Test hotkey check - lowercase should also work
+    int32_t bold_lower = simjot_hotkey_check('b', primary_mod);
+    expect_int("simjot_hotkey_check(b, primary)", bold_lower, SIMJOT_ACTION_BOLD);
+
+    // Test hotkey check - Italic (Cmd/Ctrl + I)
+    int32_t italic_action = simjot_hotkey_check('I', primary_mod);
+    expect_int("simjot_hotkey_check(I, primary)", italic_action, SIMJOT_ACTION_ITALIC);
+
+    // Test hotkey check - Underline (Cmd/Ctrl + U)
+    int32_t underline_action = simjot_hotkey_check('U', primary_mod);
+    expect_int("simjot_hotkey_check(U, primary)", underline_action, SIMJOT_ACTION_UNDERLINE);
+
+    // Test hotkey check - Strikethrough (Cmd/Ctrl + Shift + S)
+    int32_t strike_action = simjot_hotkey_check('S', primary_mod | SIMJOT_MOD_SHIFT);
+    expect_int("simjot_hotkey_check(S, primary|shift)", strike_action, SIMJOT_ACTION_STRIKETHROUGH);
+
+    // Test that S without shift doesn't match strikethrough
+    int32_t s_no_shift = simjot_hotkey_check('S', primary_mod);
+    expect_int("simjot_hotkey_check(S, primary only)", s_no_shift, SIMJOT_ACTION_NONE);
+
+    // Test that unbound keys return NONE
+    int32_t unbound = simjot_hotkey_check('X', primary_mod);
+    expect_int("simjot_hotkey_check(X, primary)", unbound, SIMJOT_ACTION_NONE);
+
+    // Test that wrong modifier returns NONE
+    int32_t wrong_mod = simjot_hotkey_check('B', SIMJOT_MOD_ALT);
+    expect_int("simjot_hotkey_check(B, alt only)", wrong_mod, SIMJOT_ACTION_NONE);
+
+    // Test get binding
+    int32_t key_code = 0, modifiers = 0;
+    int32_t got_binding = simjot_hotkey_get_binding(SIMJOT_ACTION_BOLD, &key_code, &modifiers);
+    expect_int("simjot_hotkey_get_binding(BOLD) success", got_binding, 1);
+    expect_int("simjot_hotkey_get_binding(BOLD) key", key_code, 'B');
+    expect_int("simjot_hotkey_get_binding(BOLD) mods", modifiers, primary_mod);
+
+    got_binding = simjot_hotkey_get_binding(SIMJOT_ACTION_STRIKETHROUGH, &key_code, &modifiers);
+    expect_int("simjot_hotkey_get_binding(STRIKE) success", got_binding, 1);
+    expect_int("simjot_hotkey_get_binding(STRIKE) key", key_code, 'S');
+    expect_int("simjot_hotkey_get_binding(STRIKE) mods", modifiers, primary_mod | SIMJOT_MOD_SHIFT);
+
+    // Test display string
+    char display[32] = {0};
+    int32_t dlen = simjot_hotkey_get_display_string(SIMJOT_ACTION_BOLD, display, sizeof(display));
+    if (dlen > 0) {
+#if defined(__APPLE__) && defined(__MACH__)
+        expect_str("simjot_hotkey_get_display_string(BOLD)", display, "⌘B");
+#else
+        expect_str("simjot_hotkey_get_display_string(BOLD)", display, "Ctrl+B");
+#endif
+    } else {
+        fprintf(stderr, "[FAIL] simjot_hotkey_get_display_string(BOLD): returned %d\n", dlen);
+        failures++;
+    }
+
+    dlen = simjot_hotkey_get_display_string(SIMJOT_ACTION_STRIKETHROUGH, display, sizeof(display));
+    if (dlen > 0) {
+#if defined(__APPLE__) && defined(__MACH__)
+        expect_str("simjot_hotkey_get_display_string(STRIKE)", display, "⇧⌘S");
+#else
+        expect_str("simjot_hotkey_get_display_string(STRIKE)", display, "Ctrl+Shift+S");
+#endif
+    } else {
+        fprintf(stderr, "[FAIL] simjot_hotkey_get_display_string(STRIKE): returned %d\n", dlen);
+        failures++;
+    }
+
     if (failures == 0) {
         printf("\nAll native tests passed.\n");
         return 0;

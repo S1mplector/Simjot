@@ -3425,48 +3425,10 @@ public final class NativeAccess {
      */
     public static int hotkeyCheck(int keyCode, int modifiers) {
         NativeLibrary lib = library();
-        if (lib != null && lib.hasHotkeySupport()) {
-            return lib.hotkeyCheck(keyCode, modifiers);
-        }
-        // Java fallback
-        return hotkeyCheckJava(keyCode, modifiers);
-    }
-    
-    /**
-     * Pure Java hotkey check fallback.
-     */
-    private static int hotkeyCheckJava(int keyCode, int modifiers) {
-        // Determine primary modifier based on OS
-        boolean isMac = System.getProperty("os.name", "").toLowerCase().contains("mac");
-        int primaryMod = isMac ? NativeLibrary.MOD_META : NativeLibrary.MOD_CTRL;
-        
-        // Must have primary modifier
-        if ((modifiers & primaryMod) == 0) {
+            if (lib == null || !lib.hasHotkeySupport()) {
             return NativeLibrary.ACTION_NONE;
         }
-        
-        // Normalize to uppercase
-        int key = Character.toUpperCase(keyCode);
-        
-        // Mask relevant modifiers only
-        int relevantMods = modifiers & (NativeLibrary.MOD_SHIFT | NativeLibrary.MOD_CTRL | 
-                                         NativeLibrary.MOD_ALT | NativeLibrary.MOD_META);
-        
-        // Check each hotkey
-        if (key == 'B' && relevantMods == primaryMod) {
-            return NativeLibrary.ACTION_BOLD;
-        }
-        if (key == 'I' && relevantMods == primaryMod) {
-            return NativeLibrary.ACTION_ITALIC;
-        }
-        if (key == 'U' && relevantMods == primaryMod) {
-            return NativeLibrary.ACTION_UNDERLINE;
-        }
-        if (key == 'S' && relevantMods == (primaryMod | NativeLibrary.MOD_SHIFT)) {
-            return NativeLibrary.ACTION_STRIKETHROUGH;
-        }
-        
-        return NativeLibrary.ACTION_NONE;
+        return lib.hotkeyCheck(keyCode, modifiers);
     }
 
     /**
