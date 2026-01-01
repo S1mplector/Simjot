@@ -29,6 +29,7 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
 import main.infrastructure.io.IoLog;
+import main.infrastructure.io.NativeJson;
 
 /**
  * Persists list of notebooks under Simjot/notebooks.json and provides helpers.
@@ -426,41 +427,11 @@ public final class NotebookStore {
     }
 
     private static String extractJsonString(String obj, String key){
-        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
-        Matcher m = p.matcher(obj);
-        if (!m.find()) return null;
-        return jsonUnescape(m.group(1));
+        return NativeJson.getString(obj, key);
     }
 
     private static Long extractJsonLong(String obj, String key){
-        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*([0-9]+)");
-        Matcher m = p.matcher(obj);
-        if (!m.find()) return null;
-        try { return Long.parseLong(m.group(1)); } catch (NumberFormatException e) { return null; }
-    }
-
-    private static String jsonUnescape(String s){
-        StringBuilder out = new StringBuilder();
-        boolean esc = false;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (esc) {
-                switch (c) {
-                    case 'n' -> out.append('\n');
-                    case 'r' -> out.append('\r');
-                    case 't' -> out.append('\t');
-                    case '"' -> out.append('"');
-                    case '\\' -> out.append('\\');
-                    default -> out.append(c);
-                }
-                esc = false;
-            } else if (c == '\\') {
-                esc = true;
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
+        return NativeJson.getLong(obj, key);
     }
 
     private static void logWarn(String msg, Throwable t){

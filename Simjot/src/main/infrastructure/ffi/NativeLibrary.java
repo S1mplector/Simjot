@@ -116,6 +116,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle jsonCountKeysHandle;
     private final MethodHandle jsonGetKeysHandle;
     private final MethodHandle jsonGetPathHandle;
+    private final MethodHandle jsonParseStringArrayHandle;
     
     // Date/time handles
     private final MethodHandle timeNowMillisHandle;
@@ -129,6 +130,16 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle patternExtractAfterHandle;
     private final MethodHandle patternReplaceAllHandle;
     private final MethodHandle patternCollapseSpacesHandle;
+
+    // Search handles
+    private final MethodHandle searchFindHandle;
+    private final MethodHandle searchFindCiHandle;
+    private final MethodHandle searchCountHandle;
+    private final MethodHandle searchFindAllHandle;
+    private final MethodHandle searchFuzzyHandle;
+    private final MethodHandle searchAcBuildHandle;
+    private final MethodHandle searchAcFindHandle;
+    private final MethodHandle searchAcFreeHandle;
     
     // Base64/encoding handles
     private final MethodHandle base64EncodeHandle;
@@ -665,6 +676,8 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.jsonGetPathHandle = optionalHandle("simjot_json_get_path",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.jsonParseStringArrayHandle = optionalHandle("simjot_json_parse_string_array",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         
         // Date/time handles
         this.timeNowMillisHandle = optionalHandle("simjot_time_now_millis",
@@ -687,6 +700,27 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.patternCollapseSpacesHandle = optionalHandle("simjot_pattern_collapse_spaces",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+
+        // Search handles
+        this.searchFindHandle = optionalHandle("simjot_search_find",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.searchFindCiHandle = optionalHandle("simjot_search_find_ci",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.searchCountHandle = optionalHandle("simjot_search_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.searchFindAllHandle = optionalHandle("simjot_search_find_all",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.searchFuzzyHandle = optionalHandle("simjot_search_fuzzy",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.searchAcBuildHandle = optionalHandle("simjot_search_ac_build",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.searchAcFindHandle = optionalHandle("simjot_search_ac_find",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.searchAcFreeHandle = optionalHandle("simjot_search_ac_free",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
         
         // Base64/encoding handles
         this.base64EncodeHandle = optionalHandle("simjot_base64_encode",
@@ -2024,6 +2058,73 @@ public final class NativeLibrary implements AutoCloseable {
         } catch (Throwable t) { return false; }
     }
 
+    public int jsonCountKeys(String json) {
+        if (jsonCountKeysHandle == null || json == null) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            return (int) jsonCountKeysHandle.invokeExact(cJson);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public List<String> jsonGetKeys(String json) {
+        if (jsonGetKeysHandle == null || json == null) return null;
+        int outLen = Math.min(Math.max(512, json.length() + 1), 131072);
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int count = (int) jsonGetKeysHandle.invokeExact(cJson, outBuf, outLen);
+            if (count <= 0) return Collections.emptyList();
+            String raw = outBuf.getString(0);
+            if (raw == null || raw.isEmpty()) return Collections.emptyList();
+            String[] parts = raw.split("\n");
+            List<String> out = new ArrayList<>(parts.length);
+            for (String p : parts) {
+                if (!p.isEmpty()) out.add(p);
+            }
+            return out;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String jsonGetPath(String json, String path) {
+        if (jsonGetPathHandle == null || json == null || path == null) return null;
+        int outLen = Math.min(Math.max(256, json.length() + 1), 131072);
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            MemorySegment cPath = tempArena.allocateFrom(path);
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int len = (int) jsonGetPathHandle.invokeExact(cJson, cPath, outBuf, outLen);
+            if (len <= 0) return null;
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public List<String> jsonParseStringArray(String json) {
+        if (jsonParseStringArrayHandle == null || json == null) return null;
+        int outLen = Math.min(Math.max(512, json.length() + 1), 131072);
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cJson = tempArena.allocateFrom(json);
+            MemorySegment outBuf = tempArena.allocate(outLen);
+            int count = (int) jsonParseStringArrayHandle.invokeExact(cJson, outBuf, outLen);
+            if (count <= 0) return Collections.emptyList();
+            String raw = outBuf.getString(0);
+            if (raw == null || raw.isEmpty()) return Collections.emptyList();
+            String[] parts = raw.split("\n");
+            List<String> out = new ArrayList<>(parts.length);
+            for (String p : parts) {
+                if (!p.isEmpty()) out.add(p);
+            }
+            return out;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // DATE/TIME API
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2114,6 +2215,162 @@ public final class NativeLibrary implements AutoCloseable {
             if (len < 0) return null;
             return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
         } catch (Throwable t) { return null; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SEARCH API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public long searchFind(String haystack, String needle) {
+        if (searchFindHandle == null || haystack == null || needle == null) return -1;
+        byte[] hayBytes = haystack.getBytes(StandardCharsets.UTF_8);
+        byte[] needleBytes = needle.getBytes(StandardCharsets.UTF_8);
+        if (hayBytes.length == 0 || needleBytes.length == 0) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment haySeg = tempArena.allocate(hayBytes.length);
+            haySeg.asByteBuffer().put(hayBytes);
+            MemorySegment needleSeg = tempArena.allocate(needleBytes.length);
+            needleSeg.asByteBuffer().put(needleBytes);
+            return (long) searchFindHandle.invokeExact(haySeg, (long) hayBytes.length, needleSeg, (long) needleBytes.length);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public long searchFindCi(String haystack, String needle) {
+        if (searchFindCiHandle == null || haystack == null || needle == null) return -1;
+        byte[] hayBytes = haystack.getBytes(StandardCharsets.UTF_8);
+        byte[] needleBytes = needle.getBytes(StandardCharsets.UTF_8);
+        if (hayBytes.length == 0 || needleBytes.length == 0) return -1;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment haySeg = tempArena.allocate(hayBytes.length);
+            haySeg.asByteBuffer().put(hayBytes);
+            MemorySegment needleSeg = tempArena.allocate(needleBytes.length);
+            needleSeg.asByteBuffer().put(needleBytes);
+            return (long) searchFindCiHandle.invokeExact(haySeg, (long) hayBytes.length, needleSeg, (long) needleBytes.length);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public int searchCount(String haystack, String needle) {
+        if (searchCountHandle == null || haystack == null || needle == null) return 0;
+        byte[] hayBytes = haystack.getBytes(StandardCharsets.UTF_8);
+        byte[] needleBytes = needle.getBytes(StandardCharsets.UTF_8);
+        if (hayBytes.length == 0 || needleBytes.length == 0) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment haySeg = tempArena.allocate(hayBytes.length);
+            haySeg.asByteBuffer().put(hayBytes);
+            MemorySegment needleSeg = tempArena.allocate(needleBytes.length);
+            needleSeg.asByteBuffer().put(needleBytes);
+            return (int) searchCountHandle.invokeExact(haySeg, (long) hayBytes.length, needleSeg, (long) needleBytes.length);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public long[] searchFindAll(String haystack, String needle, int maxResults) {
+        if (searchFindAllHandle == null || haystack == null || needle == null || maxResults <= 0) return null;
+        byte[] hayBytes = haystack.getBytes(StandardCharsets.UTF_8);
+        byte[] needleBytes = needle.getBytes(StandardCharsets.UTF_8);
+        if (hayBytes.length == 0 || needleBytes.length == 0) return new long[0];
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment haySeg = tempArena.allocate(hayBytes.length);
+            haySeg.asByteBuffer().put(hayBytes);
+            MemorySegment needleSeg = tempArena.allocate(needleBytes.length);
+            needleSeg.asByteBuffer().put(needleBytes);
+            MemorySegment out = tempArena.allocate(maxResults * 8L);
+            int count = (int) searchFindAllHandle.invokeExact(haySeg, (long) hayBytes.length, needleSeg, (long) needleBytes.length,
+                out, maxResults);
+            if (count <= 0) return new long[0];
+            long[] positions = new long[count];
+            out.asByteBuffer().asLongBuffer().get(positions, 0, count);
+            return positions;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public int searchFuzzy(String text, String pattern, int maxDistance, long[] outPositions, int[] outDistances, int maxResults) {
+        if (searchFuzzyHandle == null || text == null || pattern == null || maxResults <= 0) return 0;
+        byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
+        byte[] patternBytes = pattern.getBytes(StandardCharsets.UTF_8);
+        if (textBytes.length == 0 || patternBytes.length == 0) return 0;
+        int results = maxResults;
+        if (outPositions != null) results = Math.min(results, outPositions.length);
+        if (outDistances != null) results = Math.min(results, outDistances.length);
+        if (results <= 0) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment textSeg = tempArena.allocate(textBytes.length);
+            textSeg.asByteBuffer().put(textBytes);
+            MemorySegment patternSeg = tempArena.allocate(patternBytes.length);
+            patternSeg.asByteBuffer().put(patternBytes);
+            MemorySegment posSeg = tempArena.allocate(results * 8L);
+            MemorySegment distSeg = tempArena.allocate(results * 4L);
+            int count = (int) searchFuzzyHandle.invokeExact(textSeg, (long) textBytes.length, patternSeg, patternBytes.length,
+                maxDistance, posSeg, distSeg, results);
+            if (count <= 0) return 0;
+            if (outPositions != null) {
+                posSeg.asByteBuffer().asLongBuffer().get(outPositions, 0, count);
+            }
+            if (outDistances != null) {
+                distSeg.asByteBuffer().asIntBuffer().get(outDistances, 0, count);
+            }
+            return count;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public MemorySegment searchAcBuild(String[] patterns) {
+        if (searchAcBuildHandle == null || patterns == null || patterns.length == 0) return null;
+        int totalBytes = 0;
+        byte[][] encoded = new byte[patterns.length][];
+        for (int i = 0; i < patterns.length; i++) {
+            String p = patterns[i] == null ? "" : patterns[i];
+            encoded[i] = p.getBytes(StandardCharsets.UTF_8);
+            totalBytes += encoded[i].length + 1;
+        }
+        if (totalBytes == 0) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment buf = tempArena.allocate(totalBytes);
+            java.nio.ByteBuffer bb = buf.asByteBuffer();
+            for (byte[] b : encoded) {
+                bb.put(b);
+                bb.put((byte) 0);
+            }
+            return (MemorySegment) searchAcBuildHandle.invokeExact(buf, patterns.length);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public int searchAcFind(MemorySegment handle, String text, long[] outPositions, int[] outPatterns, int maxResults) {
+        if (searchAcFindHandle == null || handle == null || text == null || maxResults <= 0) return 0;
+        int results = maxResults;
+        if (outPositions != null) results = Math.min(results, outPositions.length);
+        if (outPatterns != null) results = Math.min(results, outPatterns.length);
+        if (results <= 0) return 0;
+        byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
+        if (textBytes.length == 0) return 0;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment textSeg = tempArena.allocate(textBytes.length);
+            textSeg.asByteBuffer().put(textBytes);
+            MemorySegment posSeg = tempArena.allocate(results * 8L);
+            MemorySegment patSeg = tempArena.allocate(results * 4L);
+            int count = (int) searchAcFindHandle.invokeExact(handle, textSeg, (long) textBytes.length, posSeg, patSeg, results);
+            if (count <= 0) return 0;
+            if (outPositions != null) {
+                posSeg.asByteBuffer().asLongBuffer().get(outPositions, 0, count);
+            }
+            if (outPatterns != null) {
+                patSeg.asByteBuffer().asIntBuffer().get(outPatterns, 0, count);
+            }
+            return count;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public void searchAcFree(MemorySegment handle) {
+        if (searchAcFreeHandle == null || handle == null) return;
+        try {
+            searchAcFreeHandle.invokeExact(handle);
+        } catch (Throwable ignored) {}
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4211,26 +4468,25 @@ public final class NativeLibrary implements AutoCloseable {
         if (jsonLoadDictFileHandle == null || filePath == null) return null;
         try (Arena temp = Arena.ofConfined()) {
             MemorySegment cPath = temp.allocateFrom(filePath);
-            // Start with a reasonably large buffer
-            int outLen = 1024 * 1024; // 1MB
+            int outLen = 1024 * 1024;
+            try {
+                long fileSize = Files.size(Path.of(filePath));
+                if (fileSize > 0) {
+                    long target = Math.min(Math.max(fileSize, outLen), 32L * 1024 * 1024);
+                    outLen = (int) target;
+                }
+            } catch (Throwable ignored) {}
             MemorySegment out = temp.allocate(outLen);
             
             int len = (int) jsonLoadDictFileHandle.invokeExact(cPath, out, outLen);
             if (len <= 0) return null;
             
-            // Parse null-separated words
-            byte[] data = new byte[len];
-            out.asByteBuffer().get(data);
-            
-            List<String> words = new ArrayList<>();
-            int start = 0;
-            for (int i = 0; i < len; i++) {
-                if (data[i] == 0) {
-                    if (i > start) {
-                        words.add(new String(data, start, i - start, StandardCharsets.UTF_8));
-                    }
-                    start = i + 1;
-                }
+            String raw = out.getString(0);
+            if (raw == null || raw.isEmpty()) return Collections.emptyList();
+            String[] parts = raw.split("\n");
+            List<String> words = new ArrayList<>(parts.length);
+            for (String part : parts) {
+                if (!part.isEmpty()) words.add(part);
             }
             return words;
         } catch (Throwable t) {

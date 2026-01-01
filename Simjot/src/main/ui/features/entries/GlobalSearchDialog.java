@@ -55,6 +55,7 @@ import main.core.service.NotebookStore;
 import main.core.security.EncryptionManager;
 import main.core.security.crypto.CryptoException;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -553,13 +554,14 @@ public class GlobalSearchDialog extends JDialog {
         String[] parts = query.split("\\s+");
         for (String p : parts) {
             if (p.isBlank()) continue;
-            if (!text.contains(p)) return false;
+            if (!NativeAccess.searchContains(text, p)) return false;
         }
         return true;
     }
 
     private static boolean fuzzyMatch(String query, String text) {
         if (query.isEmpty()) return true;
+        if (NativeAccess.searchFuzzyMatch(text, query, Math.max(1, query.length() / 4))) return true;
         int qi = 0;
         for (int i = 0; i < text.length() && qi < query.length(); i++) {
             if (text.charAt(i) == query.charAt(qi)) {

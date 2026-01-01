@@ -40,6 +40,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
 
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.AeroPanel;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -188,7 +189,9 @@ public class TemplateManagerDialog extends JDialog {
                 : JournalTemplateManager.getInstance().getTemplates();
         String q = searchField != null ? searchField.getText().trim().toLowerCase() : "";
         for (JournalTemplateManager.JournalTemplate template : allTemplates) {
-            if (q.isEmpty() || template.getName().toLowerCase().contains(q) || template.getDescription().toLowerCase().contains(q)) {
+            String name = template.getName().toLowerCase();
+            String desc = template.getDescription().toLowerCase();
+            if (q.isEmpty() || NativeAccess.searchContains(name, q) || NativeAccess.searchContains(desc, q)) {
                 listModel.addElement(template);
             }
         }

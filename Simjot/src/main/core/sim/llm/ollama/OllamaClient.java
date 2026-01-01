@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import main.core.sim.llm.api.SimLLMClient;
 import main.core.sim.llm.api.SimLLMRequest;
 import main.core.sim.llm.api.SimLLMResponse;
+import main.infrastructure.io.NativeJson;
 
 /**
  * Minimal Ollama client using the /api/generate endpoint (non-streaming).
@@ -489,6 +490,8 @@ public final class OllamaClient implements SimLLMClient {
     }
 
     private static String extractResponseField(String json) {
+        String nativeValue = NativeJson.getString(json, "response");
+        if (nativeValue != null) return nativeValue.trim();
         // Very small, naive parser for { ..., "response":"...", ... }
         int i = json.indexOf("\"response\"");
         if (i < 0) return "";

@@ -8,6 +8,7 @@
 
 package main.infrastructure.ffi;
 
+import java.lang.foreign.MemorySegment;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 
 import main.infrastructure.io.IoLog;
 import main.infrastructure.io.ResourceLoader;
@@ -944,6 +946,157 @@ public final class NativeAccess {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    public static Integer jsonCountKeys(String json) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null) return null;
+        try {
+            return lib.jsonCountKeys(json);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static List<String> jsonGetKeys(String json) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null) return null;
+        try {
+            return lib.jsonGetKeys(json);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static String jsonGetPath(String json, String path) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null || path == null) return null;
+        try {
+            return lib.jsonGetPath(json, path);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static List<String> jsonParseStringArray(String json) {
+        NativeLibrary lib = library();
+        if (lib == null || json == null) return null;
+        try {
+            return lib.jsonParseStringArray(json);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SEARCH API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static long searchFind(String haystack, String needle) {
+        NativeLibrary lib = library();
+        if (lib == null || haystack == null || needle == null) return -1;
+        try {
+            return lib.searchFind(haystack, needle);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static long searchFindCi(String haystack, String needle) {
+        NativeLibrary lib = library();
+        if (lib == null || haystack == null || needle == null) return -1;
+        try {
+            return lib.searchFindCi(haystack, needle);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static boolean searchContains(String haystack, String needle) {
+        if (haystack == null || needle == null) return false;
+        if (needle.isEmpty()) return true;
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                return lib.searchFind(haystack, needle) >= 0;
+            } catch (Throwable ignored) {
+                return haystack.contains(needle);
+            }
+        }
+        return haystack.contains(needle);
+    }
+
+    public static boolean searchContainsCi(String haystack, String needle) {
+        if (haystack == null || needle == null) return false;
+        if (needle.isEmpty()) return true;
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                return lib.searchFindCi(haystack, needle) >= 0;
+            } catch (Throwable ignored) {
+                return haystack.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT));
+            }
+        }
+        return haystack.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT));
+    }
+
+    public static int searchCount(String haystack, String needle) {
+        NativeLibrary lib = library();
+        if (lib == null || haystack == null || needle == null) return 0;
+        try {
+            return lib.searchCount(haystack, needle);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static long[] searchFindAll(String haystack, String needle, int maxResults) {
+        NativeLibrary lib = library();
+        if (lib == null || haystack == null || needle == null) return null;
+        try {
+            return lib.searchFindAll(haystack, needle, maxResults);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean searchFuzzyMatch(String text, String pattern, int maxDistance) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null || pattern == null) return false;
+        try {
+            int count = lib.searchFuzzy(text, pattern, maxDistance, null, null, 1);
+            return count > 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static MemorySegment searchAcBuild(String[] patterns) {
+        NativeLibrary lib = library();
+        if (lib == null || patterns == null || patterns.length == 0) return null;
+        try {
+            return lib.searchAcBuild(patterns);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static int searchAcFind(MemorySegment handle, String text, long[] outPositions, int[] outPatterns, int maxResults) {
+        NativeLibrary lib = library();
+        if (lib == null || handle == null || text == null) return 0;
+        try {
+            return lib.searchAcFind(handle, text, outPositions, outPatterns, maxResults);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static void searchAcFree(MemorySegment handle) {
+        NativeLibrary lib = library();
+        if (lib == null || handle == null) return;
+        try {
+            lib.searchAcFree(handle);
+        } catch (Throwable ignored) {}
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

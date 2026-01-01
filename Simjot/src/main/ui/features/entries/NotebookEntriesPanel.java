@@ -70,6 +70,7 @@ import javax.swing.event.DocumentListener;
 import main.core.security.EncryptionManager;
 import main.core.security.crypto.EncryptedMetadata;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarMenuIconButton;
@@ -579,7 +580,7 @@ public class NotebookEntriesPanel extends JPanel {
         List<File> filtered = allFiles.stream().filter(f -> {
             String name = f.getName().toLowerCase();
             String title = java.util.Objects.toString(titles.get(f), f.getName()).toLowerCase();
-            boolean textMatch = name.contains(q) || title.contains(q);
+            boolean textMatch = NativeAccess.searchContains(name, q) || NativeAccess.searchContains(title, q);
             if (!textMatch) return false;
             
             // Apply date filter if set

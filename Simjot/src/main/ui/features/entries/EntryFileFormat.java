@@ -8,8 +8,7 @@
 
 package main.ui.features.entries;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import main.infrastructure.io.NativeJson;
 
 final class EntryFileFormat {
     private EntryFileFormat() {}
@@ -58,31 +57,19 @@ final class EntryFileFormat {
     }
 
     private static String extractString(String json, String key) {
-        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"(.*?)\"");
-        Matcher m = p.matcher(json);
-        if (!m.find()) return null;
-        return unescape(m.group(1));
+        return NativeJson.getString(json, key);
     }
 
     private static Integer extractInt(String json, String key) {
-        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(\\d+)");
-        Matcher m = p.matcher(json);
-        if (!m.find()) return null;
-        try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        return NativeJson.getInt(json, key);
     }
 
     private static Long extractLong(String json, String key) {
-        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(\\d+)");
-        Matcher m = p.matcher(json);
-        if (!m.find()) return null;
-        try { return Long.parseLong(m.group(1)); } catch (NumberFormatException e) { return null; }
+        return NativeJson.getLong(json, key);
     }
 
     private static Boolean extractBool(String json, String key) {
-        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(true|false)");
-        Matcher m = p.matcher(json);
-        if (!m.find()) return null;
-        return Boolean.parseBoolean(m.group(1));
+        return NativeJson.getBoolean(json, key);
     }
 
     private static String escape(String s) {
@@ -93,9 +80,4 @@ final class EntryFileFormat {
                 .replace("\t", "\\t");
     }
 
-    private static String unescape(String s) {
-        String out = s.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t");
-        out = out.replace("\\\"", "\"").replace("\\\\", "\\");
-        return out;
-    }
 }

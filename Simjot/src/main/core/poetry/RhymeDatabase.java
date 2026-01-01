@@ -8,6 +8,8 @@
 
 package main.core.poetry;
 
+import java.net.URL;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -241,6 +243,13 @@ public final class RhymeDatabase {
         // Load lightweight word list from the simple dictionary JSON files (a.json ... z.json)
         for (char c = 'a'; c <= 'z'; c++) {
             String path = "simple-english-dictionary/data/" + c + ".json";
+            List<String> nativeWords = loadDictWordsNative(path);
+            if (nativeWords != null && !nativeWords.isEmpty()) {
+                for (String word : nativeWords) {
+                    addWordToDictionary(word);
+                }
+                continue;
+            }
             try (java.io.InputStream in = ResourceLoader.getResourceAsStream(path)) {
                 if (in == null) continue;
                 String json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
@@ -280,16 +289,29 @@ public final class RhymeDatabase {
                 continue;
             }
             idx = objEnd;
-            if (word != null && !word.isEmpty()) {
-                String lower = word.toLowerCase(Locale.ROOT);
-                String key = PoetryUtils.rhymeKey(lower);
-                if (key != null && !key.isBlank()) {
-                    List<String> bucket = dictRhymesByKey.computeIfAbsent(key, k -> new ArrayList<>());
-                    if (!bucket.contains(lower)) {
-                        bucket.add(lower);
-                    }
-                }
-            }
+            addWordToDictionary(word);
+        }
+    }
+
+    private static void addWordToDictionary(String word) {
+        if (word == null || word.isEmpty()) return;
+        String lower = word.toLowerCase(Locale.ROOT);
+        String key = PoetryUtils.rhymeKey(lower);
+        if (key == null || key.isBlank()) return;
+        List<String> bucket = dictRhymesByKey.computeIfAbsent(key, k -> new ArrayList<>());
+        if (!bucket.contains(lower)) {
+            bucket.add(lower);
+        }
+    }
+
+    private static List<String> loadDictWordsNative(String resourcePath) {
+        URL url = ResourceLoader.getResource(resourcePath);
+        if (url == null || !"file".equalsIgnoreCase(url.getProtocol())) return null;
+        try {
+            String filePath = Paths.get(url.toURI()).toString();
+            return NativeAccess.jsonLoadDictWords(filePath);
+        } catch (Exception ignored) {
+            return null;
         }
     }
 }

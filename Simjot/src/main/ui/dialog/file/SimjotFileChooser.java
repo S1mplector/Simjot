@@ -813,7 +813,8 @@ public class SimjotFileChooser extends JDialog {
         DefaultListModel<FileItem> filtered = new DefaultListModel<>();
         for (int i = 0; i < fileListModel.size(); i++) {
             FileItem item = fileListModel.getElementAt(i);
-            if (item.file.getName().toLowerCase().contains(query)) {
+            String name = item.file.getName().toLowerCase();
+            if (NativeAccess.searchContains(name, query)) {
                 filtered.addElement(item);
             }
         }

@@ -35,6 +35,7 @@ import javax.swing.SwingUtilities;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.AeroPanel;
@@ -196,7 +197,9 @@ public class EntryTypeSelectionDialog extends JDialog {
         String q = searchField != null ? searchField.getText().trim().toLowerCase() : "";
         grid.removeAll();
         for (JournalTemplateManager.JournalTemplate t : allTemplates) {
-            if (q.isEmpty() || t.getName().toLowerCase().contains(q) || t.getDescription().toLowerCase().contains(q)) {
+            String name = t.getName().toLowerCase();
+            String desc = t.getDescription().toLowerCase();
+            if (q.isEmpty() || NativeAccess.searchContains(name, q) || NativeAccess.searchContains(desc, q)) {
                 grid.add(createTemplateCard(t));
             }
         }
