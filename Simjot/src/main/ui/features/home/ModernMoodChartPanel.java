@@ -50,8 +50,10 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 
 /**
- * Modern, attractive mood chart panel with beautiful gradients,
+ * Modern mood chart panel with beautiful gradients,
  * smooth animations, and insightful analytics cards.
+ * 
+ * @author S1mplector
  */
 public class ModernMoodChartPanel extends JPanel {
     
@@ -196,7 +198,8 @@ public class ModernMoodChartPanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                if (getModel().isPressed() || selected) {
+                boolean isSelected = getText().equals(ranges[selectedRangeIndex]);
+                if (getModel().isPressed() || isSelected) {
                     g2.setColor(ACCENT_BLUE);
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
                     g2.setColor(Color.WHITE);
@@ -259,13 +262,13 @@ public class ModernMoodChartPanel extends JPanel {
         statsRow.setPreferredSize(new Dimension(0, 100));
         
         statsRow.add(createStatCard("Overall", () -> String.format("%.0f", animatedAvg), 
-            () -> getMoodEmoji(animatedAvg), () -> getMoodColor(animatedAvg)));
+            () -> getMoodIcon(animatedAvg), () -> getMoodColor(animatedAvg)));
         statsRow.add(createStatCard("Trend", this::getTrendText, 
             this::getTrendIcon, this::getTrendColor));
         statsRow.add(createStatCard("Streak", this::getStreakText, 
-            () -> "🔥", this::getStreakColor));
-        statsRow.add(createStatCard("Entries", () -> String.valueOf(model.getTotalSamples()),
-            () -> "📝", () -> ACCENT_PURPLE));
+            () -> "*", this::getStreakColor));
+        statsRow.add(createStatCard("Entries", () -> String.valueOf(model.getDays().size()),
+            () -> "#", () -> ACCENT_PURPLE));
         
         area.add(statsRow, BorderLayout.NORTH);
         
@@ -520,7 +523,7 @@ public class ModernMoodChartPanel extends JPanel {
                     
                     // Tooltip
                     String dateStr = DateTimeFormatter.ofPattern("EEEE, MMM d").format(days.get(hoverIndex));
-                    String moodStr = String.format("%.0f/100 %s", v, getMoodEmoji(v));
+                    String moodStr = String.format("%.0f/100", v);
                     
                     g2.setFont(new Font("SF Pro Text", Font.BOLD, 12));
                     FontMetrics fm = g2.getFontMetrics();
@@ -585,12 +588,10 @@ public class ModernMoodChartPanel extends JPanel {
         return ACCENT_RED;
     }
     
-    private String getMoodEmoji(double value) {
-        if (value >= 80) return "😊";
-        if (value >= 60) return "🙂";
-        if (value >= 40) return "😐";
-        if (value >= 20) return "😔";
-        return "😢";
+    private String getMoodIcon(double value) {
+        if (value >= 66) return "+";
+        if (value >= 33) return "~";
+        return "-";
     }
     
     private String getTrendText() {
@@ -602,8 +603,8 @@ public class ModernMoodChartPanel extends JPanel {
     
     private String getTrendIcon() {
         double slope = calculateTrendSlope();
-        if (Math.abs(slope) < 0.5) return "➡️";
-        return slope > 0 ? "📈" : "📉";
+        if (Math.abs(slope) < 0.5) return "—";
+        return slope > 0 ? "/" : "\\";
     }
     
     private Color getTrendColor() {
