@@ -601,6 +601,31 @@ int32_t simjot_levenshtein_batch(const char* word, const char* candidates, int32
                                   int32_t* distances, int32_t max_results);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * AUTOCORRECT - Intelligent correction with keyboard/phonetic awareness
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Keyboard adjacency correction (QWERTY layout) */
+int32_t simjot_autocorrect_adjacent_key(const char* word, char* output, int32_t output_len);
+
+/* Phonetic pattern correction */
+int32_t simjot_autocorrect_phonetic(const char* word, char* output, int32_t output_len);
+
+/* Preserve case pattern from original to correction */
+int32_t simjot_autocorrect_preserve_case(const char* original, char* correction, int32_t correction_len);
+
+/* Combined correction (phonetic -> adjacent -> spell suggestions) */
+int32_t simjot_autocorrect_correct(const char* word, char* output, int32_t output_len);
+
+/* Check if word starts with vowel sound (for a/an) */
+int32_t simjot_autocorrect_starts_vowel_sound(const char* word);
+
+/* Phrase correction (e.g., "should of" -> "should have") */
+int32_t simjot_autocorrect_phrase(const char* word1, const char* word2, char* output, int32_t output_len);
+
+/* Fix capitalization issues (standalone i, double spaces) */
+int32_t simjot_autocorrect_fix_caps(const char* text, char* output, int32_t output_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * TEXT UTILITIES
  * ═══════════════════════════════════════════════════════════════════════════ */
 

@@ -238,6 +238,15 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle levenshteinHandle;
     private final MethodHandle damerauLevenshteinHandle;
     
+    // Autocorrect handles
+    private final MethodHandle autocorrectAdjacentKeyHandle;
+    private final MethodHandle autocorrectPhoneticHandle;
+    private final MethodHandle autocorrectPreserveCaseHandle;
+    private final MethodHandle autocorrectCorrectHandle;
+    private final MethodHandle autocorrectStartsVowelSoundHandle;
+    private final MethodHandle autocorrectPhraseHandle;
+    private final MethodHandle autocorrectFixCapsHandle;
+    
     // Additional text utility handles
     private final MethodHandle textSyllableCountHandle;
     private final MethodHandle textAnalyzeHandle;
@@ -842,6 +851,22 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         this.damerauLevenshteinHandle = optionalHandle("simjot_damerau_levenshtein",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        
+        // Autocorrect handles
+        this.autocorrectAdjacentKeyHandle = optionalHandle("simjot_autocorrect_adjacent_key",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.autocorrectPhoneticHandle = optionalHandle("simjot_autocorrect_phonetic",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.autocorrectPreserveCaseHandle = optionalHandle("simjot_autocorrect_preserve_case",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.autocorrectCorrectHandle = optionalHandle("simjot_autocorrect_correct",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.autocorrectStartsVowelSoundHandle = optionalHandle("simjot_autocorrect_starts_vowel_sound",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.autocorrectPhraseHandle = optionalHandle("simjot_autocorrect_phrase",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.autocorrectFixCapsHandle = optionalHandle("simjot_autocorrect_fix_caps",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         
         // Additional text utility handles
         this.textSyllableCountHandle = optionalHandle("simjot_text_syllable_count",
@@ -3798,6 +3823,130 @@ public final class NativeLibrary implements AutoCloseable {
             return (int) damerauLevenshteinHandle.invokeExact(cA, cB);
         } catch (Throwable t) {
             return -1;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTOCORRECT API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native autocorrect functions are available.
+     */
+    public boolean hasAutocorrectSupport() {
+        return autocorrectAdjacentKeyHandle != null && autocorrectCorrectHandle != null;
+    }
+
+    /**
+     * Find correction by replacing characters with adjacent QWERTY keys.
+     * @return Correction or null if none found
+     */
+    public String autocorrectAdjacentKey(String word) {
+        if (autocorrectAdjacentKeyHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            MemorySegment out = temp.allocate(128);
+            int len = (int) autocorrectAdjacentKeyHandle.invokeExact(cWord, out, 128);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Find correction by replacing common phonetic patterns.
+     * @return Correction or null if none found
+     */
+    public String autocorrectPhonetic(String word) {
+        if (autocorrectPhoneticHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            MemorySegment out = temp.allocate(128);
+            int len = (int) autocorrectPhoneticHandle.invokeExact(cWord, out, 128);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Combined autocorrect: tries phonetic, adjacent key, then spell suggestions.
+     * @return Correction or null if none found
+     */
+    public String autocorrectCorrect(String word) {
+        if (autocorrectCorrectHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            MemorySegment out = temp.allocate(128);
+            int len = (int) autocorrectCorrectHandle.invokeExact(cWord, out, 128);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Check if word starts with vowel sound (for a/an determination).
+     * @return true if vowel sound, false if consonant sound
+     */
+    public Boolean autocorrectStartsVowelSound(String word) {
+        if (autocorrectStartsVowelSoundHandle == null || word == null || word.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord = temp.allocateFrom(word);
+            int result = (int) autocorrectStartsVowelSoundHandle.invokeExact(cWord);
+            if (result < 0) return null;
+            return result == 1;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Check if two-word phrase has a correction (e.g., "should of" -> "should have").
+     * @return Corrected phrase or null if none found
+     */
+    public String autocorrectPhrase(String word1, String word2) {
+        if (autocorrectPhraseHandle == null || word1 == null || word2 == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cWord1 = temp.allocateFrom(word1);
+            MemorySegment cWord2 = temp.allocateFrom(word2);
+            MemorySegment out = temp.allocate(256);
+            int len = (int) autocorrectPhraseHandle.invokeExact(cWord1, cWord2, out, 256);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Fix capitalization issues (standalone i, double spaces).
+     * @return Fixed text
+     */
+    public String autocorrectFixCaps(String text) {
+        if (autocorrectFixCapsHandle == null || text == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cText = temp.allocateFrom(text);
+            int outLen = text.length() + 64;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) autocorrectFixCapsHandle.invokeExact(cText, out, outLen);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
         }
     }
 

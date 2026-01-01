@@ -692,6 +692,108 @@ public final class NativeAccess {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTOCORRECT API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static boolean autocorrectReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasAutocorrectSupport();
+    }
+
+    /**
+     * Find correction by replacing characters with adjacent QWERTY keys.
+     * @return Correction or null if none found
+     */
+    public static String autocorrectAdjacentKey(String word) {
+        if (!autocorrectReady() || word == null || word.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.autocorrectAdjacentKey(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-autocorrect", "Native adjacent key correction failed.", t);
+            return null;
+        }
+    }
+
+    /**
+     * Find correction by replacing common phonetic patterns.
+     * @return Correction or null if none found
+     */
+    public static String autocorrectPhonetic(String word) {
+        if (!autocorrectReady() || word == null || word.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.autocorrectPhonetic(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-autocorrect", "Native phonetic correction failed.", t);
+            return null;
+        }
+    }
+
+    /**
+     * Combined autocorrect: tries phonetic, adjacent key, then spell suggestions.
+     * @return Correction or null if none found
+     */
+    public static String autocorrectCorrect(String word) {
+        if (!autocorrectReady() || word == null || word.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.autocorrectCorrect(word);
+        } catch (Throwable t) {
+            IoLog.warn("native-autocorrect", "Native autocorrect failed.", t);
+            return null;
+        }
+    }
+
+    /**
+     * Check if word starts with vowel sound (for a/an determination).
+     * @return true if vowel sound, false if consonant, null on error
+     */
+    public static Boolean autocorrectStartsVowelSound(String word) {
+        if (!autocorrectReady() || word == null || word.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.autocorrectStartsVowelSound(word);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Check if two-word phrase has a correction (e.g., "should of" -> "should have").
+     * @return Corrected phrase or null if none found
+     */
+    public static String autocorrectPhrase(String word1, String word2) {
+        if (!autocorrectReady() || word1 == null || word2 == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.autocorrectPhrase(word1, word2);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Fix capitalization issues (standalone i, double spaces).
+     * @return Fixed text or null on error
+     */
+    public static String autocorrectFixCaps(String text) {
+        if (!autocorrectReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.autocorrectFixCaps(text);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     private static Path resolveDictionaryBasePath() {
         String override = System.getProperty("simjot.dict.path");
         if (override == null || override.isBlank()) {
