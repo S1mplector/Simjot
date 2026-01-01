@@ -1,13 +1,9 @@
 /*
- * SIMJOT CRYPTOGRAPHIC ENGINE - PROPRIETARY
+ * SIMJOT - MIT License
  * 
- * Copyright (c) 2024 Simjot / S1mplector. All Rights Reserved.
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * This source code is licensed under the Simjot Cryptographic Engine License.
- * You may inspect this code for educational and security research purposes only.
- * Use, modification, or incorporation into other projects is strictly prohibited.
- * 
- * See LICENSE file in this package for full terms.
+ * See LICENSE.md for full terms.
  */
 
 /**

@@ -1,3 +1,11 @@
+/*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
 /**
  * @file fs_ops.c
  * @brief Native File System Operations for Simjot

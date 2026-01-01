@@ -1,4 +1,12 @@
 /*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
+/*
  * SIMJOT - High-Performance Memory Pool Allocator
  * Zero-fragmentation allocator for frequent small allocations
  */

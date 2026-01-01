@@ -1,3 +1,11 @@
+/*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
 /**
  * @file string_ops.c
  * @brief High-Performance String Operations for Simjot

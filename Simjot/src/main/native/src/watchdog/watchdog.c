@@ -1,10 +1,9 @@
 /*
- * SIMJOT - PROPRIETARY
+ * SIMJOT - MIT License
  * 
- * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * Native watchdog system for application lifecycle management.
- * Provides reliable timeout-based watchdogs and process control.
+ * See LICENSE.md for full terms.
  */
 
 #include "simjot_native.h"

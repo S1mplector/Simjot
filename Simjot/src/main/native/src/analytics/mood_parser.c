@@ -1,3 +1,11 @@
+/*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
 /**
  * Native Mood Log Parser for Simjot.
  * Fast parsing of mood_log.txt with daily aggregation.

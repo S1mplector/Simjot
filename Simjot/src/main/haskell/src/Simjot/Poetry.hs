@@ -1,15 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Simjot.Poetry
-Description : Functional poetry analysis for Simjot
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
-Maintainer  : contact@simjot.app
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-Main entry point for Simjot's Haskell poetry analysis library.
-Provides pure functional analysis of poems including meter detection,
-rhyme scheme analysis, sound device identification, and thematic analysis.
--}
 module Simjot.Poetry
   ( -- * Core Types
     Poem(..)

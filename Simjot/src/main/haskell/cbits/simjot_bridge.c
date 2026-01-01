@@ -1,10 +1,9 @@
 /*
- * SIMJOT HASKELL FFI BRIDGE
+ * SIMJOT - MIT License
  * 
- * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * C bridge code for Haskell FFI to access Simjot native functions.
- * This file provides stub implementations that link to the main simjot_native library.
+ * See LICENSE.md for full terms.
  */
 
 #include <string.h>

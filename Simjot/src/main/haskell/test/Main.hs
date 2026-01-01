@@ -1,12 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Main
-Description : Test executable for Simjot Poetry Haskell library
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-Simple test program demonstrating the poetry analysis library.
--}
 module Main where
 
 import Data.Text (Text)

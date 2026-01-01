@@ -1,10 +1,9 @@
 /*
- * SIMJOT - PROPRIETARY
+ * SIMJOT - MIT License
  * 
- * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * Native first-time setup and initialization utilities.
- * Provides robust directory creation, verification, and config management.
+ * See LICENSE.md for full terms.
  */
 
 #include "simjot_native.h"

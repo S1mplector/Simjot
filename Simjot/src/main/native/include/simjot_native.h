@@ -1,3 +1,11 @@
+/*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
 #ifndef SIMJOT_NATIVE_H
 #define SIMJOT_NATIVE_H
 

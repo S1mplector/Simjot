@@ -1,3 +1,11 @@
+/*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
 /**
  * @file task_queue.cpp
  * @brief Concurrent Task Queue and Parallel Processing for Simjot

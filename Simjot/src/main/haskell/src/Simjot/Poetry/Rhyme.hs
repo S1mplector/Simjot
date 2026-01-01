@@ -1,12 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Simjot.Poetry.Rhyme
-Description : Rhyme analysis for poetry
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-Rhyme scheme detection and rhyme finding.
--}
 module Simjot.Poetry.Rhyme
   ( RhymeAnalysis(..)
   , RhymeType(..)

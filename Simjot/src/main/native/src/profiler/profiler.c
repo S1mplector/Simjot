@@ -1,8 +1,9 @@
-/**
- * Native component profiler for Simjot.
- * Provides accurate CPU and memory measurement per component/thread.
+/*
+ * SIMJOT - MIT License
  * 
- * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
  */
 
 #include "simjot_native.h"

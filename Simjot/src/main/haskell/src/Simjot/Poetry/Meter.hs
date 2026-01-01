@@ -1,12 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Simjot.Poetry.Meter
-Description : Metrical analysis of poetry
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-Meter detection and scansion for poetry analysis.
--}
 module Simjot.Poetry.Meter
   ( MeterAnalysis(..)
   , FootType(..)

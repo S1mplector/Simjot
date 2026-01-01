@@ -1,12 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Simjot.Poetry.Internal
-Description : Internal utilities for poetry analysis
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-Internal helper functions for poetry analysis.
--}
 module Simjot.Poetry.Internal
   ( countSyllables
   , estimateStress

@@ -1,12 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Simjot.Poetry.SoundDevices
-Description : Sound device detection in poetry
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-Detection of alliteration, assonance, consonance, and other sound devices.
--}
 module Simjot.Poetry.SoundDevices
   ( SoundAnalysis(..)
   , SoundDevice(..)

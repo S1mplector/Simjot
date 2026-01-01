@@ -1,4 +1,12 @@
 /*
+ * SIMJOT - MIT License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE.md for full terms.
+ */
+
+/*
  * SIMJOT - Native Spell Check Edit Distance Generator
  * Fast generation of edit-distance-1 and edit-distance-2 candidates
  */

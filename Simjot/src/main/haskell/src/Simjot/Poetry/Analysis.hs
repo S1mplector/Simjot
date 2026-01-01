@@ -1,12 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-|
-Module      : Simjot.Poetry.Analysis
-Description : High-level poetry analysis functions
-Copyright   : (c) 2024-2025 Ilgaz Mehmetoğlu
-License     : Proprietary
+{-
+ - SIMJOT - MIT License
+ - 
+ - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ - 
+ - See LICENSE.md for full terms.
+ -}
 
-High-level analysis functions that combine native and pure Haskell implementations.
--}
 module Simjot.Poetry.Analysis
   ( -- * Analysis Functions
     analyzeWithNative

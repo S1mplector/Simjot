@@ -1,13 +1,9 @@
 /*
- * SIMJOT POETRY ENGINE - PROPRIETARY
+ * SIMJOT - MIT License
  * 
- * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * This source code is licensed under the Simjot Poetry Engine Proprietary License.
- * You may inspect this code for educational and research purposes only.
- * Use, modification, or incorporation into other projects is strictly prohibited.
- * 
- * See LICENSE file in this package for full terms.
+ * See LICENSE.md for full terms.
  */
 
 /**
