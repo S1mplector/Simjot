@@ -359,6 +359,10 @@ void simjot_image_argb_to_rgba(const int32_t* argb, uint8_t* rgba, int32_t pixel
 void simjot_image_rgba_to_argb(const uint8_t* rgba, int32_t* argb, int32_t pixel_count);
 int32_t simjot_image_resize_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h, int32_t* dst_argb, int32_t dst_w, int32_t dst_h, int32_t quality);
 
+/* Accent color extraction from images */
+int32_t simjot_image_extract_accent(const uint8_t* pixels, int32_t width, int32_t height, int32_t stride);
+int32_t simjot_image_extract_accent_64(const uint8_t* pixels64);
+
 /* Background image processing (native cache + scaling + opacity) */
 void simjot_bg_calc_cover_fit(int32_t src_w, int32_t src_h, int32_t panel_w, int32_t panel_h, int32_t* out_w, int32_t* out_h, int32_t* out_x, int32_t* out_y);
 void simjot_bg_apply_opacity(int32_t* argb, int32_t pixel_count, float opacity);

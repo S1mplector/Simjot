@@ -227,6 +227,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle imageScaleHandle;
     private final MethodHandle imageBlurHandle;
     private final MethodHandle imageTintHandle;
+    private final MethodHandle imageExtractAccentHandle;
     
     // Spell check handles
     private final MethodHandle spellEdit1Handle;
@@ -728,6 +729,10 @@ public final class NativeLibrary implements AutoCloseable {
         this.imageTintHandle = optionalHandle("simjot_image_tint",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+        // int32_t simjot_image_extract_accent(const uint8_t* pixels, int32_t width, int32_t height, int32_t stride)
+        this.imageExtractAccentHandle = optionalHandle("simjot_image_extract_accent",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
         
         // Spell check handles
         this.spellEdit1Handle = optionalHandle("simjot_spell_edit1",
@@ -3308,6 +3313,48 @@ public final class NativeLibrary implements AutoCloseable {
             return true;
         } catch (Throwable t) {
             return false;
+        }
+    }
+
+    /**
+     * Check if native accent color extraction is available.
+     */
+    public boolean hasAccentExtractSupport() {
+        return imageExtractAccentHandle != null;
+    }
+
+    /**
+     * Extract dominant accent color from ARGB pixel array.
+     * Uses hue histogram analysis weighted by saturation² × brightness.
+     * 
+     * @param argbPixels ARGB pixel data (Java BufferedImage format)
+     * @param width Image width
+     * @param height Image height
+     * @return Packed RGB color (0x00RRGGBB), or 0 on error/no native support
+     */
+    public int imageExtractAccent(int[] argbPixels, int width, int height) {
+        if (imageExtractAccentHandle == null || argbPixels == null || 
+            argbPixels.length != width * height || width <= 0 || height <= 0) {
+            return 0;
+        }
+        try (Arena temp = Arena.ofConfined()) {
+            // Convert ARGB to RGBA byte array for native code
+            int pixelCount = width * height;
+            MemorySegment rgbaSeg = temp.allocate(pixelCount * 4L);
+            
+            for (int i = 0; i < pixelCount; i++) {
+                int argb = argbPixels[i];
+                int offset = i * 4;
+                rgbaSeg.set(ValueLayout.JAVA_BYTE, offset,     (byte)((argb >> 16) & 0xFF)); // R
+                rgbaSeg.set(ValueLayout.JAVA_BYTE, offset + 1, (byte)((argb >> 8) & 0xFF));  // G
+                rgbaSeg.set(ValueLayout.JAVA_BYTE, offset + 2, (byte)(argb & 0xFF));         // B
+                rgbaSeg.set(ValueLayout.JAVA_BYTE, offset + 3, (byte)((argb >> 24) & 0xFF)); // A
+            }
+            
+            int stride = width * 4;
+            return (int) imageExtractAccentHandle.invokeExact(rgbaSeg, width, height, stride);
+        } catch (Throwable t) {
+            return 0;
         }
     }
 

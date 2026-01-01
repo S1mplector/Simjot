@@ -3058,6 +3058,34 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // IMAGE ACCENT COLOR EXTRACTION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native accent color extraction is available.
+     */
+    public static boolean hasAccentExtractSupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasAccentExtractSupport();
+    }
+
+    /**
+     * Extract dominant accent color from ARGB pixel array using native C++ implementation.
+     * Uses hue histogram analysis weighted by saturation² × brightness.
+     * 
+     * @param argbPixels ARGB pixel data (Java BufferedImage TYPE_INT_ARGB format)
+     * @param width Image width
+     * @param height Image height
+     * @return Packed RGB color (0x00RRGGBB), or 0 if native unavailable/error
+     */
+    public static int imageExtractAccent(int[] argbPixels, int width, int height) {
+        if (argbPixels == null || width <= 0 || height <= 0) return 0;
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.imageExtractAccent(argbPixels, width, height);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MATH UTILITIES
     // ═══════════════════════════════════════════════════════════════════════════
 

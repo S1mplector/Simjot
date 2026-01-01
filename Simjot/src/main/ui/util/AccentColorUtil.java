@@ -44,7 +44,16 @@ public final class AccentColorUtil {
         g.drawImage(src, 0, 0, sw, sh, null);
         g.dispose();
 
-        // Hue histogram weighted by saturation^2 * brightness
+        // Try native C++ implementation (faster, SIMD-optimized)
+        if (NativeAccess.hasAccentExtractSupport()) {
+            int[] pixels = img.getRGB(0, 0, sw, sh, null, 0, sw);
+            int nativeResult = NativeAccess.imageExtractAccent(pixels, sw, sh);
+            if (nativeResult != 0) {
+                return new Color(nativeResult);
+            }
+        }
+
+        // Java fallback: Hue histogram weighted by saturation^2 * brightness
         float[] hueWeight = new float[36]; // 10-degree bins
         float[][] sumRGB = new float[36][3];
         int[] count = new int[36];
