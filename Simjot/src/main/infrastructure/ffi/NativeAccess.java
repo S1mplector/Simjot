@@ -3801,4 +3801,249 @@ public final class NativeAccess {
         if (lib == null) return null;
         return lib.undoGetStats(sessionId);
     }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LINK DETECTOR - Fast URL detection
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if native link detection is available.
+     */
+    public static boolean hasLinkSupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasLinkSupport();
+    }
+    
+    /**
+     * Check if text contains any URLs.
+     */
+    public static boolean linkContains(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.linkContains(text);
+    }
+    
+    /**
+     * Count URLs in text.
+     */
+    public static int linkCount(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.linkCount(text);
+    }
+    
+    /**
+     * Find all link ranges in text.
+     * @return Array of [start, end] pairs
+     */
+    public static int[][] linkFindRanges(String text, int maxRanges) {
+        NativeLibrary lib = library();
+        if (lib == null) return new int[0][];
+        return lib.linkFindRanges(text, maxRanges);
+    }
+    
+    /**
+     * Find all link ranges in text (default max 100).
+     */
+    public static int[][] linkFindRanges(String text) {
+        return linkFindRanges(text, 100);
+    }
+    
+    /**
+     * Extract first URL from text.
+     */
+    public static String linkExtractFirst(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        return lib.linkExtractFirst(text);
+    }
+    
+    /**
+     * Normalize a URL (add https:// if starts with www.).
+     */
+    public static String linkNormalize(String url) {
+        NativeLibrary lib = library();
+        if (lib == null) return url;
+        return lib.linkNormalize(url);
+    }
+    
+    /**
+     * Validate if a string is a valid URL.
+     */
+    public static boolean linkIsValid(String url) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.linkIsValid(url);
+    }
+    
+    /**
+     * Get link at specific position in text.
+     * @return int[2] with [start, end] or null if no link at position
+     */
+    public static int[] linkAtPosition(String text, int position) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        return lib.linkAtPosition(text, position);
+    }
+    
+    /**
+     * Extract all URLs from text as a list of strings.
+     */
+    public static java.util.List<String> linkExtractAll(String text) {
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        if (text == null || text.isEmpty()) return urls;
+        
+        int[][] ranges = linkFindRanges(text);
+        for (int[] range : ranges) {
+            if (range.length == 2 && range[0] >= 0 && range[1] <= text.length()) {
+                String url = text.substring(range[0], range[1]);
+                urls.add(linkNormalize(url));
+            }
+        }
+        return urls;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HASKELL POETRY - Functional poetry analysis via Haskell
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if Haskell poetry analysis is available.
+     */
+    public static boolean hasHaskellPoetrySupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasHaskellPoetrySupport();
+    }
+    
+    /**
+     * Analyze meter and return dominant foot type.
+     * 0=Iamb, 1=Trochee, 2=Spondee, 3=Pyrrhic, 4=Anapest, 5=Dactyl, 6=Amphibrach
+     */
+    public static int hsAnalyzeMeter(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.hsAnalyzeMeter(text);
+    }
+    
+    /**
+     * Get foot type name from code.
+     */
+    public static String footTypeName(int footType) {
+        return switch (footType) {
+            case 0 -> "Iamb";
+            case 1 -> "Trochee";
+            case 2 -> "Spondee";
+            case 3 -> "Pyrrhic";
+            case 4 -> "Anapest";
+            case 5 -> "Dactyl";
+            case 6 -> "Amphibrach";
+            default -> "Unknown";
+        };
+    }
+    
+    /**
+     * Get rhyme scheme for text.
+     */
+    public static String hsAnalyzeRhymeScheme(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return "";
+        return lib.hsAnalyzeRhymeScheme(text);
+    }
+    
+    /**
+     * Count syllables in a word using Haskell.
+     */
+    public static int hsCountSyllables(String word) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.hsCountSyllables(word);
+    }
+    
+    /**
+     * Analyze sound devices and return count.
+     */
+    public static int hsAnalyzeSoundDevices(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.hsAnalyzeSoundDevices(text);
+    }
+    
+    /**
+     * Get meter name (e.g., "Iambic Pentameter").
+     */
+    public static String hsGetMeterName(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return "";
+        return lib.hsGetMeterName(text);
+    }
+    
+    /**
+     * Get meter regularity as percentage (0-100).
+     */
+    public static int hsGetMeterRegularity(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.hsGetMeterRegularity(text);
+    }
+    
+    /**
+     * Check if two words rhyme.
+     */
+    public static boolean hsCheckRhyme(String word1, String word2) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.hsCheckRhyme(word1, word2);
+    }
+    
+    /**
+     * Get vocabulary stats as comma-separated string.
+     * Format: "total,unique,polysyl,hapax,avglen*100"
+     */
+    public static String hsGetVocabStats(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return "";
+        return lib.hsGetVocabStats(text);
+    }
+    
+    /**
+     * Get type-token ratio (vocabulary richness) as percentage (0-100).
+     */
+    public static int hsTypeTokenRatio(String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.hsTypeTokenRatio(text);
+    }
+    
+    /**
+     * Get rhyme key for a word using Haskell.
+     */
+    public static String hsGetRhymeKey(String word) {
+        NativeLibrary lib = library();
+        if (lib == null) return "";
+        return lib.hsGetRhymeKey(word);
+    }
+    
+    /**
+     * Estimate stress pattern as packed bits.
+     * LSB = first syllable, 1 = stressed.
+     */
+    public static int hsEstimateStress(String word) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.hsEstimateStress(word);
+    }
+    
+    /**
+     * Unpack stress pattern bits into array.
+     * @param packed The packed stress bits
+     * @param syllableCount Number of syllables
+     * @return Array of stress values (1=stressed, 0=unstressed)
+     */
+    public static int[] unpackStressPattern(int packed, int syllableCount) {
+        int[] pattern = new int[syllableCount];
+        for (int i = 0; i < syllableCount; i++) {
+            pattern[i] = (packed >> i) & 1;
+        }
+        return pattern;
+    }
 }

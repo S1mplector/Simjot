@@ -343,6 +343,35 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle undoSetHistoryLimitHandle;
     private final MethodHandle undoGetStatsHandle;
     
+    // Link detector handles
+    private final MethodHandle linkContainsHandle;
+    private final MethodHandle linkCountHandle;
+    private final MethodHandle linkFindRangesHandle;
+    private final MethodHandle linkExtractFirstHandle;
+    private final MethodHandle linkNormalizeHandle;
+    private final MethodHandle linkIsValidHandle;
+    private final MethodHandle linkAtPositionHandle;
+    
+    // Mood analytics handles
+    private final MethodHandle moodSmoothHandle;
+    private final MethodHandle moodVolatilityHandle;
+    private final MethodHandle moodStreaksHandle;
+    private final MethodHandle moodTrendSlopeHandle;
+    private final MethodHandle moodDistributionHandle;
+    
+    // Haskell poetry handles
+    private final MethodHandle hsAnalyzeMeterHandle;
+    private final MethodHandle hsAnalyzeRhymeSchemeHandle;
+    private final MethodHandle hsCountSyllablesHandle;
+    private final MethodHandle hsAnalyzeSoundDevicesHandle;
+    private final MethodHandle hsGetMeterNameHandle;
+    private final MethodHandle hsGetMeterRegularityHandle;
+    private final MethodHandle hsCheckRhymeHandle;
+    private final MethodHandle hsGetVocabStatsHandle;
+    private final MethodHandle hsTypeTokenRatioHandle;
+    private final MethodHandle hsGetRhymeKeyHandle;
+    private final MethodHandle hsEstimateStressHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
@@ -1010,6 +1039,64 @@ public final class NativeLibrary implements AutoCloseable {
         this.undoGetStatsHandle = optionalHandle("simjot_undo_get_stats",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        
+        // Link detector handles
+        this.linkContainsHandle = optionalHandle("simjot_link_contains",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.linkCountHandle = optionalHandle("simjot_link_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.linkFindRangesHandle = optionalHandle("simjot_link_find_ranges",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.linkExtractFirstHandle = optionalHandle("simjot_link_extract_first",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.linkNormalizeHandle = optionalHandle("simjot_link_normalize",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.linkIsValidHandle = optionalHandle("simjot_link_is_valid",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.linkAtPositionHandle = optionalHandle("simjot_link_at_position",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        
+        // Mood analytics handles
+        this.moodSmoothHandle = optionalHandle("simjot_mood_smooth",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.moodVolatilityHandle = optionalHandle("simjot_mood_volatility",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.moodStreaksHandle = optionalHandle("simjot_mood_streaks",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.moodTrendSlopeHandle = optionalHandle("simjot_mood_trend_slope",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.moodDistributionHandle = optionalHandle("simjot_mood_distribution",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        
+        // Haskell poetry handles
+        this.hsAnalyzeMeterHandle = optionalHandle("hs_analyze_meter",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.hsAnalyzeRhymeSchemeHandle = optionalHandle("hs_analyze_rhyme_scheme",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hsCountSyllablesHandle = optionalHandle("hs_count_syllables",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.hsAnalyzeSoundDevicesHandle = optionalHandle("hs_analyze_sound_devices",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.hsGetMeterNameHandle = optionalHandle("hs_get_meter_name",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hsGetMeterRegularityHandle = optionalHandle("hs_get_meter_regularity",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.hsCheckRhymeHandle = optionalHandle("hs_check_rhyme",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.hsGetVocabStatsHandle = optionalHandle("hs_get_vocab_stats",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hsTypeTokenRatioHandle = optionalHandle("hs_type_token_ratio",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.hsGetRhymeKeyHandle = optionalHandle("hs_get_rhyme_key",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hsEstimateStressHandle = optionalHandle("hs_estimate_stress",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -4475,6 +4562,482 @@ public final class NativeLibrary implements AutoCloseable {
                 saveSeg.get(ValueLayout.JAVA_INT, 0),
                 changeSeg.get(ValueLayout.JAVA_INT, 0)
             );
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MOOD ANALYTICS API
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if native mood analytics is available.
+     */
+    public boolean hasMoodAnalyticsSupport() {
+        return moodVolatilityHandle != null;
+    }
+    
+    /**
+     * Compute mood volatility (standard deviation).
+     */
+    public double moodVolatility(int[] values) {
+        if (moodVolatilityHandle == null || values == null || values.length < 2) return -1;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment seg = local.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                seg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            return (double) moodVolatilityHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Compute mood trend slope.
+     */
+    public double moodTrendSlope(int[] values) {
+        if (moodTrendSlopeHandle == null || values == null || values.length < 2) return Double.NaN;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment seg = local.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                seg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            return (double) moodTrendSlopeHandle.invokeExact(seg, values.length);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+    
+    /**
+     * Compute mood distribution into 5 buckets.
+     */
+    public int[] moodDistribution(int[] values) {
+        if (moodDistributionHandle == null || values == null || values.length == 0) return null;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment valSeg = local.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                valSeg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            MemorySegment outSeg = local.allocate(ValueLayout.JAVA_INT, 5);
+            int total = (int) moodDistributionHandle.invokeExact(valSeg, values.length, outSeg);
+            if (total <= 0) return null;
+            int[] result = new int[5];
+            for (int i = 0; i < 5; i++) {
+                result[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return result;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    /**
+     * Compute mood streaks.
+     * @return [currentStreak, longestGood, longestBad] or null on failure
+     */
+    public int[] moodStreaks(int[] values, int threshold) {
+        if (moodStreaksHandle == null || values == null || values.length == 0) return null;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment valSeg = local.allocate(ValueLayout.JAVA_INT, values.length);
+            for (int i = 0; i < values.length; i++) {
+                valSeg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+            }
+            MemorySegment curSeg = local.allocate(ValueLayout.JAVA_INT);
+            MemorySegment goodSeg = local.allocate(ValueLayout.JAVA_INT);
+            MemorySegment badSeg = local.allocate(ValueLayout.JAVA_INT);
+            int ok = (int) moodStreaksHandle.invokeExact(valSeg, values.length, threshold, curSeg, goodSeg, badSeg);
+            if (ok == 0) return null;
+            return new int[] {
+                curSeg.get(ValueLayout.JAVA_INT, 0),
+                goodSeg.get(ValueLayout.JAVA_INT, 0),
+                badSeg.get(ValueLayout.JAVA_INT, 0)
+            };
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HASKELL POETRY API
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if Haskell poetry analysis is available.
+     */
+    public boolean hasHaskellPoetrySupport() {
+        return hsAnalyzeMeterHandle != null;
+    }
+    
+    /**
+     * Analyze meter and return dominant foot type.
+     * 0=Iamb, 1=Trochee, 2=Spondee, 3=Pyrrhic, 4=Anapest, 5=Dactyl, 6=Amphibrach
+     */
+    public int hsAnalyzeMeter(String text) {
+        if (hsAnalyzeMeterHandle == null || text == null || text.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            return (int) hsAnalyzeMeterHandle.invokeExact(textSeg);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Get rhyme scheme for text.
+     */
+    public String hsAnalyzeRhymeScheme(String text) {
+        if (hsAnalyzeRhymeSchemeHandle == null || text == null || text.isEmpty()) return "";
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            
+            int bufSize = 256;
+            MemorySegment outSeg = local.allocate(bufSize);
+            
+            int len = (int) hsAnalyzeRhymeSchemeHandle.invokeExact(textSeg, outSeg, bufSize);
+            if (len <= 0) return "";
+            return new String(outSeg.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE),
+                java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+    
+    /**
+     * Count syllables in a word using Haskell.
+     */
+    public int hsCountSyllables(String word) {
+        if (hsCountSyllablesHandle == null || word == null || word.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = word.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment wordSeg = local.allocate(bytes.length + 1);
+            wordSeg.copyFrom(MemorySegment.ofArray(bytes));
+            wordSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            return (int) hsCountSyllablesHandle.invokeExact(wordSeg);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Analyze sound devices and return count.
+     */
+    public int hsAnalyzeSoundDevices(String text) {
+        if (hsAnalyzeSoundDevicesHandle == null || text == null || text.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            return (int) hsAnalyzeSoundDevicesHandle.invokeExact(textSeg);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Get meter name (e.g., "Iambic Pentameter").
+     */
+    public String hsGetMeterName(String text) {
+        if (hsGetMeterNameHandle == null || text == null || text.isEmpty()) return "";
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            
+            int bufSize = 128;
+            MemorySegment outSeg = local.allocate(bufSize);
+            
+            int len = (int) hsGetMeterNameHandle.invokeExact(textSeg, outSeg, bufSize);
+            if (len <= 0) return "";
+            return new String(outSeg.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE),
+                java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+    
+    /**
+     * Get meter regularity as percentage (0-100).
+     */
+    public int hsGetMeterRegularity(String text) {
+        if (hsGetMeterRegularityHandle == null || text == null || text.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            return (int) hsGetMeterRegularityHandle.invokeExact(textSeg);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Check if two words rhyme.
+     */
+    public boolean hsCheckRhyme(String word1, String word2) {
+        if (hsCheckRhymeHandle == null || word1 == null || word2 == null) return false;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes1 = word1.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] bytes2 = word2.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment seg1 = local.allocate(bytes1.length + 1);
+            MemorySegment seg2 = local.allocate(bytes2.length + 1);
+            seg1.copyFrom(MemorySegment.ofArray(bytes1));
+            seg2.copyFrom(MemorySegment.ofArray(bytes2));
+            seg1.set(ValueLayout.JAVA_BYTE, bytes1.length, (byte) 0);
+            seg2.set(ValueLayout.JAVA_BYTE, bytes2.length, (byte) 0);
+            int result = (int) hsCheckRhymeHandle.invokeExact(seg1, seg2);
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Get vocabulary stats as comma-separated string.
+     */
+    public String hsGetVocabStats(String text) {
+        if (hsGetVocabStatsHandle == null || text == null || text.isEmpty()) return "";
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            
+            int bufSize = 256;
+            MemorySegment outSeg = local.allocate(bufSize);
+            
+            int len = (int) hsGetVocabStatsHandle.invokeExact(textSeg, outSeg, bufSize);
+            if (len <= 0) return "";
+            return new String(outSeg.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE),
+                java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+    
+    /**
+     * Get type-token ratio * 100.
+     */
+    public int hsTypeTokenRatio(String text) {
+        if (hsTypeTokenRatioHandle == null || text == null || text.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length + 1);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            textSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            return (int) hsTypeTokenRatioHandle.invokeExact(textSeg);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Get rhyme key for a word.
+     */
+    public String hsGetRhymeKey(String word) {
+        if (hsGetRhymeKeyHandle == null || word == null || word.isEmpty()) return "";
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = word.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment wordSeg = local.allocate(bytes.length + 1);
+            wordSeg.copyFrom(MemorySegment.ofArray(bytes));
+            wordSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            
+            int bufSize = 64;
+            MemorySegment outSeg = local.allocate(bufSize);
+            
+            int len = (int) hsGetRhymeKeyHandle.invokeExact(wordSeg, outSeg, bufSize);
+            if (len <= 0) return "";
+            return new String(outSeg.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE),
+                java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+    
+    /**
+     * Estimate stress pattern as packed bits.
+     */
+    public int hsEstimateStress(String word) {
+        if (hsEstimateStressHandle == null || word == null || word.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = word.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment wordSeg = local.allocate(bytes.length + 1);
+            wordSeg.copyFrom(MemorySegment.ofArray(bytes));
+            wordSeg.set(ValueLayout.JAVA_BYTE, bytes.length, (byte) 0);
+            return (int) hsEstimateStressHandle.invokeExact(wordSeg);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LINK DETECTOR API
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if native link detection is available.
+     */
+    public boolean hasLinkSupport() {
+        return linkContainsHandle != null;
+    }
+    
+    /**
+     * Check if text contains any URLs.
+     */
+    public boolean linkContains(String text) {
+        if (linkContainsHandle == null || text == null || text.isEmpty()) return false;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            int result = (int) linkContainsHandle.invokeExact(textSeg, bytes.length);
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Count URLs in text.
+     */
+    public int linkCount(String text) {
+        if (linkCountHandle == null || text == null || text.isEmpty()) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            return (int) linkCountHandle.invokeExact(textSeg, bytes.length);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Find all link ranges in text.
+     * @return Array of [start, end] pairs, or empty array if none found
+     */
+    public int[][] linkFindRanges(String text, int maxRanges) {
+        if (linkFindRangesHandle == null || text == null || text.isEmpty() || maxRanges <= 0) {
+            return new int[0][];
+        }
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            
+            MemorySegment rangesSeg = local.allocate(ValueLayout.JAVA_INT, maxRanges * 2);
+            
+            int count = (int) linkFindRangesHandle.invokeExact(textSeg, bytes.length, rangesSeg, maxRanges);
+            
+            if (count <= 0) return new int[0][];
+            
+            int[][] result = new int[count][2];
+            for (int i = 0; i < count; i++) {
+                result[i][0] = rangesSeg.getAtIndex(ValueLayout.JAVA_INT, i * 2);
+                result[i][1] = rangesSeg.getAtIndex(ValueLayout.JAVA_INT, i * 2 + 1);
+            }
+            return result;
+        } catch (Throwable t) {
+            return new int[0][];
+        }
+    }
+    
+    /**
+     * Extract first URL from text.
+     */
+    public String linkExtractFirst(String text) {
+        if (linkExtractFirstHandle == null || text == null || text.isEmpty()) return null;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            
+            int bufSize = 2048;
+            MemorySegment outSeg = local.allocate(bufSize);
+            
+            int len = (int) linkExtractFirstHandle.invokeExact(textSeg, bytes.length, outSeg, bufSize);
+            
+            if (len <= 0) return null;
+            return new String(outSeg.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), 
+                java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    /**
+     * Normalize a URL (add https:// if starts with www.).
+     */
+    public String linkNormalize(String url) {
+        if (linkNormalizeHandle == null || url == null || url.isEmpty()) return url;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = url.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment urlSeg = local.allocate(bytes.length);
+            urlSeg.copyFrom(MemorySegment.ofArray(bytes));
+            
+            int bufSize = bytes.length + 16; // Room for https:// prefix
+            MemorySegment outSeg = local.allocate(bufSize);
+            
+            int len = (int) linkNormalizeHandle.invokeExact(urlSeg, bytes.length, outSeg, bufSize);
+            
+            if (len <= 0) return url;
+            return new String(outSeg.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE),
+                java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return url;
+        }
+    }
+    
+    /**
+     * Validate if a string is a valid URL.
+     */
+    public boolean linkIsValid(String url) {
+        if (linkIsValidHandle == null || url == null || url.isEmpty()) return false;
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = url.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment urlSeg = local.allocate(bytes.length);
+            urlSeg.copyFrom(MemorySegment.ofArray(bytes));
+            int result = (int) linkIsValidHandle.invokeExact(urlSeg, bytes.length);
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Get link at specific position in text.
+     * @return int[2] with [start, end] or null if no link at position
+     */
+    public int[] linkAtPosition(String text, int position) {
+        if (linkAtPositionHandle == null || text == null || text.isEmpty() || position < 0) {
+            return null;
+        }
+        try (Arena local = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = local.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            
+            MemorySegment startSeg = local.allocate(ValueLayout.JAVA_INT);
+            MemorySegment endSeg = local.allocate(ValueLayout.JAVA_INT);
+            
+            int result = (int) linkAtPositionHandle.invokeExact(textSeg, bytes.length, position, startSeg, endSeg);
+            
+            if (result == 0) return null;
+            
+            return new int[] {
+                startSeg.get(ValueLayout.JAVA_INT, 0),
+                endSeg.get(ValueLayout.JAVA_INT, 0)
+            };
         } catch (Throwable t) {
             return null;
         }

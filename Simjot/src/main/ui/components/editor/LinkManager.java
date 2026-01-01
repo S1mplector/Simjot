@@ -12,17 +12,16 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.HierarchyListener;
 import java.awt.event.InputEvent;
-import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -205,10 +204,24 @@ public final class LinkManager {
 
     /**
      * Finds all URL ranges in the given text.
+     * Uses native C++ implementation when available for better performance.
      * 
      * @return List of [start, end] offset pairs
      */
     private static List<int[]> findLinkRanges(String text) {
+        // Try native implementation first (faster)
+        if (NativeAccess.hasLinkSupport()) {
+            int[][] nativeRanges = NativeAccess.linkFindRanges(text);
+            if (nativeRanges != null && nativeRanges.length > 0) {
+                List<int[]> ranges = new ArrayList<>(nativeRanges.length);
+                for (int[] range : nativeRanges) {
+                    ranges.add(range);
+                }
+                return ranges;
+            }
+        }
+        
+        // Java fallback using regex
         List<int[]> ranges = new ArrayList<>();
         Matcher matcher = URL_PATTERN.matcher(text);
         while (matcher.find()) {
@@ -262,18 +275,37 @@ public final class LinkManager {
 
     /**
      * Checks if the given text contains any URLs.
+     * Uses native C++ implementation when available.
      */
     public static boolean containsLinks(String text) {
-        return text != null && URL_PATTERN.matcher(text).find();
+        if (text == null || text.isEmpty()) return false;
+        
+        // Try native first
+        if (NativeAccess.hasLinkSupport()) {
+            return NativeAccess.linkContains(text);
+        }
+        
+        // Java fallback
+        return URL_PATTERN.matcher(text).find();
     }
 
     /**
      * Extracts all URLs from the given text.
+     * Uses native C++ implementation when available.
      */
     public static List<String> extractLinks(String text) {
         List<String> links = new ArrayList<>();
-        if (text == null) return links;
+        if (text == null || text.isEmpty()) return links;
         
+        // Try native first
+        if (NativeAccess.hasLinkSupport()) {
+            List<String> nativeLinks = NativeAccess.linkExtractAll(text);
+            if (nativeLinks != null && !nativeLinks.isEmpty()) {
+                return nativeLinks;
+            }
+        }
+        
+        // Java fallback
         Matcher matcher = URL_PATTERN.matcher(text);
         while (matcher.find()) {
             String url = matcher.group();

@@ -1457,6 +1457,212 @@ int32_t simjot_buffer_composite(int64_t handle, const int32_t* pixels,
  */
 int32_t simjot_buffer_get_size(int64_t handle, int32_t* out_width, int32_t* out_height);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MOOD ANALYTICS - Fast computations for mood data analysis
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Compute rolling average (smoothed values) for mood data.
+ * @param values Input mood values (0-100, -1 for missing)
+ * @param count Number of values
+ * @param window Rolling window size
+ * @param out_smoothed Output buffer (same size as values)
+ * @return Number of non-null smoothed values
+ */
+int32_t simjot_mood_smooth(const int32_t* values, int32_t count, int32_t window, double* out_smoothed);
+
+/**
+ * Compute volatility (standard deviation) of mood values.
+ * @return Standard deviation, or -1 if insufficient data
+ */
+double simjot_mood_volatility(const int32_t* values, int32_t count);
+
+/**
+ * Compute mood streaks.
+ * @param threshold Good/bad threshold (typically 50)
+ * @param out_current Current streak (positive=good, negative=bad)
+ * @param out_longest_good Longest good streak
+ * @param out_longest_bad Longest bad streak
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_mood_streaks(const int32_t* values, int32_t count, int32_t threshold,
+                            int32_t* out_current, int32_t* out_longest_good, int32_t* out_longest_bad);
+
+/**
+ * Compute daily aggregates from timestamped mood samples.
+ * @return Number of unique days found
+ */
+int32_t simjot_mood_daily_aggregate(const int32_t* timestamps, const int32_t* values,
+                                     int32_t count, int32_t* out_days, double* out_averages,
+                                     int32_t max_days);
+
+/**
+ * Compute trend slope using simple linear regression.
+ * @return Slope (positive = improving, negative = declining)
+ */
+double simjot_mood_trend_slope(const int32_t* values, int32_t count);
+
+/**
+ * Predict next mood value using exponential smoothing.
+ * @param alpha Smoothing factor (0-1, higher = more weight on recent)
+ * @return Predicted next value, or -1 if insufficient data
+ */
+double simjot_mood_predict_next(const int32_t* values, int32_t count, double alpha);
+
+/**
+ * Categorize mood distribution into 5 buckets.
+ * @param out_buckets Output array of 5 buckets (0-20, 20-40, 40-60, 60-80, 80-100)
+ * @return Total number of valid samples
+ */
+int32_t simjot_mood_distribution(const int32_t* values, int32_t count, int32_t* out_buckets);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HASKELL POETRY ANALYSIS - FFI bridge to Haskell poetry engine
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Analyze meter and return dominant foot type.
+ * Returns: 0=Iamb, 1=Trochee, 2=Spondee, 3=Pyrrhic, 4=Anapest, 5=Dactyl, 6=Amphibrach
+ */
+int32_t hs_analyze_meter(const char* text);
+
+/**
+ * Analyze rhyme scheme and write to output buffer.
+ * @return Length of scheme written
+ */
+int32_t hs_analyze_rhyme_scheme(const char* text, char* out_buf, int32_t out_len);
+
+/**
+ * Count syllables in a word using Haskell implementation.
+ */
+int32_t hs_count_syllables(const char* word);
+
+/**
+ * Analyze sound devices and return count.
+ */
+int32_t hs_analyze_sound_devices(const char* text);
+
+/**
+ * Get meter name and write to output buffer.
+ * @return Length of name written
+ */
+int32_t hs_get_meter_name(const char* text, char* out_buf, int32_t out_len);
+
+/**
+ * Get meter regularity as percentage (0-100).
+ */
+int32_t hs_get_meter_regularity(const char* text);
+
+/**
+ * Check if two words rhyme.
+ * @return 1 if they rhyme, 0 otherwise
+ */
+int32_t hs_check_rhyme(const char* word1, const char* word2);
+
+/**
+ * Get vocabulary stats as comma-separated string.
+ * Format: "total,unique,polysyl,hapax,avglen*100"
+ * @return Length written
+ */
+int32_t hs_get_vocab_stats(const char* text, char* out_buf, int32_t out_len);
+
+/**
+ * Get type-token ratio * 100 (vocabulary richness).
+ */
+int32_t hs_type_token_ratio(const char* text);
+
+/**
+ * Get rhyme key for a word.
+ * @return Length written
+ */
+int32_t hs_get_rhyme_key(const char* word, char* out_buf, int32_t out_len);
+
+/**
+ * Estimate stress pattern as packed bits.
+ * LSB = first syllable, 1 = stressed.
+ */
+int32_t hs_estimate_stress(const char* word);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LINK DETECTOR - Fast URL/link detection for text processing
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Check if text contains any URLs.
+ * 
+ * @param text UTF-8 encoded text to scan
+ * @param len Length of text in bytes
+ * @return 1 if contains links, 0 if not
+ */
+int32_t simjot_link_contains(const char* text, int32_t len);
+
+/**
+ * Count number of URLs in text.
+ * 
+ * @param text UTF-8 encoded text to scan
+ * @param len Length of text in bytes
+ * @return Number of URLs found
+ */
+int32_t simjot_link_count(const char* text, int32_t len);
+
+/**
+ * Find all link ranges in text.
+ * 
+ * @param text UTF-8 encoded text to scan
+ * @param len Length of text in bytes
+ * @param out_ranges Output buffer for [start, end] pairs (must be 2*max_ranges ints)
+ * @param max_ranges Maximum number of ranges to return
+ * @return Number of ranges found (may be less than max_ranges)
+ */
+int32_t simjot_link_find_ranges(const char* text, int32_t len,
+                                 int32_t* out_ranges, int32_t max_ranges);
+
+/**
+ * Extract first URL from text, normalizing www. to https://
+ * 
+ * @param text UTF-8 encoded text to scan
+ * @param len Length of text in bytes
+ * @param out_url Output buffer for URL (null-terminated)
+ * @param out_len Size of output buffer
+ * @return Length of URL written (excluding null), or 0 if none found
+ */
+int32_t simjot_link_extract_first(const char* text, int32_t len,
+                                   char* out_url, int32_t out_len);
+
+/**
+ * Normalize a URL (add https:// if starts with www.).
+ * 
+ * @param url Input URL
+ * @param url_len Length of input URL
+ * @param out_url Output buffer
+ * @param out_len Size of output buffer
+ * @return Length of normalized URL
+ */
+int32_t simjot_link_normalize(const char* url, int32_t url_len,
+                               char* out_url, int32_t out_len);
+
+/**
+ * Validate if a string is a valid URL.
+ * 
+ * @param url URL to validate
+ * @param len Length of URL
+ * @return 1 if valid, 0 if invalid
+ */
+int32_t simjot_link_is_valid(const char* url, int32_t len);
+
+/**
+ * Get link at specific position in text.
+ * 
+ * @param text UTF-8 encoded text
+ * @param len Length of text
+ * @param position Character position to check
+ * @param out_start Output: start position of link (or -1)
+ * @param out_end Output: end position of link (or -1)
+ * @return 1 if position is within a link, 0 otherwise
+ */
+int32_t simjot_link_at_position(const char* text, int32_t len, int32_t position,
+                                 int32_t* out_start, int32_t* out_end);
+
 #ifdef __cplusplus
 }
 #endif

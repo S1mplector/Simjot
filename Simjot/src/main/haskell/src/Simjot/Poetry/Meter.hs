@@ -64,18 +64,131 @@ data MeterAnalysis = MeterAnalysis
   } deriving (Show, Eq)
 
 -- | Analyze meter of a poem
-analyzeMeter :: a -> MeterAnalysis
+analyzeMeter :: HasLines a => a -> MeterAnalysis
 analyzeMeter poem = MeterAnalysis
   { meterName         = determineMeterName dominant mtype
   , meterDominantFoot = dominant
   , meterType         = mtype
-  , meterRegularity   = 0.85  -- Placeholder
-  , meterScansions    = []    -- Would be filled with actual scansions
-  , meterAvgSyllables = 10.0  -- Placeholder
+  , meterRegularity   = regularity
+  , meterScansions    = scansions
+  , meterAvgSyllables = avgSyl
   }
   where
-    dominant = Iamb  -- Default for English poetry
-    mtype = Pentameter
+    lineTexts = getLines poem
+    scansions = zipWith scanLineFromText [1..] lineTexts
+    
+    -- Get all feet from all lines
+    allFeet = concatMap scansionFeet scansions
+    
+    -- Find dominant foot type
+    dominant = if null allFeet then Iamb
+               else head $ maximumBy (comparing length) $ group $ sort allFeet
+    
+    -- Determine meter type from average syllables
+    avgSyl = if null scansions then 0
+             else fromIntegral (sum $ map scansionSyllables scansions) / 
+                  fromIntegral (length scansions)
+    mtype = syllablesToMeterType (round avgSyl) dominant
+    
+    -- Calculate regularity (how consistent the meter is)
+    regularity = calculateRegularity scansions dominant
+
+-- | Type class for things that have lines
+class HasLines a where
+  getLines :: a -> [Text]
+
+instance HasLines [Text] where
+  getLines = id
+
+-- | Scan a line from text
+scanLineFromText :: Int -> Text -> LineScansion
+scanLineFromText lineNum text = 
+  let words = T.words text
+      stresses = concatMap estimateWordStress words
+      sylCount = length stresses
+  in scanLine lineNum text stresses
+
+-- | Estimate stress pattern for a word
+estimateWordStress :: Text -> [Bool]
+estimateWordStress word = estimateStressFromSyllables cleaned
+  where
+    cleaned = T.filter isAlphaOrApos word
+    isAlphaOrApos c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '\''
+
+-- | Estimate stress from syllable count
+estimateStressFromSyllables :: Text -> [Bool]
+estimateStressFromSyllables word
+  | T.null word = []
+  | sylCount <= 0 = []
+  | sylCount == 1 = [True]
+  | sylCount == 2 = estimateTwoSyl word
+  | otherwise = estimateMultiSyl word sylCount
+  where
+    sylCount = countSyllablesSimple word
+    
+    estimateTwoSyl w
+      | hasIambicPrefix w = [False, True]
+      | otherwise = [True, False]
+    
+    estimateMultiSyl w n
+      | hasSuffix w "tion" || hasSuffix w "sion" = 
+          replicate (n-2) False ++ [True, False]
+      | hasIambicPrefix w = False : take (n-1) (cycle [True, False])
+      | otherwise = take n (cycle [True, False])
+    
+    hasIambicPrefix w = any (`T.isPrefixOf` T.toLower w) 
+      ["a", "be", "de", "re", "un", "en", "em", "in", "im", "ex", "pre"]
+    
+    hasSuffix w s = T.isSuffixOf (T.pack s) (T.toLower w)
+
+-- | Simple syllable counting
+countSyllablesSimple :: Text -> Int
+countSyllablesSimple word
+  | T.null cleaned = 0
+  | otherwise = max 1 $ vowelGroups - silentE
+  where
+    cleaned = T.toLower $ T.filter isAlpha word
+    isAlpha c = c >= 'a' && c <= 'z'
+    
+    vowelGroups = countVGs False 0 (T.unpack cleaned)
+    countVGs _ n [] = n
+    countVGs prev n (c:cs)
+      | isVowelChar c && not prev = countVGs True (n+1) cs
+      | isVowelChar c = countVGs True n cs
+      | otherwise = countVGs False n cs
+    
+    isVowelChar c = c `elem` ("aeiouy" :: String)
+    
+    silentE = if T.length cleaned > 2 && T.last cleaned == 'e' 
+              && not (isVowelChar $ T.index cleaned (T.length cleaned - 2))
+              then 1 else 0
+
+-- | Convert syllable count to meter type
+syllablesToMeterType :: Int -> FootType -> MeterType
+syllablesToMeterType sylCount foot = case (sylCount, footSize foot) of
+  (s, f) | s <= f     -> Monometer
+         | s <= f * 2 -> Dimeter
+         | s <= f * 3 -> Trimeter
+         | s <= f * 4 -> Tetrameter
+         | s <= f * 5 -> Pentameter
+         | s <= f * 6 -> Hexameter
+         | s <= f * 7 -> Heptameter
+         | otherwise  -> FreeVerse
+  where
+    footSize Anapest = 3
+    footSize Dactyl = 3
+    footSize Amphibrach = 3
+    footSize _ = 2
+
+-- | Calculate regularity of meter
+calculateRegularity :: [LineScansion] -> FootType -> Double
+calculateRegularity scansions dominant
+  | null allFeet = 0.0
+  | otherwise = fromIntegral matches / fromIntegral total
+  where
+    allFeet = concatMap scansionFeet scansions
+    total = length allFeet
+    matches = length $ filter (== dominant) allFeet
 
 -- | Determine meter name from foot type and length
 determineMeterName :: FootType -> MeterType -> Text

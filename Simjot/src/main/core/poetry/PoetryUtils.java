@@ -278,8 +278,18 @@ public final class PoetryUtils {
      */
     public static String rhymeKey(String word) {
         if (word == null) return null;
+        
+        // Try Haskell implementation first (most accurate)
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            String hsKey = NativeAccess.hsGetRhymeKey(word);
+            if (hsKey != null && !hsKey.isEmpty()) return hsKey;
+        }
+        
+        // Try C++ native implementation
         String nativeKey = NativeAccess.rhymeKey(word);
         if (nativeKey != null) return nativeKey;
+        
+        // Java fallback
         String w = word.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
         if (w.isEmpty()) return null;
 
@@ -339,10 +349,17 @@ public final class PoetryUtils {
      */
     public static boolean rhymes(String word1, String word2) {
         if (word1 == null || word2 == null) return false;
+        if (word1.equalsIgnoreCase(word2)) return false;
+        
+        // Try Haskell implementation first
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            return NativeAccess.hsCheckRhyme(word1, word2);
+        }
+        
+        // Fallback to key comparison
         String key1 = rhymeKey(word1);
         String key2 = rhymeKey(word2);
-        return key1 != null && key1.equals(key2) && 
-               !word1.equalsIgnoreCase(word2);
+        return key1 != null && key1.equals(key2);
     }
     
     /**
@@ -389,6 +406,16 @@ public final class PoetryUtils {
     public static int[] estimateStressPattern(String word) {
         int syllables = countSyllables(word);
         if (syllables <= 0) return new int[0];
+        
+        // Try Haskell implementation first
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            int packed = NativeAccess.hsEstimateStress(word);
+            if (packed > 0 || syllables == 1) {
+                return NativeAccess.unpackStressPattern(packed, syllables);
+            }
+        }
+        
+        // Java fallback
         if (syllables == 1) return new int[]{1};
         if (syllables == 2) return new int[]{1, 0}; // Most 2-syllable words stress first
         

@@ -4,8 +4,8 @@ version:            1.0.0
 synopsis:           Functional poetry analysis library for Simjot
 description:        Pure functional poetry analysis using Haskell,
                     integrated with Simjot's native C/C++ modules via FFI.
-license:            NONE
-author:             S1mplector
+license:            MIT
+author:             Ilgaz Mehmetoğlu
 maintainer:         contact@simjot.app
 category:           Text, Poetry
 build-type:         Simple
@@ -17,7 +17,9 @@ library
     Simjot.Poetry.Rhyme
     Simjot.Poetry.Meter
     Simjot.Poetry.SoundDevices
+    Simjot.Poetry.Vocabulary
     Simjot.Poetry.FFI
+    Simjot.Poetry.Exports
   other-modules:
     Simjot.Poetry.Internal
   hs-source-dirs:     src

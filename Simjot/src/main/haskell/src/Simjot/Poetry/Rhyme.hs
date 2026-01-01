@@ -50,14 +50,94 @@ data RhymeAnalysis = RhymeAnalysis
   } deriving (Show, Eq)
 
 -- | Analyze rhymes in a poem
-analyzeRhymes :: a -> RhymeAnalysis
+analyzeRhymes :: HasEndWords a => a -> RhymeAnalysis
 analyzeRhymes poem = RhymeAnalysis
-  { rhymeScheme     = "ABAB"  -- Placeholder
-  , rhymeGroups     = []
-  , rhymeNearGroups = []
-  , rhymeDensity    = 0.75
-  , rhymeInternal   = []
+  { rhymeScheme     = scheme
+  , rhymeGroups     = perfectGroups
+  , rhymeNearGroups = nearGroups
+  , rhymeDensity    = density
+  , rhymeInternal   = internalRhymes
   }
+  where
+    endWords = getEndWords poem
+    lineTexts = getLineTexts poem
+    
+    -- Detect scheme from end words
+    scheme = detectRhymeScheme endWords
+    
+    -- Group lines by rhyme
+    perfectGroups = findRhymeGroups PerfectRhyme endWords
+    nearGroups = findRhymeGroups NearRhyme endWords
+    
+    -- Calculate density (proportion of lines that rhyme)
+    rhymingLines = length $ filter (\g -> length (rhymeGroupLines g) > 1) perfectGroups
+    totalLines = length endWords
+    density = if totalLines > 0 
+              then fromIntegral (rhymingLines * 2) / fromIntegral totalLines
+              else 0.0
+    
+    -- Find internal rhymes
+    internalRhymes = concatMap (uncurry findInternalRhymes) (zip [1..] lineTexts)
+
+-- | Type class for things with end words
+class HasEndWords a where
+  getEndWords :: a -> [Text]
+  getLineTexts :: a -> [Text]
+
+instance HasEndWords [Text] where
+  getEndWords = map getLastWord
+  getLineTexts = id
+
+-- | Get last word of a line
+getLastWord :: Text -> Text
+getLastWord line = 
+  let words = T.words line
+  in if null words then "" else T.filter isAlpha (last words)
+  where
+    isAlpha c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+
+-- | Find rhyme groups of a specific type
+findRhymeGroups :: RhymeType -> [Text] -> [RhymeGroup]
+findRhymeGroups rtype endWords = 
+  map toGroup $ filter hasMultiple $ M.toList grouped
+  where
+    grouped = groupByRhymeKey endWords
+    hasMultiple (_, indices) = length indices >= 2
+    toGroup (key, indices) = RhymeGroup
+      { rhymeGroupKey = key
+      , rhymeGroupLines = indices
+      , rhymeGroupType = rtype
+      }
+
+-- | Group words by their rhyme key
+groupByRhymeKey :: [Text] -> Map Text [Int]
+groupByRhymeKey words = foldr addWord M.empty (zip [1..] words)
+  where
+    addWord (idx, w) m =
+      let key = extractRhymeKey w
+      in if T.null key then m
+         else M.insertWith (++) key [idx] m
+
+-- | Find internal rhymes within a line
+findInternalRhymes :: Int -> Text -> [(Int, Text)]
+findInternalRhymes lineNum line =
+  let words = T.words line
+      pairs = findRhymingPairs words
+  in if null pairs then []
+     else [(lineNum, T.intercalate ", " pairs)]
+
+-- | Find pairs of rhyming words
+findRhymingPairs :: [Text] -> [Text]
+findRhymingPairs words = 
+  [ T.concat [w1, "/", w2] 
+  | (i, w1) <- indexed
+  , (j, w2) <- indexed
+  , i < j
+  , rhymesWithWord w1 w2
+  ]
+  where
+    indexed = zip [0..] (map cleanWord words)
+    cleanWord = T.filter (\c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
 
 -- | Detect rhyme scheme from end words
 detectRhymeScheme :: [Text] -> Text
