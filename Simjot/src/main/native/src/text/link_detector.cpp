@@ -172,7 +172,7 @@ extern "C" {
  * @param len Length of text in bytes
  * @return 1 if contains links, 0 if not
  */
-SIMJOT_API int32_t simjot_link_contains(const char* text, int32_t len) {
+int32_t simjot_link_contains(const char* text, int32_t len) {
     if (!text || len <= 0) return 0;
     
     size_t pos = 0;
@@ -201,7 +201,7 @@ SIMJOT_API int32_t simjot_link_contains(const char* text, int32_t len) {
  * @param len Length of text in bytes
  * @return Number of URLs found
  */
-SIMJOT_API int32_t simjot_link_count(const char* text, int32_t len) {
+int32_t simjot_link_count(const char* text, int32_t len) {
     if (!text || len <= 0) return 0;
     
     auto links = find_all_links(text, static_cast<size_t>(len));
@@ -217,7 +217,7 @@ SIMJOT_API int32_t simjot_link_count(const char* text, int32_t len) {
  * @param max_ranges Maximum number of ranges to return
  * @return Number of ranges found (may be less than max_ranges)
  */
-SIMJOT_API int32_t simjot_link_find_ranges(
+int32_t simjot_link_find_ranges(
     const char* text, 
     int32_t len,
     int32_t* out_ranges,
@@ -245,7 +245,7 @@ SIMJOT_API int32_t simjot_link_find_ranges(
  * @param out_len Size of output buffer
  * @return Length of URL written (excluding null), or 0 if none found
  */
-SIMJOT_API int32_t simjot_link_extract_first(
+int32_t simjot_link_extract_first(
     const char* text,
     int32_t len,
     char* out_url,
@@ -306,7 +306,7 @@ SIMJOT_API int32_t simjot_link_extract_first(
  * @param out_len Size of output buffer
  * @return Length of normalized URL
  */
-SIMJOT_API int32_t simjot_link_normalize(
+int32_t simjot_link_normalize(
     const char* url,
     int32_t url_len,
     char* out_url,
@@ -351,7 +351,7 @@ SIMJOT_API int32_t simjot_link_normalize(
  * @param len Length of URL
  * @return 1 if valid, 0 if invalid
  */
-SIMJOT_API int32_t simjot_link_is_valid(const char* url, int32_t len) {
+int32_t simjot_link_is_valid(const char* url, int32_t len) {
     if (!url || len <= 0) return 0;
     
     size_t scheme_end;
@@ -385,7 +385,7 @@ SIMJOT_API int32_t simjot_link_is_valid(const char* url, int32_t len) {
  * @param out_end Output: end position of link (or -1)
  * @return 1 if position is within a link, 0 otherwise
  */
-SIMJOT_API int32_t simjot_link_at_position(
+int32_t simjot_link_at_position(
     const char* text,
     int32_t len,
     int32_t position,

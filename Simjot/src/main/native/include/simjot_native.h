@@ -1458,65 +1458,6 @@ int32_t simjot_buffer_composite(int64_t handle, const int32_t* pixels,
 int32_t simjot_buffer_get_size(int64_t handle, int32_t* out_width, int32_t* out_height);
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * MOOD ANALYTICS - Fast computations for mood data analysis
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-/**
- * Compute rolling average (smoothed values) for mood data.
- * @param values Input mood values (0-100, -1 for missing)
- * @param count Number of values
- * @param window Rolling window size
- * @param out_smoothed Output buffer (same size as values)
- * @return Number of non-null smoothed values
- */
-int32_t simjot_mood_smooth(const int32_t* values, int32_t count, int32_t window, double* out_smoothed);
-
-/**
- * Compute volatility (standard deviation) of mood values.
- * @return Standard deviation, or -1 if insufficient data
- */
-double simjot_mood_volatility(const int32_t* values, int32_t count);
-
-/**
- * Compute mood streaks.
- * @param threshold Good/bad threshold (typically 50)
- * @param out_current Current streak (positive=good, negative=bad)
- * @param out_longest_good Longest good streak
- * @param out_longest_bad Longest bad streak
- * @return 1 on success, 0 on failure
- */
-int32_t simjot_mood_streaks(const int32_t* values, int32_t count, int32_t threshold,
-                            int32_t* out_current, int32_t* out_longest_good, int32_t* out_longest_bad);
-
-/**
- * Compute daily aggregates from timestamped mood samples.
- * @return Number of unique days found
- */
-int32_t simjot_mood_daily_aggregate(const int32_t* timestamps, const int32_t* values,
-                                     int32_t count, int32_t* out_days, double* out_averages,
-                                     int32_t max_days);
-
-/**
- * Compute trend slope using simple linear regression.
- * @return Slope (positive = improving, negative = declining)
- */
-double simjot_mood_trend_slope(const int32_t* values, int32_t count);
-
-/**
- * Predict next mood value using exponential smoothing.
- * @param alpha Smoothing factor (0-1, higher = more weight on recent)
- * @return Predicted next value, or -1 if insufficient data
- */
-double simjot_mood_predict_next(const int32_t* values, int32_t count, double alpha);
-
-/**
- * Categorize mood distribution into 5 buckets.
- * @param out_buckets Output array of 5 buckets (0-20, 20-40, 40-60, 60-80, 80-100)
- * @return Total number of valid samples
- */
-int32_t simjot_mood_distribution(const int32_t* values, int32_t count, int32_t* out_buckets);
-
-/* ═══════════════════════════════════════════════════════════════════════════
  * HASKELL POETRY ANALYSIS - FFI bridge to Haskell poetry engine
  * ═══════════════════════════════════════════════════════════════════════════ */
 

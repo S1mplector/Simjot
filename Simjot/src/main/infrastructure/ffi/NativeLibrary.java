@@ -1060,7 +1060,7 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         
-        // Mood analytics handles
+        // Mood analytics handles (use double* for values per existing API)
         this.moodSmoothHandle = optionalHandle("simjot_mood_smooth",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
@@ -1068,11 +1068,9 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.moodStreaksHandle = optionalHandle("simjot_mood_streaks",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        this.moodTrendSlopeHandle = optionalHandle("simjot_mood_trend_slope",
-            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        this.moodDistributionHandle = optionalHandle("simjot_mood_distribution",
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+                ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.moodTrendSlopeHandle = null; // Not in existing API
+        this.moodDistributionHandle = null; // Not in existing API
         
         // Haskell poetry handles
         this.hsAnalyzeMeterHandle = optionalHandle("hs_analyze_meter",
@@ -4581,12 +4579,12 @@ public final class NativeLibrary implements AutoCloseable {
     /**
      * Compute mood volatility (standard deviation).
      */
-    public double moodVolatility(int[] values) {
+    public double moodVolatility(double[] values) {
         if (moodVolatilityHandle == null || values == null || values.length < 2) return -1;
         try (Arena local = Arena.ofConfined()) {
-            MemorySegment seg = local.allocate(ValueLayout.JAVA_INT, values.length);
+            MemorySegment seg = local.allocate(ValueLayout.JAVA_DOUBLE, values.length);
             for (int i = 0; i < values.length; i++) {
-                seg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+                seg.setAtIndex(ValueLayout.JAVA_DOUBLE, i, values[i]);
             }
             return (double) moodVolatilityHandle.invokeExact(seg, values.length);
         } catch (Throwable t) {
@@ -4595,54 +4593,15 @@ public final class NativeLibrary implements AutoCloseable {
     }
     
     /**
-     * Compute mood trend slope.
-     */
-    public double moodTrendSlope(int[] values) {
-        if (moodTrendSlopeHandle == null || values == null || values.length < 2) return Double.NaN;
-        try (Arena local = Arena.ofConfined()) {
-            MemorySegment seg = local.allocate(ValueLayout.JAVA_INT, values.length);
-            for (int i = 0; i < values.length; i++) {
-                seg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
-            }
-            return (double) moodTrendSlopeHandle.invokeExact(seg, values.length);
-        } catch (Throwable t) {
-            return Double.NaN;
-        }
-    }
-    
-    /**
-     * Compute mood distribution into 5 buckets.
-     */
-    public int[] moodDistribution(int[] values) {
-        if (moodDistributionHandle == null || values == null || values.length == 0) return null;
-        try (Arena local = Arena.ofConfined()) {
-            MemorySegment valSeg = local.allocate(ValueLayout.JAVA_INT, values.length);
-            for (int i = 0; i < values.length; i++) {
-                valSeg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
-            }
-            MemorySegment outSeg = local.allocate(ValueLayout.JAVA_INT, 5);
-            int total = (int) moodDistributionHandle.invokeExact(valSeg, values.length, outSeg);
-            if (total <= 0) return null;
-            int[] result = new int[5];
-            for (int i = 0; i < 5; i++) {
-                result[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
-            }
-            return result;
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-    
-    /**
      * Compute mood streaks.
      * @return [currentStreak, longestGood, longestBad] or null on failure
      */
-    public int[] moodStreaks(int[] values, int threshold) {
+    public int[] moodStreaks(double[] values, double threshold) {
         if (moodStreaksHandle == null || values == null || values.length == 0) return null;
         try (Arena local = Arena.ofConfined()) {
-            MemorySegment valSeg = local.allocate(ValueLayout.JAVA_INT, values.length);
+            MemorySegment valSeg = local.allocate(ValueLayout.JAVA_DOUBLE, values.length);
             for (int i = 0; i < values.length; i++) {
-                valSeg.setAtIndex(ValueLayout.JAVA_INT, i, values[i]);
+                valSeg.setAtIndex(ValueLayout.JAVA_DOUBLE, i, values[i]);
             }
             MemorySegment curSeg = local.allocate(ValueLayout.JAVA_INT);
             MemorySegment goodSeg = local.allocate(ValueLayout.JAVA_INT);

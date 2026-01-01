@@ -40,6 +40,8 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * LinkManager - Detects and styles URLs in JTextPane editors.
  * 
