@@ -519,7 +519,7 @@ public class NotebookEntriesPanel extends JPanel {
             });
         }
         if (arr != null) {
-            allFiles = Arrays.asList(arr);
+            allFiles = new ArrayList<>(Arrays.asList(arr));
             java.util.Set<File> current = new java.util.HashSet<>(allFiles);
             // Prune caches for removed files but preserve known titles to avoid flicker
             titles.keySet().retainAll(current);
@@ -553,7 +553,7 @@ public class NotebookEntriesPanel extends JPanel {
             // Start prioritized metadata loading (visible first)
             startPrioritizedMetaLoader(java.util.List.copyOf(allFiles));
         } else {
-            allFiles = java.util.Collections.emptyList();
+            allFiles = new ArrayList<>();
             titles.clear();
             wordCounts.clear();
             metaComputed.clear();

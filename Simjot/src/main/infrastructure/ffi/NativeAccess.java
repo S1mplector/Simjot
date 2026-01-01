@@ -3587,4 +3587,218 @@ public final class NativeAccess {
         if (lib == null) return null;
         return lib.bufferGetSize(handle);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UNDO/REDO MANAGER API - High-performance text editing history
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native undo/redo support is available.
+     */
+    public static boolean hasUndoSupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasUndoSupport();
+    }
+
+    /**
+     * Initialize the undo/redo system.
+     */
+    public static boolean undoInit() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoInit();
+    }
+
+    /**
+     * Shutdown and free all undo/redo resources.
+     */
+    public static void undoShutdown() {
+        NativeLibrary lib = library();
+        if (lib != null) lib.undoShutdown();
+    }
+
+    /**
+     * Create a new undo session for an editor instance.
+     * @param historyLimit Maximum undo steps (0 = default 1000)
+     * @return Session ID (>0) or -1 on failure
+     */
+    public static int undoCreateSession(int historyLimit) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        return lib.undoCreateSession(historyLimit);
+    }
+
+    /**
+     * Destroy an undo session.
+     */
+    public static boolean undoDestroySession(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoDestroySession(sessionId);
+    }
+
+    /**
+     * Clear all undo/redo history for a session.
+     */
+    public static boolean undoClear(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoClear(sessionId);
+    }
+
+    /**
+     * Push an insert operation onto the undo stack.
+     */
+    public static boolean undoPushInsert(int sessionId, int offset, String text) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoPushInsert(sessionId, offset, text);
+    }
+
+    /**
+     * Push a delete operation onto the undo stack.
+     */
+    public static boolean undoPushDelete(int sessionId, int offset, String deletedText) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoPushDelete(sessionId, offset, deletedText);
+    }
+
+    /**
+     * Push a replace operation onto the undo stack.
+     */
+    public static boolean undoPushReplace(int sessionId, int offset, String oldText, String newText) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoPushReplace(sessionId, offset, oldText, newText);
+    }
+
+    /**
+     * Push a style change operation onto the undo stack.
+     */
+    public static boolean undoPushStyle(int sessionId, int offset, int length, int styleFlags) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoPushStyle(sessionId, offset, length, styleFlags);
+    }
+
+    /**
+     * Begin a compound edit (groups multiple edits as one undo step).
+     */
+    public static boolean undoBeginCompound(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoBeginCompound(sessionId);
+    }
+
+    /**
+     * End a compound edit.
+     */
+    public static boolean undoEndCompound(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoEndCompound(sessionId);
+    }
+
+    /**
+     * Check if undo is available.
+     */
+    public static boolean undoCanUndo(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoCanUndo(sessionId);
+    }
+
+    /**
+     * Check if redo is available.
+     */
+    public static boolean undoCanRedo(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoCanRedo(sessionId);
+    }
+
+    /**
+     * Perform undo and get the edit details.
+     * @return UndoResult with type, offset, length, text - or null if no undo available
+     */
+    public static NativeLibrary.UndoResult undoUndo(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        return lib.undoUndo(sessionId);
+    }
+
+    /**
+     * Perform redo and get the edit details.
+     * @return UndoResult with type, offset, length, text - or null if no redo available
+     */
+    public static NativeLibrary.UndoResult undoRedo(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        return lib.undoRedo(sessionId);
+    }
+
+    /**
+     * Mark the current state as a save point for dirty detection.
+     */
+    public static boolean undoMarkSavePoint(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoMarkSavePoint(sessionId);
+    }
+
+    /**
+     * Check if current state matches the save point.
+     */
+    public static boolean undoIsAtSavePoint(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoIsAtSavePoint(sessionId);
+    }
+
+    /**
+     * Check if document has been modified since last save.
+     */
+    public static boolean undoIsDirty(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoIsDirty(sessionId);
+    }
+
+    /**
+     * Get the number of available undo steps.
+     */
+    public static int undoGetUndoCount(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.undoGetUndoCount(sessionId);
+    }
+
+    /**
+     * Get the number of available redo steps.
+     */
+    public static int undoGetRedoCount(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.undoGetRedoCount(sessionId);
+    }
+
+    /**
+     * Set the history limit for a session.
+     */
+    public static boolean undoSetHistoryLimit(int sessionId, int limit) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.undoSetHistoryLimit(sessionId, limit);
+    }
+
+    /**
+     * Get statistics for an undo session.
+     * @return UndoStats with memory, undoCount, redoCount, savePoint, changeIndex
+     */
+    public static NativeLibrary.UndoStats undoGetStats(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        return lib.undoGetStats(sessionId);
+    }
 }

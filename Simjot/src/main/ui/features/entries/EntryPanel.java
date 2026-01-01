@@ -56,12 +56,10 @@ import java.util.Date;
 
 import javax.imageio.ImageIO;
 import javax.swing.Action;
-import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
-import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -70,7 +68,6 @@ import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
-import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.BadLocationException;
@@ -1010,15 +1007,8 @@ public class EntryPanel extends AbstractEditorPanel {
         bar.add(underlineBtn);
         bar.add(bulletsBtn);
 
-        // Keyboard shortcuts
-        InputMap im = contentArea.getInputMap(JComponent.WHEN_FOCUSED);
-        ActionMap am = contentArea.getActionMap();
-        im.put(KeyStroke.getKeyStroke("control B"), "rt-bold");
-        am.put("rt-bold", (Action) bold);
-        im.put(KeyStroke.getKeyStroke("control I"), "rt-italic");
-        am.put("rt-italic", (Action) italic);
-        im.put(KeyStroke.getKeyStroke("control U"), "rt-underline");
-        am.put("rt-underline", (Action) underline);
+        // Note: Keyboard shortcuts (Cmd/Ctrl+B/I/U/Shift+S) are handled by
+        // FormattingHotkeyHandler installed in initContentArea() with platform-aware modifiers
 
         // Initialize toggle state
         SwingUtilities.invokeLater(this::updateFormattingToggleState);

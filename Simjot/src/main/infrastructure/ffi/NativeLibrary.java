@@ -11,6 +11,14 @@
  * 
  * This class provides a Java interface to native Simjot functions using Java's Foreign Function & Memory API (FFM).
  * It serves as a bridge between Java and the native C library for various system operations.
+ * Has a dependency on the native library, so make sure to load it before using it.
+ * Otherwise it will throw an exception, and the application will crash.
+ * All methods are static, so you can use them without creating an instance.
+ * All methods are thread safe and are written in a way that they can be used in a multi-threaded environment
+ * using the Panama FFM API. 
+ * 
+ * Furthermore, I advise you to use this class with caution, as it is not a wrapper for the native library,
+ * but a bridge between Java and the native C library, and is not yet production-ready.
  * 
  * @author S1mplector
  */
@@ -310,6 +318,30 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle bufferScrollHandle;
     private final MethodHandle bufferCompositeHandle;
     private final MethodHandle bufferGetSizeHandle;
+    
+    // Undo/redo manager handles
+    private final MethodHandle undoInitHandle;
+    private final MethodHandle undoShutdownHandle;
+    private final MethodHandle undoCreateSessionHandle;
+    private final MethodHandle undoDestroySessionHandle;
+    private final MethodHandle undoClearHandle;
+    private final MethodHandle undoPushInsertHandle;
+    private final MethodHandle undoPushDeleteHandle;
+    private final MethodHandle undoPushReplaceHandle;
+    private final MethodHandle undoPushStyleHandle;
+    private final MethodHandle undoBeginCompoundHandle;
+    private final MethodHandle undoEndCompoundHandle;
+    private final MethodHandle undoCanUndoHandle;
+    private final MethodHandle undoCanRedoHandle;
+    private final MethodHandle undoUndoHandle;
+    private final MethodHandle undoRedoHandle;
+    private final MethodHandle undoMarkSavePointHandle;
+    private final MethodHandle undoIsAtSavePointHandle;
+    private final MethodHandle undoIsDirtyHandle;
+    private final MethodHandle undoGetUndoCountHandle;
+    private final MethodHandle undoGetRedoCountHandle;
+    private final MethodHandle undoSetHistoryLimitHandle;
+    private final MethodHandle undoGetStatsHandle;
     
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
@@ -928,6 +960,56 @@ public final class NativeLibrary implements AutoCloseable {
                 ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
         this.bufferGetSizeHandle = optionalHandle("simjot_buffer_get_size",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        
+        // Undo/redo manager handles
+        this.undoInitHandle = optionalHandle("simjot_undo_init",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.undoShutdownHandle = optionalHandle("simjot_undo_shutdown",
+            FunctionDescriptor.ofVoid());
+        this.undoCreateSessionHandle = optionalHandle("simjot_undo_create_session",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoDestroySessionHandle = optionalHandle("simjot_undo_destroy_session",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoClearHandle = optionalHandle("simjot_undo_clear",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoPushInsertHandle = optionalHandle("simjot_undo_push_insert",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.undoPushDeleteHandle = optionalHandle("simjot_undo_push_delete",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.undoPushReplaceHandle = optionalHandle("simjot_undo_push_replace",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, 
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.undoPushStyleHandle = optionalHandle("simjot_undo_push_style",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoBeginCompoundHandle = optionalHandle("simjot_undo_begin_compound",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoEndCompoundHandle = optionalHandle("simjot_undo_end_compound",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoCanUndoHandle = optionalHandle("simjot_undo_can_undo",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoCanRedoHandle = optionalHandle("simjot_undo_can_redo",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoUndoHandle = optionalHandle("simjot_undo_undo",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, 
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.undoRedoHandle = optionalHandle("simjot_undo_redo",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.undoMarkSavePointHandle = optionalHandle("simjot_undo_mark_save_point",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoIsAtSavePointHandle = optionalHandle("simjot_undo_is_at_save_point",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoIsDirtyHandle = optionalHandle("simjot_undo_is_dirty",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoGetUndoCountHandle = optionalHandle("simjot_undo_get_undo_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoGetRedoCountHandle = optionalHandle("simjot_undo_get_redo_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoSetHistoryLimitHandle = optionalHandle("simjot_undo_set_history_limit",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.undoGetStatsHandle = optionalHandle("simjot_undo_get_stats",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -4117,6 +4199,282 @@ public final class NativeLibrary implements AutoCloseable {
                 return new int[] { wSeg.get(ValueLayout.JAVA_INT, 0), hSeg.get(ValueLayout.JAVA_INT, 0) };
             }
             return null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UNDO/REDO MANAGER
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    public static final int EDIT_INSERT   = 1;
+    public static final int EDIT_DELETE   = 2;
+    public static final int EDIT_REPLACE  = 3;
+    public static final int EDIT_STYLE    = 4;
+    public static final int EDIT_COMPOUND = 5;
+    
+    public boolean hasUndoSupport() {
+        return undoCreateSessionHandle != null;
+    }
+    
+    public boolean undoInit() {
+        if (undoInitHandle == null) return false;
+        try {
+            return (int) undoInitHandle.invokeExact() == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public void undoShutdown() {
+        if (undoShutdownHandle == null) return;
+        try {
+            undoShutdownHandle.invokeExact();
+        } catch (Throwable ignored) {}
+    }
+    
+    public int undoCreateSession(int historyLimit) {
+        if (undoCreateSessionHandle == null) return -1;
+        try {
+            return (int) undoCreateSessionHandle.invokeExact(historyLimit);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    public boolean undoDestroySession(int sessionId) {
+        if (undoDestroySessionHandle == null) return false;
+        try {
+            return (int) undoDestroySessionHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoClear(int sessionId) {
+        if (undoClearHandle == null) return false;
+        try {
+            return (int) undoClearHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoPushInsert(int sessionId, int offset, String text) {
+        if (undoPushInsertHandle == null || text == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = temp.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            return (int) undoPushInsertHandle.invokeExact(sessionId, offset, textSeg, bytes.length) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoPushDelete(int sessionId, int offset, String deletedText) {
+        if (undoPushDeleteHandle == null || deletedText == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            byte[] bytes = deletedText.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            MemorySegment textSeg = temp.allocate(bytes.length);
+            textSeg.copyFrom(MemorySegment.ofArray(bytes));
+            return (int) undoPushDeleteHandle.invokeExact(sessionId, offset, textSeg, bytes.length) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoPushReplace(int sessionId, int offset, String oldText, String newText) {
+        if (undoPushReplaceHandle == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            byte[] oldBytes = oldText != null ? oldText.getBytes(java.nio.charset.StandardCharsets.UTF_8) : new byte[0];
+            byte[] newBytes = newText != null ? newText.getBytes(java.nio.charset.StandardCharsets.UTF_8) : new byte[0];
+            MemorySegment oldSeg = temp.allocate(Math.max(1, oldBytes.length));
+            MemorySegment newSeg = temp.allocate(Math.max(1, newBytes.length));
+            if (oldBytes.length > 0) oldSeg.copyFrom(MemorySegment.ofArray(oldBytes));
+            if (newBytes.length > 0) newSeg.copyFrom(MemorySegment.ofArray(newBytes));
+            return (int) undoPushReplaceHandle.invokeExact(sessionId, offset, 
+                oldSeg, oldBytes.length, newSeg, newBytes.length) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoPushStyle(int sessionId, int offset, int length, int styleFlags) {
+        if (undoPushStyleHandle == null) return false;
+        try {
+            return (int) undoPushStyleHandle.invokeExact(sessionId, offset, length, styleFlags) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoBeginCompound(int sessionId) {
+        if (undoBeginCompoundHandle == null) return false;
+        try {
+            return (int) undoBeginCompoundHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoEndCompound(int sessionId) {
+        if (undoEndCompoundHandle == null) return false;
+        try {
+            return (int) undoEndCompoundHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoCanUndo(int sessionId) {
+        if (undoCanUndoHandle == null) return false;
+        try {
+            return (int) undoCanUndoHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoCanRedo(int sessionId) {
+        if (undoCanRedoHandle == null) return false;
+        try {
+            return (int) undoCanRedoHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public record UndoResult(int type, int offset, int length, String text) {}
+    
+    public UndoResult undoUndo(int sessionId) {
+        if (undoUndoHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment typeSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment offsetSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment lengthSeg = temp.allocate(ValueLayout.JAVA_INT);
+            int bufLen = 65536;
+            MemorySegment textSeg = temp.allocate(bufLen);
+            
+            int ok = (int) undoUndoHandle.invokeExact(sessionId, typeSeg, offsetSeg, lengthSeg, textSeg, bufLen);
+            if (ok != 1) return null;
+            
+            int type = typeSeg.get(ValueLayout.JAVA_INT, 0);
+            int offset = offsetSeg.get(ValueLayout.JAVA_INT, 0);
+            int length = lengthSeg.get(ValueLayout.JAVA_INT, 0);
+            
+            byte[] textBytes = new byte[Math.min(length, bufLen - 1)];
+            textSeg.asByteBuffer().get(textBytes);
+            String text = new String(textBytes, java.nio.charset.StandardCharsets.UTF_8).trim();
+            
+            return new UndoResult(type, offset, length, text);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    public UndoResult undoRedo(int sessionId) {
+        if (undoRedoHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment typeSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment offsetSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment lengthSeg = temp.allocate(ValueLayout.JAVA_INT);
+            int bufLen = 65536;
+            MemorySegment textSeg = temp.allocate(bufLen);
+            
+            int ok = (int) undoRedoHandle.invokeExact(sessionId, typeSeg, offsetSeg, lengthSeg, textSeg, bufLen);
+            if (ok != 1) return null;
+            
+            int type = typeSeg.get(ValueLayout.JAVA_INT, 0);
+            int offset = offsetSeg.get(ValueLayout.JAVA_INT, 0);
+            int length = lengthSeg.get(ValueLayout.JAVA_INT, 0);
+            
+            byte[] textBytes = new byte[Math.min(length, bufLen - 1)];
+            textSeg.asByteBuffer().get(textBytes);
+            String text = new String(textBytes, java.nio.charset.StandardCharsets.UTF_8).trim();
+            
+            return new UndoResult(type, offset, length, text);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    public boolean undoMarkSavePoint(int sessionId) {
+        if (undoMarkSavePointHandle == null) return false;
+        try {
+            return (int) undoMarkSavePointHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoIsAtSavePoint(int sessionId) {
+        if (undoIsAtSavePointHandle == null) return false;
+        try {
+            return (int) undoIsAtSavePointHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean undoIsDirty(int sessionId) {
+        if (undoIsDirtyHandle == null) return false;
+        try {
+            return (int) undoIsDirtyHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public int undoGetUndoCount(int sessionId) {
+        if (undoGetUndoCountHandle == null) return 0;
+        try {
+            return (int) undoGetUndoCountHandle.invokeExact(sessionId);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    public int undoGetRedoCount(int sessionId) {
+        if (undoGetRedoCountHandle == null) return 0;
+        try {
+            return (int) undoGetRedoCountHandle.invokeExact(sessionId);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    public boolean undoSetHistoryLimit(int sessionId, int limit) {
+        if (undoSetHistoryLimitHandle == null) return false;
+        try {
+            return (int) undoSetHistoryLimitHandle.invokeExact(sessionId, limit) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public record UndoStats(long memory, int undoCount, int redoCount, int savePoint, int changeIndex) {}
+    
+    public UndoStats undoGetStats(int sessionId) {
+        if (undoGetStatsHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment memSeg = temp.allocate(ValueLayout.JAVA_LONG);
+            MemorySegment undoSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment redoSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment saveSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment changeSeg = temp.allocate(ValueLayout.JAVA_INT);
+            
+            int ok = (int) undoGetStatsHandle.invokeExact(sessionId, memSeg, undoSeg, redoSeg, saveSeg, changeSeg);
+            if (ok != 1) return null;
+            
+            return new UndoStats(
+                memSeg.get(ValueLayout.JAVA_LONG, 0),
+                undoSeg.get(ValueLayout.JAVA_INT, 0),
+                redoSeg.get(ValueLayout.JAVA_INT, 0),
+                saveSeg.get(ValueLayout.JAVA_INT, 0),
+                changeSeg.get(ValueLayout.JAVA_INT, 0)
+            );
         } catch (Throwable t) {
             return null;
         }

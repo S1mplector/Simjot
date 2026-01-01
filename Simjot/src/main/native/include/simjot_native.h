@@ -1046,6 +1046,230 @@ void simjot_autosave_get_global_stats(int64_t* out_total_saves, int32_t* out_act
 int32_t simjot_autosave_get_path(int32_t session_id, char* out, int32_t out_len);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * UNDO/REDO MANAGER - High-performance text editing history
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Edit type constants */
+#define SIMJOT_EDIT_INSERT      1
+#define SIMJOT_EDIT_DELETE      2
+#define SIMJOT_EDIT_REPLACE     3
+#define SIMJOT_EDIT_STYLE       4
+#define SIMJOT_EDIT_COMPOUND    5
+
+/**
+ * Initialize the undo/redo system.
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_init(void);
+
+/**
+ * Shutdown and free all undo/redo resources.
+ */
+void simjot_undo_shutdown(void);
+
+/**
+ * Create a new undo session for an editor instance.
+ * @param history_limit Maximum number of undo steps (0 = default 1000)
+ * @return Session ID (>0) on success, -1 on failure
+ */
+int32_t simjot_undo_create_session(int32_t history_limit);
+
+/**
+ * Destroy an undo session.
+ * @param session_id Session to destroy
+ * @return 1 on success, 0 if not found
+ */
+int32_t simjot_undo_destroy_session(int32_t session_id);
+
+/**
+ * Clear all undo/redo history for a session.
+ * @param session_id Session ID
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_clear(int32_t session_id);
+
+/**
+ * Push an insert operation onto the undo stack.
+ * @param session_id Session ID
+ * @param offset Position where text was inserted
+ * @param text The inserted text
+ * @param text_len Length of inserted text
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_push_insert(int32_t session_id, int32_t offset,
+                                 const char* text, int32_t text_len);
+
+/**
+ * Push a delete operation onto the undo stack.
+ * @param session_id Session ID
+ * @param offset Position where text was deleted
+ * @param deleted_text The deleted text (for restoration)
+ * @param text_len Length of deleted text
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_push_delete(int32_t session_id, int32_t offset,
+                                 const char* deleted_text, int32_t text_len);
+
+/**
+ * Push a replace operation onto the undo stack.
+ * @param session_id Session ID
+ * @param offset Position of replacement
+ * @param old_text Text that was replaced
+ * @param old_len Length of old text
+ * @param new_text Replacement text
+ * @param new_len Length of new text
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_push_replace(int32_t session_id, int32_t offset,
+                                  const char* old_text, int32_t old_len,
+                                  const char* new_text, int32_t new_len);
+
+/**
+ * Push a style change operation onto the undo stack.
+ * @param session_id Session ID
+ * @param offset Start position of styled region
+ * @param length Length of styled region
+ * @param style_flags Style flags (application-defined)
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_push_style(int32_t session_id, int32_t offset,
+                                int32_t length, int32_t style_flags);
+
+/**
+ * Begin a compound edit (groups multiple edits as one undo step).
+ * @param session_id Session ID
+ * @return 1 on success, 0 if already in compound mode
+ */
+int32_t simjot_undo_begin_compound(int32_t session_id);
+
+/**
+ * End a compound edit.
+ * @param session_id Session ID
+ * @return 1 on success, 0 if not in compound mode
+ */
+int32_t simjot_undo_end_compound(int32_t session_id);
+
+/**
+ * Check if undo is available.
+ * @param session_id Session ID
+ * @return 1 if can undo, 0 otherwise
+ */
+int32_t simjot_undo_can_undo(int32_t session_id);
+
+/**
+ * Check if redo is available.
+ * @param session_id Session ID
+ * @return 1 if can redo, 0 otherwise
+ */
+int32_t simjot_undo_can_redo(int32_t session_id);
+
+/**
+ * Peek at the next undo operation without performing it.
+ * @param session_id Session ID
+ * @param out_type Output: edit type (SIMJOT_EDIT_*)
+ * @param out_offset Output: edit offset
+ * @param out_length Output: edit length
+ * @param out_text Output: text buffer
+ * @param out_text_len Size of text buffer
+ * @return 1 on success, 0 if no undo available
+ */
+int32_t simjot_undo_peek(int32_t session_id, int32_t* out_type,
+                          int32_t* out_offset, int32_t* out_length,
+                          char* out_text, int32_t out_text_len);
+
+/**
+ * Perform undo and get the edit details.
+ * @param session_id Session ID
+ * @param out_type Output: edit type
+ * @param out_offset Output: position to apply undo
+ * @param out_length Output: length of text to restore/remove
+ * @param out_text Output: text buffer for restoration
+ * @param out_text_len Size of text buffer
+ * @return 1 on success, 0 if no undo available
+ */
+int32_t simjot_undo_undo(int32_t session_id, int32_t* out_type,
+                          int32_t* out_offset, int32_t* out_length,
+                          char* out_text, int32_t out_text_len);
+
+/**
+ * Perform redo and get the edit details.
+ * @param session_id Session ID
+ * @param out_type Output: edit type
+ * @param out_offset Output: position to apply redo
+ * @param out_length Output: length of text to apply
+ * @param out_text Output: text buffer
+ * @param out_text_len Size of text buffer
+ * @return 1 on success, 0 if no redo available
+ */
+int32_t simjot_undo_redo(int32_t session_id, int32_t* out_type,
+                          int32_t* out_offset, int32_t* out_length,
+                          char* out_text, int32_t out_text_len);
+
+/**
+ * Mark the current state as a save point.
+ * Used for dirty detection.
+ * @param session_id Session ID
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_mark_save_point(int32_t session_id);
+
+/**
+ * Check if current state matches the save point.
+ * @param session_id Session ID
+ * @return 1 if at save point, 0 otherwise
+ */
+int32_t simjot_undo_is_at_save_point(int32_t session_id);
+
+/**
+ * Check if document has been modified since last save.
+ * @param session_id Session ID
+ * @return 1 if dirty (modified), 0 if clean
+ */
+int32_t simjot_undo_is_dirty(int32_t session_id);
+
+/**
+ * Get the number of available undo steps.
+ * @param session_id Session ID
+ * @return Number of undo steps
+ */
+int32_t simjot_undo_get_undo_count(int32_t session_id);
+
+/**
+ * Get the number of available redo steps.
+ * @param session_id Session ID
+ * @return Number of redo steps
+ */
+int32_t simjot_undo_get_redo_count(int32_t session_id);
+
+/**
+ * Set the history limit for a session.
+ * @param session_id Session ID
+ * @param limit New limit (must be > 0)
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_set_history_limit(int32_t session_id, int32_t limit);
+
+/**
+ * Get statistics for an undo session.
+ * @param session_id Session ID
+ * @param out_memory Output: approximate memory usage in bytes
+ * @param out_undo_count Output: number of undo steps
+ * @param out_redo_count Output: number of redo steps
+ * @param out_save_point Output: save point index
+ * @param out_change_index Output: current change index
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_undo_get_stats(int32_t session_id, int64_t* out_memory,
+                               int32_t* out_undo_count, int32_t* out_redo_count,
+                               int32_t* out_save_point, int32_t* out_change_index);
+
+/**
+ * Get the total number of active undo sessions.
+ * @return Number of active sessions
+ */
+int32_t simjot_undo_session_count(void);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * HOTKEY MANAGER - Fast OS-aware hotkey detection for text formatting
  * ═══════════════════════════════════════════════════════════════════════════ */
 
