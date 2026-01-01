@@ -279,6 +279,38 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle lz4DecompressHandle;
     private final MethodHandle lz4CompressBoundHandle;
     
+    // Viewport image cache handles
+    private final MethodHandle imgcacheInitHandle;
+    private final MethodHandle imgcacheShutdownHandle;
+    private final MethodHandle imgcachePutHandle;
+    private final MethodHandle imgcacheGetHandle;
+    private final MethodHandle imgcacheContainsHandle;
+    private final MethodHandle imgcacheRemoveHandle;
+    private final MethodHandle imgcacheClearHandle;
+    private final MethodHandle imgcacheStatsHandle;
+    private final MethodHandle imgcacheCullViewportHandle;
+    private final MethodHandle imgcacheBlitHandle;
+    private final MethodHandle imgcachePrescaleHandle;
+    
+    // Hotkey manager handles
+    private final MethodHandle hotkeyGetPlatformHandle;
+    private final MethodHandle hotkeyGetPrimaryModifierHandle;
+    private final MethodHandle hotkeyCheckHandle;
+    private final MethodHandle hotkeyGetBindingHandle;
+    private final MethodHandle hotkeyGetDisplayStringHandle;
+    private final MethodHandle hotkeyCheckBatchHandle;
+    
+    // Offscreen buffer handles
+    private final MethodHandle bufferCreateHandle;
+    private final MethodHandle bufferResizeHandle;
+    private final MethodHandle bufferDestroyHandle;
+    private final MethodHandle bufferClearHandle;
+    private final MethodHandle bufferWriteHandle;
+    private final MethodHandle bufferReadHandle;
+    private final MethodHandle bufferScrollHandle;
+    private final MethodHandle bufferCompositeHandle;
+    private final MethodHandle bufferGetSizeHandle;
+    
     private NativeLibrary(Path libraryPath) {
         this.arena = Arena.ofShared();
         this.linker = Linker.nativeLinker();
@@ -814,6 +846,30 @@ public final class NativeLibrary implements AutoCloseable {
         this.lz4CompressBoundHandle = optionalHandle("simjot_lz4_compress_bound",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
         
+        // Viewport image cache handles
+        this.imgcacheInitHandle = optionalHandle("simjot_imgcache_init",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.imgcacheShutdownHandle = optionalHandle("simjot_imgcache_shutdown",
+            FunctionDescriptor.ofVoid());
+        this.imgcachePutHandle = optionalHandle("simjot_imgcache_put",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.imgcacheGetHandle = optionalHandle("simjot_imgcache_get",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.imgcacheContainsHandle = optionalHandle("simjot_imgcache_contains",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
+        this.imgcacheRemoveHandle = optionalHandle("simjot_imgcache_remove",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
+        this.imgcacheClearHandle = optionalHandle("simjot_imgcache_clear",
+            FunctionDescriptor.ofVoid());
+        this.imgcacheStatsHandle = optionalHandle("simjot_imgcache_stats",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.imgcacheCullViewportHandle = optionalHandle("simjot_imgcache_cull_viewport",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.imgcacheBlitHandle = optionalHandle("simjot_imgcache_blit",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.imgcachePrescaleHandle = optionalHandle("simjot_imgcache_prescale",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        
         // Autosave manager handles
         this.autosaveInitHandle = optionalHandle("simjot_autosave_init",
             FunctionDescriptor.of(ValueLayout.JAVA_INT));
@@ -835,6 +891,43 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
         this.autosaveHasRecoveryHandle = optionalHandle("simjot_autosave_has_recovery",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        
+        // Hotkey manager handles
+        this.hotkeyGetPlatformHandle = optionalHandle("simjot_hotkey_get_platform",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.hotkeyGetPrimaryModifierHandle = optionalHandle("simjot_hotkey_get_primary_modifier",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.hotkeyCheckHandle = optionalHandle("simjot_hotkey_check",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.hotkeyGetBindingHandle = optionalHandle("simjot_hotkey_get_binding",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.hotkeyGetDisplayStringHandle = optionalHandle("simjot_hotkey_get_display_string",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.hotkeyCheckBatchHandle = optionalHandle("simjot_hotkey_check_batch",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        
+        // Offscreen buffer handles
+        this.bufferCreateHandle = optionalHandle("simjot_buffer_create",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.bufferResizeHandle = optionalHandle("simjot_buffer_resize",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.bufferDestroyHandle = optionalHandle("simjot_buffer_destroy",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+        this.bufferClearHandle = optionalHandle("simjot_buffer_clear",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
+        this.bufferWriteHandle = optionalHandle("simjot_buffer_write",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.bufferReadHandle = optionalHandle("simjot_buffer_read",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.bufferScrollHandle = optionalHandle("simjot_buffer_scroll",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.bufferCompositeHandle = optionalHandle("simjot_buffer_composite",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.bufferGetSizeHandle = optionalHandle("simjot_buffer_get_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -3701,6 +3794,329 @@ public final class NativeLibrary implements AutoCloseable {
             byte[] result = new byte[decompressedLen];
             dstSeg.asByteBuffer().get(result);
             return result;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VIEWPORT IMAGE CACHE
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    public boolean hasImageCacheSupport() {
+        return imgcacheInitHandle != null && imgcachePutHandle != null;
+    }
+    
+    public boolean imgcacheInit(int maxEntries, int maxMemoryMb) {
+        if (imgcacheInitHandle == null) return false;
+        try {
+            return (int) imgcacheInitHandle.invokeExact(maxEntries, maxMemoryMb) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public void imgcacheShutdown() {
+        if (imgcacheShutdownHandle == null) return;
+        try {
+            imgcacheShutdownHandle.invokeExact();
+        } catch (Throwable ignored) {}
+    }
+    
+    public boolean imgcachePut(long imageId, int[] pixels, int width, int height) {
+        if (imgcachePutHandle == null || pixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment pixelSeg = temp.allocate(ValueLayout.JAVA_INT, pixels.length);
+            for (int i = 0; i < pixels.length; i++) {
+                pixelSeg.setAtIndex(ValueLayout.JAVA_INT, i, pixels[i]);
+            }
+            return (int) imgcachePutHandle.invokeExact(imageId, pixelSeg, width, height) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean imgcacheContains(long imageId) {
+        if (imgcacheContainsHandle == null) return false;
+        try {
+            return (int) imgcacheContainsHandle.invokeExact(imageId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean imgcacheRemove(long imageId) {
+        if (imgcacheRemoveHandle == null) return false;
+        try {
+            return (int) imgcacheRemoveHandle.invokeExact(imageId) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public void imgcacheClear() {
+        if (imgcacheClearHandle == null) return;
+        try {
+            imgcacheClearHandle.invokeExact();
+        } catch (Throwable ignored) {}
+    }
+    
+    public record ImageCacheStats(int count, long memoryBytes, long hits, long misses) {}
+    
+    public ImageCacheStats imgcacheStats() {
+        if (imgcacheStatsHandle == null) return new ImageCacheStats(0, 0, 0, 0);
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment countSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment memorySeg = temp.allocate(ValueLayout.JAVA_LONG);
+            MemorySegment hitsSeg = temp.allocate(ValueLayout.JAVA_LONG);
+            MemorySegment missesSeg = temp.allocate(ValueLayout.JAVA_LONG);
+            
+            imgcacheStatsHandle.invokeExact(countSeg, memorySeg, hitsSeg, missesSeg);
+            
+            return new ImageCacheStats(
+                countSeg.get(ValueLayout.JAVA_INT, 0),
+                memorySeg.get(ValueLayout.JAVA_LONG, 0),
+                hitsSeg.get(ValueLayout.JAVA_LONG, 0),
+                missesSeg.get(ValueLayout.JAVA_LONG, 0)
+            );
+        } catch (Throwable t) {
+            return new ImageCacheStats(0, 0, 0, 0);
+        }
+    }
+    
+    public int imgcacheCullViewport(long[] imageIds, int[] yPositions, int[] heights,
+                                     int viewportY, int viewportHeight, int[] outVisible) {
+        if (imgcacheCullViewportHandle == null || imageIds == null) return 0;
+        int count = imageIds.length;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment idsSeg = temp.allocate(ValueLayout.JAVA_LONG, count);
+            MemorySegment ySeg = temp.allocate(ValueLayout.JAVA_INT, count);
+            MemorySegment hSeg = temp.allocate(ValueLayout.JAVA_INT, count);
+            MemorySegment outSeg = temp.allocate(ValueLayout.JAVA_INT, count);
+            
+            for (int i = 0; i < count; i++) {
+                idsSeg.setAtIndex(ValueLayout.JAVA_LONG, i, imageIds[i]);
+                ySeg.setAtIndex(ValueLayout.JAVA_INT, i, yPositions[i]);
+                hSeg.setAtIndex(ValueLayout.JAVA_INT, i, heights[i]);
+            }
+            
+            int visibleCount = (int) imgcacheCullViewportHandle.invokeExact(
+                idsSeg, ySeg, hSeg, count, viewportY, viewportHeight, outSeg);
+            
+            for (int i = 0; i < count; i++) {
+                outVisible[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return visibleCount;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    public boolean imgcachePrescale(long imageId, int[] srcPixels, int srcWidth, int srcHeight,
+                                     int targetWidth, int quality) {
+        if (imgcachePrescaleHandle == null || srcPixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment pixelSeg = temp.allocate(ValueLayout.JAVA_INT, srcPixels.length);
+            for (int i = 0; i < srcPixels.length; i++) {
+                pixelSeg.setAtIndex(ValueLayout.JAVA_INT, i, srcPixels[i]);
+            }
+            return (int) imgcachePrescaleHandle.invokeExact(
+                imageId, pixelSeg, srcWidth, srcHeight, targetWidth, quality) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HOTKEY MANAGER
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    // Constants matching C++ definitions
+    public static final int MOD_NONE  = 0x00;
+    public static final int MOD_SHIFT = 0x01;
+    public static final int MOD_CTRL  = 0x02;
+    public static final int MOD_ALT   = 0x04;
+    public static final int MOD_META  = 0x08;
+    
+    public static final int ACTION_NONE          = 0;
+    public static final int ACTION_BOLD          = 1;
+    public static final int ACTION_ITALIC        = 2;
+    public static final int ACTION_UNDERLINE     = 3;
+    public static final int ACTION_STRIKETHROUGH = 4;
+    
+    public static final int PLATFORM_UNKNOWN = 0;
+    public static final int PLATFORM_MACOS   = 1;
+    public static final int PLATFORM_WINDOWS = 2;
+    public static final int PLATFORM_LINUX   = 3;
+    
+    public boolean hasHotkeySupport() {
+        return hotkeyCheckHandle != null;
+    }
+    
+    public int hotkeyGetPlatform() {
+        if (hotkeyGetPlatformHandle == null) return PLATFORM_UNKNOWN;
+        try {
+            return (int) hotkeyGetPlatformHandle.invokeExact();
+        } catch (Throwable t) {
+            return PLATFORM_UNKNOWN;
+        }
+    }
+    
+    public int hotkeyGetPrimaryModifier() {
+        if (hotkeyGetPrimaryModifierHandle == null) {
+            // Fallback: detect from Java
+            String os = System.getProperty("os.name", "").toLowerCase();
+            return os.contains("mac") ? MOD_META : MOD_CTRL;
+        }
+        try {
+            return (int) hotkeyGetPrimaryModifierHandle.invokeExact();
+        } catch (Throwable t) {
+            return MOD_CTRL;
+        }
+    }
+    
+    public int hotkeyCheck(int keyCode, int modifiers) {
+        if (hotkeyCheckHandle == null) return ACTION_NONE;
+        try {
+            return (int) hotkeyCheckHandle.invokeExact(keyCode, modifiers);
+        } catch (Throwable t) {
+            return ACTION_NONE;
+        }
+    }
+    
+    public record HotkeyBinding(int keyCode, int modifiers) {}
+    
+    public HotkeyBinding hotkeyGetBinding(int action) {
+        if (hotkeyGetBindingHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment keySeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment modSeg = temp.allocate(ValueLayout.JAVA_INT);
+            int ok = (int) hotkeyGetBindingHandle.invokeExact(action, keySeg, modSeg);
+            if (ok != 1) return null;
+            return new HotkeyBinding(
+                keySeg.get(ValueLayout.JAVA_INT, 0),
+                modSeg.get(ValueLayout.JAVA_INT, 0)
+            );
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    public String hotkeyGetDisplayString(int action) {
+        if (hotkeyGetDisplayStringHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int bufLen = 32;
+            MemorySegment buf = temp.allocate(bufLen);
+            int len = (int) hotkeyGetDisplayStringHandle.invokeExact(action, buf, bufLen);
+            if (len <= 0) return null;
+            byte[] bytes = new byte[len];
+            buf.asByteBuffer().get(bytes);
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OFFSCREEN BUFFER
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    public boolean hasBufferSupport() {
+        return bufferCreateHandle != null;
+    }
+    
+    public long bufferCreate(int width, int height) {
+        if (bufferCreateHandle == null) return 0;
+        try {
+            return (long) bufferCreateHandle.invokeExact(width, height);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    public boolean bufferResize(long handle, int width, int height) {
+        if (bufferResizeHandle == null) return false;
+        try {
+            return (int) bufferResizeHandle.invokeExact(handle, width, height) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public void bufferDestroy(long handle) {
+        if (bufferDestroyHandle == null) return;
+        try {
+            bufferDestroyHandle.invokeExact(handle);
+        } catch (Throwable ignored) {}
+    }
+    
+    public void bufferClear(long handle, int argb) {
+        if (bufferClearHandle == null) return;
+        try {
+            bufferClearHandle.invokeExact(handle, argb);
+        } catch (Throwable ignored) {}
+    }
+    
+    public boolean bufferWrite(long handle, int[] pixels, int srcWidth, int srcHeight, int dstX, int dstY) {
+        if (bufferWriteHandle == null || pixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(ValueLayout.JAVA_INT, pixels.length);
+            for (int i = 0; i < pixels.length; i++) {
+                seg.setAtIndex(ValueLayout.JAVA_INT, i, pixels[i]);
+            }
+            return (int) bufferWriteHandle.invokeExact(handle, seg, srcWidth, srcHeight, dstX, dstY) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public boolean bufferRead(long handle, int[] outPixels, int srcX, int srcY, int width, int height) {
+        if (bufferReadHandle == null || outPixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(ValueLayout.JAVA_INT, outPixels.length);
+            int ok = (int) bufferReadHandle.invokeExact(handle, seg, srcX, srcY, width, height);
+            if (ok == 1) {
+                for (int i = 0; i < outPixels.length; i++) {
+                    outPixels[i] = seg.getAtIndex(ValueLayout.JAVA_INT, i);
+                }
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public void bufferScroll(long handle, int dx, int dy, int fillArgb) {
+        if (bufferScrollHandle == null) return;
+        try {
+            bufferScrollHandle.invokeExact(handle, dx, dy, fillArgb);
+        } catch (Throwable ignored) {}
+    }
+    
+    public boolean bufferComposite(long handle, int[] pixels, int srcWidth, int srcHeight, int dstX, int dstY) {
+        if (bufferCompositeHandle == null || pixels == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(ValueLayout.JAVA_INT, pixels.length);
+            for (int i = 0; i < pixels.length; i++) {
+                seg.setAtIndex(ValueLayout.JAVA_INT, i, pixels[i]);
+            }
+            return (int) bufferCompositeHandle.invokeExact(handle, seg, srcWidth, srcHeight, dstX, dstY) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    public int[] bufferGetSize(long handle) {
+        if (bufferGetSizeHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment wSeg = temp.allocate(ValueLayout.JAVA_INT);
+            MemorySegment hSeg = temp.allocate(ValueLayout.JAVA_INT);
+            int ok = (int) bufferGetSizeHandle.invokeExact(handle, wSeg, hSeg);
+            if (ok == 1) {
+                return new int[] { wSeg.get(ValueLayout.JAVA_INT, 0), hSeg.get(ValueLayout.JAVA_INT, 0) };
+            }
+            return null;
         } catch (Throwable t) {
             return null;
         }

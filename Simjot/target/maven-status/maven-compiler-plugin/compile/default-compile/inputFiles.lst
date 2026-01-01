@@ -10,6 +10,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/animations/transitions/FadeTransitionPanel.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/service/NotebookStore.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/home/MoodChartRenderer.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/scrollbar/NativeBufferedViewport.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/setup/TutorialDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/DragController.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/widgets/LookingForwardCalendarWidget.java
@@ -97,6 +98,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/spelling/AutocorrectDatabase.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/MinimalistClock.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/file/FileIconProvider.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/editor/FormattingHotkeyHandler.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/security/EncryptionUnlockDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/animations/transitions/FadingButton.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/settings/SimSettingsPage.java
@@ -216,6 +218,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/SwissRailwayClock.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/settings/DrawingSettingsPage.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/icons/AppIcon.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/NativeAutosaveCoordinator.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/scrollbar/ModernScrollBarUI.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/sim/llm/openai/OpenAIClient.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsIcons.java

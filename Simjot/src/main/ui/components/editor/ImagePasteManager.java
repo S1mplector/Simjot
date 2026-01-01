@@ -78,10 +78,18 @@ public final class ImagePasteManager {
     
     // Track active overlay to prevent duplicates
     private static JWindow activeOverlay = null;
+    
+    // Native image cache settings
+    private static final int CACHE_MAX_ENTRIES = 48;
+    private static final int CACHE_MAX_MEMORY_MB = 96;
+    private static volatile boolean cacheInitialized = false;
 
     public static void install(JTextPane editor, Supplier<File> attachmentsDirSupplier, int maxWidthPx) {
         Objects.requireNonNull(editor, "editor");
         Objects.requireNonNull(attachmentsDirSupplier, "attachmentsDirSupplier");
+
+        // Initialize native image cache (once, thread-safe)
+        initNativeCache();
 
         // Enable double buffering for flicker-free rendering
         editor.setDoubleBuffered(true);
@@ -215,6 +223,9 @@ public final class ImagePasteManager {
         }
         try { ImageIO.write(scaled, "PNG", out); } catch (IOException e) { /* ignore, still insert */ }
 
+        // Cache in native memory for scroll performance
+        cacheImageNative(scaled, out);
+
         // Insert as icon at caret, preserving scroll position to prevent jumping
         ImageIcon icon = new ImageIcon(scaled);
         SimpleAttributeSet attrs = new SimpleAttributeSet();
@@ -273,6 +284,37 @@ public final class ImagePasteManager {
 
     private static String timestampName() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS"));
+    }
+    
+    /**
+     * Initialize native image cache for scroll performance.
+     * Thread-safe, only initializes once.
+     */
+    private static void initNativeCache() {
+        if (cacheInitialized) return;
+        synchronized (ImagePasteManager.class) {
+            if (cacheInitialized) return;
+            if (NativeAccess.hasImageCacheSupport()) {
+                cacheInitialized = NativeAccess.imgcacheInit(CACHE_MAX_ENTRIES, CACHE_MAX_MEMORY_MB);
+            }
+        }
+    }
+    
+    /**
+     * Cache an image in native memory for fast scroll rendering.
+     * Uses file path hash as stable ID.
+     */
+    private static void cacheImageNative(BufferedImage img, File sourceFile) {
+        if (!cacheInitialized || img == null || sourceFile == null) return;
+        try {
+            long imageId = sourceFile.getAbsolutePath().hashCode() & 0xFFFFFFFFL;
+            int w = img.getWidth();
+            int h = img.getHeight();
+            int[] pixels = img.getRGB(0, 0, w, h, null, 0, w);
+            NativeAccess.imgcachePut(imageId, pixels, w, h);
+        } catch (Throwable ignored) {
+            // Cache failure is non-fatal, just skip
+        }
     }
 
     private static boolean isImageFile(File f) {

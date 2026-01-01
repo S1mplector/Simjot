@@ -85,8 +85,10 @@ import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.TranslucentPanel;
+import main.ui.components.editor.FormattingHotkeyHandler;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
+import main.ui.components.editor.RichTextStyler;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
@@ -387,6 +389,13 @@ public class PoemPanel extends AbstractEditorPanel {
                 () -> new File(journalFolder, "attachments"),
                 800 // max width in pixels for inserted images
         );
+
+        // Install native-accelerated formatting hotkeys (Cmd/Ctrl + B/I/U, Cmd/Ctrl+Shift+S)
+        FormattingHotkeyHandler.install(poemEditor,
+                () -> RichTextStyler.toggleSelectionBold(poemEditor),
+                () -> RichTextStyler.toggleSelectionItalic(poemEditor),
+                () -> RichTextStyler.toggleSelectionUnderline(poemEditor),
+                () -> RichTextStyler.toggleSelectionStrike(poemEditor));
 
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(poemEditor);

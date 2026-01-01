@@ -103,6 +103,7 @@ import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.TranslucentPanel;
+import main.ui.components.editor.FormattingHotkeyHandler;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
 import main.ui.components.editor.RichTextStyler;
@@ -686,6 +687,13 @@ public class EntryPanel extends AbstractEditorPanel {
                 800 // max width in pixels for inserted images
         );
 
+        // Install native-accelerated formatting hotkeys (Cmd/Ctrl + B/I/U, Cmd/Ctrl+Shift+S)
+        FormattingHotkeyHandler.install(contentArea,
+                this::applyInlineStyleBold,
+                this::applyInlineStyleItalic,
+                this::applyInlineStyleUnderline,
+                this::applyInlineStyleStrike);
+
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(contentArea);
 
@@ -778,11 +786,6 @@ public class EntryPanel extends AbstractEditorPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        // Enable double buffering on viewport to prevent image flickering
-        scrollPane.getViewport().setDoubleBuffered(true);
-        scrollPane.setDoubleBuffered(true);
-        // Optimize scroll mode to prevent tearing/flickering during repaints
-        scrollPane.getViewport().setScrollMode(javax.swing.JViewport.SIMPLE_SCROLL_MODE);
         // Apply modern, slim scrollbars (match PoemPanel)
         JScrollBar vbar = scrollPane.getVerticalScrollBar();
         vbar.setUI(new ModernScrollBarUI());

@@ -892,6 +892,124 @@ const char* simjot_json_builder_get(void* builder, int32_t* out_len);
 void simjot_json_builder_free(void* builder);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * VIEWPORT IMAGE CACHE - Efficient embedded image rendering for scrolling
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Initialize the viewport image cache with specified capacity.
+ * @param max_entries Maximum number of cached images (recommend 32-64)
+ * @param max_memory_mb Maximum memory in MB for the cache (recommend 64-128)
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_imgcache_init(int32_t max_entries, int32_t max_memory_mb);
+
+/**
+ * Shutdown and free all cached images.
+ */
+void simjot_imgcache_shutdown(void);
+
+/**
+ * Register an image in the cache with a unique ID.
+ * @param image_id Unique identifier for this image (e.g., document offset or hash)
+ * @param pixels ARGB pixel data
+ * @param width Image width
+ * @param height Image height
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_imgcache_put(int64_t image_id, const uint32_t* pixels, 
+                            int32_t width, int32_t height);
+
+/**
+ * Get cached image pixels by ID.
+ * @param image_id Image identifier
+ * @param out_width Output: image width (or NULL)
+ * @param out_height Output: image height (or NULL)
+ * @return Pointer to cached ARGB pixels, or NULL if not cached
+ */
+const uint32_t* simjot_imgcache_get(int64_t image_id, 
+                                     int32_t* out_width, int32_t* out_height);
+
+/**
+ * Check if image is in cache.
+ * @param image_id Image identifier
+ * @return 1 if cached, 0 if not
+ */
+int32_t simjot_imgcache_contains(int64_t image_id);
+
+/**
+ * Remove a specific image from the cache.
+ * @param image_id Image identifier
+ * @return 1 if removed, 0 if not found
+ */
+int32_t simjot_imgcache_remove(int64_t image_id);
+
+/**
+ * Clear all cached images.
+ */
+void simjot_imgcache_clear(void);
+
+/**
+ * Get cache statistics.
+ * @param out_count Number of cached images
+ * @param out_memory_bytes Total memory used
+ * @param out_hits Cache hit count
+ * @param out_misses Cache miss count
+ */
+void simjot_imgcache_stats(int32_t* out_count, int64_t* out_memory_bytes,
+                           int64_t* out_hits, int64_t* out_misses);
+
+/**
+ * Perform viewport culling - returns which images are visible.
+ * @param image_ids Array of image IDs to check
+ * @param image_y_positions Y position of each image in document coordinates
+ * @param image_heights Height of each image
+ * @param count Number of images
+ * @param viewport_y Top of viewport in document coordinates
+ * @param viewport_height Height of viewport
+ * @param out_visible Output array: 1 if visible, 0 if not (must be preallocated)
+ * @return Number of visible images
+ */
+int32_t simjot_imgcache_cull_viewport(const int64_t* image_ids,
+                                       const int32_t* image_y_positions,
+                                       const int32_t* image_heights,
+                                       int32_t count,
+                                       int32_t viewport_y,
+                                       int32_t viewport_height,
+                                       int32_t* out_visible);
+
+/**
+ * Blit a cached image to an output buffer at specified position.
+ * Used for compositing visible images onto a scroll buffer.
+ * @param image_id Image to blit
+ * @param dst_pixels Destination ARGB buffer
+ * @param dst_width Destination buffer width
+ * @param dst_height Destination buffer height
+ * @param dst_x X position in destination
+ * @param dst_y Y position in destination
+ * @param clip_y Top of clip region (viewport)
+ * @param clip_height Height of clip region
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_imgcache_blit(int64_t image_id,
+                              uint32_t* dst_pixels, int32_t dst_width, int32_t dst_height,
+                              int32_t dst_x, int32_t dst_y,
+                              int32_t clip_y, int32_t clip_height);
+
+/**
+ * Pre-scale an image and cache the result.
+ * @param image_id ID for the scaled result
+ * @param src_pixels Source ARGB pixels
+ * @param src_width Source width
+ * @param src_height Source height
+ * @param target_width Desired width
+ * @param quality 0=fast, 1=balanced, 2=best
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_imgcache_prescale(int64_t image_id,
+                                  const uint32_t* src_pixels, int32_t src_width, int32_t src_height,
+                                  int32_t target_width, int32_t quality);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * AUTOSAVE MANAGER - Multi-session dirty tracking, debouncing, atomic writes
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -926,6 +1044,194 @@ int32_t simjot_autosave_get_recovery_path(const char* file_path, char* out, int3
 int32_t simjot_autosave_get_stats(int32_t session_id, int32_t* out_save_count, int64_t* out_last_save_ms, int64_t* out_last_dirty_ms);
 void simjot_autosave_get_global_stats(int64_t* out_total_saves, int32_t* out_active_sessions, int32_t* out_dirty_sessions);
 int32_t simjot_autosave_get_path(int32_t session_id, char* out, int32_t out_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HOTKEY MANAGER - Fast OS-aware hotkey detection for text formatting
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Modifier key flags */
+#define SIMJOT_MOD_NONE     0x00
+#define SIMJOT_MOD_SHIFT    0x01
+#define SIMJOT_MOD_CTRL     0x02
+#define SIMJOT_MOD_ALT      0x04
+#define SIMJOT_MOD_META     0x08  /* Cmd on macOS, Win key on Windows */
+
+/* Text formatting action codes */
+#define SIMJOT_ACTION_NONE          0
+#define SIMJOT_ACTION_BOLD          1
+#define SIMJOT_ACTION_ITALIC        2
+#define SIMJOT_ACTION_UNDERLINE     3
+#define SIMJOT_ACTION_STRIKETHROUGH 4
+
+/* Platform detection */
+#define SIMJOT_PLATFORM_UNKNOWN 0
+#define SIMJOT_PLATFORM_MACOS   1
+#define SIMJOT_PLATFORM_WINDOWS 2
+#define SIMJOT_PLATFORM_LINUX   3
+
+/**
+ * Get the current platform identifier.
+ * @return SIMJOT_PLATFORM_* constant
+ */
+int32_t simjot_hotkey_get_platform(void);
+
+/**
+ * Get the platform-appropriate modifier mask for text formatting hotkeys.
+ * Returns SIMJOT_MOD_META on macOS, SIMJOT_MOD_CTRL on Windows/Linux.
+ * @return Modifier mask
+ */
+int32_t simjot_hotkey_get_primary_modifier(void);
+
+/**
+ * Check if a key event matches a text formatting hotkey.
+ * Fast O(1) lookup using precomputed tables.
+ * 
+ * @param key_code The key code (ASCII for A-Z, or platform-specific)
+ * @param modifiers Combination of SIMJOT_MOD_* flags
+ * @return SIMJOT_ACTION_* code, or SIMJOT_ACTION_NONE if no match
+ */
+int32_t simjot_hotkey_check(int32_t key_code, int32_t modifiers);
+
+/**
+ * Get the expected modifier + key for a specific action on current platform.
+ * Useful for displaying hotkey hints in UI.
+ * 
+ * @param action SIMJOT_ACTION_* code
+ * @param out_key_code Output: the key code (e.g., 'B' for bold)
+ * @param out_modifiers Output: the modifier mask
+ * @return 1 if action is valid, 0 otherwise
+ */
+int32_t simjot_hotkey_get_binding(int32_t action, int32_t* out_key_code, int32_t* out_modifiers);
+
+/**
+ * Get a human-readable string for a hotkey (e.g., "⌘B" or "Ctrl+B").
+ * 
+ * @param action SIMJOT_ACTION_* code
+ * @param out Buffer for the string
+ * @param out_len Buffer size
+ * @return Length written, or negative if buffer too small
+ */
+int32_t simjot_hotkey_get_display_string(int32_t action, char* out, int32_t out_len);
+
+/**
+ * Batch check multiple key events for efficiency.
+ * Useful when processing queued input events.
+ * 
+ * @param key_codes Array of key codes
+ * @param modifiers Array of modifier masks
+ * @param count Number of events
+ * @param out_actions Output array of SIMJOT_ACTION_* codes
+ * @return Number of matched actions (non-NONE)
+ */
+int32_t simjot_hotkey_check_batch(const int32_t* key_codes, const int32_t* modifiers,
+                                   int32_t count, int32_t* out_actions);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OFFSCREEN BUFFER - Native double-buffering for smooth scrolling
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Create an offscreen buffer for double-buffered rendering.
+ * Returns an opaque handle to the buffer.
+ * 
+ * @param width Buffer width in pixels
+ * @param height Buffer height in pixels
+ * @return Buffer handle, or 0 on failure
+ */
+int64_t simjot_buffer_create(int32_t width, int32_t height);
+
+/**
+ * Resize an existing buffer. Preserves content if possible.
+ * 
+ * @param handle Buffer handle from simjot_buffer_create
+ * @param width New width
+ * @param height New height
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_buffer_resize(int64_t handle, int32_t width, int32_t height);
+
+/**
+ * Destroy a buffer and free its memory.
+ * 
+ * @param handle Buffer handle
+ */
+void simjot_buffer_destroy(int64_t handle);
+
+/**
+ * Clear the buffer with a solid color.
+ * 
+ * @param handle Buffer handle
+ * @param argb Color in 0xAARRGGBB format
+ */
+void simjot_buffer_clear(int64_t handle, uint32_t argb);
+
+/**
+ * Copy pixels from Java int[] array into the buffer.
+ * Used to capture current rendered state.
+ * 
+ * @param handle Buffer handle
+ * @param pixels Source ARGB pixel array
+ * @param src_width Source width
+ * @param src_height Source height
+ * @param dst_x Destination X offset in buffer
+ * @param dst_y Destination Y offset in buffer
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_buffer_write(int64_t handle, const int32_t* pixels,
+                            int32_t src_width, int32_t src_height,
+                            int32_t dst_x, int32_t dst_y);
+
+/**
+ * Read pixels from buffer back into Java int[] array.
+ * Used to blit cached content to screen.
+ * 
+ * @param handle Buffer handle
+ * @param out_pixels Destination ARGB pixel array
+ * @param src_x Source X offset in buffer
+ * @param src_y Source Y offset in buffer
+ * @param width Width to read
+ * @param height Height to read
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_buffer_read(int64_t handle, int32_t* out_pixels,
+                           int32_t src_x, int32_t src_y,
+                           int32_t width, int32_t height);
+
+/**
+ * Scroll buffer contents by offset, filling exposed area with color.
+ * Efficient for incremental scroll updates.
+ * 
+ * @param handle Buffer handle
+ * @param dx Horizontal scroll offset (positive = right)
+ * @param dy Vertical scroll offset (positive = down)
+ * @param fill_argb Color for exposed areas
+ */
+void simjot_buffer_scroll(int64_t handle, int32_t dx, int32_t dy, uint32_t fill_argb);
+
+/**
+ * Composite (alpha-blend) source pixels onto buffer.
+ * 
+ * @param handle Buffer handle
+ * @param pixels Source ARGB pixels with alpha
+ * @param src_width Source width
+ * @param src_height Source height
+ * @param dst_x Destination X
+ * @param dst_y Destination Y
+ * @return 1 on success, 0 on failure
+ */
+int32_t simjot_buffer_composite(int64_t handle, const int32_t* pixels,
+                                 int32_t src_width, int32_t src_height,
+                                 int32_t dst_x, int32_t dst_y);
+
+/**
+ * Get buffer dimensions.
+ * 
+ * @param handle Buffer handle
+ * @param out_width Output width (can be NULL)
+ * @param out_height Output height (can be NULL)
+ * @return 1 if handle valid, 0 otherwise
+ */
+int32_t simjot_buffer_get_size(int64_t handle, int32_t* out_width, int32_t* out_height);
 
 #ifdef __cplusplus
 }

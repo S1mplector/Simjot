@@ -3245,4 +3245,384 @@ public final class NativeAccess {
         if (lib == null || src == null) return null;
         return lib.lz4Decompress(src, maxOutputSize);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VIEWPORT IMAGE CACHE API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private static volatile boolean imgcacheInitialized;
+    private static final Object IMGCACHE_LOCK = new Object();
+
+    /**
+     * Check if native image cache is available.
+     */
+    public static boolean hasImageCacheSupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasImageCacheSupport();
+    }
+
+    /**
+     * Initialize the viewport image cache with specified capacity.
+     * Thread-safe; only initializes once.
+     * @param maxEntries Maximum number of cached images (recommend 32-64)
+     * @param maxMemoryMb Maximum memory in MB for the cache (recommend 64-128)
+     * @return true if initialized successfully
+     */
+    public static boolean imgcacheInit(int maxEntries, int maxMemoryMb) {
+        if (imgcacheInitialized) return true;
+        synchronized (IMGCACHE_LOCK) {
+            if (imgcacheInitialized) return true;
+            NativeLibrary lib = library();
+            if (lib == null) return false;
+            imgcacheInitialized = lib.imgcacheInit(maxEntries, maxMemoryMb);
+            return imgcacheInitialized;
+        }
+    }
+
+    /**
+     * Shutdown and free all cached images.
+     */
+    public static void imgcacheShutdown() {
+        synchronized (IMGCACHE_LOCK) {
+            if (!imgcacheInitialized) return;
+            NativeLibrary lib = library();
+            if (lib != null) lib.imgcacheShutdown();
+            imgcacheInitialized = false;
+        }
+    }
+
+    /**
+     * Register an image in the cache with a unique ID.
+     * @param imageId Unique identifier for this image
+     * @param pixels ARGB pixel data
+     * @param width Image width
+     * @param height Image height
+     * @return true if cached successfully
+     */
+    public static boolean imgcachePut(long imageId, int[] pixels, int width, int height) {
+        if (!imgcacheInitialized) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.imgcachePut(imageId, pixels, width, height);
+    }
+
+    /**
+     * Check if image is in cache.
+     */
+    public static boolean imgcacheContains(long imageId) {
+        if (!imgcacheInitialized) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.imgcacheContains(imageId);
+    }
+
+    /**
+     * Remove a specific image from the cache.
+     */
+    public static boolean imgcacheRemove(long imageId) {
+        if (!imgcacheInitialized) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.imgcacheRemove(imageId);
+    }
+
+    /**
+     * Clear all cached images.
+     */
+    public static void imgcacheClear() {
+        if (!imgcacheInitialized) return;
+        NativeLibrary lib = library();
+        if (lib != null) lib.imgcacheClear();
+    }
+
+    /**
+     * Get cache statistics.
+     */
+    public static NativeLibrary.ImageCacheStats imgcacheStats() {
+        if (!imgcacheInitialized) return new NativeLibrary.ImageCacheStats(0, 0, 0, 0);
+        NativeLibrary lib = library();
+        if (lib == null) return new NativeLibrary.ImageCacheStats(0, 0, 0, 0);
+        return lib.imgcacheStats();
+    }
+
+    /**
+     * Perform viewport culling - returns which images are visible.
+     * @param imageIds Array of image IDs to check
+     * @param yPositions Y position of each image in document coordinates
+     * @param heights Height of each image
+     * @param viewportY Top of viewport in document coordinates
+     * @param viewportHeight Height of viewport
+     * @param outVisible Output array: 1 if visible, 0 if not (must be preallocated)
+     * @return Number of visible images
+     */
+    public static int imgcacheCullViewport(long[] imageIds, int[] yPositions, int[] heights,
+                                           int viewportY, int viewportHeight, int[] outVisible) {
+        if (!imgcacheInitialized) return 0;
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.imgcacheCullViewport(imageIds, yPositions, heights, viewportY, viewportHeight, outVisible);
+    }
+
+    /**
+     * Pre-scale an image and cache the result.
+     * @param imageId ID for the scaled result
+     * @param srcPixels Source ARGB pixels
+     * @param srcWidth Source width
+     * @param srcHeight Source height
+     * @param targetWidth Desired width
+     * @param quality 0=fast, 1=balanced, 2=best
+     * @return true if scaled and cached successfully
+     */
+    public static boolean imgcachePrescale(long imageId, int[] srcPixels, int srcWidth, int srcHeight,
+                                           int targetWidth, int quality) {
+        if (!imgcacheInitialized) return false;
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.imgcachePrescale(imageId, srcPixels, srcWidth, srcHeight, targetWidth, quality);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HOTKEY MANAGER API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native hotkey support is available.
+     */
+    public static boolean hasHotkeySupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasHotkeySupport();
+    }
+
+    /**
+     * Get the current platform identifier.
+     * @return NativeLibrary.PLATFORM_* constant
+     */
+    public static int hotkeyGetPlatform() {
+        NativeLibrary lib = library();
+        if (lib == null) return NativeLibrary.PLATFORM_UNKNOWN;
+        return lib.hotkeyGetPlatform();
+    }
+
+    /**
+     * Get the platform-appropriate primary modifier.
+     * Returns MOD_META on macOS, MOD_CTRL on Windows/Linux.
+     */
+    public static int hotkeyGetPrimaryModifier() {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Java fallback
+            String os = System.getProperty("os.name", "").toLowerCase();
+            return os.contains("mac") ? NativeLibrary.MOD_META : NativeLibrary.MOD_CTRL;
+        }
+        return lib.hotkeyGetPrimaryModifier();
+    }
+
+    /**
+     * Check if a key event matches a text formatting hotkey.
+     * @param keyCode The key code (ASCII for A-Z)
+     * @param modifiers Combination of NativeLibrary.MOD_* flags
+     * @return NativeLibrary.ACTION_* code, or ACTION_NONE if no match
+     */
+    public static int hotkeyCheck(int keyCode, int modifiers) {
+        NativeLibrary lib = library();
+        if (lib != null && lib.hasHotkeySupport()) {
+            return lib.hotkeyCheck(keyCode, modifiers);
+        }
+        // Java fallback
+        return hotkeyCheckJava(keyCode, modifiers);
+    }
+    
+    /**
+     * Pure Java hotkey check fallback.
+     */
+    private static int hotkeyCheckJava(int keyCode, int modifiers) {
+        // Determine primary modifier based on OS
+        boolean isMac = System.getProperty("os.name", "").toLowerCase().contains("mac");
+        int primaryMod = isMac ? NativeLibrary.MOD_META : NativeLibrary.MOD_CTRL;
+        
+        // Must have primary modifier
+        if ((modifiers & primaryMod) == 0) {
+            return NativeLibrary.ACTION_NONE;
+        }
+        
+        // Normalize to uppercase
+        int key = Character.toUpperCase(keyCode);
+        
+        // Mask relevant modifiers only
+        int relevantMods = modifiers & (NativeLibrary.MOD_SHIFT | NativeLibrary.MOD_CTRL | 
+                                         NativeLibrary.MOD_ALT | NativeLibrary.MOD_META);
+        
+        // Check each hotkey
+        if (key == 'B' && relevantMods == primaryMod) {
+            return NativeLibrary.ACTION_BOLD;
+        }
+        if (key == 'I' && relevantMods == primaryMod) {
+            return NativeLibrary.ACTION_ITALIC;
+        }
+        if (key == 'U' && relevantMods == primaryMod) {
+            return NativeLibrary.ACTION_UNDERLINE;
+        }
+        if (key == 'S' && relevantMods == (primaryMod | NativeLibrary.MOD_SHIFT)) {
+            return NativeLibrary.ACTION_STRIKETHROUGH;
+        }
+        
+        return NativeLibrary.ACTION_NONE;
+    }
+
+    /**
+     * Convert AWT KeyEvent modifiers to native modifier flags.
+     * @param awtModifiers From KeyEvent.getModifiersEx()
+     * @return Native modifier flags
+     */
+    public static int convertAwtModifiers(int awtModifiers) {
+        int mods = NativeLibrary.MOD_NONE;
+        if ((awtModifiers & java.awt.event.InputEvent.SHIFT_DOWN_MASK) != 0) {
+            mods |= NativeLibrary.MOD_SHIFT;
+        }
+        if ((awtModifiers & java.awt.event.InputEvent.CTRL_DOWN_MASK) != 0) {
+            mods |= NativeLibrary.MOD_CTRL;
+        }
+        if ((awtModifiers & java.awt.event.InputEvent.ALT_DOWN_MASK) != 0) {
+            mods |= NativeLibrary.MOD_ALT;
+        }
+        if ((awtModifiers & java.awt.event.InputEvent.META_DOWN_MASK) != 0) {
+            mods |= NativeLibrary.MOD_META;
+        }
+        return mods;
+    }
+
+    /**
+     * Check a KeyEvent for text formatting hotkeys.
+     * Convenience method that handles modifier conversion.
+     * @param e The KeyEvent
+     * @return NativeLibrary.ACTION_* code, or ACTION_NONE if no match
+     */
+    public static int hotkeyCheckEvent(java.awt.event.KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        // Convert VK_* to ASCII for letter keys
+        if (keyCode >= java.awt.event.KeyEvent.VK_A && keyCode <= java.awt.event.KeyEvent.VK_Z) {
+            keyCode = 'A' + (keyCode - java.awt.event.KeyEvent.VK_A);
+        }
+        int modifiers = convertAwtModifiers(e.getModifiersEx());
+        return hotkeyCheck(keyCode, modifiers);
+    }
+
+    /**
+     * Get a human-readable string for a hotkey (e.g., "⌘B" or "Ctrl+B").
+     */
+    public static String hotkeyGetDisplayString(int action) {
+        NativeLibrary lib = library();
+        if (lib == null) {
+            // Java fallback
+            String mod = hotkeyGetPrimaryModifier() == NativeLibrary.MOD_META ? "⌘" : "Ctrl+";
+            return switch (action) {
+                case NativeLibrary.ACTION_BOLD -> mod + "B";
+                case NativeLibrary.ACTION_ITALIC -> mod + "I";
+                case NativeLibrary.ACTION_UNDERLINE -> mod + "U";
+                case NativeLibrary.ACTION_STRIKETHROUGH -> mod + "Shift+" + "S";
+                default -> null;
+            };
+        }
+        return lib.hotkeyGetDisplayString(action);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OFFSCREEN BUFFER API - Native double-buffering for smooth scrolling
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if native buffer support is available.
+     */
+    public static boolean hasBufferSupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasBufferSupport();
+    }
+
+    /**
+     * Create a native offscreen buffer.
+     * @param width Buffer width in pixels
+     * @param height Buffer height in pixels
+     * @return Buffer handle, or 0 on failure
+     */
+    public static long bufferCreate(int width, int height) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        return lib.bufferCreate(width, height);
+    }
+
+    /**
+     * Resize an existing buffer.
+     */
+    public static boolean bufferResize(long handle, int width, int height) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.bufferResize(handle, width, height);
+    }
+
+    /**
+     * Destroy a buffer and free its memory.
+     */
+    public static void bufferDestroy(long handle) {
+        NativeLibrary lib = library();
+        if (lib != null) lib.bufferDestroy(handle);
+    }
+
+    /**
+     * Clear the buffer with a solid color.
+     * @param handle Buffer handle
+     * @param argb Color in 0xAARRGGBB format
+     */
+    public static void bufferClear(long handle, int argb) {
+        NativeLibrary lib = library();
+        if (lib != null) lib.bufferClear(handle, argb);
+    }
+
+    /**
+     * Copy pixels into the buffer.
+     */
+    public static boolean bufferWrite(long handle, int[] pixels, int srcWidth, int srcHeight, int dstX, int dstY) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.bufferWrite(handle, pixels, srcWidth, srcHeight, dstX, dstY);
+    }
+
+    /**
+     * Read pixels from buffer.
+     */
+    public static boolean bufferRead(long handle, int[] outPixels, int srcX, int srcY, int width, int height) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.bufferRead(handle, outPixels, srcX, srcY, width, height);
+    }
+
+    /**
+     * Scroll buffer contents, filling exposed areas.
+     * @param handle Buffer handle
+     * @param dx Horizontal scroll (positive = content moves left, view moves right)
+     * @param dy Vertical scroll (positive = content moves up, view moves down)
+     * @param fillArgb Color for exposed areas
+     */
+    public static void bufferScroll(long handle, int dx, int dy, int fillArgb) {
+        NativeLibrary lib = library();
+        if (lib != null) lib.bufferScroll(handle, dx, dy, fillArgb);
+    }
+
+    /**
+     * Alpha-blend pixels onto buffer.
+     */
+    public static boolean bufferComposite(long handle, int[] pixels, int srcWidth, int srcHeight, int dstX, int dstY) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        return lib.bufferComposite(handle, pixels, srcWidth, srcHeight, dstX, dstY);
+    }
+
+    /**
+     * Get buffer dimensions.
+     * @return [width, height] or null if invalid handle
+     */
+    public static int[] bufferGetSize(long handle) {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        return lib.bufferGetSize(handle);
+    }
 }
