@@ -75,6 +75,7 @@ public final class SettingsStore {
     private static final String KEY_ENTRY_BG_OPACITY = "entryBackgroundOpacity";
     private static final String KEY_POEM_BG_IMAGE = "poemBackgroundImage";
     private static final String KEY_POEM_BG_OPACITY = "poemBackgroundOpacity";
+    private static final String KEY_EDITOR_GLASS_OPACITY = "editorGlassOpacity";
     private static final String KEY_BRUSH_SIZE   = "defaultBrushSize";
     private static final String KEY_SMOOTHING    = "strokeSmoothing";
     private static final String KEY_THUMBNAILS   = "generateThumbnails";
@@ -135,6 +136,7 @@ public final class SettingsStore {
     // Default values
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
+    private static final float DEF_EDITOR_GLASS_OPACITY = 0.9f; // Glass panel opacity (0=transparent, 1=opaque)
 
     // ====================
     // DEFAULT VALUES
@@ -421,6 +423,19 @@ public final class SettingsStore {
     public void setPoemBackgroundOpacity(float opacity) {
         float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
         props.setProperty(KEY_POEM_BG_OPACITY, String.valueOf(clamped));
+    }
+    
+    public float getEditorGlassOpacity() {
+        try {
+            return Float.parseFloat(props.getProperty(KEY_EDITOR_GLASS_OPACITY, String.valueOf(DEF_EDITOR_GLASS_OPACITY)));
+        } catch (NumberFormatException e) {
+            return DEF_EDITOR_GLASS_OPACITY;
+        }
+    }
+    
+    public void setEditorGlassOpacity(float opacity) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
+        props.setProperty(KEY_EDITOR_GLASS_OPACITY, String.valueOf(clamped));
     }
     
     public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); props.remove(KEY_MAINMENU_ACCENT_RGB); }

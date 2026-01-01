@@ -32,6 +32,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 
 import main.core.service.SettingsStore;
 import main.ui.components.buttons.IconMenuButton;
@@ -68,6 +69,8 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<AccentOption> accentBox;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
+    private final JSlider glassOpacitySlider;
+    private final JLabel glassOpacityValueLabel;
     // Clock and Calendar style selection
     private String selectedClockStyle;
     private String selectedCalendarStyle;
@@ -138,25 +141,43 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
         gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
 
+        // Editor glass panel opacity slider
+        gc.gridwidth = 1;
+        gc.gridx = 0; gc.gridy = 6; add(SettingsUi.label("Editor glass opacity:"), gc);
+        JPanel glassSliderPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 5, 0));
+        glassSliderPanel.setOpaque(false);
+        float savedGlassOpacity = store.getEditorGlassOpacity();
+        glassOpacitySlider = new JSlider(0, 100, (int)(savedGlassOpacity * 100));
+        glassOpacitySlider.setPreferredSize(new Dimension(150, 20));
+        glassOpacitySlider.setOpaque(false);
+        glassOpacityValueLabel = new JLabel(String.format("%d%%", (int)(savedGlassOpacity * 100)));
+        glassOpacityValueLabel.setPreferredSize(new Dimension(40, 20));
+        glassOpacitySlider.addChangeListener(e -> {
+            glassOpacityValueLabel.setText(String.format("%d%%", glassOpacitySlider.getValue()));
+        });
+        glassSliderPanel.add(glassOpacitySlider);
+        glassSliderPanel.add(glassOpacityValueLabel);
+        gc.gridx = 1; add(glassSliderPanel, gc);
+
         // Clock & Calendar Style section
-        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2;
         gc.insets = new Insets(20, 5, 5, 5);
         add(SettingsUi.header("Clock & Calendar", "Style for main menu widgets"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
 
         // Clock style selection
-        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2;
         add(SettingsUi.label("Clock style:"), gc);
 
         selectedClockStyle = store.getClockStyle();
         StyleCycler clockCycler = new StyleCycler(CLOCK_STYLES, selectedClockStyle, true);
         clockCycler.setOnChange(style -> selectedClockStyle = style);
-        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(clockCycler, gc);
 
         // Calendar style selection
-        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2;
         gc.insets = new Insets(10, 5, 5, 5);
         add(SettingsUi.label("Calendar style:"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
@@ -164,7 +185,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         selectedCalendarStyle = store.getCalendarStyle();
         StyleCycler calendarCycler = new StyleCycler(CALENDAR_STYLES, selectedCalendarStyle, false);
         calendarCycler.setOnChange(style -> selectedCalendarStyle = style);
-        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(calendarCycler, gc);
         gc.gridwidth = 1;
@@ -223,6 +244,9 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         store.setAnimationsDisabled(disableAnimationsChk.isSelected());
 
         store.setMainMenuAnimationsDisabled(disableMainMenuAnimationsChk.isSelected());
+
+        // Editor glass panel opacity
+        store.setEditorGlassOpacity(glassOpacitySlider.getValue() / 100f);
 
         // Clock and Calendar styles
         if (selectedClockStyle != null) store.setClockStyle(selectedClockStyle);

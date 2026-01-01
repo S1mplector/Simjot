@@ -67,7 +67,6 @@ import main.core.poetry.SoundDevicesEngine;
 import main.core.poetry.ThematicAnalyzer;
 import main.core.poetry.VocabularyAnalyzer;
 import main.core.security.EncryptionManager;
-import main.infrastructure.ffi.NativeAccess;
 import main.core.security.crypto.ContentType;
 import main.core.security.crypto.CryptoConfig;
 import main.core.security.crypto.CryptoException;
@@ -77,6 +76,7 @@ import main.core.service.SettingsStore;
 import main.core.spelling.AutocorrectDocumentFilter;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -347,19 +347,25 @@ public class PoemPanel extends AbstractEditorPanel {
         dfHeader.add(dfBack);
 
         // --- Center Panel: Poem Text Area with a cursive feel ---
-        JPanel textWrapper = new TranslucentPanel() { // Paper-like card
+        // Glass effect with adjustable opacity from settings
+        JPanel textWrapper = new TranslucentPanel() {
             @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int w = getWidth(), h = getHeight();
-                g2.setPaint(new Color(255,255,250,230));
+                // Get glass opacity from settings (0.0 = transparent, 1.0 = fully opaque)
+                float glassOpacity = SettingsStore.get().getEditorGlassOpacity();
+                int alpha = (int) (glassOpacity * 255);
+                g2.setPaint(new Color(255, 255, 250, alpha));
                 g2.fillRoundRect(6, 6, w-12, h-12, 16, 16);
-                g2.setColor(new Color(0,0,0,25));
+                // Subtle border
+                int borderAlpha = Math.max(10, (int) (glassOpacity * 25));
+                g2.setColor(new Color(0, 0, 0, borderAlpha));
                 g2.drawRoundRect(6, 6, w-12, h-12, 16, 16);
                 g2.dispose();
             }
-        }; // Use the new panel
+        };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         poemEditor = new JTextPane();
