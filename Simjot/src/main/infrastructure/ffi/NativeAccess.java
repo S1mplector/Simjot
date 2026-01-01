@@ -2878,24 +2878,42 @@ public final class NativeAccess {
      * Count words in a text string using native code.
      */
     public static int countWords(String text) {
-        // TODO: Wire FFM binding when ready
-        return -1;
+        if (text == null || text.isEmpty()) return 0;
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.countWords(text);
+        } catch (Throwable t) {
+            return -1;
+        }
     }
 
     /**
      * Count words in a file using native code (memory efficient, reads in chunks).
      */
     public static int countWordsFile(String path) {
-        // TODO: Wire FFM binding when ready
-        return -1;
+        if (path == null || path.isEmpty()) return -1;
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        try {
+            return lib.countWordsFile(path);
+        } catch (Throwable t) {
+            return -1;
+        }
     }
 
     /**
      * Extract first non-empty line from file as title.
      */
     public static String extractTitle(String path) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        if (path == null || path.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.extractTitle(path);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
@@ -2907,8 +2925,26 @@ public final class NativeAccess {
      * Get file metadata in a single native call (word count, title, size, mtime).
      */
     public static FileMeta getFileMeta(String path) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        if (path == null || path.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            byte[] data = lib.fileMetaBatch(path);
+            if (data == null || data.length < 24) return null;
+            ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.nativeOrder());
+            int wordCount = buf.getInt();
+            long size = buf.getLong();
+            long mtime = buf.getLong();
+            int titleLen = buf.getInt();
+            if (titleLen < 0) titleLen = 0;
+            if (titleLen > buf.remaining()) titleLen = buf.remaining();
+            byte[] titleBytes = new byte[titleLen];
+            buf.get(titleBytes);
+            String title = new String(titleBytes, StandardCharsets.UTF_8);
+            return new FileMeta(wordCount, title, size, mtime);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
@@ -2922,8 +2958,29 @@ public final class NativeAccess {
      * @param extension file extension filter (e.g., ".txt") or null for all
      */
     public static java.util.List<DirEntry> listFilesMeta(String dirPath, String extension) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        if (dirPath == null || dirPath.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            byte[] data = lib.listFilesMeta(dirPath, extension);
+            if (data == null || data.length < 4) return null;
+            ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.nativeOrder());
+            List<DirEntry> entries = new ArrayList<>();
+            while (buf.remaining() >= 4) {
+                int nameLen = buf.getInt();
+                if (nameLen <= 0 || nameLen > buf.remaining()) break;
+                byte[] nameBytes = new byte[nameLen];
+                buf.get(nameBytes);
+                if (buf.remaining() < 16) break;
+                long size = buf.getLong();
+                long mtime = buf.getLong();
+                String name = new String(nameBytes, StandardCharsets.UTF_8);
+                entries.add(new DirEntry(name, size, mtime));
+            }
+            return entries;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2931,75 +2988,152 @@ public final class NativeAccess {
     // ═══════════════════════════════════════════════════════════════════════════
 
     public static Boolean profilerInit(int sampleIntervalMs) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerInit(sampleIntervalMs);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Boolean profilerStart() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerStart();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Boolean profilerStop() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerStop();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static void profilerReset() {
-        // TODO: Wire FFM binding when ready
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.profilerReset();
+        } catch (Throwable ignored) {}
     }
 
     public static Integer profilerRegisterComponent(String name) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        if (name == null || name.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerRegisterComponent(name);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Boolean profilerRegisterThread(String componentName, long threadId) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        if (componentName == null || componentName.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerRegisterThread(componentName, threadId);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Boolean profilerUnregisterThread(String componentName, long threadId) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        if (componentName == null || componentName.isEmpty()) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerUnregisterThread(componentName, threadId);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static void profilerTrackAlloc(String componentName, long bytes) {
-        // TODO: Wire FFM binding when ready
+        if (componentName == null || componentName.isEmpty()) return;
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.profilerTrackAlloc(componentName, bytes);
+        } catch (Throwable ignored) {}
     }
 
     public static void profilerTrackFree(String componentName, long bytes) {
-        // TODO: Wire FFM binding when ready
+        if (componentName == null || componentName.isEmpty()) return;
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try {
+            lib.profilerTrackFree(componentName, bytes);
+        } catch (Throwable ignored) {}
     }
 
     public static Boolean profilerSample() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerSample();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Integer profilerComponentCount() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerComponentCount();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static byte[] profilerGetComponentSnapshot(int index) {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerGetComponentSnapshot(index);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static byte[] profilerGetSummary() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerGetSummary();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static String profilerPrintReport() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerPrintReport();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static String profilerStatusLine() {
-        // TODO: Wire FFM binding when ready
-        return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.profilerStatusLine();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -91,6 +91,7 @@ import main.core.sim.api.SimEventBus;
 import main.core.spelling.AutocorrectDocumentFilter;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
 import main.infrastructure.io.IoLog;
@@ -1804,6 +1805,8 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private static int countWords(String text) {
         if (text == null) return 0;
+        int nativeCount = NativeAccess.countWords(text);
+        if (nativeCount >= 0) return nativeCount;
         String trimmed = text.trim();
         if (trimmed.isEmpty()) return 0;
         return trimmed.split("\\s+").length;

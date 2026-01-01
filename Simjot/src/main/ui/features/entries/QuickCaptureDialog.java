@@ -41,6 +41,7 @@ import main.core.security.crypto.EncryptedMetadata;
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -201,6 +202,8 @@ public class QuickCaptureDialog extends JDialog {
 
     private static int countWords(String text) {
         if (text == null) return 0;
+        int nativeCount = NativeAccess.countWords(text);
+        if (nativeCount >= 0) return nativeCount;
         String trimmed = text.trim();
         if (trimmed.isEmpty()) return 0;
         return trimmed.split("\\s+").length;

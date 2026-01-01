@@ -84,14 +84,32 @@ public class NotebookManagerPanel extends JPanel {
         setBackground(Color.WHITE);
 
         // Top toolbar matching other panels
-        JPanel topBar = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
+        JPanel topBar = new FrostedGlassPanel(new BorderLayout(), 16);
         topBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        
+        // Left side - back button
+        JPanel leftButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        leftButtons.setOpaque(false);
         ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("", "back");
         backBtn.setToolTipText("Back to Main Menu");
         backBtn.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
-
-        topBar.add(backBtn);
+        leftButtons.add(backBtn);
         
+        // Right side - organize button
+        JPanel rightButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        rightButtons.setOpaque(false);
+        ToolbarMenuIconButton organizeBtn = new ToolbarMenuIconButton("", "settings");
+        organizeBtn.setToolTipText("Organize Clusters");
+        organizeBtn.addActionListener(e -> {
+            ModernClusterOrganizer organizer = new ModernClusterOrganizer(
+                (Frame) SwingUtilities.getWindowAncestor(this));
+            organizer.setOnChangeCallback(this::refresh);
+            organizer.setVisible(true);
+        });
+        rightButtons.add(organizeBtn);
+
+        topBar.add(leftButtons, BorderLayout.WEST);
+        topBar.add(rightButtons, BorderLayout.EAST);
 
         add(topBar, BorderLayout.NORTH);
 

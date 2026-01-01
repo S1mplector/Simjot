@@ -1142,8 +1142,8 @@ public class JournalApp extends JFrame {
         
         // For journal entries, show template selection dialog
         if (nb.getType() == NotebookInfo.Type.JOURNAL) {
-            main.ui.features.entries.EntryTypeSelectionDialog dialog = 
-                new main.ui.features.entries.EntryTypeSelectionDialog((Frame) SwingUtilities.getWindowAncestor(this), nb);
+            main.ui.features.entries.ModernTemplateSelector dialog = 
+                new main.ui.features.entries.ModernTemplateSelector((Frame) SwingUtilities.getWindowAncestor(this), nb);
             dialog.setVisible(true);
             
             if (!dialog.isAccepted()) {

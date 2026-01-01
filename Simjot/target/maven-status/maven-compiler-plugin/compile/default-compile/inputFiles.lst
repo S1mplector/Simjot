@@ -163,6 +163,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/checkbox/ModernCheckBoxUI.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/indicators/Win7ProgressBar.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/io/DateFormatUtil.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/ModernTemplateSelector.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsCategory.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/poetry/SimSuggestionFormatter.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/theme/ThemePalette.java
@@ -180,6 +181,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/service/SettingsStore.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/widgets/PomodoroWidget.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/utils/EntryBackgroundDialog.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/ModernTemplateEditor.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/io/IoLog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/utils/ModernColorPickerDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/drawing/InkOverlay.java
@@ -205,6 +207,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/settings/AppearanceSettingsPage.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/analytics/MoodAnalyticsEngine.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/quicksettings/QuickSettingsOverlay.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/notebooks/ModernClusterOrganizer.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/poetry/StatsSidebarPanel.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/sim/critic/CriticPromptDecorator.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/sim/proactive/TriggerStatsStore.java

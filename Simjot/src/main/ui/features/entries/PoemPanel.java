@@ -67,6 +67,7 @@ import main.core.poetry.SoundDevicesEngine;
 import main.core.poetry.ThematicAnalyzer;
 import main.core.poetry.VocabularyAnalyzer;
 import main.core.security.EncryptionManager;
+import main.infrastructure.ffi.NativeAccess;
 import main.core.security.crypto.ContentType;
 import main.core.security.crypto.CryptoConfig;
 import main.core.security.crypto.CryptoException;
@@ -1487,6 +1488,8 @@ public class PoemPanel extends AbstractEditorPanel {
 
     private static int countWords(String text) {
         if (text == null) return 0;
+        int nativeCount = NativeAccess.countWords(text);
+        if (nativeCount >= 0) return nativeCount;
         String trimmed = text.trim();
         if (trimmed.isEmpty()) return 0;
         return trimmed.split("\\s+").length;

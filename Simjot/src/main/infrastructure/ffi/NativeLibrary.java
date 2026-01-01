@@ -41,20 +41,6 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 
-/**
- * Panama FFM wrapper for native Simjot functions.
- * Requires Java 22+.
- * Make sure to load the native library before using it.
- * Otherwise it will throw an exception, and the application will crash.
- * 
- * Usage:
- *   NativeLibrary lib = NativeLibrary.load("/path/to/libsimjot_native.dylib");
- *   int result = lib.add(2, 3);  // returns 5
- * 
- * And so on.
- * 
- * @author S1mplector
- */
 public final class NativeLibrary implements AutoCloseable {
     
     private final Arena arena;
@@ -77,6 +63,12 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle nearRhymeKeyHandle;
     private final MethodHandle listDirSizeHandle;
     private final MethodHandle listDirHandle;
+    // File metadata handles
+    private final MethodHandle countWordsHandle;
+    private final MethodHandle countWordsFileHandle;
+    private final MethodHandle extractTitleHandle;
+    private final MethodHandle fileMetaBatchHandle;
+    private final MethodHandle listFilesMetaHandle;
     private final MethodHandle dictSetBasePathHandle;
     private final MethodHandle dictContainsHandle;
     private final MethodHandle dictLookupHandle;
@@ -217,6 +209,23 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle moodDailyCountHandle;
     private final MethodHandle moodSampleCountHandle;
     private final MethodHandle moodClearHandle;
+
+    // Profiler handles
+    private final MethodHandle profilerInitHandle;
+    private final MethodHandle profilerStartHandle;
+    private final MethodHandle profilerStopHandle;
+    private final MethodHandle profilerResetHandle;
+    private final MethodHandle profilerRegisterComponentHandle;
+    private final MethodHandle profilerRegisterThreadHandle;
+    private final MethodHandle profilerUnregisterThreadHandle;
+    private final MethodHandle profilerTrackAllocHandle;
+    private final MethodHandle profilerTrackFreeHandle;
+    private final MethodHandle profilerSampleHandle;
+    private final MethodHandle profilerComponentCountHandle;
+    private final MethodHandle profilerGetComponentSnapshotHandle;
+    private final MethodHandle profilerGetSummaryHandle;
+    private final MethodHandle profilerPrintReportHandle;
+    private final MethodHandle profilerStatusLineHandle;
     
     // Mood graphics handles
     private final MethodHandle moodSparklineHandle;
@@ -453,6 +462,28 @@ public final class NativeLibrary implements AutoCloseable {
         this.listDirHandle = linker.downcallHandle(
             lookup.find("simjot_list_dir").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+
+        // File metadata helpers
+        this.countWordsHandle = optionalHandle(
+            "simjot_count_words",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.countWordsFileHandle = optionalHandle(
+            "simjot_count_words_file",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+        this.extractTitleHandle = optionalHandle(
+            "simjot_extract_title",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.fileMetaBatchHandle = optionalHandle(
+            "simjot_file_meta_batch",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.listFilesMetaHandle = optionalHandle(
+            "simjot_list_files_meta",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
         );
 
         // int32_t simjot_atomic_write(const char* target, const uint8_t* data, int32_t len, int32_t fsyncFile, int32_t fsyncDir)
@@ -798,6 +829,38 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT));
         this.moodClearHandle = optionalHandle("simjot_mood_clear",
             FunctionDescriptor.ofVoid());
+
+        // Profiler handles
+        this.profilerInitHandle = optionalHandle("simjot_profiler_init",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.profilerStartHandle = optionalHandle("simjot_profiler_start",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.profilerStopHandle = optionalHandle("simjot_profiler_stop",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.profilerResetHandle = optionalHandle("simjot_profiler_reset",
+            FunctionDescriptor.ofVoid());
+        this.profilerRegisterComponentHandle = optionalHandle("simjot_profiler_register_component",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.profilerRegisterThreadHandle = optionalHandle("simjot_profiler_register_thread",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.profilerUnregisterThreadHandle = optionalHandle("simjot_profiler_unregister_thread",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.profilerTrackAllocHandle = optionalHandle("simjot_profiler_track_alloc",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.profilerTrackFreeHandle = optionalHandle("simjot_profiler_track_free",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.profilerSampleHandle = optionalHandle("simjot_profiler_sample",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.profilerComponentCountHandle = optionalHandle("simjot_profiler_component_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.profilerGetComponentSnapshotHandle = optionalHandle("simjot_profiler_get_component_snapshot",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.profilerGetSummaryHandle = optionalHandle("simjot_profiler_get_summary",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.profilerPrintReportHandle = optionalHandle("simjot_profiler_print_report",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.profilerStatusLineHandle = optionalHandle("simjot_profiler_status_line",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         
         // Mood graphics handles
         // int32_t simjot_mood_sparkline(const int32_t* values, int32_t count, int32_t width, int32_t height, uint32_t* out, uint32_t bg_color, int32_t line_thickness)
@@ -2552,35 +2615,332 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SIMD API (placeholder - needs array passing)
+    // SIMD API
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public int simdSupportLevel() { return 0; }
-    public long simdSumInt(int[] arr) { long sum = 0; for (int v : arr) sum += v; return sum; }
-    public double simdSumDouble(double[] arr) { double sum = 0; for (double v : arr) sum += v; return sum; }
+    public int simdSupportLevel() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_simd_support_level",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public long simdSumInt(int[] arr) {
+        if (arr == null || arr.length == 0) return 0;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_simd_sum_i32",
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) {
+                long sum = 0;
+                for (int v : arr) sum += v;
+                return sum;
+            }
+            MemorySegment seg = temp.allocate(arr.length * 4L);
+            seg.asByteBuffer().asIntBuffer().put(arr);
+            return (long) handle.invokeExact(seg, arr.length);
+        } catch (Throwable t) {
+            long sum = 0;
+            for (int v : arr) sum += v;
+            return sum;
+        }
+    }
+
+    public double simdSumDouble(double[] arr) {
+        if (arr == null || arr.length == 0) return 0;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_simd_sum_f64",
+                FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) {
+                double sum = 0;
+                for (double v : arr) sum += v;
+                return sum;
+            }
+            MemorySegment seg = temp.allocate(arr.length * 8L);
+            seg.asByteBuffer().asDoubleBuffer().put(arr);
+            return (double) handle.invokeExact(seg, arr.length);
+        } catch (Throwable t) {
+            double sum = 0;
+            for (double v : arr) sum += v;
+            return sum;
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // FILE SYSTEM API (placeholder)
+    // FILE SYSTEM API
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public long fsSize(String path) { return -1; }
-    public long fsMtime(String path) { return -1; }
-    public boolean fsExists(String path) { return false; }
-    public boolean fsIsDir(String path) { return false; }
-    public boolean fsIsFile(String path) { return false; }
-    public String fsListRecursive(String path, String ext, int depth) { return null; }
-    public byte[] fsReadAll(String path) { return null; }
-    public boolean fsWriteAll(String path, byte[] data) { return false; }
-    public boolean fsMkdir(String path) { return false; }
-    public boolean fsRemove(String path) { return false; }
-    public boolean fsRename(String oldPath, String newPath) { return false; }
-    public int fsWatchCreate(String path) { return -1; }
-    public int fsWatchPoll(int watchId, int timeout) { return 0; }
-    public void fsWatchDestroy(int watchId) {}
-    public String fsExtension(String path) { return null; }
-    public String fsBasename(String path) { return null; }
-    public String fsDirname(String path) { return null; }
-    public String fsJoin(String base, String child) { return null; }
+    public long fsSize(String path) {
+        if (path == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_size",
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+            if (handle == null) return -1;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return (long) handle.invokeExact(cPath);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public long fsMtime(String path) {
+        if (path == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_mtime",
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+            if (handle == null) return -1;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return (long) handle.invokeExact(cPath);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public boolean fsExists(String path) {
+        if (path == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_exists",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean fsIsDir(String path) {
+        if (path == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_is_dir",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean fsIsFile(String path) {
+        if (path == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_is_file",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public String fsListRecursive(String path, String ext, int depth) {
+        if (path == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_list_recursive",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cPath = temp.allocateFrom(path);
+            MemorySegment cExt = (ext != null) ? temp.allocateFrom(ext) : MemorySegment.NULL;
+            int outLen = 65536;
+            MemorySegment out = temp.allocate(outLen);
+            int count = (int) handle.invokeExact(cPath, cExt, depth, out, outLen);
+            if (count < 0) return null;
+            return out.getString(0);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public byte[] fsReadAll(String path) {
+        if (path == null) return null;
+        long size = fsSize(path);
+        if (size < 0 || size > Integer.MAX_VALUE - 1) return null;
+        int outLen = (int) size + 1;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_read_all",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cPath = temp.allocateFrom(path);
+            MemorySegment out = temp.allocate(outLen);
+            int read = (int) handle.invokeExact(cPath, out, outLen);
+            if (read < 0) return null;
+            byte[] data = new byte[read];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public boolean fsWriteAll(String path, byte[] data) {
+        if (path == null || data == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_write_all",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            MemorySegment cPath = temp.allocateFrom(path);
+            MemorySegment cData = temp.allocate(data.length == 0 ? 1 : data.length);
+            if (data.length > 0) cData.asByteBuffer().put(data);
+            int rc = (int) handle.invokeExact(cPath, cData, data.length);
+            return rc == 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean fsMkdir(String path) {
+        if (path == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_mkdir",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) == 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean fsRemove(String path) {
+        if (path == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_remove",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) == 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean fsRename(String oldPath, String newPath) {
+        if (oldPath == null || newPath == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_rename",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cOld = temp.allocateFrom(oldPath);
+            MemorySegment cNew = temp.allocateFrom(newPath);
+            return ((int) handle.invokeExact(cOld, cNew)) == 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public int fsWatchCreate(String path) {
+        if (path == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_watch_create",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return -1;
+            MemorySegment cPath = temp.allocateFrom(path);
+            return (int) handle.invokeExact(cPath);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public int fsWatchPoll(int watchId, int timeout) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_fs_watch_poll",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact(watchId, timeout);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public void fsWatchDestroy(int watchId) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_fs_watch_destroy",
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+            if (handle == null) return;
+            handle.invokeExact(watchId);
+        } catch (Throwable ignored) {}
+    }
+
+    public String fsExtension(String path) {
+        if (path == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_extension",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cPath = temp.allocateFrom(path);
+            int outLen = Math.max(256, path.length() * 4 + 16);
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) handle.invokeExact(cPath, out, outLen);
+            if (len < 0) return null;
+            return out.getString(0);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String fsBasename(String path) {
+        if (path == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_basename",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cPath = temp.allocateFrom(path);
+            int outLen = Math.max(256, path.length() * 4 + 16);
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) handle.invokeExact(cPath, out, outLen);
+            if (len < 0) return null;
+            return out.getString(0);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String fsDirname(String path) {
+        if (path == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_dirname",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cPath = temp.allocateFrom(path);
+            int outLen = Math.max(256, path.length() * 4 + 16);
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) handle.invokeExact(cPath, out, outLen);
+            if (len < 0) return null;
+            return out.getString(0);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String fsJoin(String base, String child) {
+        if (base == null || child == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_fs_join",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cBase = temp.allocateFrom(base);
+            MemorySegment cChild = temp.allocateFrom(child);
+            int outLen = Math.max(256, (base.length() + child.length()) * 4 + 16);
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) handle.invokeExact(cBase, cChild, out, outLen);
+            if (len < 0) return null;
+            return out.getString(0);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
     
     /**
      * List directory entries with extension filtering.
@@ -2629,6 +2989,266 @@ public final class NativeLibrary implements AutoCloseable {
             return (int) handle.invokeExact(cPath, includeHidden ? 1 : 0);
         } catch (Throwable t) {
             return -1;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FILE METADATA API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public int countWords(String text) {
+        if (countWordsHandle == null || text == null || text.isEmpty()) return -1;
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length == 0) return 0;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment seg = temp.allocate(bytes.length);
+            seg.asByteBuffer().put(bytes);
+            return (int) countWordsHandle.invokeExact(seg, bytes.length);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public int countWordsFile(String path) {
+        if (countWordsFileHandle == null || path == null || path.isEmpty()) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cPath = temp.allocateFrom(path);
+            return (int) countWordsFileHandle.invokeExact(cPath);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public String extractTitle(String path) {
+        if (extractTitleHandle == null || path == null || path.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cPath = temp.allocateFrom(path);
+            int outLen = 512;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) extractTitleHandle.invokeExact(cPath, out, outLen);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public byte[] fileMetaBatch(String path) {
+        if (fileMetaBatchHandle == null || path == null || path.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cPath = temp.allocateFrom(path);
+            int outLen = 512;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) fileMetaBatchHandle.invokeExact(cPath, out, outLen);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public byte[] listFilesMeta(String dirPath, String extension) {
+        if (listFilesMetaHandle == null || dirPath == null || dirPath.isEmpty()) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cDir = temp.allocateFrom(dirPath);
+            MemorySegment cExt = (extension != null) ? temp.allocateFrom(extension) : MemorySegment.NULL;
+            int outLen = 131072;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) listFilesMetaHandle.invokeExact(cDir, cExt, out, outLen);
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPONENT PROFILER API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public boolean profilerInit(int sampleIntervalMs) {
+        if (profilerInitHandle == null) return false;
+        try {
+            return (int) profilerInitHandle.invokeExact(sampleIntervalMs) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean profilerStart() {
+        if (profilerStartHandle == null) return false;
+        try {
+            return (int) profilerStartHandle.invokeExact() != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean profilerStop() {
+        if (profilerStopHandle == null) return false;
+        try {
+            return (int) profilerStopHandle.invokeExact() != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public void profilerReset() {
+        if (profilerResetHandle == null) return;
+        try {
+            profilerResetHandle.invokeExact();
+        } catch (Throwable ignored) {}
+    }
+
+    public int profilerRegisterComponent(String name) {
+        if (profilerRegisterComponentHandle == null || name == null || name.isEmpty()) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cName = temp.allocateFrom(name);
+            return (int) profilerRegisterComponentHandle.invokeExact(cName);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public boolean profilerRegisterThread(String componentName, long threadId) {
+        if (profilerRegisterThreadHandle == null || componentName == null || componentName.isEmpty()) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cName = temp.allocateFrom(componentName);
+            return (int) profilerRegisterThreadHandle.invokeExact(cName, threadId) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean profilerUnregisterThread(String componentName, long threadId) {
+        if (profilerUnregisterThreadHandle == null || componentName == null || componentName.isEmpty()) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cName = temp.allocateFrom(componentName);
+            return (int) profilerUnregisterThreadHandle.invokeExact(cName, threadId) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public void profilerTrackAlloc(String componentName, long bytes) {
+        if (profilerTrackAllocHandle == null || componentName == null || componentName.isEmpty()) return;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cName = temp.allocateFrom(componentName);
+            profilerTrackAllocHandle.invokeExact(cName, bytes);
+        } catch (Throwable ignored) {}
+    }
+
+    public void profilerTrackFree(String componentName, long bytes) {
+        if (profilerTrackFreeHandle == null || componentName == null || componentName.isEmpty()) return;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment cName = temp.allocateFrom(componentName);
+            profilerTrackFreeHandle.invokeExact(cName, bytes);
+        } catch (Throwable ignored) {}
+    }
+
+    public boolean profilerSample() {
+        if (profilerSampleHandle == null) return false;
+        try {
+            return (int) profilerSampleHandle.invokeExact() != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public int profilerComponentCount() {
+        if (profilerComponentCountHandle == null) return 0;
+        try {
+            return (int) profilerComponentCountHandle.invokeExact();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public byte[] profilerGetComponentSnapshot(int index) {
+        if (profilerGetComponentSnapshotHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int outLen = 512;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) profilerGetComponentSnapshotHandle.invokeExact(index, out, outLen);
+            if (len < 0) {
+                outLen = Math.max(outLen, -len);
+                out = temp.allocate(outLen);
+                len = (int) profilerGetComponentSnapshotHandle.invokeExact(index, out, outLen);
+            }
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public byte[] profilerGetSummary() {
+        if (profilerGetSummaryHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int outLen = 96;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) profilerGetSummaryHandle.invokeExact(out, outLen);
+            if (len < 0) {
+                outLen = Math.max(outLen, -len);
+                out = temp.allocate(outLen);
+                len = (int) profilerGetSummaryHandle.invokeExact(out, outLen);
+            }
+            if (len <= 0) return null;
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return data;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String profilerPrintReport() {
+        if (profilerPrintReportHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int outLen = 8192;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) profilerPrintReportHandle.invokeExact(out, outLen);
+            if (len <= 0) return null;
+            if (len >= outLen) {
+                outLen = len + 1;
+                out = temp.allocate(outLen);
+                len = (int) profilerPrintReportHandle.invokeExact(out, outLen);
+                if (len <= 0) return null;
+            }
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public String profilerStatusLine() {
+        if (profilerStatusLineHandle == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            int outLen = 512;
+            MemorySegment out = temp.allocate(outLen);
+            int len = (int) profilerStatusLineHandle.invokeExact(out, outLen);
+            if (len <= 0) return null;
+            if (len >= outLen) {
+                outLen = len + 1;
+                out = temp.allocate(outLen);
+                len = (int) profilerStatusLineHandle.invokeExact(out, outLen);
+                if (len <= 0) return null;
+            }
+            byte[] data = new byte[len];
+            out.asByteBuffer().get(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            return null;
         }
     }
 
@@ -3951,19 +4571,116 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // MEMORY POOL API (placeholder)
+    // MEMORY POOL API
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public int poolCreate(int blockSize, int initialBlocks) { return -1; }
-    public void poolDestroy(int poolId) {}
-    public int arenaCreate() { return -1; }
-    public void arenaReset(int arenaId) {}
-    public void arenaDestroy(int arenaId) {}
-    public int internInit() { return -1; }
-    public String intern(String str) { return str; }
-    public boolean internContains(String str) { return false; }
-    public int internCount() { return 0; }
-    public void internClear() {}
+    public int poolCreate(int blockSize, int initialBlocks) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_pool_create",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            return (int) handle.invokeExact(blockSize, initialBlocks);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public void poolDestroy(int poolId) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_pool_destroy",
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+            if (handle == null) return;
+            handle.invokeExact(poolId);
+        } catch (Throwable ignored) {}
+    }
+
+    public int arenaCreate() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_arena_create",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            return (int) handle.invokeExact();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public void arenaReset(int arenaId) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_arena_reset",
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+            if (handle == null) return;
+            handle.invokeExact(arenaId);
+        } catch (Throwable ignored) {}
+    }
+
+    public void arenaDestroy(int arenaId) {
+        try {
+            MethodHandle handle = optionalHandle("simjot_arena_destroy",
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+            if (handle == null) return;
+            handle.invokeExact(arenaId);
+        } catch (Throwable ignored) {}
+    }
+
+    public int internInit() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_intern_init",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            return (int) handle.invokeExact();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public String intern(String str) {
+        if (str == null) return null;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_intern",
+                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return str;
+            MemorySegment cStr = temp.allocateFrom(str);
+            MemorySegment out = (MemorySegment) handle.invokeExact(cStr);
+            if (out == null || out.equals(MemorySegment.NULL)) return str;
+            return out.getString(0);
+        } catch (Throwable t) {
+            return str;
+        }
+    }
+
+    public boolean internContains(String str) {
+        if (str == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_intern_contains",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cStr = temp.allocateFrom(str);
+            return ((int) handle.invokeExact(cStr)) != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public int internCount() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_intern_count",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public void internClear() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_intern_clear",
+                FunctionDescriptor.ofVoid());
+            if (handle == null) return;
+            handle.invokeExact();
+        } catch (Throwable ignored) {}
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // MATH UTILITIES API
