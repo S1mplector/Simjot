@@ -883,6 +883,42 @@ void simjot_json_builder_null(void* builder);
 const char* simjot_json_builder_get(void* builder, int32_t* out_len);
 void simjot_json_builder_free(void* builder);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * AUTOSAVE MANAGER - Multi-session dirty tracking, debouncing, atomic writes
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Initialization */
+int32_t simjot_autosave_init(void);
+
+/* Session management */
+int32_t simjot_autosave_create_session(const char* file_path, int32_t debounce_ms);
+int32_t simjot_autosave_destroy_session(int32_t session_id);
+int32_t simjot_autosave_set_path(int32_t session_id, const char* new_path);
+
+/* Dirty tracking */
+int32_t simjot_autosave_mark_dirty(int32_t session_id);
+int32_t simjot_autosave_mark_clean(int32_t session_id);
+int32_t simjot_autosave_is_dirty(int32_t session_id);
+
+/* Save scheduling */
+int32_t simjot_autosave_should_save(int32_t session_id);
+int64_t simjot_autosave_ms_until_save(int32_t session_id);
+int32_t simjot_autosave_get_pending(int32_t* out_ids, int32_t max_ids);
+
+/* Atomic file operations */
+int32_t simjot_autosave_write_atomic(int32_t session_id, const uint8_t* data, int32_t data_len);
+int32_t simjot_autosave_write_recovery(int32_t session_id, const uint8_t* data, int32_t data_len);
+int32_t simjot_autosave_delete_recovery(int32_t session_id);
+
+/* Recovery detection */
+int32_t simjot_autosave_has_recovery(const char* file_path);
+int32_t simjot_autosave_get_recovery_path(const char* file_path, char* out, int32_t out_len);
+
+/* Statistics */
+int32_t simjot_autosave_get_stats(int32_t session_id, int32_t* out_save_count, int64_t* out_last_save_ms, int64_t* out_last_dirty_ms);
+void simjot_autosave_get_global_stats(int64_t* out_total_saves, int32_t* out_active_sessions, int32_t* out_dirty_sessions);
+int32_t simjot_autosave_get_path(int32_t session_id, char* out, int32_t out_len);
+
 #ifdef __cplusplus
 }
 #endif

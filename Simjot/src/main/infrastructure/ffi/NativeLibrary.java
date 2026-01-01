@@ -262,9 +262,21 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle diskAvailableHandle;
     private final MethodHandle dirCountHandle;
     
-    // LRU Cache handles (handle-based API)
+    // LRU Cache handles
     private final MethodHandle lruCacheCreateHandle;
     private final MethodHandle lruCacheDestroyHandle;
+    
+    // Autosave manager handles
+    private final MethodHandle autosaveInitHandle;
+    private final MethodHandle autosaveCreateSessionHandle;
+    private final MethodHandle autosaveDestroySessionHandle;
+    private final MethodHandle autosaveSetPathHandle;
+    private final MethodHandle autosaveMarkDirtyHandle;
+    private final MethodHandle autosaveMarkCleanHandle;
+    private final MethodHandle autosaveIsDirtyHandle;
+    private final MethodHandle autosaveShouldSaveHandle;
+    private final MethodHandle autosaveMsUntilSaveHandle;
+    private final MethodHandle autosaveHasRecoveryHandle;
     
     // LZ4 Compression handles
     private final MethodHandle lz4CompressHandle;
@@ -805,6 +817,28 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.lz4CompressBoundHandle = optionalHandle("simjot_lz4_compress_bound",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        
+        // Autosave manager handles
+        this.autosaveInitHandle = optionalHandle("simjot_autosave_init",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        this.autosaveCreateSessionHandle = optionalHandle("simjot_autosave_create_session",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.autosaveDestroySessionHandle = optionalHandle("simjot_autosave_destroy_session",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.autosaveSetPathHandle = optionalHandle("simjot_autosave_set_path",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        this.autosaveMarkDirtyHandle = optionalHandle("simjot_autosave_mark_dirty",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.autosaveMarkCleanHandle = optionalHandle("simjot_autosave_mark_clean",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.autosaveIsDirtyHandle = optionalHandle("simjot_autosave_is_dirty",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.autosaveShouldSaveHandle = optionalHandle("simjot_autosave_should_save",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.autosaveMsUntilSaveHandle = optionalHandle("simjot_autosave_ms_until_save",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
+        this.autosaveHasRecoveryHandle = optionalHandle("simjot_autosave_has_recovery",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
     }
 
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
@@ -1934,6 +1968,87 @@ public final class NativeLibrary implements AutoCloseable {
     public int rhymeDbSize() {
         if (rhymeDbSizeHandle == null) return 0;
         try { return (int) rhymeDbSizeHandle.invokeExact(); } catch (Throwable t) { return 0; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTOSAVE MANAGER API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public boolean hasAutosaveSupport() {
+        return autosaveInitHandle != null && autosaveCreateSessionHandle != null;
+    }
+
+    public boolean autosaveInit() {
+        if (autosaveInitHandle == null) return false;
+        try {
+            return (int) autosaveInitHandle.invokeExact() == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public int autosaveCreateSession(String filePath, int debounceMs) {
+        if (autosaveCreateSessionHandle == null || filePath == null) return -1;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment pathSeg = temp.allocateFrom(filePath);
+            return (int) autosaveCreateSessionHandle.invokeExact(pathSeg, debounceMs);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public boolean autosaveDestroySession(int sessionId) {
+        if (autosaveDestroySessionHandle == null) return false;
+        try {
+            return (int) autosaveDestroySessionHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public boolean autosaveSetPath(int sessionId, String newPath) {
+        if (autosaveSetPathHandle == null || newPath == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment pathSeg = temp.allocateFrom(newPath);
+            return (int) autosaveSetPathHandle.invokeExact(sessionId, pathSeg) == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public boolean autosaveMarkDirty(int sessionId) {
+        if (autosaveMarkDirtyHandle == null) return false;
+        try {
+            return (int) autosaveMarkDirtyHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public boolean autosaveMarkClean(int sessionId) {
+        if (autosaveMarkCleanHandle == null) return false;
+        try {
+            return (int) autosaveMarkCleanHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public boolean autosaveIsDirty(int sessionId) {
+        if (autosaveIsDirtyHandle == null) return false;
+        try {
+            return (int) autosaveIsDirtyHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public boolean autosaveShouldSave(int sessionId) {
+        if (autosaveShouldSaveHandle == null) return false;
+        try {
+            return (int) autosaveShouldSaveHandle.invokeExact(sessionId) == 1;
+        } catch (Throwable t) { return false; }
+    }
+
+    public long autosaveMsUntilSave(int sessionId) {
+        if (autosaveMsUntilSaveHandle == null) return -1;
+        try {
+            return (long) autosaveMsUntilSaveHandle.invokeExact(sessionId);
+        } catch (Throwable t) { return -1; }
+    }
+
+    public boolean autosaveHasRecovery(String filePath) {
+        if (autosaveHasRecoveryHandle == null || filePath == null) return false;
+        try (Arena temp = Arena.ofConfined()) {
+            MemorySegment pathSeg = temp.allocateFrom(filePath);
+            return (int) autosaveHasRecoveryHandle.invokeExact(pathSeg) == 1;
+        } catch (Throwable t) { return false; }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

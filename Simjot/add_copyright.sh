@@ -5,39 +5,13 @@
 
 # Define copyright headers
 MAIN_HEADER="/*
- * SIMJOT - PROPRIETARY
+ * SIMJOT 
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
  * 
- * This source code is licensed under the Simjot Source-Available Personal Use License.
- * You may view and study this code for personal, non-commercial use.
- * Distribution, commercial use, and derivative works are strictly prohibited.
+ * This source code is licensed under the MIT License.
  * 
  * See LICENSE.md for full terms.
- */"
-
-CRYPTO_HEADER="/*
- * SIMJOT CRYPTOGRAPHIC ENGINE - PROPRIETARY
- * 
- * Copyright (c) 2024 Simjot / S1mplector. All Rights Reserved.
- * 
- * This source code is licensed under the Simjot Cryptographic Engine License.
- * You may inspect this code for educational and security research purposes only.
- * Use, modification, or incorporation into other projects is strictly prohibited.
- * 
- * See LICENSE file in this package for full terms.
- */"
-
-POETRY_HEADER="/*
- * SIMJOT POETRY ENGINE - PROPRIETARY
- * 
- * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu. All Rights Reserved.
- * 
- * This source code is licensed under the Simjot Poetry Engine Proprietary License.
- * You may inspect this code for educational and research purposes only.
- * Use, modification, or incorporation into other projects is strictly prohibited.
- * 
- * See LICENSE file in this package for full terms.
  */"
 
 # Find all Java files
@@ -48,12 +22,7 @@ find src -name "*.java" | while read file; do
         continue
     fi
     
-    # Determine which header to use based on path
-    if [[ "$file" == *"/crypto/"* ]]; then
-        HEADER="$CRYPTO_HEADER"
-    elif [[ "$file" == *"/poetry/"* ]]; then
-        HEADER="$POETRY_HEADER"
-    else
+    if
         HEADER="$MAIN_HEADER"
     fi
     

@@ -134,7 +134,7 @@ public class PoemPanel extends AbstractEditorPanel {
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private SaveIndicatorPanel saveIndicator;
     private volatile boolean isAutosaving = false;
-    private AutosaveManager autosaveManager;
+    private NativeAutosaveCoordinator autosaveCoordinator;
     // 'currentFile' is inherited from AbstractEditorPanel
 
     // UI refs for toggling
@@ -491,7 +491,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
                 updateGuidedWriting();
                 schedulePoetryAnalysis();
             }
@@ -501,7 +501,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
                 updateGuidedWriting();
                 schedulePoetryAnalysis();
             }
@@ -511,7 +511,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
                 if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
                 if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
                 updateGuidedWriting();
                 schedulePoetryAnalysis();
             }
@@ -530,9 +530,9 @@ public class PoemPanel extends AbstractEditorPanel {
         });
         // Autosave on title change as well
         poemTitleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
         });
 
         // Status in center of row1
@@ -586,10 +586,11 @@ public class PoemPanel extends AbstractEditorPanel {
 
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // --- Autosave wiring ---
+        // --- Autosave wiring (native C++ coordinator) ---
         int delayMs = SettingsStore.get().getAutosaveDelayMs();
         if (delayMs > 0) {
-            autosaveManager = new AutosaveManager(delayMs,
+            String filePath = (currentFile != null) ? currentFile.getAbsolutePath() : null;
+            autosaveCoordinator = new NativeAutosaveCoordinator(filePath, delayMs,
                     this::savePoem,
                     () -> { isAutosaving = true; if (saveIndicator != null) saveIndicator.setSaving(); },
                     () -> { 
@@ -597,7 +598,7 @@ public class PoemPanel extends AbstractEditorPanel {
                         isAutosaving = false; 
                     });
         } else {
-            autosaveManager = null; // autosave disabled
+            autosaveCoordinator = null; // autosave disabled
         }
 
         // Initial metrics

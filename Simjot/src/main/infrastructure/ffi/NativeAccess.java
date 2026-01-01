@@ -3058,6 +3058,67 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // AUTOSAVE MANAGER
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static boolean hasAutosaveSupport() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasAutosaveSupport();
+    }
+
+    public static boolean autosaveInit() {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveInit();
+    }
+
+    public static int autosaveCreateSession(String filePath, int debounceMs) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        return lib.autosaveCreateSession(filePath, debounceMs);
+    }
+
+    public static boolean autosaveDestroySession(int sessionId) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveDestroySession(sessionId);
+    }
+
+    public static boolean autosaveSetPath(int sessionId, String newPath) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveSetPath(sessionId, newPath);
+    }
+
+    public static boolean autosaveMarkDirty(int sessionId) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveMarkDirty(sessionId);
+    }
+
+    public static boolean autosaveMarkClean(int sessionId) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveMarkClean(sessionId);
+    }
+
+    public static boolean autosaveIsDirty(int sessionId) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveIsDirty(sessionId);
+    }
+
+    public static boolean autosaveShouldSave(int sessionId) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveShouldSave(sessionId);
+    }
+
+    public static long autosaveMsUntilSave(int sessionId) {
+        NativeLibrary lib = library();
+        if (lib == null) return -1;
+        return lib.autosaveMsUntilSave(sessionId);
+    }
+
+    public static boolean autosaveHasRecovery(String filePath) {
+        NativeLibrary lib = library();
+        return lib != null && lib.autosaveHasRecovery(filePath);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // IMAGE ACCENT COLOR EXTRACTION
     // ═══════════════════════════════════════════════════════════════════════════
 

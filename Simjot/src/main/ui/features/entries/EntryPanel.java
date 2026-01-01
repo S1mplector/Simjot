@@ -136,7 +136,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
-    private AutosaveManager autosaveManager;
+    private NativeAutosaveCoordinator autosaveCoordinator;
     private volatile boolean isAutosaving = false;
     // Track temporary placeholder range for Sim guidance (disabled; retained for compatibility)
     private int pendingGuidanceStart = -1;
@@ -718,21 +718,21 @@ public class EntryPanel extends AbstractEditorPanel {
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
-                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
             }
 
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
-                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
             }
 
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updateWordCount();
                 emitTypingSnapshot();
-                if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty();
+                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
             }
         };
         contentArea.getDocument().addDocumentListener(editorDocListener);
@@ -759,9 +759,9 @@ public class EntryPanel extends AbstractEditorPanel {
         });
         // Autosave on title change too
         titleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveManager != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveManager.markDirty(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
         });
 
         // Middle-click floating popup
@@ -845,10 +845,11 @@ public class EntryPanel extends AbstractEditorPanel {
 
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // --- Autosave wiring ---
+        // --- Autosave wiring (native C++ coordinator) ---
         int delayMs = SettingsStore.get().getAutosaveDelayMs();
         if (delayMs > 0) {
-            autosaveManager = new AutosaveManager(delayMs,
+            String filePath = (currentFile != null) ? currentFile.getAbsolutePath() : null;
+            autosaveCoordinator = new NativeAutosaveCoordinator(filePath, delayMs,
                     this::saveEntry,
                     () -> { isAutosaving = true; if (saveIndicator != null) saveIndicator.setSaving(); },
                     () -> { 
@@ -856,7 +857,7 @@ public class EntryPanel extends AbstractEditorPanel {
                         isAutosaving = false; 
                     });
         } else {
-            autosaveManager = null; // autosave disabled
+            autosaveCoordinator = null; // autosave disabled
         }
     }
 
@@ -1459,8 +1460,8 @@ public class EntryPanel extends AbstractEditorPanel {
             CustomMessageDialog.display(this, "Read-only", "This entry is locked by another instance and cannot be saved.", true);
             return;
         }
-        if (autosaveManager != null) {
-            try { autosaveManager.stop(); } catch (Throwable ignored) {}
+        if (autosaveCoordinator != null) {
+            try { autosaveCoordinator.stop(); } catch (Throwable ignored) {}
         }
         // Snapshot UI state on EDT to avoid touching Swing components from autosave thread
         final String[] titleHolder = new String[1];
@@ -1703,14 +1704,14 @@ public class EntryPanel extends AbstractEditorPanel {
         try { if (contentArea != null) contentArea.setEditable(!readOnly); } catch (Throwable ignored) {}
         try { if (moodSlider != null) moodSlider.setEnabled(!readOnly); } catch (Throwable ignored) {}
         try { if (saveButton != null) saveButton.setEnabled(!readOnly); } catch (Throwable ignored) {}
-        if (readOnly && autosaveManager != null) {
-            try { autosaveManager.stop(); } catch (Throwable ignored) {}
+        if (readOnly && autosaveCoordinator != null) {
+            try { autosaveCoordinator.stop(); } catch (Throwable ignored) {}
         }
     }
 
     @Override
     public void removeNotify() {
-        try { if (autosaveManager != null) autosaveManager.stop(); } catch (Throwable ignored) {}
+        try { if (autosaveCoordinator != null) autosaveCoordinator.stop(); } catch (Throwable ignored) {}
         releaseEntryLock();
         super.removeNotify();
     }
