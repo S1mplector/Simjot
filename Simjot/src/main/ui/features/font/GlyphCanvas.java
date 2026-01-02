@@ -52,6 +52,10 @@ public class GlyphCanvas extends JPanel {
     private final List<GlyphCanvasListener> listeners = new ArrayList<>();
     
     private long strokeStartTime;
+    private int lastScreenX;
+    private int lastScreenY;
+    private float lastTimestamp;
+    private boolean hasLastScreen;
     
     public interface GlyphCanvasListener {
         void onStrokeStarted();
@@ -143,6 +147,10 @@ public class GlyphCanvas extends JPanel {
     private void startStroke(int x, int y, float pressure) {
         currentStroke = new CustomStroke(strokeThickness);
         strokeStartTime = System.currentTimeMillis();
+        lastScreenX = x;
+        lastScreenY = y;
+        lastTimestamp = 0.0f;
+        hasLastScreen = true;
         
         float[] coords = screenToGlyph(x, y);
         currentStroke.addPoint(coords[0], coords[1], pressure, 0);
@@ -156,10 +164,7 @@ public class GlyphCanvas extends JPanel {
     
     private void addPoint(int x, int y, float pressure) {
         if (currentStroke == null) return;
-        
-        float[] coords = screenToGlyph(x, y);
-        float timestamp = (System.currentTimeMillis() - strokeStartTime);
-        currentStroke.addPoint(coords[0], coords[1], pressure, timestamp);
+        addPointWithResample(x, y, pressure);
         
         repaint();
     }
@@ -167,6 +172,7 @@ public class GlyphCanvas extends JPanel {
     private void endStroke() {
         if (currentStroke == null || currentStroke.getPointCount() < 2) {
             currentStroke = null;
+            hasLastScreen = false;
             return;
         }
         
@@ -186,6 +192,7 @@ public class GlyphCanvas extends JPanel {
         
         CustomStroke completedStroke = currentStroke;
         currentStroke = null;
+        hasLastScreen = false;
         
         for (GlyphCanvasListener l : listeners) {
             l.onStrokeEnded(completedStroke);
@@ -342,6 +349,31 @@ public class GlyphCanvas extends JPanel {
         }
         
         float baseThickness = stroke.getThickness() * size / emSize;
+        float minP = 1.0f;
+        float maxP = 0.0f;
+        for (StrokePoint p : points) {
+            float pr = p.getPressure();
+            minP = Math.min(minP, pr);
+            maxP = Math.max(maxP, pr);
+        }
+        if (maxP - minP < 0.05f) {
+            float avgP = (minP + maxP) * 0.5f;
+            Path2D.Float path = new Path2D.Float();
+            StrokePoint first = points.get(0);
+            float[] s0 = glyphToScreen(first.getX(), first.getY());
+            path.moveTo(s0[0], s0[1]);
+            for (int i = 1; i < points.size(); i++) {
+                StrokePoint p = points.get(i);
+                float[] s = glyphToScreen(p.getX(), p.getY());
+                path.lineTo(s[0], s[1]);
+            }
+            java.awt.Stroke old = g2.getStroke();
+            g2.setStroke(new BasicStroke(Math.max(1.0f, baseThickness * avgP),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.draw(path);
+            g2.setStroke(old);
+            return;
+        }
         
         for (int i = 0; i < points.size() - 1; i++) {
             StrokePoint p0 = points.get(i);
@@ -355,18 +387,11 @@ public class GlyphCanvas extends JPanel {
             
             drawVariableWidthSegment(g2, s0[0], s0[1], s1[0], s1[1], thick0, thick1);
         }
-        
-        // Round caps
-        StrokePoint first = points.get(0);
-        StrokePoint last = points.get(points.size() - 1);
-        
-        float[] sf = glyphToScreen(first.getX(), first.getY());
-        float rf = baseThickness * first.getPressure() * 0.5f;
-        g2.fill(new Ellipse2D.Float(sf[0] - rf, sf[1] - rf, rf * 2, rf * 2));
-        
-        float[] sl = glyphToScreen(last.getX(), last.getY());
-        float rl = baseThickness * last.getPressure() * 0.5f;
-        g2.fill(new Ellipse2D.Float(sl[0] - rl, sl[1] - rl, rl * 2, rl * 2));
+        for (StrokePoint p : points) {
+            float[] s = glyphToScreen(p.getX(), p.getY());
+            float r = baseThickness * p.getPressure() * 0.5f;
+            g2.fill(new Ellipse2D.Float(s[0] - r, s[1] - r, r * 2, r * 2));
+        }
     }
     
     private void drawVariableWidthSegment(Graphics2D g2, float x0, float y0, float x1, float y1,
@@ -405,5 +430,52 @@ public class GlyphCanvas extends JPanel {
         if (iterations > 0) {
             stroke.smooth(iterations);
         }
+    }
+
+    private void addPointWithResample(int x, int y, float pressure) {
+        if (!hasLastScreen) {
+            float[] coords = screenToGlyph(x, y);
+            float timestamp = (System.currentTimeMillis() - strokeStartTime);
+            currentStroke.addPoint(coords[0], coords[1], pressure, timestamp);
+            lastScreenX = x;
+            lastScreenY = y;
+            lastTimestamp = timestamp;
+            hasLastScreen = true;
+            return;
+        }
+
+        float dx = x - lastScreenX;
+        float dy = y - lastScreenY;
+        float dist = (float) Math.sqrt(dx * dx + dy * dy);
+        float maxStep = maxScreenStep();
+        float timestamp = (System.currentTimeMillis() - strokeStartTime);
+
+        if (dist <= maxStep) {
+            float[] coords = screenToGlyph(x, y);
+            currentStroke.addPoint(coords[0], coords[1], pressure, timestamp);
+        } else {
+            int segments = (int) Math.ceil(dist / maxStep);
+            for (int i = 1; i <= segments; i++) {
+                float t = i / (float) segments;
+                float ix = lastScreenX + dx * t;
+                float iy = lastScreenY + dy * t;
+                float it = lastTimestamp + (timestamp - lastTimestamp) * t;
+                float[] coords = screenToGlyph(Math.round(ix), Math.round(iy));
+                currentStroke.addPoint(coords[0], coords[1], pressure, it);
+            }
+        }
+
+        lastScreenX = x;
+        lastScreenY = y;
+        lastTimestamp = timestamp;
+    }
+
+    private float maxScreenStep() {
+        int w = getWidth();
+        int h = getHeight();
+        int size = Math.min(w, h) - 40;
+        if (size <= 0) return 6.0f;
+        float thicknessPx = strokeThickness * size / emSize;
+        return Math.max(2.0f, 6.0f - thicknessPx * 0.2f);
     }
 }

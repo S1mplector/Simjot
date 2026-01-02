@@ -11,10 +11,12 @@ package main.ui.features.font;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
-import java.awt.GridLayout;
+import java.awt.Insets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -88,8 +90,8 @@ public class GlyphNavigatorPanel extends JPanel {
         
         add(topPanel, BorderLayout.NORTH);
         
-        // Center: Glyph grid
-        gridPanel = new JPanel(new GridLayout(0, 8, 4, 4));
+        // Center: Glyph grid - use WrapLayout so buttons wrap to next row
+        gridPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 4, 4));
         gridPanel.setOpaque(false);
         
         scrollPane = new JScrollPane(gridPanel);
@@ -166,6 +168,94 @@ public class GlyphNavigatorPanel extends JPanel {
         
         gridPanel.revalidate();
         gridPanel.repaint();
+    }
+    
+    /**
+     * FlowLayout subclass that properly wraps components in a JScrollPane.
+     */
+    private static class WrapLayout extends FlowLayout {
+        public WrapLayout(int align, int hgap, int vgap) {
+            super(align, hgap, vgap);
+        }
+        
+        @Override
+        public Dimension preferredLayoutSize(Container target) {
+            return layoutSize(target, true);
+        }
+        
+        @Override
+        public Dimension minimumLayoutSize(Container target) {
+            Dimension min = layoutSize(target, false);
+            min.width -= (getHgap() + 1);
+            return min;
+        }
+        
+        private Dimension layoutSize(Container target, boolean preferred) {
+            synchronized (target.getTreeLock()) {
+                int targetWidth = target.getSize().width;
+                Container container = target;
+                
+                while (container.getSize().width == 0 && container.getParent() != null) {
+                    container = container.getParent();
+                }
+                
+                targetWidth = container.getSize().width;
+                
+                if (targetWidth == 0) {
+                    targetWidth = Integer.MAX_VALUE;
+                }
+                
+                int hgap = getHgap();
+                int vgap = getVgap();
+                Insets insets = target.getInsets();
+                int horizontalInsetsAndGap = insets.left + insets.right + (hgap * 2);
+                int maxWidth = targetWidth - horizontalInsetsAndGap;
+                
+                Dimension dim = new Dimension(0, 0);
+                int rowWidth = 0;
+                int rowHeight = 0;
+                
+                int nmembers = target.getComponentCount();
+                
+                for (int i = 0; i < nmembers; i++) {
+                    Component m = target.getComponent(i);
+                    
+                    if (m.isVisible()) {
+                        Dimension d = preferred ? m.getPreferredSize() : m.getMinimumSize();
+                        
+                        if (rowWidth + d.width > maxWidth) {
+                            addRow(dim, rowWidth, rowHeight);
+                            rowWidth = 0;
+                            rowHeight = 0;
+                        }
+                        
+                        if (rowWidth != 0) {
+                            rowWidth += hgap;
+                        }
+                        
+                        rowWidth += d.width;
+                        rowHeight = Math.max(rowHeight, d.height);
+                    }
+                }
+                
+                addRow(dim, rowWidth, rowHeight);
+                
+                dim.width += horizontalInsetsAndGap;
+                dim.height += insets.top + insets.bottom + vgap * 2;
+                
+                return dim;
+            }
+        }
+        
+        private void addRow(Dimension dim, int rowWidth, int rowHeight) {
+            dim.width = Math.max(dim.width, rowWidth);
+            
+            if (dim.height > 0) {
+                dim.height += getVgap();
+            }
+            
+            dim.height += rowHeight;
+        }
     }
     
     private class GlyphButton extends JButton {

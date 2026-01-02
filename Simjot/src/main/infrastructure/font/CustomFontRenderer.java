@@ -127,9 +127,32 @@ public final class CustomFontRenderer {
             }
             return;
         }
-        
+
         // Draw variable-width stroke
         float baseThickness = stroke.getThickness() * scale;
+        float minP = 1.0f;
+        float maxP = 0.0f;
+        for (StrokePoint p : points) {
+            float pr = p.getPressure();
+            minP = Math.min(minP, pr);
+            maxP = Math.max(maxP, pr);
+        }
+        if (maxP - minP < 0.05f) {
+            float avgP = (minP + maxP) * 0.5f;
+            Path2D.Float path = new Path2D.Float();
+            StrokePoint first = points.get(0);
+            path.moveTo(first.getX() * scale + offsetX, first.getY() * scale + offsetY);
+            for (int i = 1; i < points.size(); i++) {
+                StrokePoint p = points.get(i);
+                path.lineTo(p.getX() * scale + offsetX, p.getY() * scale + offsetY);
+            }
+            Stroke old = g2.getStroke();
+            g2.setStroke(new BasicStroke(Math.max(1.0f, baseThickness * avgP),
+                    BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.draw(path);
+            g2.setStroke(old);
+            return;
+        }
         
         for (int i = 0; i < points.size() - 1; i++) {
             StrokePoint p0 = points.get(i);
@@ -142,10 +165,10 @@ public final class CustomFontRenderer {
             
             float thick0 = baseThickness * p0.getPressure();
             float thick1 = baseThickness * p1.getPressure();
-            
+
             drawVariableWidthSegment(g2, x0, y0, x1, y1, thick0, thick1);
         }
-        
+
         // Draw round caps
         StrokePoint first = points.get(0);
         StrokePoint last = points.get(points.size() - 1);
