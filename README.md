@@ -4,7 +4,7 @@
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
-A highly personalizable creative wellness application built with pure Java Swing, designed to help you capture your thoughts, express creativity, and track your well-being in an elegant environment.
+A highly personalizable and lightweight creative wellness application designed to help you capture your thoughts, express creativity, and track your well-being in an elegant environment.
 
 ## Features
 
