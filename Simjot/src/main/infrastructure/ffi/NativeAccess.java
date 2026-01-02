@@ -9,6 +9,7 @@
 package main.infrastructure.ffi;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -61,6 +62,11 @@ public final class NativeAccess {
 
     public static boolean isAvailable() {
         return library() != null;
+    }
+
+    public static SymbolLookup symbolLookup() {
+        NativeLibrary lib = library();
+        return lib != null ? lib.symbolLookup() : null;
     }
 
     public static String sha256(Path path) {

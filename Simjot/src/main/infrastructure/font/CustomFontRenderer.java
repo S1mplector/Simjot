@@ -57,6 +57,12 @@ public final class CustomFontRenderer {
         if (cached != null) {
             return colorize(cached, color);
         }
+
+        BufferedImage nativeImg = NativeFontSupport.renderGlyph(font, glyph, size, oversample, antialiasing);
+        if (nativeImg != null) {
+            cache.putGlyphImage(cacheKey, nativeImg);
+            return colorize(nativeImg, color);
+        }
         
         float emSize = font.getEmSize();
         float scale = (float) size / emSize;
@@ -239,6 +245,7 @@ public final class CustomFontRenderer {
         
         float scale = (float) size / font.getEmSize();
         float cursorX = x;
+        boolean nativeAvailable = NativeFontSupport.isAvailable();
         
         for (int i = 0; i < text.length(); i++) {
             int cp = text.codePointAt(i);
@@ -249,12 +256,17 @@ public final class CustomFontRenderer {
             if (glyph != null && glyph.isDefined()) {
                 BufferedImage img = renderGlyph(font, glyph, size, color);
                 if (img != null) {
-                    float[] bounds = glyph.getBounds();
+                    float[] bounds = nativeAvailable ? NativeFontSupport.getGlyphBounds(font, cp) : null;
+                    if (bounds == null) {
+                        bounds = glyph.getBounds();
+                    }
                     int drawX = (int) (cursorX + bounds[0] * scale);
                     int drawY = (int) (y - (bounds[1] + bounds[3]) * scale);
                     g2.drawImage(img, drawX, drawY, null);
                 }
-                cursorX += glyph.getAdvanceWidth() * scale;
+                Float advance = nativeAvailable ? NativeFontSupport.getGlyphAdvance(font, cp) : null;
+                float advanceValue = (advance != null && advance > 0.0f) ? advance : glyph.getAdvanceWidth();
+                cursorX += advanceValue * scale;
             } else {
                 // Skip undefined glyphs, advance by default width
                 cursorX += font.getEmSize() * 0.6f * scale;
@@ -267,8 +279,10 @@ public final class CustomFontRenderer {
             return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         }
         
-        float width = font.measureText(text, size);
-        float height = font.getLineHeight(size);
+        Float nativeWidth = NativeFontSupport.measureText(font, text, size);
+        float width = nativeWidth != null ? nativeWidth : font.measureText(text, size);
+        Float nativeHeight = NativeFontSupport.getLineHeight(font, size);
+        float height = nativeHeight != null ? nativeHeight : font.getLineHeight(size);
         
         int imgWidth = Math.max(1, (int) Math.ceil(width) + 4);
         int imgHeight = Math.max(1, (int) Math.ceil(height) + 4);
@@ -283,7 +297,9 @@ public final class CustomFontRenderer {
         
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        int baseline = (int) font.getAscender(size) + 2;
+        Float nativeAscender = NativeFontSupport.getAscender(font, size);
+        float ascender = nativeAscender != null ? nativeAscender : font.getAscender(size);
+        int baseline = (int) ascender + 2;
         drawText(g2, font, text, 2, baseline, size, color);
         
         g2.dispose();
@@ -292,5 +308,6 @@ public final class CustomFontRenderer {
     
     public void clearCache() {
         cache.clear();
+        NativeFontSupport.clearCache();
     }
 }

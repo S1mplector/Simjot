@@ -53,6 +53,22 @@ extern "C" void sjf_bitmap_clear(sjf_bitmap_t* bmp) {
     }
 }
 
+extern "C" int32_t sjf_bitmap_get_width(const sjf_bitmap_t* bmp) {
+    return bmp ? bmp->width : 0;
+}
+
+extern "C" int32_t sjf_bitmap_get_height(const sjf_bitmap_t* bmp) {
+    return bmp ? bmp->height : 0;
+}
+
+extern "C" int32_t sjf_bitmap_get_stride(const sjf_bitmap_t* bmp) {
+    return bmp ? bmp->stride : 0;
+}
+
+extern "C" uint8_t* sjf_bitmap_get_pixels(sjf_bitmap_t* bmp) {
+    return bmp ? bmp->pixels : nullptr;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * ANTIALIASED LINE DRAWING - Xiaolin Wu's Algorithm
  * ═══════════════════════════════════════════════════════════════════════════ */

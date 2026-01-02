@@ -1634,6 +1634,64 @@ int32_t simjot_link_at_position(const char* text, int32_t len, int32_t position,
  * CUSTOM FONT API - Stroke-based font creation and rendering
  * ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Custom font symbols are exported with sjf_ prefix in the native library. */
+#define simjot_font_create sjf_font_create
+#define simjot_font_free sjf_font_free
+#define simjot_font_load sjf_font_load
+#define simjot_font_save sjf_font_save
+#define simjot_font_get_name sjf_font_get_name
+#define simjot_font_set_name sjf_font_set_name
+#define simjot_font_get_author sjf_font_get_author
+#define simjot_font_set_author sjf_font_set_author
+#define simjot_font_glyph_count sjf_font_glyph_count
+#define simjot_font_defined_glyph_count sjf_font_defined_glyph_count
+#define simjot_font_get_ascender sjf_font_get_ascender
+#define simjot_font_get_descender sjf_font_get_descender
+#define simjot_font_get_line_height sjf_font_get_line_height
+#define simjot_font_get_em_size sjf_font_get_em_size
+#define simjot_font_measure_text sjf_font_measure_text
+#define simjot_font_measure_char sjf_font_measure_char
+#define simjot_font_get_glyph sjf_font_get_glyph
+#define simjot_font_add_glyph sjf_font_add_glyph
+#define simjot_glyph_add_stroke sjf_glyph_add_stroke
+#define simjot_glyph_clear_strokes sjf_glyph_clear_strokes
+#define simjot_glyph_compute_metrics sjf_glyph_compute_metrics
+#define simjot_glyph_normalize sjf_glyph_normalize
+#define simjot_glyph_get_advance sjf_glyph_get_advance
+#define simjot_glyph_get_width sjf_glyph_get_width
+#define simjot_glyph_get_height sjf_glyph_get_height
+#define simjot_glyph_get_bounds sjf_glyph_get_bounds
+#define simjot_stroke_create sjf_stroke_create
+#define simjot_stroke_free sjf_stroke_free
+#define simjot_stroke_add_point sjf_stroke_add_point
+#define simjot_stroke_clear sjf_stroke_clear
+#define simjot_stroke_smooth sjf_stroke_smooth
+#define simjot_stroke_length sjf_stroke_length
+#define simjot_stroke_bounds sjf_stroke_bounds
+#define simjot_stroke_translate sjf_stroke_translate
+#define simjot_stroke_scale sjf_stroke_scale
+#define simjot_stroke_normalize sjf_stroke_normalize
+#define simjot_stroke_simplify sjf_stroke_simplify
+#define simjot_bitmap_create sjf_bitmap_create
+#define simjot_bitmap_free sjf_bitmap_free
+#define simjot_bitmap_clear sjf_bitmap_clear
+#define simjot_bitmap_get_width sjf_bitmap_get_width
+#define simjot_bitmap_get_height sjf_bitmap_get_height
+#define simjot_bitmap_get_stride sjf_bitmap_get_stride
+#define simjot_bitmap_get_pixels sjf_bitmap_get_pixels
+#define simjot_bitmap_to_argb sjf_bitmap_to_argb
+#define simjot_raster_glyph sjf_raster_glyph
+#define simjot_raster_stroke sjf_raster_stroke
+#define simjot_render_glyph_to_buffer sjf_render_glyph_to_buffer
+#define simjot_atlas_create sjf_atlas_create
+#define simjot_atlas_free sjf_atlas_free
+#define simjot_atlas_add_glyph sjf_atlas_add_glyph
+#define simjot_atlas_get_width sjf_atlas_get_width
+#define simjot_atlas_get_height sjf_atlas_get_height
+#define simjot_atlas_get_pixels sjf_atlas_get_pixels
+#define simjot_font_pack sjf_font_pack
+#define simjot_font_unpack sjf_font_unpack
+
 /* Opaque handles for FFM */
 typedef struct sjf_font sjf_font_t;
 typedef struct sjf_glyph sjf_glyph_t;

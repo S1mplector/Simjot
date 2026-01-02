@@ -75,6 +75,10 @@ public final class NativeFonts implements AutoCloseable {
     private final MethodHandle bitmapCreateHandle;
     private final MethodHandle bitmapFreeHandle;
     private final MethodHandle bitmapClearHandle;
+    private final MethodHandle bitmapGetWidthHandle;
+    private final MethodHandle bitmapGetHeightHandle;
+    private final MethodHandle bitmapGetStrideHandle;
+    private final MethodHandle bitmapGetPixelsHandle;
     private final MethodHandle bitmapToArgbHandle;
     private final MethodHandle rasterGlyphHandle;
     private final MethodHandle rasterStrokeHandle;
@@ -90,131 +94,139 @@ public final class NativeFonts implements AutoCloseable {
     private final MethodHandle fontUnpackHandle;
     
     public NativeFonts(SymbolLookup lookup) {
-        this.arena = Arena.ofConfined();
+        this.arena = Arena.ofShared();
         this.lookup = lookup;
         this.linker = Linker.nativeLinker();
         
         // Font management
-        fontCreateHandle = downcall("simjot_font_create", 
+        fontCreateHandle = downcall("sjf_font_create", 
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        fontFreeHandle = downcall("simjot_font_free",
+        fontFreeHandle = downcall("sjf_font_free",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        fontLoadHandle = downcall("simjot_font_load",
+        fontLoadHandle = downcall("sjf_font_load",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        fontSaveHandle = downcall("simjot_font_save",
+        fontSaveHandle = downcall("sjf_font_save",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        fontGetNameHandle = downcall("simjot_font_get_name",
+        fontGetNameHandle = downcall("sjf_font_get_name",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontSetNameHandle = downcall("simjot_font_set_name",
+        fontSetNameHandle = downcall("sjf_font_set_name",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        fontGetAuthorHandle = downcall("simjot_font_get_author",
+        fontGetAuthorHandle = downcall("sjf_font_get_author",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontSetAuthorHandle = downcall("simjot_font_set_author",
+        fontSetAuthorHandle = downcall("sjf_font_set_author",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        fontGlyphCountHandle = downcall("simjot_font_glyph_count",
+        fontGlyphCountHandle = downcall("sjf_font_glyph_count",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
-        fontDefinedGlyphCountHandle = downcall("simjot_font_defined_glyph_count",
+        fontDefinedGlyphCountHandle = downcall("sjf_font_defined_glyph_count",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         
         // Font metrics
-        fontGetAscenderHandle = downcall("simjot_font_get_ascender",
+        fontGetAscenderHandle = downcall("sjf_font_get_ascender",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontGetDescenderHandle = downcall("simjot_font_get_descender",
+        fontGetDescenderHandle = downcall("sjf_font_get_descender",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontGetLineHeightHandle = downcall("simjot_font_get_line_height",
+        fontGetLineHeightHandle = downcall("sjf_font_get_line_height",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontGetEmSizeHandle = downcall("simjot_font_get_em_size",
+        fontGetEmSizeHandle = downcall("sjf_font_get_em_size",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS));
-        fontMeasureTextHandle = downcall("simjot_font_measure_text",
+        fontMeasureTextHandle = downcall("sjf_font_measure_text",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontMeasureCharHandle = downcall("simjot_font_measure_char",
+        fontMeasureCharHandle = downcall("sjf_font_measure_char",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
         
         // Glyph management
-        fontGetGlyphHandle = downcall("simjot_font_get_glyph",
+        fontGetGlyphHandle = downcall("sjf_font_get_glyph",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontAddGlyphHandle = downcall("simjot_font_add_glyph",
+        fontAddGlyphHandle = downcall("sjf_font_add_glyph",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        glyphAddStrokeHandle = downcall("simjot_glyph_add_stroke",
+        glyphAddStrokeHandle = downcall("sjf_glyph_add_stroke",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        glyphClearStrokesHandle = downcall("simjot_glyph_clear_strokes",
+        glyphClearStrokesHandle = downcall("sjf_glyph_clear_strokes",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        glyphComputeMetricsHandle = downcall("simjot_glyph_compute_metrics",
+        glyphComputeMetricsHandle = downcall("sjf_glyph_compute_metrics",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT));
-        glyphNormalizeHandle = downcall("simjot_glyph_normalize",
+        glyphNormalizeHandle = downcall("sjf_glyph_normalize",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
-        glyphGetAdvanceHandle = downcall("simjot_glyph_get_advance",
+        glyphGetAdvanceHandle = downcall("sjf_glyph_get_advance",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS));
-        glyphGetWidthHandle = downcall("simjot_glyph_get_width",
+        glyphGetWidthHandle = downcall("sjf_glyph_get_width",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS));
-        glyphGetHeightHandle = downcall("simjot_glyph_get_height",
+        glyphGetHeightHandle = downcall("sjf_glyph_get_height",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS));
-        glyphGetBoundsHandle = downcall("simjot_glyph_get_bounds",
+        glyphGetBoundsHandle = downcall("sjf_glyph_get_bounds",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, 
                                       ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         
         // Stroke management
-        strokeCreateHandle = downcall("simjot_stroke_create",
+        strokeCreateHandle = downcall("sjf_stroke_create",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        strokeFreeHandle = downcall("simjot_stroke_free",
+        strokeFreeHandle = downcall("sjf_stroke_free",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        strokeAddPointHandle = downcall("simjot_stroke_add_point",
+        strokeAddPointHandle = downcall("sjf_stroke_add_point",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, 
                 ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
-        strokeClearHandle = downcall("simjot_stroke_clear",
+        strokeClearHandle = downcall("sjf_stroke_clear",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        strokeSmoothHandle = downcall("simjot_stroke_smooth",
+        strokeSmoothHandle = downcall("sjf_stroke_smooth",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT));
-        strokeLengthHandle = downcall("simjot_stroke_length",
+        strokeLengthHandle = downcall("sjf_stroke_length",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS));
-        strokeBoundsHandle = downcall("simjot_stroke_bounds",
+        strokeBoundsHandle = downcall("sjf_stroke_bounds",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-        strokeTranslateHandle = downcall("simjot_stroke_translate",
+        strokeTranslateHandle = downcall("sjf_stroke_translate",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
-        strokeScaleHandle = downcall("simjot_stroke_scale",
+        strokeScaleHandle = downcall("sjf_stroke_scale",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
                 ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
-        strokeNormalizeHandle = downcall("simjot_stroke_normalize",
+        strokeNormalizeHandle = downcall("sjf_stroke_normalize",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT));
-        strokeSimplifyHandle = downcall("simjot_stroke_simplify",
+        strokeSimplifyHandle = downcall("sjf_stroke_simplify",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT));
         
         // Rasterization
-        bitmapCreateHandle = downcall("simjot_bitmap_create",
+        bitmapCreateHandle = downcall("sjf_bitmap_create",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
-        bitmapFreeHandle = downcall("simjot_bitmap_free",
+        bitmapFreeHandle = downcall("sjf_bitmap_free",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        bitmapClearHandle = downcall("simjot_bitmap_clear",
+        bitmapClearHandle = downcall("sjf_bitmap_clear",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        bitmapToArgbHandle = downcall("simjot_bitmap_to_argb",
+        bitmapGetWidthHandle = downcall("sjf_bitmap_get_width",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        bitmapGetHeightHandle = downcall("sjf_bitmap_get_height",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        bitmapGetStrideHandle = downcall("sjf_bitmap_get_stride",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        bitmapGetPixelsHandle = downcall("sjf_bitmap_get_pixels",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        bitmapToArgbHandle = downcall("sjf_bitmap_to_argb",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        rasterGlyphHandle = downcall("simjot_raster_glyph",
+        rasterGlyphHandle = downcall("sjf_raster_glyph",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
-        rasterStrokeHandle = downcall("simjot_raster_stroke",
+        rasterStrokeHandle = downcall("sjf_raster_stroke",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
-        renderGlyphToBufferHandle = downcall("simjot_render_glyph_to_buffer",
+        renderGlyphToBufferHandle = downcall("sjf_render_glyph_to_buffer",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
         
         // Atlas
-        atlasCreateHandle = downcall("simjot_atlas_create",
+        atlasCreateHandle = downcall("sjf_atlas_create",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
-        atlasFreeHandle = downcall("simjot_atlas_free",
+        atlasFreeHandle = downcall("sjf_atlas_free",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-        atlasAddGlyphHandle = downcall("simjot_atlas_add_glyph",
+        atlasAddGlyphHandle = downcall("sjf_atlas_add_glyph",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         
         // Serialization
-        fontPackHandle = downcall("simjot_font_pack",
+        fontPackHandle = downcall("sjf_font_pack",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
-        fontUnpackHandle = downcall("simjot_font_unpack",
+        fontUnpackHandle = downcall("sjf_font_unpack",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     }
     
@@ -365,8 +377,9 @@ public final class NativeFonts implements AutoCloseable {
     }
     
     public float fontMeasureText(MemorySegment font, String text, int size) {
-        try {
-            return (float) fontMeasureTextHandle.invokeExact(font, allocString(text), size);
+        try (Arena tmp = Arena.ofConfined()) {
+            MemorySegment str = text == null ? MemorySegment.NULL : tmp.allocateFrom(text);
+            return (float) fontMeasureTextHandle.invokeExact(font, str, size);
         } catch (Throwable t) {
             throw new RuntimeException("fontMeasureText failed", t);
         }
@@ -453,6 +466,24 @@ public final class NativeFonts implements AutoCloseable {
             return (float) glyphGetHeightHandle.invokeExact(glyph);
         } catch (Throwable t) {
             throw new RuntimeException("glyphGetHeight failed", t);
+        }
+    }
+
+    public float[] glyphGetBounds(MemorySegment glyph) {
+        try (Arena tmp = Arena.ofConfined()) {
+            MemorySegment x = tmp.allocate(ValueLayout.JAVA_FLOAT);
+            MemorySegment y = tmp.allocate(ValueLayout.JAVA_FLOAT);
+            MemorySegment w = tmp.allocate(ValueLayout.JAVA_FLOAT);
+            MemorySegment h = tmp.allocate(ValueLayout.JAVA_FLOAT);
+            glyphGetBoundsHandle.invokeExact(glyph, x, y, w, h);
+            return new float[] {
+                x.get(ValueLayout.JAVA_FLOAT, 0),
+                y.get(ValueLayout.JAVA_FLOAT, 0),
+                w.get(ValueLayout.JAVA_FLOAT, 0),
+                h.get(ValueLayout.JAVA_FLOAT, 0)
+            };
+        } catch (Throwable t) {
+            throw new RuntimeException("glyphGetBounds failed", t);
         }
     }
     
@@ -565,6 +596,46 @@ public final class NativeFonts implements AutoCloseable {
             bitmapClearHandle.invokeExact(bitmap);
         } catch (Throwable t) {
             throw new RuntimeException("bitmapClear failed", t);
+        }
+    }
+
+    public int bitmapGetWidth(MemorySegment bitmap) {
+        try {
+            return (int) bitmapGetWidthHandle.invokeExact(bitmap);
+        } catch (Throwable t) {
+            throw new RuntimeException("bitmapGetWidth failed", t);
+        }
+    }
+
+    public int bitmapGetHeight(MemorySegment bitmap) {
+        try {
+            return (int) bitmapGetHeightHandle.invokeExact(bitmap);
+        } catch (Throwable t) {
+            throw new RuntimeException("bitmapGetHeight failed", t);
+        }
+    }
+
+    public int bitmapGetStride(MemorySegment bitmap) {
+        try {
+            return (int) bitmapGetStrideHandle.invokeExact(bitmap);
+        } catch (Throwable t) {
+            throw new RuntimeException("bitmapGetStride failed", t);
+        }
+    }
+
+    public MemorySegment bitmapGetPixels(MemorySegment bitmap) {
+        try {
+            return (MemorySegment) bitmapGetPixelsHandle.invokeExact(bitmap);
+        } catch (Throwable t) {
+            throw new RuntimeException("bitmapGetPixels failed", t);
+        }
+    }
+
+    public int bitmapToArgb(MemorySegment bitmap, int color, MemorySegment outArgb, int outStride) {
+        try {
+            return (int) bitmapToArgbHandle.invokeExact(bitmap, color, outArgb, outStride);
+        } catch (Throwable t) {
+            throw new RuntimeException("bitmapToArgb failed", t);
         }
     }
     

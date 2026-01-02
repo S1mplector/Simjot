@@ -1224,6 +1224,10 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
     }
 
+    public SymbolLookup symbolLookup() {
+        return lookup;
+    }
+
     private MethodHandle optionalHandle(String name, FunctionDescriptor descriptor) {
         return lookup.find(name).map(symbol -> linker.downcallHandle(symbol, descriptor)).orElse(null);
     }
