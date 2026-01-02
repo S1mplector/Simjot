@@ -11,20 +11,22 @@ package main.ui.features.settings;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.Window;
 
+import javax.swing.BorderFactory;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.JTextPane;
-import javax.swing.BorderFactory;
-import javax.swing.DefaultComboBoxModel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -33,12 +35,10 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 import javax.swing.plaf.basic.BasicComboPopup;
-import javax.swing.text.MutableAttributeSet;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
 
+import main.core.font.CustomFont;
 import main.core.service.SettingsStore;
+import main.infrastructure.font.CustomFontRenderer;
 import main.infrastructure.font.CustomFontSupport;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -61,7 +61,8 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<String> fontFamilyBox;
     private final JComboBox<Integer> fontSizeBox;
     private final JComboBox<String> lineSpacingBox;
-    private final JTextPane fontPreview;
+    private final JPanel fontPreview;
+    private final CustomFontRenderer customFontRenderer = new CustomFontRenderer();
     private final JComboBox<String> dateFormatBox;
     private final JCheckBox openLastChk;
     private final JCheckBox spellChk;
@@ -131,15 +132,18 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 1; add(customFontsButton, gc);
         row++;
 
-        fontPreview = new JTextPane();
-        fontPreview.setText("The quick brown fox jumps over the lazy dog.\nHow vexingly quick daft zebras jump!");
-        fontPreview.setEditable(false);
+        fontPreview = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                paintFontPreview((Graphics2D) g);
+            }
+        };
         fontPreview.setBackground(new Color(252, 252, 250));
         fontPreview.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(200, 200, 200)),
                 BorderFactory.createEmptyBorder(12, 12, 12, 12)));
         fontPreview.setPreferredSize(new Dimension(300, 80));
-        updateFontPreview();
 
         gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.BOTH;
@@ -273,23 +277,40 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     }
 
     private void updateFontPreview() {
+        customFontRenderer.clearCache();
+        fontPreview.repaint();
+    }
+
+    private void paintFontPreview(Graphics2D g2) {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
         String family = (String) fontFamilyBox.getSelectedItem();
         Integer size = (Integer) fontSizeBox.getSelectedItem();
-        String spacingStr = (String) lineSpacingBox.getSelectedItem();
         if (family == null) family = "Serif";
+        if (size == null) size = 16;
+
+        String sampleText = "The quick brown fox jumps over the lazy dog.";
+        int x = 12;
+        int y = 28;
+
         if (CustomFontSupport.isCustomDisplayName(family)) {
+            // Render with custom font
+            try {
+                CustomFont customFont = CustomFontSupport.loadByDisplayName(family);
+                if (customFont != null) {
+                    customFontRenderer.drawText(g2, customFont, sampleText, x, y, size, Color.BLACK);
+                    return;
+                }
+            } catch (Exception ignored) {}
+            // Fallback if custom font fails
             family = "Serif";
         }
-        if (size == null) size = 16;
-        float spacing = switch (spacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
 
-        fontPreview.setFont(new Font(family, Font.PLAIN, size));
-        try {
-            StyledDocument doc = fontPreview.getStyledDocument();
-            MutableAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setLineSpacing(attrs, spacing);
-            doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
-        } catch (Exception ignored) {}
+        // Render with system font
+        g2.setFont(new Font(family, Font.PLAIN, size));
+        g2.setColor(Color.BLACK);
+        g2.drawString(sampleText, x, y);
     }
 
     private void reloadFontFamilyOptions(String preferredSelection) {
