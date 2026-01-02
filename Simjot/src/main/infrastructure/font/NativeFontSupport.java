@@ -198,7 +198,6 @@ public final class NativeFontSupport {
             MemorySegment nativeFont = unpackFont(native, font);
             if (nativeFont == null || nativeFont.equals(MemorySegment.NULL)) return null;
 
-            // Ensure native metrics reflect latest stroke data.
             float emSize = font.getEmSize();
             for (int codepoint : font.getCodepoints()) {
                 MemorySegment glyph = native.fontGetGlyph(nativeFont, codepoint);
