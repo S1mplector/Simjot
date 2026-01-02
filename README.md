@@ -9,26 +9,22 @@ A highly personalizable and lightweight creative wellness application designed t
 ## Features
 
 ### **Multi-Format Content Creation**
-- **Journal Entries**: Traditional diary-style entries with mood tracking, rich formatting, and customizable templates
-- **Poetry Writing**: Dedicated poetry editor with real-time syllable counting, rhyme scheme detection, meter analysis, and form recognition using Haskell poetry analysis module
+- Traditional diary-style entries with mood tracking, rich formatting, and customizable templates
+- Dedicated poetry editor with real-time syllable counting, rhyme scheme detection, meter analysis, and form recognition using Haskell poetry analysis module
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
-- **Mood chart visualization** with date range filtering (7 days, 30 days, all time)
+- **Mood chart** with date range filtering (7 days, 30 days, all time)
 - **Automatic mood logging** integrated with journal entries
-- **Visual mood trends** to track emotional patterns over time
 
 ### **Organization & Management**
-- **Notebook system** with different types (Journal, Poetry)
-- **File browser** with entry previews and word counts
-- **Smart auto-save functionality** with timestamp-based filenames
-- **Search and filter** capabilities across all content
+- Simjot features a **notebook system** with different types (Journal, Poetry)
+- All editors include a **smart auto-save functionality** with timestamp-based filenames
+- Additionally, Simjot has global **search and filtering** capabilities across all content
 - **Entry templates** with customizable fields and quick selection
 
 ### **Security & Backup**
 - **Password Protection**: Lock your journal with AES-256 encryption
-- **Auto-lock**: Configurable inactivity timeout
-- **Comprehensive Backup System**: Automatic, scheduled, and manual backups
 - **Selective Backup**: Choose to include mood data, settings, wallpapers
 - **Backup Verification**: Integrity checking and pruning by age
 - **Easy Restore**: Browse and restore from any backup point
