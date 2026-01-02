@@ -2949,6 +2949,48 @@ public final class NativeAccess {
         } catch (Throwable ignored) {}
     }
 
+    /**
+     * Compute smoothed mood values (rolling average).
+     * Input values should use -1 for missing entries.
+     */
+    public static double[] moodSmooth(double[] values, int window) {
+        NativeLibrary lib = library();
+        if (lib == null || values == null || values.length == 0 || window <= 0) return null;
+        try {
+            return lib.moodSmooth(values, window);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Compute mood volatility (standard deviation).
+     * Input values should use -1 for missing entries.
+     */
+    public static double moodVolatility(double[] values) {
+        NativeLibrary lib = library();
+        if (lib == null || values == null || values.length < 2) return Double.NaN;
+        try {
+            return lib.moodVolatility(values);
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Compute mood streaks.
+     * Input values should use -1 for missing entries.
+     */
+    public static int[] moodStreaks(double[] values, double threshold) {
+        NativeLibrary lib = library();
+        if (lib == null || values == null || values.length == 0) return null;
+        try {
+            return lib.moodStreaks(values, threshold);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // NATIVE MOOD GRAPHICS - Fast chart rendering
     // ═══════════════════════════════════════════════════════════════════════════

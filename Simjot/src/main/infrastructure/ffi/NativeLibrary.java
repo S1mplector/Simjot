@@ -5749,7 +5749,31 @@ public final class NativeLibrary implements AutoCloseable {
     public boolean hasMoodAnalyticsSupport() {
         return moodVolatilityHandle != null;
     }
-    
+
+    /**
+     * Compute smoothed (rolling) averages.
+     * @return smoothed values or null on failure
+     */
+    public double[] moodSmooth(double[] values, int window) {
+        if (moodSmoothHandle == null || values == null || values.length == 0 || window <= 0) return null;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment valSeg = local.allocate(ValueLayout.JAVA_DOUBLE, values.length);
+            MemorySegment outSeg = local.allocate(ValueLayout.JAVA_DOUBLE, values.length);
+            for (int i = 0; i < values.length; i++) {
+                valSeg.setAtIndex(ValueLayout.JAVA_DOUBLE, i, values[i]);
+            }
+            int ok = (int) moodSmoothHandle.invokeExact(valSeg, values.length, window, outSeg);
+            if (ok == 0) return null;
+            double[] out = new double[values.length];
+            for (int i = 0; i < out.length; i++) {
+                out[i] = outSeg.getAtIndex(ValueLayout.JAVA_DOUBLE, i);
+            }
+            return out;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     /**
      * Compute mood volatility (standard deviation).
      */

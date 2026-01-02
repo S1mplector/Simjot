@@ -174,7 +174,7 @@ double simjot_mood_volatility(const double* values, int32_t count) {
         }
     }
     
-    return sqrt(var_sum / valid);
+    return sqrt(var_sum / (valid - 1));
 }
 
 /**
@@ -204,7 +204,14 @@ int32_t simjot_mood_streaks(
     int32_t last_type = 0; /* 1=good, -1=bad, 0=none */
     
     for (int32_t i = 0; i < count; i++) {
-        if (values[i] < 0) continue;
+        if (values[i] < 0) {
+            if (good_streak > max_good) max_good = good_streak;
+            if (bad_streak > max_bad) max_bad = bad_streak;
+            good_streak = 0;
+            bad_streak = 0;
+            last_type = 0;
+            continue;
+        }
         
         if (values[i] >= threshold) {
             /* Good day */

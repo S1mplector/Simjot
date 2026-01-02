@@ -307,15 +307,16 @@ public final class MoodAnalyticsEngine {
         }
 
         double overallAverage = countAll > 0 ? sumAll / countAll : 0;
+        double[] nativeValues = toNativeValues(dailyAverages);
 
         // Compute smoothed (rolling) averages
-        List<Double> smoothed = computeSmoothed(dailyAverages, smoothingWindow);
+        List<Double> smoothed = computeSmoothed(dailyAverages, nativeValues, smoothingWindow);
 
         // Compute volatility (standard deviation of daily averages)
-        double volatility = computeVolatility(dailyAverages, overallAverage);
+        double volatility = computeVolatility(dailyAverages, nativeValues, overallAverage);
 
         // Compute streaks
-        int[] streaks = computeStreaks(dailyAverages, 50.0); // threshold at 50
+        int[] streaks = computeStreaks(dailyAverages, nativeValues, 50.0); // threshold at 50
 
         AnalyticsResult result = new AnalyticsResult(
             dates, dailyStats, dailyAverages, smoothed,
@@ -390,9 +391,10 @@ public final class MoodAnalyticsEngine {
         }
 
         double overallAverage = countAll > 0 ? sumAll / countAll : 0;
-        List<Double> smoothed = computeSmoothed(dailyAverages, smoothingWindow);
-        double volatility = computeVolatility(dailyAverages, overallAverage);
-        int[] streaks = computeStreaks(dailyAverages, 50.0);
+        double[] nativeValues = toNativeValues(dailyAverages);
+        List<Double> smoothed = computeSmoothed(dailyAverages, nativeValues, smoothingWindow);
+        double volatility = computeVolatility(dailyAverages, nativeValues, overallAverage);
+        int[] streaks = computeStreaks(dailyAverages, nativeValues, 50.0);
 
         return new AnalyticsResult(
             dates, dailyStats, dailyAverages, smoothed,
@@ -510,12 +512,38 @@ public final class MoodAnalyticsEngine {
 
     // ========== Analytics Computations ==========
 
-    private List<Double> computeSmoothed(List<Double> values, int window) {
+    private static double[] toNativeValues(List<Double> values) {
+        if (values == null || values.isEmpty()) return new double[0];
+        double[] out = new double[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            Double v = values.get(i);
+            out[i] = v == null ? -1.0 : v;
+        }
+        return out;
+    }
+
+    private static List<Double> toNullableList(double[] values) {
+        List<Double> out = new ArrayList<>(values.length);
+        for (double v : values) {
+            out.add(v < 0 ? null : v);
+        }
+        return out;
+    }
+
+    private List<Double> computeSmoothed(List<Double> values, double[] nativeValues, int window) {
+        if (nativeValues != null && nativeValues.length > 0) {
+            double[] smoothed = NativeAccess.moodSmooth(nativeValues, window);
+            if (smoothed != null) {
+                return toNullableList(smoothed);
+            }
+        }
+
         List<Double> result = new ArrayList<>();
         int n = values.size();
+        int safeWindow = Math.max(1, window);
 
         for (int i = 0; i < n; i++) {
-            int start = Math.max(0, i - window + 1);
+            int start = Math.max(0, i - safeWindow + 1);
             double sum = 0;
             int count = 0;
 
@@ -537,12 +565,19 @@ public final class MoodAnalyticsEngine {
         return result;
     }
 
-    private double computeVolatility(List<Double> values, double mean) {
+    private double computeVolatility(List<Double> values, double[] nativeValues, double mean) {
+        if (nativeValues != null && nativeValues.length >= 2) {
+            double nativeStddev = NativeAccess.moodVolatility(nativeValues);
+            if (!Double.isNaN(nativeStddev) && nativeStddev >= 0) {
+                return nativeStddev;
+            }
+        }
+
         // Try native stddev computation (SIMD-accelerated, faster for large datasets)
         double[] nonNull = values.stream()
-                .filter(v -> v != null)
-                .mapToDouble(Double::doubleValue)
-                .toArray();
+            .filter(v -> v != null)
+            .mapToDouble(Double::doubleValue)
+            .toArray();
         if (nonNull.length >= 2) {
             double nativeStddev = NativeAccess.mathStddev(nonNull);
             if (!Double.isNaN(nativeStddev) && nativeStddev >= 0) {
@@ -571,7 +606,14 @@ public final class MoodAnalyticsEngine {
      * @return [currentStreak, longestGoodStreak, longestBadStreak]
      *         currentStreak is positive for good, negative for bad, 0 if no data today
      */
-    private int[] computeStreaks(List<Double> values, double threshold) {
+    private int[] computeStreaks(List<Double> values, double[] nativeValues, double threshold) {
+        if (nativeValues != null && nativeValues.length > 0) {
+            int[] nativeStreaks = NativeAccess.moodStreaks(nativeValues, threshold);
+            if (nativeStreaks != null) {
+                return nativeStreaks;
+            }
+        }
+
         int currentStreak = 0;
         int longestGood = 0;
         int longestBad = 0;

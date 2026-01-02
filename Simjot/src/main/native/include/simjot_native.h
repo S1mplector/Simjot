@@ -1773,6 +1773,44 @@ uint8_t* simjot_atlas_get_pixels(void* atlas);
 int32_t simjot_font_pack(const void* font, uint8_t* buffer, int32_t buffer_len);
 void* simjot_font_unpack(const uint8_t* buffer, int32_t buffer_len);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * TABLET INPUT API
+ * 
+ * Low-level drawing tablet detection and pressure sensitivity support.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Opaque tablet context handle */
+typedef struct tablet_context tablet_context_t;
+
+/* Context management */
+void* simjot_tablet_create_context(void);
+void simjot_tablet_destroy_context(void* ctx);
+int32_t simjot_tablet_initialize(void* ctx);
+int32_t simjot_tablet_is_available(void);
+
+/* Device enumeration */
+int32_t simjot_tablet_get_device_count(void* ctx);
+int32_t simjot_tablet_get_device_name(void* ctx, int32_t index, char* out, int32_t out_len);
+int32_t simjot_tablet_get_device_vendor(void* ctx, int32_t index);
+int32_t simjot_tablet_get_device_type(void* ctx, int32_t index);
+int32_t simjot_tablet_get_pressure_levels(void* ctx, int32_t index);
+int32_t simjot_tablet_has_tilt(void* ctx, int32_t index);
+int32_t simjot_tablet_refresh_devices(void* ctx);
+
+/* Current state queries */
+float simjot_tablet_get_pressure(void* ctx);
+int32_t simjot_tablet_get_tilt(void* ctx, float* tilt_x, float* tilt_y);
+float simjot_tablet_get_rotation(void* ctx);
+int32_t simjot_tablet_is_stylus_in_range(void* ctx);
+int32_t simjot_tablet_is_eraser_active(void* ctx);
+int32_t simjot_tablet_is_touching(void* ctx);
+uint32_t simjot_tablet_get_buttons(void* ctx);
+
+/* Pressure curve utilities */
+float simjot_tablet_apply_pressure_curve(float pressure, float gamma);
+float simjot_tablet_apply_pressure_bezier(float pressure, float p1, float p2);
+float simjot_tablet_smooth_pressure(float current, float previous, float smoothing);
+
 #ifdef __cplusplus
 }
 #endif
