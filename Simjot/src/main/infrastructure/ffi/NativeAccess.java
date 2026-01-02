@@ -477,6 +477,18 @@ public final class NativeAccess {
         }
     }
 
+    public static List<String> textExtractTags(String text) {
+        if (!textUtilsReady() || text == null) return null;
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            return lib.textExtractTags(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-text", "Native tag extraction failed.", t);
+            return null;
+        }
+    }
+
     public static String textLastWord(String text) {
         if (!textUtilsReady() || text == null) return null;
         NativeLibrary lib = library();

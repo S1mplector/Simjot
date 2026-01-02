@@ -52,6 +52,7 @@ int32_t simjot_text_word_count(const char* text);
 int32_t simjot_text_sentence_count(const char* text);
 int32_t simjot_text_char_count(const char* text, int32_t include_spaces);
 int32_t simjot_text_extract_words(const char* text, char* out, int32_t out_len);
+int32_t simjot_text_extract_tags(const char* text, char* out, int32_t out_len);
 int32_t simjot_text_last_word(const char* text, char* out, int32_t out_len);
 int32_t simjot_text_normalize(const char* text, char* out, int32_t out_len);
 int32_t simjot_text_fuzzy_match(const char* text, const char* query);

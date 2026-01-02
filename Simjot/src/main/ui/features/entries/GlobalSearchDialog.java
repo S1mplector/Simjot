@@ -21,11 +21,11 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +56,7 @@ import main.core.security.EncryptionManager;
 import main.core.security.crypto.CryptoException;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -273,7 +274,23 @@ public class GlobalSearchDialog extends JDialog {
 
     private static File[] listEntryFiles(NotebookInfo nb) {
         if (nb == null || nb.getFolder() == null || !nb.getFolder().exists()) return null;
-        return nb.getFolder().listFiles(f -> {
+        File folder = nb.getFolder();
+        String nativeResult = NativeAccess.fsListFiltered(
+                folder.getAbsolutePath(),
+                ".note,.txt,.ntk,.poem,.rtf",
+                false);
+        if (nativeResult != null && !nativeResult.isEmpty()) {
+            List<File> files = new ArrayList<>();
+            for (String line : nativeResult.split("\n")) {
+                if (line.isEmpty()) continue;
+                String[] parts = line.split("\\|", 4);
+                if (parts.length >= 4 && "f".equals(parts[0])) {
+                    files.add(new File(folder, parts[3]));
+                }
+            }
+            return files.toArray(new File[0]);
+        }
+        return folder.listFiles(f -> {
             if (f == null || !f.isFile()) return false;
             String name = f.getName().toLowerCase(Locale.ROOT);
             return name.endsWith(".note") || name.endsWith(".txt")
@@ -295,7 +312,7 @@ public class GlobalSearchDialog extends JDialog {
                     return null;
                 }
             } else {
-                raw = Files.readAllBytes(f.toPath());
+                raw = FileIO.readAllBytes(f.toPath());
             }
             if (raw == null) return null;
             try (BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8))) {
@@ -408,6 +425,7 @@ public class GlobalSearchDialog extends JDialog {
     private static class SearchQuery {
         final String q;
         final String qLower;
+        final String[] tokens;
         final String qCompact;
         final Set<String> tags;
         final LocalDate from;
@@ -419,7 +437,8 @@ public class GlobalSearchDialog extends JDialog {
         SearchQuery(String q, String tagText, LocalDate from, LocalDate to, int moodMin, int moodMax, boolean fuzzy) {
             this.q = q == null ? "" : q.trim();
             this.qLower = this.q.toLowerCase(Locale.ROOT);
-            this.qCompact = this.qLower.replaceAll("\\s+", "");
+            this.tokens = this.qLower.isEmpty() ? new String[0] : this.qLower.split("\\s+");
+            this.qCompact = stripSpaces(collapseSpaces(this.qLower));
             this.tags = parseTagsFilter(tagText);
             this.from = from;
             this.to = to;
@@ -447,13 +466,12 @@ public class GlobalSearchDialog extends JDialog {
                 if (data.mood < 0) return false;
                 if (data.mood < moodMin || data.mood > moodMax) return false;
             }
-            data.queryForSnippet = qLower;
+            data.queryForSnippet = q;
             if (q.isEmpty()) return true;
             String text = (data.title == null ? "" : data.title) + " " + (data.text == null ? "" : data.text);
-            String lower = text.toLowerCase(Locale.ROOT);
-            if (containsAllTokens(qLower, lower)) return true;
+            if (containsAllTokens(tokens, text)) return true;
             if (!fuzzy) return false;
-            String compact = lower.replaceAll("\\s+", "");
+            String compact = stripSpaces(collapseSpaces(text.toLowerCase(Locale.ROOT)));
             return fuzzyMatch(qCompact, compact);
         }
 
@@ -520,20 +538,22 @@ public class GlobalSearchDialog extends JDialog {
 
     private static String buildSnippet(String text, String query) {
         if (text == null) return "";
-        String flat = text.replaceAll("\\s+", " ").trim();
+        String flat = collapseSpaces(text);
         if (flat.isEmpty()) return "";
         if (query == null || query.isBlank()) {
             return trimSnippet(flat, 160);
         }
-        String lower = flat.toLowerCase(Locale.ROOT);
-        String q = query.toLowerCase(Locale.ROOT);
-        int idx = lower.indexOf(q);
+        String q = query.trim();
+        int idx = findIndexCi(flat, q);
         if (idx < 0) {
             String[] parts = q.split("\\s+");
             for (String p : parts) {
                 if (p.isBlank()) continue;
-                idx = lower.indexOf(p);
-                if (idx >= 0) break;
+                idx = findIndexCi(flat, p);
+                if (idx >= 0) {
+                    q = p;
+                    break;
+                }
             }
         }
         if (idx < 0) return trimSnippet(flat, 160);
@@ -545,16 +565,42 @@ public class GlobalSearchDialog extends JDialog {
         return snippet;
     }
 
+    private static String collapseSpaces(String text) {
+        if (text == null || text.isEmpty()) return "";
+        String nativeCollapsed = NativeAccess.patternCollapseSpaces(text);
+        if (nativeCollapsed != null) return nativeCollapsed;
+        return text.replaceAll("\\s+", " ").trim();
+    }
+
+    private static String stripSpaces(String text) {
+        if (text == null || text.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (!Character.isWhitespace(c)) sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    private static int findIndexCi(String text, String needle) {
+        if (text == null || needle == null || needle.isBlank()) return -1;
+        long idx = NativeAccess.searchFindCi(text, needle);
+        if (idx >= 0 && idx <= Integer.MAX_VALUE) return (int) idx;
+        String lower = text.toLowerCase(Locale.ROOT);
+        String qLower = needle.toLowerCase(Locale.ROOT);
+        return lower.indexOf(qLower);
+    }
+
     private static String trimSnippet(String text, int max) {
         if (text.length() <= max) return text;
         return text.substring(0, max - 3).trim() + "...";
     }
 
-    private static boolean containsAllTokens(String query, String text) {
-        String[] parts = query.split("\\s+");
-        for (String p : parts) {
-            if (p.isBlank()) continue;
-            if (!NativeAccess.searchContains(text, p)) return false;
+    private static boolean containsAllTokens(String[] tokens, String text) {
+        if (tokens == null || tokens.length == 0) return true;
+        for (String p : tokens) {
+            if (p == null || p.isBlank()) continue;
+            if (!NativeAccess.searchContainsCi(text, p)) return false;
         }
         return true;
     }
@@ -575,6 +621,13 @@ public class GlobalSearchDialog extends JDialog {
     private static Set<String> extractTags(String text) {
         Set<String> tags = new HashSet<>();
         if (text == null || text.isBlank()) return tags;
+        List<String> nativeTags = NativeAccess.textExtractTags(text);
+        if (nativeTags != null) {
+            for (String tag : nativeTags) {
+                if (tag != null && !tag.isEmpty()) tags.add(tag);
+            }
+            return tags;
+        }
         Matcher m = Pattern.compile("#([A-Za-z0-9_-]+)").matcher(text);
         while (m.find()) {
             tags.add(m.group(1).toLowerCase(Locale.ROOT));

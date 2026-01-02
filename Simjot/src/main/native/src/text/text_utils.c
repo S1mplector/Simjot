@@ -179,6 +179,57 @@ int32_t simjot_text_extract_words(const char* text, char* out, int32_t out_len) 
 }
 
 /**
+ * @brief Extract hashtag-style tags (#tag) from text.
+ *
+ * Tags are sequences of [A-Za-z0-9_-] preceded by '#'.
+ * Results are newline-separated and lowercased.
+ *
+ * @param text Input text
+ * @param out Output buffer
+ * @param out_len Size of output buffer
+ * @return Number of bytes written
+ */
+int32_t simjot_text_extract_tags(const char* text, char* out, int32_t out_len) {
+    if (!text || !out || out_len <= 0) return 0;
+
+    int32_t out_pos = 0;
+    const char* p = text;
+
+    while (*p) {
+        if (*p == '#') {
+            const char* start = p + 1;
+            int32_t len = 0;
+
+            while (start[len]) {
+                unsigned char c = (unsigned char)start[len];
+                if (isalnum(c) || c == '_' || c == '-') {
+                    len++;
+                } else {
+                    break;
+                }
+            }
+
+            if (len > 0) {
+                if (out_pos + len + 1 >= out_len) {
+                    break;
+                }
+                if (out_pos > 0) out[out_pos++] = '\n';
+                for (int32_t i = 0; i < len && out_pos < out_len - 1; i++) {
+                    out[out_pos++] = (char)tolower((unsigned char)start[i]);
+                }
+            }
+
+            p = start + len;
+            continue;
+        }
+        p++;
+    }
+
+    out[out_pos] = '\0';
+    return out_pos;
+}
+
+/**
  * @brief Get the last word in text
  * 
  * Useful for rhyme analysis and autocomplete.
@@ -522,4 +573,3 @@ int32_t simjot_text_similarity(const char* a, const char* b) {
     size_t max_len = la > lb ? la : lb;
     return (int32_t)(100 - (dist * 100 / (int32_t)max_len));
 }
-

@@ -86,6 +86,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle textSentenceCountHandle;
     private final MethodHandle textCharCountHandle;
     private final MethodHandle textExtractWordsHandle;
+    private final MethodHandle textExtractTagsHandle;
     private final MethodHandle textLastWordHandle;
     private final MethodHandle textNormalizeHandle;
     private final MethodHandle textFuzzyMatchHandle;
@@ -579,6 +580,10 @@ public final class NativeLibrary implements AutoCloseable {
         );
         this.textExtractWordsHandle = optionalHandle(
             "simjot_text_extract_words",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+        );
+        this.textExtractTagsHandle = optionalHandle(
+            "simjot_text_extract_tags",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
         );
         this.textLastWordHandle = optionalHandle(
@@ -1762,6 +1767,26 @@ public final class NativeLibrary implements AutoCloseable {
                 if (!w.isEmpty()) words.add(w);
             }
             return words;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public List<String> textExtractTags(String text) {
+        if (textExtractTagsHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cText = tempArena.allocateFrom(text);
+            int bufSize = Math.max(256, text.length() * 2);
+            MemorySegment outBuf = tempArena.allocate(bufSize);
+            int written = (int) textExtractTagsHandle.invokeExact(cText, outBuf, bufSize);
+            if (written <= 0) return Collections.emptyList();
+            byte[] bytes = outBuf.asSlice(0, written).toArray(ValueLayout.JAVA_BYTE);
+            String result = new String(bytes, StandardCharsets.UTF_8);
+            List<String> tags = new ArrayList<>();
+            for (String t : result.split("\n")) {
+                if (!t.isEmpty()) tags.add(t);
+            }
+            return tags;
         } catch (Throwable t) {
             return null;
         }
