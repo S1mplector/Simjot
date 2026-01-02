@@ -18,7 +18,7 @@ public final class AppInfo {
     public static final String NAME = "Simjot";
     public static final String VERSION = "0.1.0";
     public static final String AUTHOR = "Ilgaz Mehmetoglu";
-    public static final String LICENSE = "Source-Available Personal Use License";
+    public static final String LICENSE = "MIT License";
     
     /**
      * Returns formatted version string (e.g., "v1.0.0")

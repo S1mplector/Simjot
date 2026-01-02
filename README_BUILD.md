@@ -6,8 +6,10 @@ This document covers building Simjot from source on all platforms.
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| JDK | 17+ | Ensure `java`, `javac`, and `jpackage` are on your `PATH` |
-| Maven | 3.8+ | Optional but recommended |
+| JDK | 24+ | Ensure `java`, `javac`, and `jpackage` are on your `PATH` |
+| Maven | 3.8+ | Required for building |
+| GHC/Cabal | 9.4+ | Optional, for Haskell poetry module |
+| CMake | 3.20+ | Optional, for native C/C++ library |
 
 ## Build Methods
 
@@ -124,13 +126,102 @@ SIMJOT_LOG=debug java -jar Simjot.jar
 
 | Issue | Solution |
 |-------|----------|
-| `javac` not found | Ensure JDK 17+ `bin` is on your `PATH` |
+| `javac` not found | Ensure JDK 24+ `bin` is on your `PATH` |
 | `jpackage` not found | Included with JDK 14+; verify installation |
 | Missing resources | Ensure resources are copied to `build/classes/` |
 | Maven build fails | Run `mvn clean` then retry |
 
+## Convenience Scripts
+
+### Requirements
+
+| Script | Required | Install (macOS) | Install (Linux) |
+|--------|----------|-----------------|-----------------|
+| `./compile-native.sh` | CMake 3.20+ | `brew install cmake` | `sudo apt install cmake` |
+| `./compile-native.sh` | C/C++ compiler | `xcode-select --install` | `sudo apt install build-essential` |
+| `./compile-native.sh --haskell` | GHC + Cabal | `brew install ghc cabal-install` | `sudo apt install ghc cabal-install` |
+| `./run.sh` | JDK 24+ | `brew install openjdk@24` | See [Adoptium](https://adoptium.net) |
+| `./run.sh` | Maven 3.8+ | `brew install maven` | `sudo apt install maven` |
+
+### `./compile-native.sh` to build native library
+
+Compiles the C/C++ native library. 
+Please make sure to do this before running the application, 
+as Simjot will not work properly without it.
+
+```bash
+./compile-native.sh
+```
+
+**Options:**
+| Flag | Description |
+|------|-------------|
+| `--clean` | Clean build directories before compiling |
+| `--release` | Build with optimizations (default: debug) |
+| `--haskell` | Also build the Haskell FFI library |
+| `--skip-tests` | Skip running native tests |
+
+**Examples:**
+```bash
+./compile-native.sh --release # Optimized build
+./compile-native.sh --clean --haskell # Full clean build with Haskell
+```
+
+Output: `libsimjot_native.dylib` (macOS) / `libsimjot_native.so` (Linux) / `simjot_native.dll` (Windows)
+
+## Manually building native library
+
+If you prefer manual compilation:
+
+```bash
+cd Simjot/src/main/native
+mkdir -p build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make
+```
+
+## Manually building Haskell module
+
+Poetry analysis module via Haskell FFI:
+
+```bash
+cd Simjot/src/main/haskell
+cabal build
+```
+
+
+### `./run.sh`
+
+The easiest way to run Simjot:
+
+```bash
+./run.sh
+```
+
+This script:
+- Automatically detects and uses JDK 24+
+- Builds the JAR if missing (via Maven)
+- Configures native library paths for FFM integration
+
+**Options:**
+| Flag | Description |
+|------|-------------|
+| `--no-build` | Skip Maven build, use existing JAR |
+| `--build` | Force rebuild even if JAR exists |
+| `--no-native` | Run in pure Java mode (no native library) |
+| `--` | Pass remaining arguments to Java |
+
+**Examples:**
+```bash
+./run.sh --no-build # Quick start with existing build
+./run.sh --no-native # Skip native library
+./run.sh -- -Xmx2g # Pass custom JVM args
+```
+
 ## Project Dependencies
 
-Core dependencies (managed by Maven):
+Core dependencies are as follows: 
 - **JUnit 5**: Testing framework
-- No external runtime dependencies, Simjot is a pure Java Swing application
+- **Apache PDFBox 2.0.29**: PDF export functionality
+- **JNativeHook 2.2.2**: Global hotkey support
+- **Batik 1.17**: SVG rendering

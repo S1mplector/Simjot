@@ -17,6 +17,7 @@ import java.util.Random;
 import javax.swing.*;
 
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.QuoteLibrary;
 import main.infrastructure.monitoring.AppPerf;
 import main.core.service.SettingsStore;
 import main.ui.theme.Theme;
@@ -57,44 +58,8 @@ public class HeaderPanel extends JPanel {
         setOpaque(false);
         setLayout(new BorderLayout());
         this.accent = (accent != null ? accent : AeroTheme.AERO_BLUE);
-        // Random calming quotes (built-in).
-        String[] quotes = {
-            "Take a deep breath. You are enough.",
-            "Every day is a fresh start.",
-            "Peace begins with a smile.",
-            "Keep calm and carry on.",
-            "What's something you did that you're proud of today?",
-            "Jot down your thoughts, calm them down.",
-            "Inhale calm, exhale tension.",
-            "One thing at a time.",
-            "Let today be gentle.",
-            "Slow is smooth, smooth is fast.",
-            "You are safe here.",
-            "Soft shoulders, unclenched jaw.",
-            "Be kind to your mind.",
-            "A small step is still a step.",
-            "You have done enough for now.",
-            "Rest is productive.",
-            "Return to your breath.",
-            "Let go of what you can’t control.",
-            "Notice one good thing.",
-            "May your thoughts be light today.",
-            "It's okay to pause.",
-            "You can begin again.",
-            "Drink some water.",
-            "Step outside for a moment.",
-            "Loosen your shoulders.",
-            "A gentle day is still a good day.",
-            "Tiny progress is progress.",
-            "Breathe in for 4, out for 6.",
-            "Give yourself some grace.",
-            "Let the hurry fall away.",
-            "Your pace is perfect for you.",
-            "Quiet moments count, too."
-        };
-        // Merge with custom quotes from settings
-        quotePool = new java.util.ArrayList<>();
-        java.util.Collections.addAll(quotePool, quotes);
+        // Load curated quotes from resources (native-accelerated I/O when available).
+        quotePool = new java.util.ArrayList<>(QuoteLibrary.loadQuotes());
         try {
             String[] custom = SettingsStore.get().getHeaderCustomQuotes();
             if (custom != null) {

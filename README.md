@@ -80,10 +80,12 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 ## Quick Start
 
 ### Prerequisites
-- **Java 17 or higher** installed on your system
-- **JDK 17 or higher** for building the project
-- **Maven** (optional) for dependency management
+- **Java 24 or higher** installed on your system
+- **JDK 24 or higher** for building the project
+- **Maven 3.8+** for dependency management and building
 - **Ollama** (optional) for Sim AI companion features
+- **GHC/Cabal** (optional) for Haskell poetry analysis module
+- **CMake** (optional) for native C/C++ performance library
 
 ### Installation & Build
 
@@ -163,7 +165,7 @@ Simjot/
 │   ├── src/main/
 │   │   ├── core/               # Domain models and business logic
 │   │   │   ├── analytics/      # Usage analytics
-│   │   │   ├── export/         # Export functionality
+│   │   │   ├── export/         # Export functionality (PDF support)
 │   │   │   ├── poetry/         # Poetry analysis engine
 │   │   │   ├── security/       # Encryption and locking
 │   │   │   ├── service/        # Core services
@@ -174,11 +176,20 @@ Simjot/
 │   │   │   │   ├── memory/     # Long-term memory store
 │   │   │   │   └── proactive/  # Proactive triggering
 │   │   │   └── spelling/       # Spell checking
+│   │   ├── haskell/            # Haskell poetry analysis module
+│   │   │   ├── src/            # Haskell source files
+│   │   │   └── simjot-poetry.cabal
 │   │   ├── infrastructure/     # System services
 │   │   │   ├── backup/         # Backup management
+│   │   │   ├── ffi/            # Foreign function interface
 │   │   │   ├── hotkeys/        # Global hotkey support
 │   │   │   ├── io/             # File I/O utilities
-│   │   │   └── monitoring/     # Performance monitoring
+│   │   │   ├── monitoring/     # Performance monitoring
+│   │   │   └── native/         # Native library bindings
+│   │   ├── native/             # C/C++ native performance library
+│   │   │   ├── src/            # Native source (analytics, compression, etc.)
+│   │   │   ├── include/        # Header files
+│   │   │   └── CMakeLists.txt  # CMake build configuration
 │   │   ├── resources/          # Images, audio, dictionaries
 │   │   └── ui/                 # User interface
 │   │       ├── animations/     # Animation utilities
@@ -186,10 +197,15 @@ Simjot/
 │   │       ├── dialog/         # Dialog windows
 │   │       ├── features/       # Feature modules
 │   │       │   ├── drawing/    # Drawing canvas
+│   │       │   ├── editing/    # Rich text editing
 │   │       │   ├── entries/    # Entry management
+│   │       │   ├── gallery/    # Image gallery
 │   │       │   ├── home/       # Main menu and dashboard
+│   │       │   ├── notebooks/  # Notebook management
 │   │       │   ├── poetry/     # Poetry editor
+│   │       │   ├── quicksettings/ # Quick settings overlay
 │   │       │   ├── settings/   # Settings pages
+│   │       │   ├── splash/     # Splash screen
 │   │       │   └── widgets/    # Productivity widgets
 │   │       ├── sim/            # Sim chat interface
 │   │       └── theme/          # Theming system
@@ -201,7 +217,7 @@ Simjot/
 ├── README.md                   # This file
 ├── README_BUILD.md             # Build instructions
 ├── TESTING.md                  # Testing guide
-└── LICENSE.md                  # License
+└── LICENSE.md                  # MIT License
 ```
 
 ## Technical Details
@@ -215,12 +231,17 @@ Simjot/
 - **File-based persistence** with custom serialization
 
 ### Technologies Used
-- **Java 17+** with Project Jigsaw (modular system)
+- **Java 24** with Project Jigsaw (modular system)
 - **Java Swing** for cross-platform GUI
 - **Java 2D Graphics** for drawing and image processing
 - **Ollama API** for local LLM integration (Sim AI)
 - **AES-256 encryption** for security features
 - **Built-in audio support** for sound effects
+- **Apache PDFBox** for PDF export
+- **JNativeHook** for global hotkeys
+- **Batik** for SVG rendering
+- **Native C/C++ library** for performance-critical operations
+- **Haskell FFI** for advanced poetry analysis
 
 ### File Formats
 - **Journal entries**: `.note` files with metadata and mood data
@@ -256,22 +277,19 @@ See [TESTING.md](TESTING.md) for detailed testing information.
 
 ## License
 
-Simjot is released under a **Source-Available Personal Use License**. You may:
-- View and study the source code
-- Use the software for personal purposes
-- Create private forks for personal modification
+Simjot is released under the **MIT License**. You may:
+- Use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+- Use for personal or commercial purposes
+- Create derivative works
 
-You may **not**:
-- Distribute the original or modified software
-- Use for commercial purposes
-- Sublicense the software
+**Note**: Icon assets are under a separate license requiring attribution to the artist Lightning ([@LightningTheAn1](https://x.com/LightningTheAn1)).
 
 See [LICENSE.md](LICENSE.md) for full terms.
 
 ## Troubleshooting
 
 ### Common Issues
-- **Application won't start**: Ensure Java 17+ is installed and in your PATH
+- **Application won't start**: Ensure Java 24+ is installed and in your PATH
 - **File not found errors**: Check that the journal folder path is accessible
 - **Backup failures**: Verify write permissions to backup destination
 
