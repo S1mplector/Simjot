@@ -27,6 +27,7 @@ import javax.swing.JTextArea;
 
 import main.core.font.CustomFont;
 import main.infrastructure.font.CustomFontRenderer;
+import main.infrastructure.font.NativeFontSupport;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 
@@ -181,8 +182,11 @@ public class FontPreviewPanel extends JPanel {
         
         // Draw with custom font renderer
         int x = 10;
-        int y = (int) font.getAscender(previewSize) + 10;
-        int lineHeight = (int) font.getLineHeight(previewSize);
+        Float nativeAscender = NativeFontSupport.getAscender(font, previewSize);
+        float ascender = nativeAscender != null ? nativeAscender : font.getAscender(previewSize);
+        int y = (int) ascender + 10;
+        Float nativeLineHeight = NativeFontSupport.getLineHeight(font, previewSize);
+        int lineHeight = (int) (nativeLineHeight != null ? nativeLineHeight : font.getLineHeight(previewSize));
         
         // Simple word wrap
         float maxWidth = w - 20;
@@ -190,7 +194,8 @@ public class FontPreviewPanel extends JPanel {
         
         for (String word : sampleText.split("\\s+")) {
             String testLine = currentLine.length() == 0 ? word : currentLine + " " + word;
-            float testWidth = font.measureText(testLine, previewSize);
+            Float nativeWidth = NativeFontSupport.measureText(font, testLine, previewSize);
+            float testWidth = nativeWidth != null ? nativeWidth : font.measureText(testLine, previewSize);
             
             if (testWidth > maxWidth && currentLine.length() > 0) {
                 // Draw current line

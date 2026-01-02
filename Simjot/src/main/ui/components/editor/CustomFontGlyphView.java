@@ -25,6 +25,7 @@ import javax.swing.text.View;
 
 import main.core.font.CustomFont;
 import main.infrastructure.font.CustomFontRenderer;
+import main.infrastructure.font.NativeFontSupport;
 
 /**
  * GlyphView that renders using the active custom font when present.
@@ -44,7 +45,7 @@ class CustomFontGlyphView extends GlyphView {
         if (axis == View.X_AXIS) {
             return measureTextWidth(font, getViewText(), size);
         }
-        return font.getLineHeight(size);
+        return resolveLineHeight(font, size);
     }
 
     @Override
@@ -68,7 +69,7 @@ class CustomFontGlyphView extends GlyphView {
         if (text.isEmpty()) return;
         Rectangle alloc = (a instanceof Rectangle) ? (Rectangle) a : a.getBounds();
         int size = resolveSize();
-        int baseline = alloc.y + Math.round(font.getAscender(size));
+        int baseline = alloc.y + Math.round(resolveAscender(font, size));
 
         Graphics2D g2 = (Graphics2D) g.create();
         try {
@@ -109,13 +110,12 @@ class CustomFontGlyphView extends GlyphView {
         }
         try {
             String text = getDocument().getText(start, end - start);
-            float space = font.measureChar(' ', resolveSize());
             int offset = start;
             float width = 0f;
             for (int i = 0; i < text.length();) {
                 int cp = text.codePointAt(i);
                 int chars = Character.charCount(cp);
-                float advance = advanceForCodepoint(font, cp, space, resolveSize());
+                float advance = advanceForCodepoint(font, cp, resolveSize());
                 if (width + advance * 0.5f >= target) {
                     if (biasReturn != null && biasReturn.length > 0) biasReturn[0] = Position.Bias.Forward;
                     return offset;
@@ -149,7 +149,6 @@ class CustomFontGlyphView extends GlyphView {
 
         try {
             String text = getDocument().getText(p0, end - p0);
-            float space = font.measureChar(' ', resolveSize());
             float width = 0f;
             int breakOffset = -1;
             int lastSpace = -1;
@@ -157,7 +156,7 @@ class CustomFontGlyphView extends GlyphView {
             for (int i = 0; i < text.length();) {
                 int cp = text.codePointAt(i);
                 int chars = Character.charCount(cp);
-                float advance = advanceForCodepoint(font, cp, space, resolveSize());
+                float advance = advanceForCodepoint(font, cp, resolveSize());
                 if (Character.isWhitespace(cp)) {
                     lastSpace = offset + chars;
                 }
@@ -218,20 +217,35 @@ class CustomFontGlyphView extends GlyphView {
 
     private float measureTextWidth(CustomFont font, String text, int size) {
         if (text == null || text.isEmpty()) return 0f;
-        float space = font.measureChar(' ', size);
         float width = 0f;
         for (int i = 0; i < text.length();) {
             int cp = text.codePointAt(i);
             int chars = Character.charCount(cp);
-            width += advanceForCodepoint(font, cp, space, size);
+            width += advanceForCodepoint(font, cp, size);
             i += chars;
         }
         return width;
     }
 
-    private float advanceForCodepoint(CustomFont font, int cp, float space, int size) {
+    private float advanceForCodepoint(CustomFont font, int cp, int size) {
         if (cp == '\n' || cp == '\r') return 0f;
-        if (cp == '\t') return space * 4f;
-        return font.measureChar(cp, size);
+        if (cp == '\t') return resolveSpaceAdvance(font, size) * 4f;
+        Float nativeAdvance = NativeFontSupport.measureChar(font, cp, size);
+        return nativeAdvance != null ? nativeAdvance : font.measureChar(cp, size);
+    }
+
+    private float resolveSpaceAdvance(CustomFont font, int size) {
+        Float nativeAdvance = NativeFontSupport.measureChar(font, ' ', size);
+        return nativeAdvance != null ? nativeAdvance : font.measureChar(' ', size);
+    }
+
+    private float resolveLineHeight(CustomFont font, int size) {
+        Float nativeHeight = NativeFontSupport.getLineHeight(font, size);
+        return nativeHeight != null ? nativeHeight : font.getLineHeight(size);
+    }
+
+    private float resolveAscender(CustomFont font, int size) {
+        Float nativeAscender = NativeFontSupport.getAscender(font, size);
+        return nativeAscender != null ? nativeAscender : font.getAscender(size);
     }
 }

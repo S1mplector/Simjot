@@ -68,84 +68,120 @@ public final class NativeFontSupport {
         NativeFonts native = nativeFonts();
         if (native == null) return null;
 
-        FontHandle handle = fontHandle(font, native);
-        if (handle == null) return null;
-
-        MemorySegment nativeGlyph = native.fontGetGlyph(handle.font, glyph.getCodepoint());
-        if (nativeGlyph == null || nativeGlyph.equals(MemorySegment.NULL)) return null;
-
-        int os = antialiasing ? Math.max(1, Math.min(8, oversample)) : 1;
-        MemorySegment bitmap = native.rasterGlyph(nativeGlyph, size, os, 1.0f, font.getEmSize());
-        if (bitmap == null || bitmap.equals(MemorySegment.NULL)) return null;
-
         try {
-            int width = native.bitmapGetWidth(bitmap);
-            int height = native.bitmapGetHeight(bitmap);
-            if (width <= 0 || height <= 0) return null;
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
 
-            int[] pixels = new int[width * height];
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment out = arena.allocateArray(ValueLayout.JAVA_INT, pixels.length);
-                int result = native.bitmapToArgb(bitmap, Color.BLACK.getRGB(), out, width);
-                if (result >= 0) {
-                    MemorySegment.copy(out, ValueLayout.JAVA_INT, 0, pixels, 0, pixels.length);
-                } else {
-                    return null;
+            MemorySegment nativeGlyph = native.fontGetGlyph(handle.font, glyph.getCodepoint());
+            if (nativeGlyph == null || nativeGlyph.equals(MemorySegment.NULL)) return null;
+
+            int os = antialiasing ? Math.max(1, Math.min(8, oversample)) : 1;
+            MemorySegment bitmap = native.rasterGlyph(nativeGlyph, size, os, 1.0f, font.getEmSize());
+            if (bitmap == null || bitmap.equals(MemorySegment.NULL)) return null;
+
+            try {
+                int width = native.bitmapGetWidth(bitmap);
+                int height = native.bitmapGetHeight(bitmap);
+                if (width <= 0 || height <= 0) return null;
+
+                int[] pixels = new int[width * height];
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment out = arena.allocateArray(ValueLayout.JAVA_INT, pixels.length);
+                    int result = native.bitmapToArgb(bitmap, Color.BLACK.getRGB(), out, width);
+                    if (result >= 0) {
+                        MemorySegment.copy(out, ValueLayout.JAVA_INT, 0, pixels, 0, pixels.length);
+                    } else {
+                        return null;
+                    }
                 }
-            }
 
-            BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            img.setRGB(0, 0, width, height, pixels, 0, width);
-            return img;
-        } finally {
-            native.bitmapFree(bitmap);
+                BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                img.setRGB(0, 0, width, height, pixels, 0, width);
+                return img;
+            } finally {
+                native.bitmapFree(bitmap);
+            }
+        } catch (Throwable t) {
+            return null;
         }
     }
 
     public static float[] getGlyphBounds(CustomFont font, int codepoint) {
         NativeFonts native = nativeFonts();
         if (native == null || font == null) return null;
-        FontHandle handle = fontHandle(font, native);
-        if (handle == null) return null;
+        try {
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
 
-        MemorySegment nativeGlyph = native.fontGetGlyph(handle.font, codepoint);
-        if (nativeGlyph == null || nativeGlyph.equals(MemorySegment.NULL)) return null;
-        return native.glyphGetBounds(nativeGlyph);
+            MemorySegment nativeGlyph = native.fontGetGlyph(handle.font, codepoint);
+            if (nativeGlyph == null || nativeGlyph.equals(MemorySegment.NULL)) return null;
+            return native.glyphGetBounds(nativeGlyph);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Float getGlyphAdvance(CustomFont font, int codepoint) {
         NativeFonts native = nativeFonts();
         if (native == null || font == null) return null;
-        FontHandle handle = fontHandle(font, native);
-        if (handle == null) return null;
+        try {
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
 
-        MemorySegment nativeGlyph = native.fontGetGlyph(handle.font, codepoint);
-        if (nativeGlyph == null || nativeGlyph.equals(MemorySegment.NULL)) return null;
-        return native.glyphGetAdvance(nativeGlyph);
+            MemorySegment nativeGlyph = native.fontGetGlyph(handle.font, codepoint);
+            if (nativeGlyph == null || nativeGlyph.equals(MemorySegment.NULL)) return null;
+            return native.glyphGetAdvance(nativeGlyph);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Float measureText(CustomFont font, String text, int size) {
         NativeFonts native = nativeFonts();
         if (native == null || font == null || text == null || text.isEmpty()) return null;
-        FontHandle handle = fontHandle(font, native);
-        if (handle == null) return null;
-        return native.fontMeasureText(handle.font, text, size);
+        try {
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
+            return native.fontMeasureText(handle.font, text, size);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Float measureChar(CustomFont font, int codepoint, int size) {
+        NativeFonts native = nativeFonts();
+        if (native == null || font == null) return null;
+        try {
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
+            return native.fontMeasureChar(handle.font, codepoint, size);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Float getLineHeight(CustomFont font, int size) {
         NativeFonts native = nativeFonts();
         if (native == null || font == null) return null;
-        FontHandle handle = fontHandle(font, native);
-        if (handle == null) return null;
-        return native.fontGetLineHeight(handle.font, size);
+        try {
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
+            return native.fontGetLineHeight(handle.font, size);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static Float getAscender(CustomFont font, int size) {
         NativeFonts native = nativeFonts();
         if (native == null || font == null) return null;
-        FontHandle handle = fontHandle(font, native);
-        if (handle == null) return null;
-        return native.fontGetAscender(handle.font, size);
+        try {
+            FontHandle handle = fontHandle(font, native);
+            if (handle == null) return null;
+            return native.fontGetAscender(handle.font, size);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static FontHandle fontHandle(CustomFont font, NativeFonts native) {
