@@ -118,6 +118,7 @@ public final class CustomFontRegistry {
         if (font == null || font.getName() == null || font.getName().isEmpty()) {
             return false;
         }
+        font.touch();
         
         String name = font.getName();
         Path path = fontsDirectory.resolve(sanitizeName(name) + FONT_EXTENSION);

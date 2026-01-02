@@ -192,6 +192,7 @@ public final class AppConfig {
         AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
         AppDirectories.folder(AppDirectories.Type.SETTINGS);
         AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+        AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
     }
     
     /**

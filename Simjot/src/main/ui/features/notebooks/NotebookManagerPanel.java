@@ -67,6 +67,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.file.SimjotFileChooser;
@@ -648,7 +649,7 @@ public class NotebookManagerPanel extends JPanel {
             try {
                 String family = SettingsStore.get().getEditorFontFamily();
                 int size = SettingsStore.get().getJournalFontSize();
-                nameField.setFont(new Font(family, Font.PLAIN, size));
+                nameField.setFont(CustomFontApplier.resolveUiFont(family, size));
             } catch (Throwable ignored) {
                 nameField.setFont(nameField.getFont().deriveFont(Font.PLAIN, 16f));
             }
@@ -849,7 +850,7 @@ public class NotebookManagerPanel extends JPanel {
             try {
                 String family = SettingsStore.get().getEditorFontFamily();
                 int size = SettingsStore.get().getJournalFontSize();
-                titleField.setFont(new Font(family, Font.PLAIN, size));
+                titleField.setFont(CustomFontApplier.resolveUiFont(family, size));
             } catch (Throwable ignored) {
                 titleField.setFont(titleField.getFont().deriveFont(Font.PLAIN, 16f));
             }

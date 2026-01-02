@@ -25,6 +25,7 @@ import java.io.File;
  * ├── mood/               # Mood tracking data and analytics
  * ├── settings/           # Application preferences and configuration
  * ├── wallpapers/         # Custom background images
+ * ├── fonts/              # User-created custom fonts
  * └── [legacy folders]    # Older content types (entries, poems, drawings, tasks)
  * </pre>
  * 
@@ -102,7 +103,13 @@ public final class AppDirectories {
          * Directory for custom wallpaper and background images.
          * Stores user-uploaded and generated background files.
          */
-        WALLPAPERS("wallpapers");
+        WALLPAPERS("wallpapers"),
+        
+        /**
+         * Directory for user-created custom fonts.
+         * Stores .sjf font files created in the Custom Font Studio.
+         */
+        CUSTOM_FONTS("fonts");
 
         /** The folder name for this directory type. */
         private final String folderName;

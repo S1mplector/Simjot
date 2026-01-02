@@ -398,7 +398,8 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             switch (t) {
                 case MOOD_DATA:
                 case SETTINGS:
-                case WALLPAPERS: {
+                case WALLPAPERS:
+                case CUSTOM_FONTS: {
                     File f = AppDirectories.folder(t);
                     StorageNode info = StorageNode.leaf(t, f, t.folderName(), describe(t));
                     DefaultMutableTreeNode child = new DefaultMutableTreeNode(info);
@@ -422,6 +423,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             case NOTEBOOKS: return "Notebooks (entries and poems)";
             case TASKS: return "Tasks";
             case WALLPAPERS: return "Wallpapers";
+            case CUSTOM_FONTS: return "Custom fonts";
             default: return t.name();
         }
     }

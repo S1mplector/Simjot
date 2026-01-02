@@ -540,6 +540,10 @@ public class SetupWizardDialog extends JDialog {
             File f = AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
             return main.infrastructure.ffi.NativeAccess.verifyWritable(f.getAbsolutePath());
         }));
+        setupTasks.add(new SetupTask("Verifying custom fonts folder", () -> {
+            File f = AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
+            return main.infrastructure.ffi.NativeAccess.verifyWritable(f.getAbsolutePath());
+        }));
         setupTasks.add(new SetupTask("Initializing preferences", () -> {
             try {
                 SettingsStore.get().setBackgroundImage("");

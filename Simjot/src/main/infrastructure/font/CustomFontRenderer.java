@@ -46,18 +46,19 @@ public final class CustomFontRenderer {
         return cache;
     }
     
-    public BufferedImage renderGlyph(CustomGlyph glyph, int size, Color color, float emSize) {
-        if (glyph == null || !glyph.isDefined() || size <= 0) {
+    public BufferedImage renderGlyph(CustomFont font, CustomGlyph glyph, int size, Color color) {
+        if (font == null || glyph == null || !glyph.isDefined() || size <= 0) {
             return null;
         }
         
         // Check cache
-        String cacheKey = glyph.getCodepoint() + "_" + size;
+        String cacheKey = font.getName() + "_" + font.getModifiedTimestamp() + "_" + glyph.getCodepoint() + "_" + size;
         BufferedImage cached = cache.getGlyphImage(cacheKey);
         if (cached != null) {
             return colorize(cached, color);
         }
         
+        float emSize = font.getEmSize();
         float scale = (float) size / emSize;
         
         // Calculate bounds
@@ -223,7 +224,7 @@ public final class CustomFontRenderer {
             CustomGlyph glyph = font.getGlyph(cp);
             
             if (glyph != null && glyph.isDefined()) {
-                BufferedImage img = renderGlyph(glyph, size, color, font.getEmSize());
+                BufferedImage img = renderGlyph(font, glyph, size, color);
                 if (img != null) {
                     float[] bounds = glyph.getBounds();
                     int drawX = (int) (cursorX + bounds[0] * scale);

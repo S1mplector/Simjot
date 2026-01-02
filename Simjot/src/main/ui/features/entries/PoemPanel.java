@@ -86,6 +86,8 @@ import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.editor.CustomFontApplier;
+import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.FormattingHotkeyHandler;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
@@ -121,7 +123,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Components for poem writing
     protected TitleDividerField poemTitleField;
-    protected JTextPane poemEditor;
+    protected CustomFontTextPane poemEditor;
 
     private final String[] INSPIRATIONAL_WORDS = {
         "Ethereal", "Ephemeral", "Sonder", "Solitude", "Cascade", "Labyrinthine",
@@ -319,8 +321,8 @@ public class PoemPanel extends AbstractEditorPanel {
                 (selected) -> setTypingStyleUnderline(selected),
                 (selected) -> setTypingStyleStrike(selected),
                 (fontName) -> {
-                    Font currentFont = poemEditor.getFont();
-                    poemEditor.setFont(new Font(fontName, currentFont.getStyle(), currentFont.getSize()));
+                    int size = poemEditor.getFont() != null ? poemEditor.getFont().getSize() : SettingsStore.get().getPoemFontSize();
+                    CustomFontApplier.applyToTextPane(poemEditor, fontName, size);
                     applyParagraphFontToAll();
                 },
                 (size) -> {
@@ -356,7 +358,7 @@ public class PoemPanel extends AbstractEditorPanel {
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        poemEditor = new JTextPane();
+        poemEditor = new CustomFontTextPane();
         poemEditor.setOpaque(false);
         poemEditor.setForeground(new Color(40, 40, 40));
 
@@ -364,9 +366,9 @@ public class PoemPanel extends AbstractEditorPanel {
         String fontFamily = SettingsStore.get().getEditorFontFamily();
         int savedFontSize = SettingsStore.get().getPoemFontSize();
         String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
-        poemEditor.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+        CustomFontApplier.applyToTextPane(poemEditor, fontFamily, savedFontSize);
         if (poemTitleField != null) {
-            poemTitleField.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+            poemTitleField.setFont(CustomFontApplier.resolveUiFont(fontFamily, savedFontSize));
             poemTitleField.setPlaceholder(null);
         }
         // Apply line spacing from settings

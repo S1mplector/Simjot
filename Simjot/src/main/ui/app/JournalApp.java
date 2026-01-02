@@ -478,6 +478,7 @@ public class JournalApp extends JFrame {
                 AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
                 AppDirectories.folder(AppDirectories.Type.SETTINGS);
                 AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+                AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
                 FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
                 return;
             }
@@ -496,6 +497,7 @@ public class JournalApp extends JFrame {
                         AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
                         AppDirectories.folder(AppDirectories.Type.SETTINGS);
                         AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+                        AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
                         FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
                         return;
                     }
@@ -1414,6 +1416,7 @@ public class JournalApp extends JFrame {
                                         main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.MOOD_DATA);
                                         main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.SETTINGS);
                                         main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.WALLPAPERS);
+                                        main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.CUSTOM_FONTS);
                                     }
                                 }
                             }

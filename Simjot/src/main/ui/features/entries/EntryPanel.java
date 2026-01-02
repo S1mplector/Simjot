@@ -101,6 +101,8 @@ import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.editor.CustomFontApplier;
+import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.FormattingHotkeyHandler;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
@@ -121,7 +123,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     // UI components for the entry
     protected TitleDividerField titleField;
-    protected JTextPane contentArea;
+    protected CustomFontTextPane contentArea;
     protected MoodSlider moodSlider;
     private DetailedMoodPanel detailedMoodPanel;
     private SaveIndicatorPanel saveIndicator;
@@ -538,8 +540,8 @@ public class EntryPanel extends AbstractEditorPanel {
                 (selected) -> setTypingStyleUnderline(selected),
                 (selected) -> setTypingStyleStrike(selected),
                 (fontName) -> {
-                    Font current = contentArea.getFont();
-                    contentArea.setFont(new Font(fontName, current.getStyle(), current.getSize()));
+                    int size = contentArea.getFont() != null ? contentArea.getFont().getSize() : SettingsStore.get().getJournalFontSize();
+                    CustomFontApplier.applyToTextPane(contentArea, fontName, size);
                     applyParagraphFontToAll();
                 },
                 (size) -> {
@@ -601,20 +603,20 @@ public class EntryPanel extends AbstractEditorPanel {
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Content Area: Rich text editor (StyledDocument)
-        contentArea = new JTextPane();
+        contentArea = new CustomFontTextPane();
         contentArea.setDoubleBuffered(true);
 
         // Load font settings from Appearance settings
         String fontFamily = SettingsStore.get().getEditorFontFamily();
         int savedFontSize = SettingsStore.get().getJournalFontSize();
         String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
-        contentArea.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+        CustomFontApplier.applyToTextPane(contentArea, fontFamily, savedFontSize);
         if (titleField != null) {
-            titleField.setFont(new Font(fontFamily, Font.PLAIN, savedFontSize));
+            titleField.setFont(CustomFontApplier.resolveUiFont(fontFamily, savedFontSize));
             titleField.setPlaceholder(null);
         }
         // JTextPane handles wrapping automatically via view; ensure editor kit is styled
-        contentArea.setEditorKit(new StyledEditorKit());
+        contentArea.setEditorKit(new main.ui.components.editor.CustomFontEditorKit());
         contentArea.setOpaque(false);
         // Apply line spacing from settings
         float spacing = switch (lineSpacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };

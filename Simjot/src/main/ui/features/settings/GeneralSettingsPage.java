@@ -14,6 +14,7 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Window;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -23,6 +24,7 @@ import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JTextPane;
 import javax.swing.BorderFactory;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -37,12 +39,22 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
 import main.core.service.SettingsStore;
+import main.infrastructure.font.CustomFontSupport;
 import main.ui.app.JournalApp;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.features.font.CustomFontStudioDialog;
 
 class GeneralSettingsPage extends JPanel implements SettingsPage {
+    private static final String[] BUILTIN_FONTS = {
+        "Serif", "Georgia", "Garamond", "Baskerville",
+        "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand",
+        "Segoe Print", "Marker Felt", "Noteworthy", "Chalkboard", "Chalkboard SE",
+        "Apple Chancery", "Snell Roundhand", "Zapfino", "Brush Script MT",
+        "Lucida Calligraphy", "Papyrus", "Cursive"
+    };
     private final JSpinner journalFont;
     private final JSpinner poemFont;
     private final JSpinner autosaveSpin;
@@ -80,15 +92,10 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         gc.insets = new Insets(5, 5, 5, 5);
         gc.gridwidth = 1;
 
-        String[] fonts = {"Serif", "Georgia", "Garamond", "Baskerville",
-                "Lucida Handwriting", "Segoe Script", "Comic Sans MS", "Bradley Hand",
-                "Segoe Print", "Marker Felt", "Noteworthy", "Chalkboard", "Chalkboard SE",
-                "Apple Chancery", "Snell Roundhand", "Zapfino", "Brush Script MT",
-                "Lucida Calligraphy", "Papyrus", "Cursive"};
-        fontFamilyBox = new JComboBox<>(fonts);
+        fontFamilyBox = new JComboBox<>();
         fontFamilyBox.setUI(new ModernComboBoxUI());
         fontFamilyBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
-        fontFamilyBox.setSelectedItem(store.getEditorFontFamily());
+        reloadFontFamilyOptions(store.getEditorFontFamily());
         fontFamilyBox.addActionListener(e -> updateFontPreview());
         installPopupScrollbar(fontFamilyBox);
 
@@ -115,6 +122,13 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
 
         gc.gridx = 0; gc.gridy = row; add(SettingsUi.label("Line spacing:"), gc);
         gc.gridx = 1; add(lineSpacingBox, gc);
+        row++;
+
+        RoundedButton customFontsButton = new RoundedButton("Custom Fonts...");
+        customFontsButton.setPreferredSize(new Dimension(160, 28));
+        customFontsButton.addActionListener(e -> openCustomFontsDialog());
+        gc.gridx = 0; gc.gridy = row; add(SettingsUi.label("Custom fonts:"), gc);
+        gc.gridx = 1; add(customFontsButton, gc);
         row++;
 
         fontPreview = new JTextPane();
@@ -263,6 +277,9 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         Integer size = (Integer) fontSizeBox.getSelectedItem();
         String spacingStr = (String) lineSpacingBox.getSelectedItem();
         if (family == null) family = "Serif";
+        if (CustomFontSupport.isCustomDisplayName(family)) {
+            family = "Serif";
+        }
         if (size == null) size = 16;
         float spacing = switch (spacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
 
@@ -273,6 +290,37 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
             StyleConstants.setLineSpacing(attrs, spacing);
             doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
         } catch (Exception ignored) {}
+    }
+
+    private void reloadFontFamilyOptions(String preferredSelection) {
+        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+        for (String font : BUILTIN_FONTS) {
+            model.addElement(font);
+        }
+        for (String custom : CustomFontSupport.listDisplayNames()) {
+            model.addElement(custom);
+        }
+        fontFamilyBox.setModel(model);
+        if (preferredSelection != null && model.getIndexOf(preferredSelection) >= 0) {
+            fontFamilyBox.setSelectedItem(preferredSelection);
+        } else if (model.getSize() > 0) {
+            fontFamilyBox.setSelectedIndex(0);
+        }
+    }
+
+    private void openCustomFontsDialog() {
+        try {
+            Window owner = SwingUtilities.getWindowAncestor(this);
+            java.nio.file.Path dir = CustomFontSupport.fontsDirectory();
+            if (dir == null) return;
+            String selected = CustomFontStudioDialog.showDialog(owner, dir);
+            String current = (String) fontFamilyBox.getSelectedItem();
+            reloadFontFamilyOptions(current);
+            if (selected != null && !selected.isBlank()) {
+                fontFamilyBox.setSelectedItem(CustomFontSupport.toDisplayName(selected));
+            }
+            updateFontPreview();
+        } catch (Throwable ignored) {}
     }
 
     private static void installPopupScrollbar(JComboBox<?> comboBox) {

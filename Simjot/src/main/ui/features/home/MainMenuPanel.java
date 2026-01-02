@@ -170,7 +170,7 @@ public class MainMenuPanel extends JPanel {
         return null;
     }
 
-    // ---------- App Context Indicators (center of status bar) ----------
+    //  App Context Indicators (center of status bar)
     private static class AppContextIndicators extends JPanel {
         private final JLabel countsLbl = new JLabel();
         private final JLabel autosaveLbl = new JLabel();
