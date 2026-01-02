@@ -35,6 +35,7 @@ import javax.swing.JPanel;
  */
 public class FrostedGlassPanel extends JPanel {
     private int arc;
+    private float opacityScale = 1.0f;
 
     public FrostedGlassPanel() {
         this(new BorderLayout(), 14);
@@ -57,6 +58,22 @@ public class FrostedGlassPanel extends JPanel {
         repaint();
     }
 
+    public void setOpacityScale(float opacityScale) {
+        if (Float.isNaN(opacityScale)) return;
+        this.opacityScale = Math.max(0f, Math.min(1f, opacityScale));
+        repaint();
+    }
+
+    protected float getOpacityScale() {
+        return opacityScale;
+    }
+
+    private static Color scaleAlpha(Color color, float scale) {
+        int alpha = Math.round(color.getAlpha() * scale);
+        alpha = Math.max(0, Math.min(255, alpha));
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -66,36 +83,37 @@ public class FrostedGlassPanel extends JPanel {
 
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        float opacity = Math.max(0f, Math.min(1f, getOpacityScale()));
 
         int rArc = Math.max(arc, 6);
         RoundRectangle2D fillShape = new RoundRectangle2D.Float(0, 0, w, h, rArc, rArc);
 
         // Soft translucent gradient that lets the wallpaper peek through.
         GradientPaint base = new GradientPaint(
-                0, 0, new Color(255, 255, 255, 205),
-                0, h, new Color(235, 235, 235, 150)
+                0, 0, scaleAlpha(new Color(255, 255, 255, 205), opacity),
+                0, h, scaleAlpha(new Color(235, 235, 235, 150), opacity)
         );
         g2.setPaint(base);
         g2.fill(fillShape);
 
         // Glass sheen: bright top fade plus a gentle lower shadow to keep the bar distinct.
         GradientPaint sheen = new GradientPaint(
-                0, 0, new Color(255, 255, 255, 110),
-                0, h * 0.55f, new Color(255, 255, 255, 25)
+                0, 0, scaleAlpha(new Color(255, 255, 255, 110), opacity),
+                0, h * 0.55f, scaleAlpha(new Color(255, 255, 255, 25), opacity)
         );
         g2.setPaint(sheen);
         g2.fill(fillShape);
         GradientPaint shadow = new GradientPaint(
-                0, h * 0.45f, new Color(0, 0, 0, 12),
-                0, h, new Color(0, 0, 0, 40)
+                0, h * 0.45f, scaleAlpha(new Color(0, 0, 0, 12), opacity),
+                0, h, scaleAlpha(new Color(0, 0, 0, 40), opacity)
         );
         g2.setPaint(shadow);
         g2.fill(fillShape);
 
         int innerArc = Math.max(rArc - 2, 2);
-        g2.setColor(new Color(255, 255, 255, 90));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), opacity));
         g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, innerArc, innerArc));
-        g2.setColor(new Color(0, 0, 0, 35));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, 35), opacity));
         g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, rArc, rArc));
 
         g2.dispose();

@@ -10,6 +10,7 @@ package main.ui.features.entries;
 
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
@@ -64,10 +65,8 @@ import main.ui.components.input.AeroTextField;
 public class ModernTemplateSelector extends JDialog {
     
     private static final Color ACCENT = new Color(70, 130, 220);
-    private static final Color ACCENT_LIGHT = new Color(230, 240, 255);
-    private static final Color CARD_BORDER = new Color(220, 225, 235);
-    private static final Color CARD_HOVER = new Color(245, 248, 255);
-    private static final Color CARD_SELECTED = new Color(235, 245, 255);
+    private static final Color CARD_BORDER = new Color(210, 220, 235, 140);
+    private static final Color CARD_BORDER_HOVER = new Color(170, 200, 255, 180);
     private static final Color TEXT_PRIMARY = new Color(35, 40, 50);
     private static final Color TEXT_SECONDARY = new Color(100, 110, 125);
     private static final Color TEXT_MUTED = new Color(140, 150, 165);
@@ -78,6 +77,9 @@ public class ModernTemplateSelector extends JDialog {
     private final JPanel cardsContainer;
     private final AeroTextField searchField;
     private final JPanel filterPanel;
+    private final JPanel viewSwitcher;
+    private final JPanel selectorView;
+    private final JPanel editorView;
     private RoundedButton useButton;
     private List<JournalTemplateManager.JournalTemplate> allTemplates;
     private List<TemplateCard> cards = new ArrayList<>();
@@ -104,7 +106,6 @@ public class ModernTemplateSelector extends JDialog {
         // HEADER
         // ═══════════════════════════════════════════════════════════════════
         JPanel header = createHeader();
-        main.add(header, BorderLayout.NORTH);
         
         // ═══════════════════════════════════════════════════════════════════
         // FILTER TABS
@@ -187,13 +188,26 @@ public class ModernTemplateSelector extends JDialog {
         centerSection.setOpaque(false);
         centerSection.add(topSection, BorderLayout.NORTH);
         centerSection.add(scroll, BorderLayout.CENTER);
-        main.add(centerSection, BorderLayout.CENTER);
-        
         // ═══════════════════════════════════════════════════════════════════
         // FOOTER
         // ═══════════════════════════════════════════════════════════════════
         JPanel footer = createFooter();
-        main.add(footer, BorderLayout.SOUTH);
+
+        selectorView = new JPanel(new BorderLayout());
+        selectorView.setOpaque(false);
+        selectorView.add(header, BorderLayout.NORTH);
+        selectorView.add(centerSection, BorderLayout.CENTER);
+        selectorView.add(footer, BorderLayout.SOUTH);
+
+        editorView = new JPanel(new BorderLayout());
+        editorView.setOpaque(false);
+
+        viewSwitcher = new JPanel(new CardLayout());
+        viewSwitcher.setOpaque(false);
+        viewSwitcher.add(selectorView, "selector");
+        viewSwitcher.add(editorView, "editor");
+
+        main.add(viewSwitcher, BorderLayout.CENTER);
         
         add(main);
         
@@ -403,54 +417,36 @@ public class ModernTemplateSelector extends JDialog {
     }
     
     private JPanel createNewCard() {
-        JPanel card = new JPanel(new BorderLayout()) {
-            private boolean hovered = false;
-            
-            {
-                setOpaque(false);
-                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(12, new Color(180, 200, 230)),
+        float baseOpacity = 0.9f;
+        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(), 12);
+        card.setOpacityScale(baseOpacity);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            new RoundedBorder(12, CARD_BORDER),
+            new EmptyBorder(24, 16, 24, 16)
+        ));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                card.setOpacityScale(1.0f);
+                card.setBorder(BorderFactory.createCompoundBorder(
+                    new RoundedBorder(12, CARD_BORDER_HOVER),
                     new EmptyBorder(24, 16, 24, 16)
                 ));
-                
-                addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseEntered(MouseEvent e) {
-                        hovered = true;
-                        repaint();
-                    }
-                    @Override
-                    public void mouseExited(MouseEvent e) {
-                        hovered = false;
-                        repaint();
-                    }
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        openTemplateManager();
-                    }
-                });
             }
-            
             @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                Color bg = hovered ? new Color(240, 245, 255) : new Color(248, 250, 255);
-                g2.setColor(bg);
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 12, 12));
-                
-                // Dashed border effect
-                g2.setColor(new Color(150, 180, 220));
-                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 
-                    0, new float[]{6, 4}, 0));
-                g2.draw(new RoundRectangle2D.Float(1, 1, getWidth()-2, getHeight()-2, 12, 12));
-                
-                g2.dispose();
-                super.paintComponent(g);
+            public void mouseExited(MouseEvent e) {
+                card.setOpacityScale(baseOpacity);
+                card.setBorder(BorderFactory.createCompoundBorder(
+                    new RoundedBorder(12, CARD_BORDER),
+                    new EmptyBorder(24, 16, 24, 16)
+                ));
             }
-        };
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                openTemplateManager();
+            }
+        });
         
         JLabel plus = new JLabel("+", SwingConstants.CENTER);
         plus.setFont(plus.getFont().deriveFont(Font.BOLD, 28f));
@@ -567,10 +563,39 @@ public class ModernTemplateSelector extends JDialog {
     }
     
     private void openTemplateManager() {
-        // Open modern template editor for creating new templates
-        ModernTemplateEditor editor = new ModernTemplateEditor(this, notebook, null);
-        editor.setVisible(true);
-        refreshCards();
+        showEditor(null);
+    }
+
+    private void showEditor(JournalTemplateManager.JournalTemplate existing) {
+        editorView.removeAll();
+        ModernTemplateEditorPanel editorPanel = new ModernTemplateEditorPanel(notebook, existing);
+        editorPanel.setOnCancel(() -> showSelector());
+        editorPanel.setOnSave(savedTemplate -> {
+            refreshCards();
+            showSelector();
+            if (savedTemplate != null) {
+                selectTemplateById(savedTemplate.getId());
+            }
+        });
+        editorView.add(editorPanel, BorderLayout.CENTER);
+        editorView.revalidate();
+        editorView.repaint();
+        ((CardLayout) viewSwitcher.getLayout()).show(viewSwitcher, "editor");
+    }
+
+    private void showSelector() {
+        ((CardLayout) viewSwitcher.getLayout()).show(viewSwitcher, "selector");
+        SwingUtilities.invokeLater(() -> searchField.requestFocusInWindow());
+    }
+
+    private void selectTemplateById(String id) {
+        if (id == null) return;
+        for (TemplateCard card : cards) {
+            if (id.equals(card.template.getId())) {
+                selectCard(card);
+                break;
+            }
+        }
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
@@ -586,17 +611,21 @@ public class ModernTemplateSelector extends JDialog {
     // TEMPLATE CARD
     // ═══════════════════════════════════════════════════════════════════════════
     
-    private class TemplateCard extends JPanel {
+    private class TemplateCard extends FrostedGlassPanel {
         final JournalTemplateManager.JournalTemplate template;
         private boolean selected = false;
         private boolean hovered = false;
+        private final float baseOpacity = 0.92f;
+        private final EmptyBorder contentPadding = new EmptyBorder(16, 16, 16, 16);
         
         TemplateCard(JournalTemplateManager.JournalTemplate template) {
+            super(new BorderLayout(), 14);
             this.template = template;
-            setOpaque(true);  // Enable double buffering
-            setDoubleBuffered(true);
-            setLayout(new BorderLayout());
-            setBorder(new EmptyBorder(16, 16, 16, 16));
+            setOpacityScale(baseOpacity);
+            setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(14, CARD_BORDER),
+                contentPadding
+            ));
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             
             // Content
@@ -676,13 +705,13 @@ public class ModernTemplateSelector extends JDialog {
                 @Override
                 public void mouseEntered(MouseEvent e) {
                     hovered = true;
-                    repaint();
+                    updateVisualState();
                 }
                 
                 @Override
                 public void mouseExited(MouseEvent e) {
                     hovered = false;
-                    repaint();
+                    updateVisualState();
                 }
                 
                 @Override
@@ -693,43 +722,42 @@ public class ModernTemplateSelector extends JDialog {
                     }
                 }
             });
+
+            updateVisualState();
         }
         
         void setSelected(boolean sel) {
             this.selected = sel;
+            updateVisualState();
+        }
+
+        private void updateVisualState() {
+            float opacity = selected ? 1.0f : (hovered ? 0.98f : baseOpacity);
+            setOpacityScale(opacity);
+            Color border = selected ? ACCENT : (hovered ? CARD_BORDER_HOVER : CARD_BORDER);
+            setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(14, border),
+                contentPadding
+            ));
             repaint();
         }
         
         @Override
         protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (!selected) return;
+
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            // Background - instant color change, no interpolation
-            Color bg = selected ? CARD_SELECTED : (hovered ? CARD_HOVER : Color.WHITE);
-            g2.setColor(bg);
-            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 14, 14));
-            
-            // Border - instant color change
-            Color borderColor = selected ? ACCENT : (hovered ? new Color(180, 200, 240) : CARD_BORDER);
-            g2.setColor(borderColor);
-            g2.setStroke(new BasicStroke(selected ? 2f : 1f));
-            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth()-1, getHeight()-1, 14, 14));
-            
-            // Selection checkmark
-            if (selected) {
-                int cx = getWidth() - 24;
-                int cy = 16;
-                g2.setColor(ACCENT);
-                g2.fillOval(cx - 10, cy - 10, 20, 20);
-                g2.setColor(Color.WHITE);
-                g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(cx - 5, cy, cx - 1, cy + 4);
-                g2.drawLine(cx - 1, cy + 4, cx + 6, cy - 4);
-            }
-            
+            int cx = getWidth() - 24;
+            int cy = 16;
+            g2.setColor(ACCENT);
+            g2.fillOval(cx - 10, cy - 10, 20, 20);
+            g2.setColor(Color.WHITE);
+            g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine(cx - 5, cy, cx - 1, cy + 4);
+            g2.drawLine(cx - 1, cy + 4, cx + 6, cy - 4);
             g2.dispose();
-            super.paintComponent(g);
         }
         
         private String truncate(String s, int max) {

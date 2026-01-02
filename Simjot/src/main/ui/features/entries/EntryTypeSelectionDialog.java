@@ -40,7 +40,6 @@ import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.AeroPanel;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.containers.RoundedPanel;
 import main.ui.components.input.AeroTextField;
 
 /**
@@ -210,12 +209,11 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
 
     private JPanel createTemplateCard(JournalTemplateManager.JournalTemplate template) {
-        RoundedPanel card = new RoundedPanel();
-        card.setArc(12);
-        card.setLayout(new BorderLayout(8, 8));
-        card.setBorder(BorderFactory.createLineBorder(new Color(230,235,245)));
+        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(8, 8), 12);
+        float baseOpacity = 0.92f;
+        card.setOpacityScale(baseOpacity);
+        card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        card.setBackground(Color.WHITE);
 
         // Text content only (no icons)
         JPanel center = new JPanel();
@@ -279,24 +277,24 @@ public class EntryTypeSelectionDialog extends JDialog {
             
             @Override
             public void mouseEntered(MouseEvent e) {
-                card.setBackground(new Color(245, 248, 255));
-                card.setBorder(BorderFactory.createLineBorder(new Color(170, 200, 255)));
+                card.setOpacityScale(1.0f);
+                card.setBorder(BorderFactory.createLineBorder(new Color(170, 200, 255, 180)));
             }
             
             @Override
             public void mouseExited(MouseEvent e) {
-                card.setBackground(Color.WHITE);
-                card.setBorder(BorderFactory.createLineBorder(new Color(230,235,245)));
+                card.setOpacityScale(baseOpacity);
+                card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
             }
             
             @Override
             public void mousePressed(MouseEvent e) {
-                card.setBackground(new Color(230, 238, 255));
+                card.setOpacityScale(1.0f);
             }
             
             @Override
             public void mouseReleased(MouseEvent e) {
-                card.setBackground(new Color(245, 248, 255));
+                card.setOpacityScale(1.0f);
             }
         });
 
@@ -304,10 +302,10 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
 
     private JPanel createNewTemplateCard(){
-        RoundedPanel card = new RoundedPanel();
-        card.setArc(12);
-        card.setLayout(new BorderLayout());
-        card.setBackground(new Color(248, 249, 252));
+        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(), 12);
+        float baseOpacity = 0.9f;
+        card.setOpacityScale(baseOpacity);
+        card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
         JLabel lbl = new JLabel("+ Create New Template", SwingConstants.CENTER);
         lbl.setBorder(BorderFactory.createEmptyBorder(24, 12, 24, 12));
         lbl.setForeground(new Color(60, 90, 160));
@@ -316,8 +314,14 @@ public class EntryTypeSelectionDialog extends JDialog {
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter(){
             @Override public void mouseClicked(MouseEvent e){ openTemplateManager(); }
-            @Override public void mouseEntered(MouseEvent e){ card.setBackground(new Color(240,245,255)); }
-            @Override public void mouseExited(MouseEvent e){ card.setBackground(new Color(248,249,252)); }
+            @Override public void mouseEntered(MouseEvent e){
+                card.setOpacityScale(1.0f);
+                card.setBorder(BorderFactory.createLineBorder(new Color(170, 200, 255, 180)));
+            }
+            @Override public void mouseExited(MouseEvent e){
+                card.setOpacityScale(baseOpacity);
+                card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
+            }
         });
         return card;
     }
