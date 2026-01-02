@@ -11,9 +11,8 @@ package main.ui.features.font;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,27 +75,24 @@ public class FontLibraryPanel extends JPanel {
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
         
-        // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        // Button panel - use GridLayout to ensure all buttons visible
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 4, 4));
         buttonPanel.setOpaque(false);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         
         RoundedButton newButton = new RoundedButton("New");
-        newButton.setPreferredSize(new Dimension(80, 26));
         newButton.addActionListener(e -> createNewFont());
         buttonPanel.add(newButton);
         
         RoundedButton renameButton = new RoundedButton("Rename");
-        renameButton.setPreferredSize(new Dimension(90, 26));
         renameButton.addActionListener(e -> renameSelectedFont());
         buttonPanel.add(renameButton);
         
         RoundedButton duplicateButton = new RoundedButton("Duplicate");
-        duplicateButton.setPreferredSize(new Dimension(100, 26));
         duplicateButton.addActionListener(e -> duplicateSelectedFont());
         buttonPanel.add(duplicateButton);
         
         RoundedButton deleteButton = new RoundedButton("Delete");
-        deleteButton.setPreferredSize(new Dimension(80, 26));
         deleteButton.addActionListener(e -> deleteSelectedFont());
         buttonPanel.add(deleteButton);
         
