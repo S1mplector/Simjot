@@ -388,7 +388,10 @@ int tablet_initialize(tablet_context_t* ctx) {
         /* Enumerate available devices */
         enumerate_tablets_macos(ctx);
         
-        /* Install event monitors for tablet events */
+        /* DISABLED: Event monitoring causes crashes with Sidecar/Apple Pencil
+         * For now, we rely on Java's built-in tablet support instead.
+         * The native API will return default values.
+         *
         NSEventMask mask = NSEventMaskTabletPoint | 
                           NSEventMaskTabletProximity |
                           NSEventMaskLeftMouseDown |
@@ -403,7 +406,6 @@ int tablet_initialize(tablet_context_t* ctx) {
                           NSEventMaskMouseMoved |
                           NSEventMaskPressure;
         
-        /* Local monitor for events within the app */
         ctx->local_monitor = [NSEvent addLocalMonitorForEventsMatchingMask:mask
             handler:^NSEvent*(NSEvent* event) {
                 process_tablet_event(event, ctx);
@@ -413,6 +415,7 @@ int tablet_initialize(tablet_context_t* ctx) {
         if (!ctx->local_monitor) {
             return TABLET_ERR_INIT_FAILED;
         }
+        */
     }
 #endif
     

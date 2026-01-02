@@ -9,12 +9,10 @@
 package main.infrastructure.input;
 
 import java.awt.event.MouseEvent;
-import java.lang.foreign.SymbolLookup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.ffi.NativeTablet;
 
 /**
@@ -44,6 +42,12 @@ public final class TabletInputSupport {
      * @return true if tablet input is available
      */
     public static boolean initialize() {
+        // DISABLED: Native tablet support causes crashes with Apple Pencil on Sidecar
+        // For now, return false to use Java's built-in pressure support
+        attempted = true;
+        return false;
+        
+        /*
         if (initialized.get()) return tablet != null;
         
         synchronized (LOCK) {
@@ -69,16 +73,21 @@ public final class TabletInputSupport {
                 return false;
             }
         }
+        */
     }
     
     /**
      * Check if tablet input is available.
      */
     public static boolean isAvailable() {
+        // DISABLED: Native tablet causes crashes
+        return false;
+        /*
         if (!attempted) {
             return initialize();
         }
         return tablet != null;
+        */
     }
     
     /**

@@ -223,9 +223,6 @@ public class GlyphCanvas extends JPanel {
             TabletInputSupport.resetPressureSmoothing();
         }
         
-        // Reset spline history
-        historyCount = 0;
-        
         currentStroke = new CustomStroke(strokeThickness);
         strokeStartTime = System.currentTimeMillis();
         lastScreenX = x;
@@ -243,8 +240,25 @@ public class GlyphCanvas extends JPanel {
         repaint();
     }
     
+    private static final int MAX_POINTS_PER_STROKE = 10000;
+    private long lastPointTime = 0;
+    private static final long MIN_POINT_INTERVAL_NS = 2_000_000; // 2ms minimum between points
+    
     private void addPoint(int x, int y, float pressure) {
         if (currentStroke == null) return;
+        
+        // Throttle input to prevent memory issues with high-frequency input devices
+        long now = System.nanoTime();
+        if (now - lastPointTime < MIN_POINT_INTERVAL_NS) {
+            return; // Skip this point - too soon after last one
+        }
+        lastPointTime = now;
+        
+        // Limit maximum points per stroke to prevent memory issues
+        if (currentStroke.getPointCount() >= MAX_POINTS_PER_STROKE) {
+            return;
+        }
+        
         addPointWithResample(x, y, pressure);
         
         repaint();
@@ -513,71 +527,28 @@ public class GlyphCanvas extends JPanel {
         }
     }
 
-    /* Ring buffer for Catmull-Rom spline interpolation */
-    private final float[] historyX = new float[4];
-    private final float[] historyY = new float[4];
-    private final float[] historyP = new float[4];
-    private final float[] historyT = new float[4];
-    private int historyCount = 0;
-    
     private void addPointWithResample(int x, int y, float pressure) {
-        float timestamp = (System.currentTimeMillis() - strokeStartTime);
-        
         if (!hasLastScreen) {
             float[] coords = screenToGlyph(x, y);
+            float timestamp = (System.currentTimeMillis() - strokeStartTime);
             currentStroke.addPoint(coords[0], coords[1], pressure, timestamp);
             lastScreenX = x;
             lastScreenY = y;
             lastTimestamp = timestamp;
             hasLastScreen = true;
-            
-            // Initialize history for spline
-            historyCount = 1;
-            historyX[0] = x;
-            historyY[0] = y;
-            historyP[0] = pressure;
-            historyT[0] = timestamp;
             return;
-        }
-
-        // Add to history ring buffer
-        if (historyCount < 4) {
-            historyX[historyCount] = x;
-            historyY[historyCount] = y;
-            historyP[historyCount] = pressure;
-            historyT[historyCount] = timestamp;
-            historyCount++;
-        } else {
-            // Shift history
-            historyX[0] = historyX[1]; historyX[1] = historyX[2]; historyX[2] = historyX[3]; historyX[3] = x;
-            historyY[0] = historyY[1]; historyY[1] = historyY[2]; historyY[2] = historyY[3]; historyY[3] = y;
-            historyP[0] = historyP[1]; historyP[1] = historyP[2]; historyP[2] = historyP[3]; historyP[3] = pressure;
-            historyT[0] = historyT[1]; historyT[1] = historyT[2]; historyT[2] = historyT[3]; historyT[3] = timestamp;
         }
 
         float dx = x - lastScreenX;
         float dy = y - lastScreenY;
         float dist = (float) Math.sqrt(dx * dx + dy * dy);
         float maxStep = maxScreenStep();
+        float timestamp = (System.currentTimeMillis() - strokeStartTime);
 
         if (dist <= maxStep) {
             float[] coords = screenToGlyph(x, y);
             currentStroke.addPoint(coords[0], coords[1], pressure, timestamp);
-        } else if (historyCount >= 4) {
-            // Use Catmull-Rom spline for smooth interpolation
-            int segments = (int) Math.ceil(dist / maxStep);
-            for (int i = 1; i <= segments; i++) {
-                float t = i / (float) segments;
-                float ix = catmullRom(historyX[0], historyX[1], historyX[2], historyX[3], t);
-                float iy = catmullRom(historyY[0], historyY[1], historyY[2], historyY[3], t);
-                float ip = catmullRom(historyP[0], historyP[1], historyP[2], historyP[3], t);
-                float it = lastTimestamp + (timestamp - lastTimestamp) * t;
-                ip = Math.max(0.0f, Math.min(1.0f, ip)); // Clamp pressure
-                float[] coords = screenToGlyph(Math.round(ix), Math.round(iy));
-                currentStroke.addPoint(coords[0], coords[1], ip, it);
-            }
         } else {
-            // Linear fallback when not enough history
             int segments = (int) Math.ceil(dist / maxStep);
             for (int i = 1; i <= segments; i++) {
                 float t = i / (float) segments;
@@ -592,18 +563,6 @@ public class GlyphCanvas extends JPanel {
         lastScreenX = x;
         lastScreenY = y;
         lastTimestamp = timestamp;
-    }
-    
-    /* Catmull-Rom spline interpolation for smooth curves */
-    private float catmullRom(float p0, float p1, float p2, float p3, float t) {
-        float t2 = t * t;
-        float t3 = t2 * t;
-        return 0.5f * (
-            (2 * p1) +
-            (-p0 + p2) * t +
-            (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-            (-p0 + 3 * p1 - 3 * p2 + p3) * t3
-        );
     }
 
     private float maxScreenStep() {
