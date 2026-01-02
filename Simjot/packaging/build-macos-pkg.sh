@@ -421,15 +421,17 @@ cat > "$RESOURCES_DIR/welcome.html" <<EOF
 <body>
     <h1>Welcome to $APP_NAME</h1>
     <p class="version">Version $VERSION</p>
-    <p>$APP_NAME is your personal journaling companion with rich text editing, mood tracking, and an optional AI assistant.</p>
+    <p>$APP_NAME is a personalizable journaling and poetry studio with rich editing tools, mood tracking, and native-accelerated performance.</p>
     <p>This installer will guide you through the installation process.</p>
     <p><strong>Features:</strong></p>
     <ul>
-        <li>Rich text journal entries with images</li>
-        <li>Mood tracking and visualization</li>
-        <li>Multiple notebooks organization</li>
-        <li>Automatic backup system</li>
-        <li>Optional AI companion (Sim)</li>
+        <li>Journal and poetry editors with templates, formatting, and images</li>
+        <li>Poetry analysis tools: syllables, rhyme, meter, and forms</li>
+        <li>Mood tracking with charts and trends</li>
+        <li>Notebook organization, search, and smart autosave</li>
+        <li>Custom fonts, themes, and background personalization</li>
+        <li>Security and backups: AES-256, verification, and restore</li>
+        <li>Optional Sim AI companion via local Ollama</li>
     </ul>
 </body>
 </html>
@@ -455,8 +457,8 @@ cat > "$RESOURCES_DIR/conclusion.html" <<EOF
     <p><strong>Getting Started:</strong></p>
     <ol>
         <li>Launch $APP_NAME from Applications</li>
-        <li>Choose or create a folder for your journals</li>
-        <li>Start writing!</li>
+        <li>Choose a workspace folder and create your first notebook</li>
+        <li>Pick a template or start a blank entry</li>
     </ol>
     <p>Thank you for installing $APP_NAME!</p>
 </body>

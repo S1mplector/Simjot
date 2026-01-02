@@ -10,7 +10,7 @@ A highly personalizable creative wellness application built with pure Java Swing
 
 ### **Multi-Format Content Creation**
 - **Journal Entries**: Traditional diary-style entries with mood tracking, rich formatting, and customizable templates
-- **Poetry Writing**: Dedicated poetry editor with real-time syllable counting, rhyme scheme detection, meter analysis, and form recognition (sonnet, haiku, etc.)
+- **Poetry Writing**: Dedicated poetry editor with real-time syllable counting, rhyme scheme detection, meter analysis, and form recognition using Haskell poetry analysis module
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
@@ -19,7 +19,7 @@ A highly personalizable creative wellness application built with pure Java Swing
 - **Visual mood trends** to track emotional patterns over time
 
 ### **Organization & Management**
-- **Notebook system** with different types (Journal, Notetaking, Poetry)
+- **Notebook system** with different types (Journal, Poetry)
 - **File browser** with entry previews and word counts
 - **Smart auto-save functionality** with timestamp-based filenames
 - **Search and filter** capabilities across all content
@@ -35,12 +35,8 @@ A highly personalizable creative wellness application built with pure Java Swing
 
 ### **User Experience**
 - **Modern UI design** with smooth animations and transitions (can be disabled)
-- **Multiple themes**: Aero, Light, Sepia, and custom backgrounds
-- **Quick Settings Overlay**: Rapid access to common settings
 - **Intuitive navigation** with card-based interface
 - **Tutorial system** for new users
-- **Sound effects** and visual feedback
-- **RAM monitoring** and performance metrics
 - **Global hotkeys** for quick capture
 
 ## Screenshots
@@ -71,21 +67,14 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 
   ![Settings](Simjot/docs/images/settings_interface.png)
 
-- **Breathing Exercise**
-
-  ![Breathing Circle](Simjot/docs/images/breathing_circle.png)
-  
-  ![Breathing Configuration](Simjot/docs/images/breathing_config.png)
-
 ## Quick Start
 
 ### Prerequisites
 - **Java 24 or higher** installed on your system
 - **JDK 24 or higher** for building the project
 - **Maven 3.8+** for dependency management and building
-- **Ollama** (optional) for Sim AI companion features
-- **GHC/Cabal** (optional) for Haskell poetry analysis module
-- **CMake** (optional) for native C/C++ performance library
+- **GHC/Cabal** for Haskell poetry analysis module
+- **CMake** for native C/C++ library
 
 ### Installation & Build
 
@@ -136,24 +125,19 @@ On first startup, Simjot will prompt you to:
 
 #### **Poetry Writing**
 1. Select "New Poem" for the dedicated poetry interface
-2. Choose from multiple fonts (Serif, Georgia, Verdana, Cursive)
-3. Use the "Inspire Me" button for creative prompts
-4. Track stanza count in real-time
-
-#### **Notetaking**
-1. Create or select a Notetaking notebook
-2. Use the streamlined editor for quick notes
+2. Track stanza count in real-time
+3. Use the metering and analysis utilities to improve your poetry
 
 ### Organization
 
 #### **Notebooks**
 - Create separate notebooks for different topics or time periods
-- Choose notebook types: Journal, Notetaking, or Poetry
+- Choose notebook types: Journal or Poetry
 - Each notebook maintains its own file structure
 
 #### **Viewing Content**
 - Use "View Entries" to browse all your created content
-- Filter by type (entries, poems, notes)
+- Filter by type (entries, poems)
 - Preview content before opening
 - See word counts and creation dates
 
@@ -220,8 +204,6 @@ Simjot/
 └── LICENSE.md                  # MIT License
 ```
 
-## Technical Details
-
 ### Architecture
 - **Modular Java application** using Java Platform Module System
 - **Swing-based UI** with custom Look & Feel
@@ -234,21 +216,15 @@ Simjot/
 - **Java 24** with Project Jigsaw (modular system)
 - **Java Swing** for cross-platform GUI
 - **Java 2D Graphics** for drawing and image processing
-- **Ollama API** for local LLM integration (Sim AI)
 - **AES-256 encryption** for security features
-- **Built-in audio support** for sound effects
-- **Apache PDFBox** for PDF export
-- **JNativeHook** for global hotkeys
-- **Batik** for SVG rendering
 - **Native C/C++ library** for performance-critical operations
-- **Haskell FFI** for advanced poetry analysis
+- **Haskell FFI** for poetry analysis
 
 ### File Formats
 - **Journal entries**: `.note` files with metadata and mood data
 - **Poems**: `.poem` files with title, content, and analysis metadata
 - **Settings**: JSON configuration in user directory
-- **Backups**: Compressed archives with selective content
-- **Sim Memory**: Encrypted memory store for AI context
+- **Backups**: Compressed .sjbackup archives with selective content
 
 ## Customization
 
@@ -256,24 +232,12 @@ Simjot/
 - Multiple background options for different writing modes
 - Customizable font sizes for journal entries and notes
 - Adjustable mood tracking visualization
-- Personalized color schemes for drawing tools
 
 ### Settings Options
 - **General**: Default brush sizes, colors, auto-save intervals
 - **Appearance**: Themes, animations, font scaling
-- **Drawing**: Brush presets, pressure sensitivity
 - **Security**: Password, auto-lock, encryption
 - **Storage**: Backup schedules, destinations, selective includes
-- **Sim**: AI personality, proactive mode, memory management
-
-## Testing
-
-Run the test suite:
-```bash
-bash scripts/run_tests.sh
-```
-
-See [TESTING.md](TESTING.md) for detailed testing information.
 
 ## License
 
