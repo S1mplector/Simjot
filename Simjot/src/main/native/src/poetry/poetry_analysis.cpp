@@ -563,8 +563,8 @@ int32_t simjot_poetry_detect_meter(char* output, int32_t output_len) {
     
     std::strncpy(output, meter, output_len - 1);
     output[output_len - 1] = '\0';
-    
-    return most_common;
+
+    return static_cast<int32_t>(std::min<std::size_t>(std::strlen(meter), output_len - 1));
 }
 
 } /* extern "C" */

@@ -358,6 +358,18 @@ public final class PoetryDictionary {
         WordEntry entry = lookup(word);
         int syllables = entry != null ? entry.syllableCount : PoetryUtils.countSyllables(word);
         if (syllables <= 0) return new int[0];
+
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            int packed = NativeAccess.hsEstimateStress(lower);
+            if (packed != 0 || syllables == 1) {
+                int[] pattern = NativeAccess.unpackStressPattern(packed, syllables);
+                if (syllables == 1 && isFunctionWord(lower)) {
+                    pattern[0] = 0;
+                }
+                stressCache.put(lower, pattern);
+                return pattern;
+            }
+        }
         if (syllables == 1) {
             int[] pattern = new int[]{1}; // Monosyllables are stressed by default
             // But function words are typically unstressed

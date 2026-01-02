@@ -117,22 +117,20 @@ import main.ui.dialog.utils.EntryBackgroundDialog;
 import main.ui.features.editing.UndoRedoManager;
 import main.ui.theme.aero.AeroTheme;
  
-
 public class EntryPanel extends AbstractEditorPanel {
-
-    // inherited: app, journalFolder, cardLayout, cardPanel
 
     // UI components for the entry
     protected TitleDividerField titleField;
     protected JTextPane contentArea;
     protected MoodSlider moodSlider;
-    private DetailedMoodPanel detailedMoodPanel; // collapsible detailed mood panel
+    private DetailedMoodPanel detailedMoodPanel;
     private SaveIndicatorPanel saveIndicator;
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private NativeAutosaveCoordinator autosaveCoordinator;
     private volatile boolean isAutosaving = false;
+    
     // Track temporary placeholder range for Sim guidance (disabled; retained for compatibility)
     private int pendingGuidanceStart = -1;
     private int pendingGuidanceLen = 0;

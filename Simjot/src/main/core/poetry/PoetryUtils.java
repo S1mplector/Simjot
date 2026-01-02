@@ -184,6 +184,12 @@ public final class PoetryUtils {
     public static int countSyllables(String word) {
         if (word == null || word.isEmpty()) return 0;
         
+        // Try Haskell implementation first (most accurate)
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            int hsCount = NativeAccess.hsCountSyllables(word);
+            if (hsCount > 0) return hsCount;
+        }
+        
         // Try native implementation first (fastest)
         Integer nativeCount = NativeAccess.countSyllables(word);
         if (nativeCount != null && nativeCount > 0) return nativeCount;

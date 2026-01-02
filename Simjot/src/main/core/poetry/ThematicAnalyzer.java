@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import main.infrastructure.ffi.NativeAccess;
 /**
  * ThematicAnalyzer 
  * 
@@ -530,6 +531,16 @@ public class ThematicAnalyzer {
     
     private List<String> extractWords(String text) {
         List<String> words = new ArrayList<>();
+        List<String> nativeWords = NativeAccess.textExtractWords(text);
+        if (nativeWords != null && !nativeWords.isEmpty()) {
+            for (String word : nativeWords) {
+                String normalized = normalizeToken(word);
+                if (!normalized.isEmpty()) {
+                    words.add(normalized);
+                }
+            }
+            return words;
+        }
         for (String line : PoetryUtils.splitLines(text)) {
             for (String word : PoetryUtils.wordsInLine(line)) {
                 String normalized = normalizeToken(word);

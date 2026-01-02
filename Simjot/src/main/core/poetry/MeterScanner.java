@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import main.infrastructure.ffi.NativeAccess;
 /**
  * MeterScanner utility 
  * 
@@ -97,6 +98,11 @@ public class MeterScanner {
      */
     private String detectLineMeter(String line) {
         if (line == null || line.trim().isEmpty()) return "";
+
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            String hsMeter = NativeAccess.hsGetMeterName(line);
+            if (hsMeter != null && !hsMeter.isBlank()) return hsMeter;
+        }
         
         int syllables = PoetryUtils.countSyllablesInLine(line);
         

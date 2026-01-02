@@ -2481,6 +2481,22 @@ public final class NativeLibrary implements AutoCloseable {
         } catch (Throwable t) { return 0; }
     }
 
+    public double[] poetryGetVocabStats() {
+        if (poetryGetVocabStatsHandle == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment totalSeg = tempArena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment uniqueSeg = tempArena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment diversitySeg = tempArena.allocate(ValueLayout.JAVA_DOUBLE);
+            MemorySegment avgLenSeg = tempArena.allocate(ValueLayout.JAVA_DOUBLE);
+            poetryGetVocabStatsHandle.invokeExact(totalSeg, uniqueSeg, diversitySeg, avgLenSeg);
+            double total = totalSeg.get(ValueLayout.JAVA_INT, 0);
+            double unique = uniqueSeg.get(ValueLayout.JAVA_INT, 0);
+            double diversity = diversitySeg.get(ValueLayout.JAVA_DOUBLE, 0);
+            double avgLen = avgLenSeg.get(ValueLayout.JAVA_DOUBLE, 0);
+            return new double[] { total, unique, diversity, avgLen };
+        } catch (Throwable t) { return null; }
+    }
+
     public int poetryCountSyllables(String word) {
         if (poetryCountSyllablesHandle == null || word == null) return 0;
         try (Arena tempArena = Arena.ofConfined()) {
@@ -2494,6 +2510,13 @@ public final class NativeLibrary implements AutoCloseable {
         try (Arena tempArena = Arena.ofConfined()) {
             MemorySegment cText = tempArena.allocateFrom(text);
             return (int) poetryAnalyzeMeterHandle.invokeExact(cText);
+        } catch (Throwable t) { return 0; }
+    }
+
+    public int poetryGetLineSyllables(int lineIndex) {
+        if (poetryGetLineSyllablesHandle == null) return 0;
+        try {
+            return (int) poetryGetLineSyllablesHandle.invokeExact(lineIndex);
         } catch (Throwable t) { return 0; }
     }
 

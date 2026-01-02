@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import main.infrastructure.ffi.NativeAccess;
 /**
  * ScansionEngine 
  * 
@@ -253,6 +254,17 @@ public class ScansionEngine {
         
         double overallConfidence = lineScansions.isEmpty() ? 0.0 :
                 lineScansions.stream().mapToDouble(ls -> ls.meterConfidence).average().orElse(0.0);
+
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            String hsMeter = NativeAccess.hsGetMeterName(text);
+            if (hsMeter != null && !hsMeter.isBlank()) {
+                dominantMeter = hsMeter;
+            }
+            int hsRegularity = NativeAccess.hsGetMeterRegularity(text);
+            if (hsRegularity > 0) {
+                overallConfidence = Math.max(overallConfidence, Math.min(1.0, hsRegularity / 100.0));
+            }
+        }
         
         return new PoemScansion(lineScansions, dominantMeter, overallConfidence, footCounts,
                 totalSyllables, totalStressed, totalUnstressed, meterVariations);
@@ -289,6 +301,17 @@ public class ScansionEngine {
         String meterName = profile != null ? profile.meterName : "Unknown";
         double confidence = calculateConfidence(syllables, feet, profile);
         List<String> substitutions = detectSubstitutions(feet, profile);
+
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            String hsMeter = NativeAccess.hsGetMeterName(line);
+            if (hsMeter != null && !hsMeter.isBlank()) {
+                meterName = hsMeter;
+            }
+            int hsRegularity = NativeAccess.hsGetMeterRegularity(line);
+            if (hsRegularity > 0) {
+                confidence = Math.max(confidence, Math.min(1.0, hsRegularity / 100.0));
+            }
+        }
         
         return new LineScansion(line, syllables, feet, meterName, notation.toString(),
                 caesura, confidence, substitutions);

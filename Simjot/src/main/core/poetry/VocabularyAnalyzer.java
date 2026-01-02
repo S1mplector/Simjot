@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import main.infrastructure.ffi.NativeAccess;
 /**
  * VocabularyAnalyzer
  * 
@@ -280,6 +281,8 @@ public class VocabularyAnalyzer {
      * Extract all words from text.
      */
     private List<String> extractAllWords(String text) {
+        List<String> nativeWords = NativeAccess.textExtractWords(text);
+        if (nativeWords != null && !nativeWords.isEmpty()) return nativeWords;
         List<String> words = new ArrayList<>();
         for (String line : PoetryUtils.splitLines(text)) {
             words.addAll(PoetryUtils.wordsInLine(line));

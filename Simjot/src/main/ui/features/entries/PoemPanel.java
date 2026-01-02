@@ -32,6 +32,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -1085,27 +1086,99 @@ public class PoemPanel extends AbstractEditorPanel {
             String meterText = "Meter: ...";
             
             try {
-                // Simple vocabulary stats (always works)
-                String[] words = text.trim().split("\\s+");
-                int wordCount = words.length;
-                java.util.Set<String> unique = new java.util.HashSet<>();
-                for (String w : words) unique.add(w.toLowerCase(java.util.Locale.ROOT));
-                int uniqueCount = unique.size();
-                double ttr = wordCount > 0 ? (double) uniqueCount / wordCount * 100 : 0;
-                vocabText = String.format("TTR: %.0f%%", ttr);
+                double ttr = -1.0;
+                if (NativeAccess.hasHaskellPoetrySupport()) {
+                    String stats = NativeAccess.hsGetVocabStats(text);
+                    if (stats != null && !stats.isBlank()) {
+                        String[] parts = stats.split(",");
+                        if (parts.length >= 2) {
+                            try {
+                                int total = Integer.parseInt(parts[0].trim());
+                                int unique = Integer.parseInt(parts[1].trim());
+                                if (total > 0) ttr = (double) unique / total * 100;
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                }
+                if (ttr < 0) {
+                    int total = NativeAccess.poetryAnalyzeVocab(text);
+                    NativeAccess.PoetryVocabStats stats = NativeAccess.poetryGetVocabStats();
+                    if (total > 0 && stats != null && stats.totalWords() > 0) {
+                        ttr = (double) stats.uniqueWords() / stats.totalWords() * 100;
+                    }
+                }
+                if (ttr < 0) {
+                    List<String> words = NativeAccess.textExtractWords(text);
+                    if (words == null || words.isEmpty()) {
+                        String trimmed = text.trim();
+                        if (!trimmed.isEmpty()) {
+                            String[] split = trimmed.split("\\s+");
+                            words = new ArrayList<>(split.length);
+                            Collections.addAll(words, split);
+                        }
+                    }
+                    if (words == null || words.isEmpty()) {
+                        ttr = 0.0;
+                    } else {
+                        java.util.Set<String> unique = new java.util.HashSet<>();
+                        for (String w : words) unique.add(w.toLowerCase(java.util.Locale.ROOT));
+                        ttr = (double) unique.size() / words.size() * 100;
+                    }
+                }
+                vocabText = String.format("TTR: %.0f%%", Math.max(0.0, ttr));
                 
-                // Thematic analysis
-                ThematicAnalyzer.ThematicAnalysis theme = thematicAnalyzer.analyze(text);
-                themeText = "Theme: " + (theme.dominantTheme.equals("Unknown") ? "General" : theme.dominantTheme);
+                String dominantTheme = null;
+                int themeCount = NativeAccess.poetryAnalyzeThemes(text);
+                if (themeCount > 0) {
+                    String themes = NativeAccess.poetryGetThemes();
+                    if (themes != null && !themes.isBlank()) {
+                        double bestScore = Double.NEGATIVE_INFINITY;
+                        for (String theme : themes.split("\n")) {
+                            if (theme.isBlank()) continue;
+                            double score = NativeAccess.poetryGetThemeScore(theme);
+                            if (score > bestScore) {
+                                bestScore = score;
+                                dominantTheme = theme;
+                            }
+                        }
+                    }
+                }
+                if (dominantTheme == null || dominantTheme.isBlank()) {
+                    ThematicAnalyzer.ThematicAnalysis theme = thematicAnalyzer.analyze(text);
+                    dominantTheme = theme.dominantTheme.equals("Unknown") ? "General" : theme.dominantTheme;
+                }
+                if (dominantTheme != null && !dominantTheme.isBlank()) {
+                    dominantTheme = Character.toUpperCase(dominantTheme.charAt(0)) + dominantTheme.substring(1);
+                }
+                themeText = "Theme: " + dominantTheme;
                 
-                // Sound devices
-                SoundDevicesEngine.SoundAnalysis sound = soundDevicesEngine.analyzePoem(text);
-                int devices = sound.devices.size();
+                int devices = 0;
+                if (NativeAccess.hasHaskellPoetrySupport()) {
+                    devices = NativeAccess.hsAnalyzeSoundDevices(text);
+                }
+                if (devices <= 0) {
+                    devices = NativeAccess.poetryAnalyzeSounds(text);
+                }
+                if (devices <= 0) {
+                    SoundDevicesEngine.SoundAnalysis sound = soundDevicesEngine.analyzePoem(text);
+                    devices = sound.devices.size();
+                }
                 soundText = "Sound: " + devices;
                 
-                // Scansion/meter
-                ScansionEngine.PoemScansion scansion = scansionEngine.analyzePoem(text);
-                String meter = scansion.dominantMeter;
+                String meter = null;
+                if (NativeAccess.hasHaskellPoetrySupport()) {
+                    meter = NativeAccess.hsGetMeterName(text);
+                }
+                if (meter == null || meter.isBlank()) {
+                    int lines = NativeAccess.poetryAnalyzeMeter(text);
+                    if (lines > 0) {
+                        meter = NativeAccess.poetryDetectMeter();
+                    }
+                }
+                if (meter == null || meter.isBlank()) {
+                    ScansionEngine.PoemScansion scansion = scansionEngine.analyzePoem(text);
+                    meter = scansion.dominantMeter;
+                }
                 if (meter == null || meter.isEmpty()) meter = "Free";
                 else if (meter.length() > 12) meter = meter.substring(0, 12);
                 meterText = "Meter: " + meter;
@@ -1141,8 +1214,17 @@ public class PoemPanel extends AbstractEditorPanel {
     }
 
     private void updateStatus(String text, int stanzas) {
-        int words = text.trim().isEmpty() ? 0 : text.trim().split("\\s+").length;
-        int chars = text.length();
+        int words = 0;
+        int chars = text == null ? 0 : text.length();
+        Integer nativeWords = NativeAccess.textWordCount(text);
+        if (nativeWords != null) {
+            words = nativeWords;
+        } else if (text != null) {
+            String trimmed = text.trim();
+            words = trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
+        }
+        Integer nativeChars = NativeAccess.textCharCount(text, true);
+        if (nativeChars != null) chars = nativeChars;
         int minutes = Math.max(0, (int)Math.ceil(words / 200.0));
         if (statusLabel != null) {
             statusLabel.setText(String.format("Words: %d • Chars: %d • Stanzas: %d • ~%d min read", words, chars, stanzas, minutes));

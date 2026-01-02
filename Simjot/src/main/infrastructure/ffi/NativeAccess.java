@@ -1295,6 +1295,18 @@ public final class NativeAccess {
         }
     }
 
+    public static PoetryVocabStats poetryGetVocabStats() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try {
+            double[] stats = lib.poetryGetVocabStats();
+            if (stats == null || stats.length < 4) return null;
+            return new PoetryVocabStats((int) stats[0], (int) stats[1], stats[2], stats[3]);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     public static int poetryCountSyllables(String word) {
         NativeLibrary lib = library();
         if (lib == null || word == null) return 0;
@@ -1310,6 +1322,16 @@ public final class NativeAccess {
         if (lib == null || text == null) return 0;
         try {
             return lib.poetryAnalyzeMeter(text);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    public static int poetryGetLineSyllables(int lineIndex) {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try {
+            return lib.poetryGetLineSyllables(lineIndex);
         } catch (Throwable t) {
             return 0;
         }
@@ -2745,6 +2767,11 @@ public final class NativeAccess {
             return null;
         }
     }
+
+    /**
+     * Poetry vocabulary stats from native analysis.
+     */
+    public record PoetryVocabStats(int totalWords, int uniqueWords, double lexicalDiversity, double avgWordLength) {}
 
     // ═══════════════════════════════════════════════════════════════════════════
     // NATIVE MOOD ANALYTICS - Fast mood log parsing

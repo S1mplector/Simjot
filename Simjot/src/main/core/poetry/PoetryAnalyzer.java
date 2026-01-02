@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import main.infrastructure.ffi.NativeAccess;
 /**
  * <h1>Simjot Poetry Analysis Engine v1.0.0</h1>
  * 
@@ -396,6 +397,21 @@ public final class PoetryAnalyzer {
         MeterLength length = MeterLength.fromFeet((int) Math.round(avgFeet));
         String name = getMeterName(dominant, length);
         double regularity = calcRegularity(scansions, dominant);
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            FootType hsDominant = mapHaskellFootType(NativeAccess.hsAnalyzeMeter(text));
+            if (hsDominant != null) {
+                dominant = hsDominant;
+                name = getMeterName(dominant, length);
+            }
+            String hsName = NativeAccess.hsGetMeterName(text);
+            if (hsName != null && !hsName.isBlank()) {
+                name = hsName;
+            }
+            int hsRegularity = NativeAccess.hsGetMeterRegularity(text);
+            if (hsRegularity > 0) {
+                regularity = Math.min(1.0, hsRegularity / 100.0);
+            }
+        }
         double avgSyl = lines.isEmpty() ? 0 : (double) totalSyllables / lines.size();
         
         return new ProsodicAnalysis(name, dominant, length, regularity, avgSyl, scansions, footCounts);
@@ -589,6 +605,13 @@ public final class PoetryAnalyzer {
     
     public static String detectRhymeScheme(List<String> lines) {
         if (lines.isEmpty()) return "";
+        String text = String.join("\n", lines);
+        if (NativeAccess.hasHaskellPoetrySupport()) {
+            String hsScheme = NativeAccess.hsAnalyzeRhymeScheme(text);
+            if (hsScheme != null && !hsScheme.isBlank()) return hsScheme;
+        }
+        String nativeScheme = NativeAccess.rhymeDetectScheme(text);
+        if (nativeScheme != null && !nativeScheme.isBlank()) return nativeScheme;
         Map<String, Character> seen = new HashMap<>();
         char cur = 'A';
         StringBuilder sb = new StringBuilder();
@@ -618,7 +641,24 @@ public final class PoetryAnalyzer {
         }
         if (cur > 0) stanzas.add(cur);
         
-        List<Integer> sylCounts = content.stream().map(PoetryUtils::countSyllablesInLine).collect(Collectors.toList());
+        List<Integer> sylCounts = new ArrayList<>();
+        int nativeLineCount = NativeAccess.poetryAnalyzeMeter(text);
+        if (nativeLineCount > 0 && !all.isEmpty()) {
+            int nativeIndex = 0;
+            for (String line : all) {
+                if (line.isEmpty()) continue; // native analyzer skips empty lines
+                int syllables = NativeAccess.poetryGetLineSyllables(nativeIndex++);
+                if (!line.isBlank()) {
+                    sylCounts.add(syllables);
+                }
+            }
+            if (nativeIndex != nativeLineCount || sylCounts.size() != content.size()) {
+                sylCounts.clear();
+            }
+        }
+        if (sylCounts.isEmpty()) {
+            sylCounts = content.stream().map(PoetryUtils::countSyllablesInLine).collect(Collectors.toList());
+        }
         String refrain = detectRefrain(content);
         
         int enj = 0, end = 0;
@@ -670,8 +710,11 @@ public final class PoetryAnalyzer {
     }
     
     public static SentimentAnalysis analyzeSentiment(String text) {
-        List<String> words = new ArrayList<>();
-        for (String l : PoetryUtils.splitLines(text)) words.addAll(PoetryUtils.wordsInLine(l));
+        List<String> words = NativeAccess.textExtractWords(text);
+        if (words == null || words.isEmpty()) {
+            words = new ArrayList<>();
+            for (String l : PoetryUtils.splitLines(text)) words.addAll(PoetryUtils.wordsInLine(l));
+        }
         
         int posCount = 0, negCount = 0;
         List<String> imagery = new ArrayList<>();
@@ -773,6 +816,19 @@ public final class PoetryAnalyzer {
         if (foot == null) return "Free Verse";
         String f = foot.name.substring(0, 1).toUpperCase() + foot.name.substring(1).toLowerCase();
         return len != null ? f + " " + len.name().substring(0, 1) + len.name().substring(1).toLowerCase() : f;
+    }
+
+    private static FootType mapHaskellFootType(int footCode) {
+        return switch (footCode) {
+            case 0 -> FootType.IAMB;
+            case 1 -> FootType.TROCHEE;
+            case 2 -> FootType.SPONDEE;
+            case 3 -> FootType.PYRRHIC;
+            case 4 -> FootType.ANAPEST;
+            case 5 -> FootType.DACTYL;
+            case 6 -> FootType.AMPHIBRACH;
+            default -> null;
+        };
     }
     
     private static double calcRegularity(List<LineScansion> scans, FootType exp) {
