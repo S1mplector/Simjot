@@ -387,10 +387,10 @@ public class PoemPanel extends AbstractEditorPanel {
 
         // Install native-accelerated formatting hotkeys (Cmd/Ctrl + B/I/U, Cmd/Ctrl+Shift+S)
         FormattingHotkeyHandler.install(poemEditor,
-                () -> RichTextStyler.toggleSelectionBold(poemEditor),
-                () -> RichTextStyler.toggleSelectionItalic(poemEditor),
-                () -> RichTextStyler.toggleSelectionUnderline(poemEditor),
-                () -> RichTextStyler.toggleSelectionStrike(poemEditor));
+                () -> RichTextStyler.toggleBold(poemEditor),
+                () -> RichTextStyler.toggleItalic(poemEditor),
+                () -> RichTextStyler.toggleUnderline(poemEditor),
+                () -> RichTextStyler.toggleStrike(poemEditor));
 
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(poemEditor);

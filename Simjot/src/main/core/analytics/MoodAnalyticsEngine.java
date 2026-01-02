@@ -147,6 +147,43 @@ public final class MoodAnalyticsEngine {
                 avgSadness = avgAnger = avgAnxiety = avgStress = -1;
             }
         }
+
+        public DailyStats(LocalDate date,
+                          int sampleCount,
+                          double average,
+                          int min,
+                          int max,
+                          double avgJoy,
+                          double avgCalm,
+                          double avgGratitude,
+                          double avgEnergy,
+                          double avgSadness,
+                          double avgAnger,
+                          double avgAnxiety,
+                          double avgStress) {
+            this.date = date;
+            this.samples = Collections.emptyList();
+            this.sampleCount = Math.max(0, sampleCount);
+            if (this.sampleCount <= 0) {
+                this.average = 0;
+                this.min = 0;
+                this.max = 0;
+                this.avgJoy = this.avgCalm = this.avgGratitude = this.avgEnergy = 0;
+                this.avgSadness = this.avgAnger = this.avgAnxiety = this.avgStress = 0;
+            } else {
+                this.average = average;
+                this.min = min;
+                this.max = max;
+                this.avgJoy = avgJoy;
+                this.avgCalm = avgCalm;
+                this.avgGratitude = avgGratitude;
+                this.avgEnergy = avgEnergy;
+                this.avgSadness = avgSadness;
+                this.avgAnger = avgAnger;
+                this.avgAnxiety = avgAnxiety;
+                this.avgStress = avgStress;
+            }
+        }
     }
 
     /** Overall analytics result */
@@ -218,7 +255,13 @@ public final class MoodAnalyticsEngine {
             return cached.result;
         }
 
-        // Parse all samples
+        AnalyticsResult nativeResult = tryNativeAnalyze(moodFile, daysBack, smoothingWindow);
+        if (nativeResult != null) {
+            cache.put(cacheKey, new CachedResult(nativeResult));
+            return nativeResult;
+        }
+
+        // Parse all samples (Java fallback)
         List<MoodSample> allSamples = parseAllSamples();
 
         // Filter by date range
@@ -282,6 +325,80 @@ public final class MoodAnalyticsEngine {
 
         cache.put(cacheKey, new CachedResult(result));
         return result;
+    }
+
+    private AnalyticsResult tryNativeAnalyze(File moodFile, int daysBack, int smoothingWindow) {
+        if (moodFile == null || !moodFile.exists()) return null;
+        int parsed = NativeAccess.moodLoad(moodFile.getAbsolutePath());
+        if (parsed < 0) return null;
+        int daily = NativeAccess.moodComputeDaily(daysBack);
+        if (daily < 0) return null;
+
+        int dailyCount = NativeAccess.moodDailyCount();
+        Map<LocalDate, NativeAccess.MoodDailyStats> nativeStats = new java.util.HashMap<>();
+        int minDateDays = Integer.MAX_VALUE;
+        for (int i = 0; i < dailyCount; i++) {
+            NativeAccess.MoodDailyStats stats = NativeAccess.moodGetDaily(i);
+            if (stats == null) continue;
+            LocalDate date = LocalDate.ofEpochDay(stats.dateDays());
+            nativeStats.put(date, stats);
+            if (stats.dateDays() < minDateDays) minDateDays = stats.dateDays();
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = daysBack > 0
+                ? today.minusDays(daysBack - 1)
+                : (minDateDays != Integer.MAX_VALUE ? LocalDate.ofEpochDay(minDateDays) : today);
+
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate d = startDate; !d.isAfter(today); d = d.plusDays(1)) {
+            dates.add(d);
+        }
+
+        Map<LocalDate, DailyStats> dailyStats = new LinkedHashMap<>();
+        List<Double> dailyAverages = new ArrayList<>();
+        int totalSamples = 0;
+        double sumAll = 0;
+        int countAll = 0;
+
+        for (LocalDate d : dates) {
+            NativeAccess.MoodDailyStats nativeDaily = nativeStats.get(d);
+            DailyStats stats;
+            if (nativeDaily != null && nativeDaily.sampleCount() > 0) {
+                stats = new DailyStats(d,
+                    nativeDaily.sampleCount(),
+                    nativeDaily.average(),
+                    nativeDaily.min(),
+                    nativeDaily.max(),
+                    nativeDaily.avgJoy(),
+                    nativeDaily.avgCalm(),
+                    nativeDaily.avgGratitude(),
+                    nativeDaily.avgEnergy(),
+                    nativeDaily.avgSadness(),
+                    nativeDaily.avgAnger(),
+                    nativeDaily.avgAnxiety(),
+                    nativeDaily.avgStress());
+                dailyAverages.add(nativeDaily.average());
+                sumAll += nativeDaily.average();
+                countAll++;
+                totalSamples += nativeDaily.sampleCount();
+            } else {
+                stats = new DailyStats(d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                dailyAverages.add(null);
+            }
+            dailyStats.put(d, stats);
+        }
+
+        double overallAverage = countAll > 0 ? sumAll / countAll : 0;
+        List<Double> smoothed = computeSmoothed(dailyAverages, smoothingWindow);
+        double volatility = computeVolatility(dailyAverages, overallAverage);
+        int[] streaks = computeStreaks(dailyAverages, 50.0);
+
+        return new AnalyticsResult(
+            dates, dailyStats, dailyAverages, smoothed,
+            overallAverage, volatility,
+            streaks[0], streaks[1], streaks[2], totalSamples
+        );
     }
 
     /** Invalidate all cached results (e.g., after logging new mood) */

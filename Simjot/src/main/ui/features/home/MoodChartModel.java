@@ -58,7 +58,8 @@ final class MoodChartModel {
         // Convert detailed stats to legacy Details format for backward compatibility
         for (LocalDate d : analytics.dates) {
             DailyStats stats = analytics.dailyStats.get(d);
-            if (stats != null && !stats.samples.isEmpty()) {
+            if (stats == null) continue;
+            if (!stats.samples.isEmpty()) {
                 for (MoodSample sample : stats.samples) {
                     if (sample.timestamp != null) {
                         moodTimesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(sample.timestamp);
@@ -70,6 +71,18 @@ final class MoodChartModel {
                                 sample.sadness, sample.anger, sample.anxiety, sample.stress));
                     }
                 }
+            } else if (stats.sampleCount > 0 && stats.avgJoy >= 0) {
+                detailsByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(
+                    new Details(d.atStartOfDay(),
+                        (int) Math.round(stats.avgJoy),
+                        (int) Math.round(stats.avgCalm),
+                        (int) Math.round(stats.avgGratitude),
+                        (int) Math.round(stats.avgEnergy),
+                        (int) Math.round(stats.avgSadness),
+                        (int) Math.round(stats.avgAnger),
+                        (int) Math.round(stats.avgAnxiety),
+                        (int) Math.round(stats.avgStress))
+                );
             }
         }
 

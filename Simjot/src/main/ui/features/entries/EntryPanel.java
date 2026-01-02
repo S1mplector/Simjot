@@ -403,59 +403,19 @@ public class EntryPanel extends AbstractEditorPanel {
 
     // --- Formatting helpers used by shared toolbar ---
     private void applyInlineStyleBold() {
-        try {
-            StyledDocument doc = (StyledDocument) contentArea.getDocument();
-            int start = contentArea.getSelectionStart();
-            int end = contentArea.getSelectionEnd();
-            if (start == end) return;
-            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
-            boolean enable = !StyleConstants.isBold(selectionAttrs);
-            MutableAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setBold(attrs, enable);
-            doc.setCharacterAttributes(start, end - start, attrs, false);
-        } catch (Exception ignored) {}
+        RichTextStyler.toggleBold(contentArea);
     }
 
     private void applyInlineStyleItalic() {
-        try {
-            StyledDocument doc = (StyledDocument) contentArea.getDocument();
-            int start = contentArea.getSelectionStart();
-            int end = contentArea.getSelectionEnd();
-            if (start == end) return;
-            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
-            boolean enable = !StyleConstants.isItalic(selectionAttrs);
-            MutableAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setItalic(attrs, enable);
-            doc.setCharacterAttributes(start, end - start, attrs, false);
-        } catch (Exception ignored) {}
+        RichTextStyler.toggleItalic(contentArea);
     }
 
     private void applyInlineStyleUnderline() {
-        try {
-            StyledDocument doc = (StyledDocument) contentArea.getDocument();
-            int start = contentArea.getSelectionStart();
-            int end = contentArea.getSelectionEnd();
-            if (start == end) return;
-            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
-            boolean enable = !StyleConstants.isUnderline(selectionAttrs);
-            MutableAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setUnderline(attrs, enable);
-            doc.setCharacterAttributes(start, end - start, attrs, false);
-        } catch (Exception ignored) {}
+        RichTextStyler.toggleUnderline(contentArea);
     }
 
     private void applyInlineStyleStrike() {
-        try {
-            StyledDocument doc = (StyledDocument) contentArea.getDocument();
-            int start = contentArea.getSelectionStart();
-            int end = contentArea.getSelectionEnd();
-            if (start == end) return;
-            javax.swing.text.AttributeSet selectionAttrs = ((StyledEditorKit) contentArea.getEditorKit()).getInputAttributes();
-            boolean enable = !StyleConstants.isStrikeThrough(selectionAttrs);
-            MutableAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setStrikeThrough(attrs, enable);
-            doc.setCharacterAttributes(start, end - start, attrs, false);
-        } catch (Exception ignored) {}
+        RichTextStyler.toggleStrike(contentArea);
     }
 
     private void applyParagraphFontToAll() {

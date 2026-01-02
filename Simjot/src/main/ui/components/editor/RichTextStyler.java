@@ -53,6 +53,39 @@ public final class RichTextStyler {
         toggleSelection(pane, StyleConstants::isStrikeThrough, (a, v) -> StyleConstants.setStrikeThrough(a, v));
     }
 
+    // Combined toggles (selection if present, otherwise typing attributes)
+    public static void toggleBold(JTextPane pane) {
+        if (hasSelection(pane)) {
+            toggleSelectionBold(pane);
+        } else {
+            setTypingBold(pane, !getTypingState(pane).bold());
+        }
+    }
+
+    public static void toggleItalic(JTextPane pane) {
+        if (hasSelection(pane)) {
+            toggleSelectionItalic(pane);
+        } else {
+            setTypingItalic(pane, !getTypingState(pane).italic());
+        }
+    }
+
+    public static void toggleUnderline(JTextPane pane) {
+        if (hasSelection(pane)) {
+            toggleSelectionUnderline(pane);
+        } else {
+            setTypingUnderline(pane, !getTypingState(pane).underline());
+        }
+    }
+
+    public static void toggleStrike(JTextPane pane) {
+        if (hasSelection(pane)) {
+            toggleSelectionStrike(pane);
+        } else {
+            setTypingStrike(pane, !getTypingState(pane).strike());
+        }
+    }
+
     // --- Read current typing state ---
     public static StyleState getTypingState(JTextPane pane) {
         try {
@@ -75,6 +108,10 @@ public final class RichTextStyler {
             applier.accept(attrs);
             pane.setCharacterAttributes(attrs, true);
         } catch (Throwable ignored) {}
+    }
+
+    private static boolean hasSelection(JTextPane pane) {
+        return pane.getSelectionStart() != pane.getSelectionEnd();
     }
 
     private static void toggleSelection(JTextPane pane,
