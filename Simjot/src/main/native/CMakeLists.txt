@@ -23,6 +23,8 @@ if(APPLE)
     target_link_libraries(simjot_native PRIVATE
         "-framework CoreGraphics"
         "-framework ApplicationServices"
+        "-framework CoreText"
+        "-framework CoreFoundation"
     )
 elseif(WIN32)
     target_link_libraries(simjot_native PRIVATE Shcore)

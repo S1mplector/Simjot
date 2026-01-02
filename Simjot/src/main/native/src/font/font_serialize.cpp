@@ -469,12 +469,23 @@ extern "C" sjf_font_t* sjf_font_unpack(const uint8_t* buffer, int32_t buffer_len
     if (!font) return nullptr;
     
     const uint8_t* ptr = buffer;
+    const uint8_t* end = buffer + buffer_len;
+    
+    // Helper macro for safe bounds checking
+    #define CHECK_BOUNDS(needed) do { if (ptr + (needed) > end) goto fail; } while(0)
     
     // Read header
+    CHECK_BOUNDS(sizeof(sjf_header_t));
     memcpy(&font->header, ptr, sizeof(sjf_header_t));
     ptr += sizeof(sjf_header_t);
     
     if (font->header.magic != SJF_MAGIC) {
+        free(font);
+        return nullptr;
+    }
+    
+    // Validate glyph count
+    if (font->header.glyph_count > SJF_MAX_GLYPHS) {
         free(font);
         return nullptr;
     }
@@ -489,7 +500,8 @@ extern "C" sjf_font_t* sjf_font_unpack(const uint8_t* buffer, int32_t buffer_len
     
     // Read glyphs
     for (uint32_t g = 0; g < font->header.glyph_count; g++) {
-        if (ptr >= buffer + buffer_len) goto fail;
+        // Check minimum glyph header size: codepoint(4) + stroke_count(2) + flags(2) + metrics
+        CHECK_BOUNDS(4 + 2 + 2 + sizeof(sjf_metrics_t));
         
         sjf_glyph_t* glyph = &font->glyphs[font->glyph_count++];
         
@@ -501,11 +513,19 @@ extern "C" sjf_font_t* sjf_font_unpack(const uint8_t* buffer, int32_t buffer_len
         glyph->defined = (flags & 1) ? 1 : 0;
         memcpy(&glyph->metrics, ptr, sizeof(sjf_metrics_t)); ptr += sizeof(sjf_metrics_t);
         
+        // Validate stroke count
+        if (stroke_count > SJF_MAX_STROKES) {
+            stroke_count = SJF_MAX_STROKES; // Clamp to max
+        }
+        
         glyph->stroke_capacity = stroke_count > 0 ? stroke_count : 8;
         glyph->strokes = (sjf_stroke_t*)calloc(glyph->stroke_capacity, sizeof(sjf_stroke_t));
         if (!glyph->strokes) goto fail;
         
         for (uint16_t s = 0; s < stroke_count; s++) {
+            // Check stroke header size: point_count(2) + thickness(4) + color(4)
+            CHECK_BOUNDS(2 + 4 + 4);
+            
             sjf_stroke_t* stroke = &glyph->strokes[glyph->stroke_count++];
             
             uint16_t point_count;
@@ -513,19 +533,34 @@ extern "C" sjf_font_t* sjf_font_unpack(const uint8_t* buffer, int32_t buffer_len
             memcpy(&stroke->thickness, ptr, 4); ptr += 4;
             memcpy(&stroke->color, ptr, 4); ptr += 4;
             
+            // Validate point count
+            if (point_count > SJF_MAX_POINTS) {
+                point_count = SJF_MAX_POINTS; // Clamp to max
+            }
+            
+            // Check if we have enough data for all points
+            size_t points_size = (size_t)point_count * sizeof(sjf_point_t);
+            CHECK_BOUNDS(points_size);
+            
             stroke->capacity = point_count;
             stroke->point_count = point_count;
-            stroke->points = (sjf_point_t*)malloc(point_count * sizeof(sjf_point_t));
-            if (!stroke->points) goto fail;
-            
-            memcpy(stroke->points, ptr, point_count * sizeof(sjf_point_t));
-            ptr += point_count * sizeof(sjf_point_t);
+            if (point_count > 0) {
+                stroke->points = (sjf_point_t*)malloc(points_size);
+                if (!stroke->points) goto fail;
+                memcpy(stroke->points, ptr, points_size);
+                ptr += points_size;
+            } else {
+                stroke->points = nullptr;
+            }
         }
     }
+    
+    #undef CHECK_BOUNDS
     
     return font;
     
 fail:
+    #undef CHECK_BOUNDS
     sjf_font_free(font);
     return nullptr;
 }

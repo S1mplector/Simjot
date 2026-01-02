@@ -37,6 +37,7 @@ public final class NativeFonts implements AutoCloseable {
     private final MethodHandle fontSetAuthorHandle;
     private final MethodHandle fontGlyphCountHandle;
     private final MethodHandle fontDefinedGlyphCountHandle;
+    private final MethodHandle fontImportHandle;
     
     // Font metrics handles
     private final MethodHandle fontGetAscenderHandle;
@@ -119,6 +120,9 @@ public final class NativeFonts implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         fontDefinedGlyphCountHandle = downcall("sjf_font_defined_glyph_count",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        fontImportHandle = downcall("sjf_font_import",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         
         // Font metrics
         fontGetAscenderHandle = downcall("sjf_font_get_ascender",
@@ -331,12 +335,43 @@ public final class NativeFonts implements AutoCloseable {
             throw new RuntimeException("fontGlyphCount failed", t);
         }
     }
-    
+
     public int fontDefinedGlyphCount(MemorySegment font) {
         try {
             return (int) fontDefinedGlyphCountHandle.invokeExact(font);
         } catch (Throwable t) {
             throw new RuntimeException("fontDefinedGlyphCount failed", t);
+        }
+    }
+
+    public boolean hasFontImport() {
+        return fontImportHandle != null;
+    }
+
+    public record FontImportResult(MemorySegment font, int error, int total, int defined, int skipped) {}
+
+    public FontImportResult fontImport(String path, String charset, float thickness) {
+        if (fontImportHandle == null || path == null) return null;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment pathSeg = local.allocateFrom(path);
+            MemorySegment charsetSeg = (charset == null || charset.isBlank())
+                ? MemorySegment.NULL
+                : local.allocateFrom(charset);
+            MemorySegment errSeg = local.allocate(ValueLayout.JAVA_INT);
+            MemorySegment totalSeg = local.allocate(ValueLayout.JAVA_INT);
+            MemorySegment definedSeg = local.allocate(ValueLayout.JAVA_INT);
+            MemorySegment skippedSeg = local.allocate(ValueLayout.JAVA_INT);
+
+            MemorySegment font = (MemorySegment) fontImportHandle.invokeExact(
+                pathSeg, charsetSeg, thickness, errSeg, totalSeg, definedSeg, skippedSeg);
+
+            int err = errSeg.get(ValueLayout.JAVA_INT, 0);
+            int total = totalSeg.get(ValueLayout.JAVA_INT, 0);
+            int defined = definedSeg.get(ValueLayout.JAVA_INT, 0);
+            int skipped = skippedSeg.get(ValueLayout.JAVA_INT, 0);
+            return new FontImportResult(font, err, total, defined, skipped);
+        } catch (Throwable t) {
+            return null;
         }
     }
     

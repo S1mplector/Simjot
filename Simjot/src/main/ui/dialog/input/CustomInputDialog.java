@@ -10,9 +10,11 @@ package main.ui.dialog.input;
 
 import java.awt.*;
 import javax.swing.*;
-import main.ui.animations.transitions.FadingButton;
 import main.ui.app.JournalApp;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.input.AeroTextField;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Simple modern input dialog with translucent rounded panel, OK / Cancel buttons.
@@ -26,31 +28,39 @@ public class CustomInputDialog extends JDialog {
         setBackground(new Color(0,0,0,0));
         setLayout(new BorderLayout());
 
-        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(10,10), 30);
-        panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
+        FrostedGlassPanel panel = new FrostedGlassPanel(new BorderLayout(12, 12), 22);
+        panel.setBorder(BorderFactory.createEmptyBorder(18, 20, 18, 20));
 
-        JLabel lbl = new JLabel("<html><body style='text-align:center;'>"+message+"</body></html>", SwingConstants.CENTER);
-        lbl.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        lbl.setForeground(Color.DARK_GRAY);
-        panel.add(lbl, BorderLayout.NORTH);
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(AeroTheme.defaultBoldFont(16f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
+        JLabel subtitle = new JLabel("<html><body style='text-align:left;'>"+message+"</body></html>");
+        subtitle.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        subtitle.setForeground(new Color(120, 130, 145));
+        header.add(titleLabel);
+        header.add(Box.createVerticalStrut(6));
+        header.add(subtitle);
+        panel.add(header, BorderLayout.NORTH);
 
-        JTextField field = new JTextField(initial==null?"":initial, 20);
-        field.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        AeroTextField field = new AeroTextField(22);
+        field.setText(initial == null ? "" : initial);
+        field.setFont(AeroTheme.defaultFont().deriveFont(14f));
+        field.putClientProperty("JTextField.placeholderText", "Enter a name");
+        field.selectAll();
         panel.add(field, BorderLayout.CENTER);
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
         btnPanel.setOpaque(false);
 
-        FadingButton okBtn = new FadingButton("OK");
-        okBtn.setBackground(new Color(80,130,180));
-        okBtn.setForeground(Color.WHITE);
-        okBtn.setPreferredSize(new Dimension(100,40));
+        RoundedButton okBtn = new RoundedButton("OK");
+        okBtn.setPreferredSize(new Dimension(110, 36));
         okBtn.addActionListener(e -> { result = field.getText().trim(); setVisible(false); dispose(); });
 
-        FadingButton cancelBtn = new FadingButton("Cancel");
-        cancelBtn.setBackground(new Color(120,120,120));
-        cancelBtn.setForeground(Color.WHITE);
-        cancelBtn.setPreferredSize(new Dimension(100,40));
+        RoundedButton cancelBtn = new RoundedButton("Cancel");
+        cancelBtn.setPreferredSize(new Dimension(110, 36));
         cancelBtn.addActionListener(e -> { result = null; setVisible(false); dispose(); });
 
         btnPanel.add(okBtn);
@@ -59,8 +69,10 @@ public class CustomInputDialog extends JDialog {
 
         add(panel);
         pack();
+        getRootPane().setDefaultButton(okBtn);
         setAlwaysOnTop(true);
         setLocationRelativeTo(parent);
+        SwingUtilities.invokeLater(field::requestFocusInWindow);
     }
 
     public static String prompt(Component parent, String title, String message, String initial) {

@@ -17,9 +17,10 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Insets;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -55,16 +56,18 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.Timer;
-import javax.swing.border.AbstractBorder;
 import javax.swing.border.EmptyBorder;
 
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.RoundedPanel;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.input.CustomInputDialog;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Modern, polished notebook cluster organizer with drag-drop and visual feedback.
@@ -74,15 +77,17 @@ import main.ui.dialog.input.CustomInputDialog;
  */
 public class ModernClusterOrganizer extends JDialog {
     
-    private static final Color ACCENT = new Color(147, 112, 219);  // Purple theme for notebooks
-    private static final Color ACCENT_LIGHT = new Color(240, 235, 255);
-    private static final Color CARD_BORDER = new Color(220, 225, 235);
-    private static final Color CARD_HOVER = new Color(248, 245, 255);
-    private static final Color TEXT_PRIMARY = new Color(40, 45, 55);
-    private static final Color TEXT_SECONDARY = new Color(100, 110, 125);
-    private static final Color TEXT_MUTED = new Color(150, 160, 175);
-    private static final Color CLUSTER_BG = new Color(252, 250, 255);
-    private static final Color DROP_HIGHLIGHT = new Color(147, 112, 219, 40);
+    private static final Color ACCENT = AeroTheme.AERO_BLUE;
+    private static final Color ACCENT_LIGHT = new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 40);
+    private static final Color CARD_BORDER = new Color(170, 180, 195, 160);
+    private static final Color TEXT_PRIMARY = AeroTheme.TEXT_PRIMARY;
+    private static final Color TEXT_SECONDARY = new Color(85, 95, 110);
+    private static final Color TEXT_MUTED = new Color(130, 140, 155);
+    private static final Color CLUSTER_BG_TOP = new Color(255, 255, 255, 210);
+    private static final Color CLUSTER_BG_BOTTOM = new Color(235, 240, 246, 200);
+    private static final Color DROP_HIGHLIGHT = new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 50);
+    private static final int CARD_ARC = 16;
+    private static final int CHIP_ARC = 10;
     
     private final NotebookStore store = new NotebookStore();
     private final JPanel clustersContainer;
@@ -110,9 +115,9 @@ public class ModernClusterOrganizer extends JDialog {
         // ═══════════════════════════════════════════════════════════════════
         // SEARCH & ACTIONS
         // ═══════════════════════════════════════════════════════════════════
-        JPanel topSection = new JPanel(new BorderLayout(12, 8));
-        topSection.setOpaque(false);
-        topSection.setBorder(new EmptyBorder(0, 24, 16, 24));
+        RoundedPanel topSection = new RoundedPanel(14);
+        topSection.setLayout(new BorderLayout(12, 0));
+        topSection.setBorder(new EmptyBorder(8, 12, 8, 12));
         
         searchField = new AeroTextField(28);
         searchField.setFont(searchField.getFont().deriveFont(14f));
@@ -123,8 +128,8 @@ public class ModernClusterOrganizer extends JDialog {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { debouncedRefresh(); }
         });
         
-        RoundedButton newClusterBtn = new RoundedButton("+ New Cluster");
-        newClusterBtn.setPreferredSize(new Dimension(130, 36));
+        RoundedButton newClusterBtn = new RoundedButton("New Cluster");
+        newClusterBtn.setPreferredSize(new Dimension(130, 34));
         newClusterBtn.addActionListener(e -> createNewCluster());
         
         topSection.add(searchField, BorderLayout.CENTER);
@@ -135,16 +140,19 @@ public class ModernClusterOrganizer extends JDialog {
         // ═══════════════════════════════════════════════════════════════════
         clustersContainer = new JPanel();
         clustersContainer.setLayout(new BoxLayout(clustersContainer, BoxLayout.Y_AXIS));
-        clustersContainer.setOpaque(true);
+        clustersContainer.setOpaque(false);
         clustersContainer.setDoubleBuffered(true);
-        clustersContainer.setBackground(new Color(250, 251, 253));
-        clustersContainer.setBorder(new EmptyBorder(16, 24, 16, 24));
+        clustersContainer.setBorder(new EmptyBorder(12, 16, 16, 16));
         
-        JScrollPane scroll = new JScrollPane(clustersContainer);
+        RoundedPanel listPanel = new RoundedPanel(CARD_ARC);
+        listPanel.setLayout(new BorderLayout());
+        listPanel.setBorder(new EmptyBorder(6, 6, 6, 6));
+        listPanel.add(clustersContainer, BorderLayout.CENTER);
+
+        JScrollPane scroll = new JScrollPane(listPanel);
         scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.setOpaque(true);
-        scroll.getViewport().setOpaque(true);
-        scroll.getViewport().setBackground(new Color(250, 251, 253));
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
         scroll.getVerticalScrollBar().setUnitIncrement(24);
         scroll.getViewport().setScrollMode(javax.swing.JViewport.BACKINGSTORE_SCROLL_MODE);
         
@@ -186,11 +194,11 @@ public class ModernClusterOrganizer extends JDialog {
         header.setBorder(new EmptyBorder(20, 24, 16, 24));
         
         JLabel title = new JLabel("Organize Notebooks");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
+        title.setFont(AeroTheme.defaultBoldFont(22f));
         title.setForeground(TEXT_PRIMARY);
         
         JLabel subtitle = new JLabel("Drag notebooks between clusters to organize them");
-        subtitle.setFont(subtitle.getFont().deriveFont(12f));
+        subtitle.setFont(AeroTheme.defaultFont().deriveFont(12f));
         subtitle.setForeground(TEXT_MUTED);
         
         JPanel titlePanel = new JPanel();
@@ -216,7 +224,7 @@ public class ModernClusterOrganizer extends JDialog {
         footer.setBorder(new EmptyBorder(12, 24, 20, 24));
         
         JLabel hint = new JLabel("Drag notebooks to clusters • Right-click for options");
-        hint.setFont(hint.getFont().deriveFont(11f));
+        hint.setFont(AeroTheme.defaultFont().deriveFont(11f));
         hint.setForeground(TEXT_MUTED);
         
         RoundedButton doneBtn = new RoundedButton("Done");
@@ -230,13 +238,10 @@ public class ModernClusterOrganizer extends JDialog {
     }
     
     private JButton createIconButton(String icon, String tooltip) {
-        JButton btn = new JButton(icon);
-        btn.setFont(btn.getFont().deriveFont(16f));
+        RoundedButton btn = new RoundedButton(icon);
+        btn.setFont(AeroTheme.defaultBoldFont(14f));
         btn.setForeground(TEXT_SECONDARY);
-        btn.setPreferredSize(new Dimension(36, 36));
-        btn.setBorderPainted(false);
-        btn.setContentAreaFilled(false);
-        btn.setFocusPainted(false);
+        btn.setPreferredSize(new Dimension(34, 34));
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.setToolTipText(tooltip);
         return btn;
@@ -347,7 +352,7 @@ public class ModernClusterOrganizer extends JDialog {
             setLayout(new BorderLayout(0, 8));
             setOpaque(false);  // Allow background to show through
             setDoubleBuffered(true);
-            setBorder(new RoundedBorder(12, new Color(200, 190, 220)));
+            setBorder(new EmptyBorder(0, 0, 0, 0));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
             setAlignmentX(LEFT_ALIGNMENT);
             
@@ -373,7 +378,7 @@ public class ModernClusterOrganizer extends JDialog {
             left.setOpaque(false);
             
             JLabel expandIcon = new JLabel(expanded ? "▼" : "▶");
-            expandIcon.setFont(expandIcon.getFont().deriveFont(10f));
+            expandIcon.setFont(AeroTheme.defaultFont().deriveFont(10f));
             expandIcon.setForeground(TEXT_MUTED);
             expandIcon.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             expandIcon.addMouseListener(new MouseAdapter() {
@@ -386,11 +391,11 @@ public class ModernClusterOrganizer extends JDialog {
             });
             
             JLabel nameLabel = new JLabel(clusterId);
-            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 15f));
+            nameLabel.setFont(AeroTheme.defaultBoldFont(15f));
             nameLabel.setForeground(ACCENT);
             
             JLabel countLabel = new JLabel("(" + notebooks.size() + ")");
-            countLabel.setFont(countLabel.getFont().deriveFont(12f));
+            countLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
             countLabel.setForeground(TEXT_MUTED);
             
             left.add(expandIcon);
@@ -441,13 +446,11 @@ public class ModernClusterOrganizer extends JDialog {
         }
         
         private JButton createSmallButton(String icon, String tooltip) {
-            JButton btn = new JButton(icon);
-            btn.setFont(btn.getFont().deriveFont(12f));
+            RoundedButton btn = new RoundedButton(icon);
+            btn.setFont(AeroTheme.defaultBoldFont(11f));
             btn.setForeground(TEXT_MUTED);
             btn.setPreferredSize(new Dimension(28, 28));
-            btn.setBorderPainted(false);
-            btn.setContentAreaFilled(false);
-            btn.setFocusPainted(false);
+            btn.setFlat(true);
             btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             btn.setToolTipText(tooltip);
             btn.addMouseListener(new MouseAdapter() {
@@ -532,39 +535,51 @@ public class ModernClusterOrganizer extends JDialog {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) {
+                g2.dispose();
+                return;
+            }
+
+            Rectangle r = new Rectangle(0, 0, w, h);
+            RoundRectangle2D card = new RoundRectangle2D.Float(0, 0, w, h, CARD_ARC, CARD_ARC);
+
+            AeroPainters.paintOuterGlow(g2, r, CARD_ARC, ACCENT, dropHighlight ? 7 : 4, dropHighlight ? 90 : 50);
             
             // Clip to rounded rect
-            g2.setClip(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 12, 12));
+            g2.setClip(card);
             
             // Paint entry background subtly if available
             String bgPath = main.core.service.SettingsStore.get().getEntryBackgroundImage();
             if (bgPath != null && !bgPath.isEmpty()) {
-                bgPainter.paint(g2, this, bgPath, 0.15f, true);  // Very subtle opacity
-            } else {
-                g2.setColor(CLUSTER_BG);
-                g2.fillRect(0, 0, getWidth(), getHeight());
+                bgPainter.paint(g2, this, bgPath, 0.12f, true);
             }
             
-            // Frosted overlay for readability
-            g2.setColor(new Color(255, 255, 255, dropHighlight ? 200 : 230));
-            g2.fillRect(0, 0, getWidth(), getHeight());
+            AeroPainters.paintVerticalGradient(g2, r, CLUSTER_BG_TOP, CLUSTER_BG_BOTTOM, CARD_ARC);
+            AeroPainters.paintGlassOverlay(g2, r, CARD_ARC);
             
             // Drop highlight tint
             if (dropHighlight) {
                 g2.setColor(DROP_HIGHLIGHT);
-                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.fillRect(0, 0, w, h);
             }
             
             g2.setClip(null);
             
             // Left accent bar
-            g2.setColor(ACCENT);
-            g2.fill(new RoundRectangle2D.Float(0, 0, 4, getHeight(), 4, 4));
+            GradientPaint accentPaint = new GradientPaint(
+                0, 0, new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 200),
+                0, h, new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 120)
+            );
+            g2.setPaint(accentPaint);
+            g2.fill(new RoundRectangle2D.Float(1, 2, 4, h - 4, 6, 6));
             
             // Border
-            g2.setColor(new Color(200, 190, 220));
+            AeroPainters.paintInnerStroke(g2, r, CARD_ARC, new Color(255, 255, 255, 120));
+            g2.setColor(CARD_BORDER);
             g2.setStroke(new BasicStroke(1f));
-            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth()-1, getHeight()-1, 12, 12));
+            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, CARD_ARC, CARD_ARC));
             
             g2.dispose();
             super.paintComponent(g);
@@ -583,10 +598,9 @@ public class ModernClusterOrganizer extends JDialog {
             this.notebooks = notebooks;
             
             setLayout(new BorderLayout(0, 8));
-            setOpaque(true);
+            setOpaque(false);
             setDoubleBuffered(true);
-            setBackground(new Color(250, 251, 253));
-            setBorder(new RoundedBorder(12, CARD_BORDER));
+            setBorder(new EmptyBorder(0, 0, 0, 0));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
             setAlignmentX(LEFT_ALIGNMENT);
             
@@ -596,11 +610,11 @@ public class ModernClusterOrganizer extends JDialog {
             header.setBorder(new EmptyBorder(12, 16, 8, 16));
             
             JLabel nameLabel = new JLabel("Unclustered");
-            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 15f));
+            nameLabel.setFont(AeroTheme.defaultBoldFont(15f));
             nameLabel.setForeground(TEXT_SECONDARY);
             
             JLabel countLabel = new JLabel("(" + notebooks.size() + ")");
-            countLabel.setFont(countLabel.getFont().deriveFont(12f));
+            countLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
             countLabel.setForeground(TEXT_MUTED);
             
             header.add(nameLabel);
@@ -672,9 +686,32 @@ public class ModernClusterOrganizer extends JDialog {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            g2.setColor(dropHighlight ? new Color(245, 248, 255) : new Color(250, 251, 253));
-            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 12, 12));
+
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) {
+                g2.dispose();
+                return;
+            }
+
+            Rectangle r = new Rectangle(0, 0, w, h);
+            RoundRectangle2D card = new RoundRectangle2D.Float(0, 0, w, h, CARD_ARC, CARD_ARC);
+
+            Color neutralAccent = new Color(140, 150, 165);
+            AeroPainters.paintOuterGlow(g2, r, CARD_ARC, neutralAccent, dropHighlight ? 6 : 3, dropHighlight ? 70 : 40);
+
+            g2.setClip(card);
+            AeroPainters.paintVerticalGradient(g2, r, CLUSTER_BG_TOP, CLUSTER_BG_BOTTOM, CARD_ARC);
+            AeroPainters.paintGlassOverlay(g2, r, CARD_ARC);
+            if (dropHighlight) {
+                g2.setColor(ACCENT_LIGHT);
+                g2.fillRect(0, 0, w, h);
+            }
+            g2.setClip(null);
+
+            AeroPainters.paintInnerStroke(g2, r, CARD_ARC, new Color(255, 255, 255, 110));
+            g2.setColor(CARD_BORDER);
+            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, CARD_ARC, CARD_ARC));
             
             g2.dispose();
             super.paintComponent(g);
@@ -706,14 +743,14 @@ public class ModernClusterOrganizer extends JDialog {
                 case NOTETAKING -> "N";
             };
             JLabel typeLabel = new JLabel(typeAbbr);
-            typeLabel.setFont(typeLabel.getFont().deriveFont(Font.BOLD, 11f));
+            typeLabel.setFont(AeroTheme.defaultBoldFont(11f));
             typeLabel.setForeground(notebook.getAccentColor());
             
             // Name (truncated)
             String name = notebook.getName();
             if (name.length() > 12) name = name.substring(0, 11) + "…";
             JLabel nameLabel = new JLabel(name);
-            nameLabel.setFont(nameLabel.getFont().deriveFont(12f));
+            nameLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
             nameLabel.setForeground(TEXT_PRIMARY);
             
             add(typeLabel);
@@ -743,21 +780,35 @@ public class ModernClusterOrganizer extends JDialog {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            // Background
-            Color bg = hovered ? CARD_HOVER : Color.WHITE;
-            g2.setColor(bg);
-            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 10, 10));
-            
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) {
+                g2.dispose();
+                return;
+            }
+
+            Rectangle r = new Rectangle(0, 0, w, h);
+            if (hovered) {
+                AeroPainters.paintOuterGlow(g2, r, CHIP_ARC, notebook.getAccentColor(), 4, 60);
+            }
+
+            AeroPainters.paintVerticalGradient(g2, r,
+                hovered ? new Color(250, 252, 255, 230) : new Color(255, 255, 255, 220),
+                hovered ? new Color(234, 242, 252, 210) : new Color(235, 240, 245, 210),
+                CHIP_ARC
+            );
+            AeroPainters.paintGlassOverlay(g2, r, CHIP_ARC);
+
             // Border with notebook accent
             Color accent = notebook.getAccentColor();
             g2.setColor(hovered ? accent : CARD_BORDER);
             g2.setStroke(new BasicStroke(hovered ? 1.5f : 1f));
-            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth()-1, getHeight()-1, 10, 10));
+            g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, CHIP_ARC, CHIP_ARC));
             
             // Left accent strip
             if (hovered) {
                 g2.setColor(accent);
-                g2.fill(new RoundRectangle2D.Float(0, 0, 3, getHeight(), 3, 3));
+                g2.fill(new RoundRectangle2D.Float(1, 1, 3, h - 2, 6, 6));
             }
             
             g2.dispose();
@@ -778,32 +829,4 @@ public class ModernClusterOrganizer extends JDialog {
         @Override public void dragDropEnd(DragSourceDropEvent dsde) {}
     }
     
-    // ═══════════════════════════════════════════════════════════════════════════
-    // ROUNDED BORDER
-    // ═══════════════════════════════════════════════════════════════════════════
-    
-    private static class RoundedBorder extends AbstractBorder {
-        private final int radius;
-        private final Color color;
-        
-        RoundedBorder(int radius, Color color) {
-            this.radius = radius;
-            this.color = color;
-        }
-        
-        @Override
-        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(color);
-            g2.setStroke(new BasicStroke(1f));
-            g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, width - 1, height - 1, radius, radius));
-            g2.dispose();
-        }
-        
-        @Override
-        public Insets getBorderInsets(Component c) {
-            return new Insets(1, 1, 1, 1);
-        }
-    }
 }

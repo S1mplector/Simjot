@@ -1691,6 +1691,7 @@ int32_t simjot_link_at_position(const char* text, int32_t len, int32_t position,
 #define simjot_atlas_get_pixels sjf_atlas_get_pixels
 #define simjot_font_pack sjf_font_pack
 #define simjot_font_unpack sjf_font_unpack
+#define simjot_font_import sjf_font_import
 
 /* Opaque handles for FFM */
 typedef struct sjf_font sjf_font_t;
@@ -1772,6 +1773,8 @@ uint8_t* simjot_atlas_get_pixels(void* atlas);
 /* Serialization */
 int32_t simjot_font_pack(const void* font, uint8_t* buffer, int32_t buffer_len);
 void* simjot_font_unpack(const uint8_t* buffer, int32_t buffer_len);
+void* simjot_font_import(const char* path, const char* charset_utf8, float stroke_thickness,
+                          int32_t* out_error, int32_t* out_total, int32_t* out_defined, int32_t* out_skipped);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * TABLET INPUT API

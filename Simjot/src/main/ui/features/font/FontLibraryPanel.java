@@ -13,10 +13,12 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JLabel;
@@ -25,12 +27,15 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import javax.swing.event.ListSelectionEvent;
 
 import main.core.font.CustomFont;
 import main.infrastructure.font.CustomFontRegistry;
+import main.infrastructure.font.FontImporter;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.scrollbar.ModernScrollBarUI;
+import main.ui.dialog.file.SimjotFileChooser;
 
 /**
  * Panel for managing the font library - list, rename, delete fonts.
@@ -75,27 +80,45 @@ public class FontLibraryPanel extends JPanel {
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
         
-        // Button panel - use GridLayout to ensure all buttons visible
-        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 4, 4));
+        // Button panel - stacked rows for all buttons
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
         buttonPanel.setOpaque(false);
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         
+        // Import button (prominent, full width)
+        JPanel importRow = new JPanel(new GridLayout(1, 1, 4, 4));
+        importRow.setOpaque(false);
+        RoundedButton importButton = new RoundedButton("Import Font...");
+        importButton.setToolTipText("Import TTF, OTF, or other font files");
+        importButton.addActionListener(e -> importFontFile());
+        importRow.add(importButton);
+        buttonPanel.add(importRow);
+        
+        // Spacer
+        buttonPanel.add(javax.swing.Box.createVerticalStrut(4));
+        
+        // Standard buttons grid
+        JPanel gridPanel = new JPanel(new GridLayout(2, 2, 4, 4));
+        gridPanel.setOpaque(false);
+        
         RoundedButton newButton = new RoundedButton("New");
         newButton.addActionListener(e -> createNewFont());
-        buttonPanel.add(newButton);
+        gridPanel.add(newButton);
         
         RoundedButton renameButton = new RoundedButton("Rename");
         renameButton.addActionListener(e -> renameSelectedFont());
-        buttonPanel.add(renameButton);
+        gridPanel.add(renameButton);
         
         RoundedButton duplicateButton = new RoundedButton("Duplicate");
         duplicateButton.addActionListener(e -> duplicateSelectedFont());
-        buttonPanel.add(duplicateButton);
+        gridPanel.add(duplicateButton);
         
         RoundedButton deleteButton = new RoundedButton("Delete");
         deleteButton.addActionListener(e -> deleteSelectedFont());
-        buttonPanel.add(deleteButton);
+        gridPanel.add(deleteButton);
         
+        buttonPanel.add(gridPanel);
         add(buttonPanel, BorderLayout.SOUTH);
         
         // Load fonts
@@ -247,6 +270,92 @@ public class FontLibraryPanel extends JPanel {
             JOptionPane.showMessageDialog(this,
                 "Failed to delete font.", "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+    
+    private void importFontFile() {
+        SimjotFileChooser chooser = new SimjotFileChooser(
+            SwingUtilities.getWindowAncestor(this), "Import Font File");
+        chooser.setMode(SimjotFileChooser.Mode.OPEN);
+        chooser.addFileFilter("Font Files (*.ttf, *.otf, *.ttc)", "ttf", "otf", "ttc", "dfont");
+        
+        File fontFile = chooser.showDialog();
+        if (fontFile == null || !fontFile.exists()) return;
+        
+        // Show import options dialog
+        String[] options = { "Full Character Set", "ASCII Only", "Cancel" };
+        int charsetChoice = JOptionPane.showOptionDialog(this,
+            "Select which characters to import from '" + fontFile.getName() + "':",
+            "Import Options",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]);
+        
+        if (charsetChoice == 2 || charsetChoice == JOptionPane.CLOSED_OPTION) return;
+        
+        String charset = (charsetChoice == 1) ? FontImporter.ASCII_CHARSET : FontImporter.DEFAULT_CHARSET;
+        
+        // Import in background to avoid UI freeze
+        setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.WAIT_CURSOR));
+        
+        new Thread(() -> {
+            try {
+                FontImporter.ImportResult importResult = FontImporter.importFontWithResult(
+                    fontFile, charset, CustomFont.DEFAULT_THICKNESS);
+                
+                SwingUtilities.invokeLater(() -> {
+                    setCursor(java.awt.Cursor.getDefaultCursor());
+                    
+                    if (!importResult.isSuccess()) {
+                        String msg = "Failed to import font.";
+                        if (!importResult.warnings.isEmpty()) {
+                            msg += "\n" + String.join("\n", importResult.warnings);
+                        }
+                        JOptionPane.showMessageDialog(this, msg, "Import Failed", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    
+                    CustomFont font = importResult.font;
+                    
+                    // Check if font with same name exists
+                    String baseName = font.getName();
+                    String finalName = baseName;
+                    int counter = 2;
+                    while (registry.fontExists(finalName)) {
+                        finalName = baseName + " " + counter++;
+                    }
+                    font.setName(finalName);
+                    
+                    // Add to registry
+                    if (registry.addFont(font)) {
+                        refreshFontList();
+                        fontList.setSelectedValue(finalName, true);
+                        
+                        String successMsg = String.format(
+                            "Successfully imported '%s'\n%d glyphs imported.",
+                            finalName, importResult.definedCount);
+                        if (!importResult.warnings.isEmpty()) {
+                            successMsg += "\n\nWarnings:\n" + String.join("\n", importResult.warnings);
+                        }
+                        JOptionPane.showMessageDialog(this, successMsg, "Import Complete", JOptionPane.INFORMATION_MESSAGE);
+                        
+                        for (FontLibraryListener l : listeners) {
+                            l.onFontCreated(font);
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(this, 
+                            "Failed to save imported font.", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            } catch (Throwable t) {
+                SwingUtilities.invokeLater(() -> {
+                    setCursor(java.awt.Cursor.getDefaultCursor());
+                    JOptionPane.showMessageDialog(this,
+                        "Error importing font: " + t.getMessage(), "Import Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
     }
     
     private class FontListCellRenderer extends DefaultListCellRenderer {
