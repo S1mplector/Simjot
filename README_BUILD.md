@@ -8,8 +8,8 @@ This document covers building Simjot from source on all platforms.
 |-------------|---------|-------|
 | JDK | 24+ | Ensure `java`, `javac`, and `jpackage` are on your `PATH` |
 | Maven | 3.8+ | Required for building |
-| GHC/Cabal | 9.4+ | Optional, for Haskell poetry module |
-| CMake | 3.20+ | Optional, for native C/C++ library |
+| GHC/Cabal | 9.4+ | Required for Haskell poetry module |
+| CMake | 3.20+ | Required for native C/C++ library |
 
 ## Build Methods
 
