@@ -74,12 +74,21 @@ import main.ui.components.clocks.SegmentClock;
 import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
-import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
+
+/**
+ * Main menu panel shown on app launch, and accessible from the header.
+ * Sectioned layout with buttons for primary features.
+ * Contains header, clock, calendar, quick access buttons, and optional widgets.
+ * Draggable widget panel is currently disabled.
+ * Orchestrates layout and theming.
+ * Handles user interactions and events.
+ * Manages the lifecycle of child components.
+ */
 
 public class MainMenuPanel extends JPanel {
 
@@ -449,19 +458,16 @@ public class MainMenuPanel extends JPanel {
 
         buttonPanel.add(iconRow);
 
-        FrostedGlassPanel menuGlass = new FrostedGlassPanel(new BorderLayout(), 18);
-        menuGlass.setOpaque(false);
-        menuGlass.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
-        menuGlass.setAlignmentX(Component.CENTER_ALIGNMENT);
-        menuGlass.add(buttonPanel, BorderLayout.CENTER);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         content.add(Box.createRigidArea(new Dimension(0, 20)));
-        content.add(menuGlass);
+        content.add(buttonPanel);
 
         header.startAnimation();
-        // No fade-in animation; buttons are visible immediately
+        // Buttons are visible immediately
 
-        // --------- Container setup
+        // Container setup
         setLayout(new BorderLayout());
         if (bgPath != null && !bgPath.isEmpty()) {
             setBackground(Color.BLACK);
@@ -470,6 +476,7 @@ public class MainMenuPanel extends JPanel {
         }
 
         // Widgets panel is disabled for now; keep the layeredPane for future use
+        // widgetPanel = new JPanel();
         widgetPanel = null;
         // Use a layered pane to allow dragging over other components (even though widget panel is omitted)
         layeredPane = new JLayeredPane() {

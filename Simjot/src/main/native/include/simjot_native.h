@@ -1630,6 +1630,91 @@ int32_t simjot_link_is_valid(const char* url, int32_t len);
 int32_t simjot_link_at_position(const char* text, int32_t len, int32_t position,
                                  int32_t* out_start, int32_t* out_end);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CUSTOM FONT API - Stroke-based font creation and rendering
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Opaque handles for FFM */
+typedef struct sjf_font sjf_font_t;
+typedef struct sjf_glyph sjf_glyph_t;
+typedef struct sjf_stroke sjf_stroke_t;
+typedef struct sjf_bitmap sjf_bitmap_t;
+typedef struct sjf_atlas sjf_atlas_t;
+
+/* Font creation and management */
+void* simjot_font_create(const char* name, const char* author);
+void simjot_font_free(void* font);
+void* simjot_font_load(const char* path);
+int32_t simjot_font_save(const void* font, const char* path);
+
+/* Font metadata */
+int32_t simjot_font_get_name(const void* font, char* out, int32_t out_len);
+int32_t simjot_font_set_name(void* font, const char* name);
+int32_t simjot_font_get_author(const void* font, char* out, int32_t out_len);
+int32_t simjot_font_set_author(void* font, const char* author);
+int32_t simjot_font_glyph_count(const void* font);
+int32_t simjot_font_defined_glyph_count(const void* font);
+
+/* Font metrics */
+float simjot_font_get_ascender(const void* font, int32_t size);
+float simjot_font_get_descender(const void* font, int32_t size);
+float simjot_font_get_line_height(const void* font, int32_t size);
+float simjot_font_get_em_size(const void* font);
+float simjot_font_measure_text(const void* font, const char* text, int32_t size);
+float simjot_font_measure_char(const void* font, uint32_t codepoint, int32_t size);
+
+/* Glyph management */
+void* simjot_font_get_glyph(void* font, uint32_t codepoint);
+void* simjot_font_add_glyph(void* font, uint32_t codepoint);
+int32_t simjot_glyph_add_stroke(void* glyph, const void* stroke);
+void simjot_glyph_clear_strokes(void* glyph);
+int32_t simjot_glyph_compute_metrics(void* glyph, float em_size);
+int32_t simjot_glyph_normalize(void* glyph, float em_size, float margin);
+float simjot_glyph_get_advance(const void* glyph);
+float simjot_glyph_get_width(const void* glyph);
+float simjot_glyph_get_height(const void* glyph);
+void simjot_glyph_get_bounds(const void* glyph, float* x, float* y, float* w, float* h);
+
+/* Stroke creation and manipulation */
+void* simjot_stroke_create(int32_t initial_capacity);
+void simjot_stroke_free(void* stroke);
+int32_t simjot_stroke_add_point(void* stroke, float x, float y, float pressure, float timestamp);
+void simjot_stroke_clear(void* stroke);
+int32_t simjot_stroke_smooth(void* stroke, int32_t iterations, float tension, float resample_dist, int32_t preserve_corners);
+float simjot_stroke_length(const void* stroke);
+void simjot_stroke_bounds(const void* stroke, float* min_x, float* min_y, float* max_x, float* max_y);
+void simjot_stroke_translate(void* stroke, float dx, float dy);
+void simjot_stroke_scale(void* stroke, float sx, float sy, float cx, float cy);
+void simjot_stroke_normalize(void* stroke, float target_size);
+int32_t simjot_stroke_simplify(void* stroke, float epsilon);
+
+/* Rasterization */
+void* simjot_bitmap_create(int32_t width, int32_t height);
+void simjot_bitmap_free(void* bitmap);
+void simjot_bitmap_clear(void* bitmap);
+int32_t simjot_bitmap_get_width(const void* bitmap);
+int32_t simjot_bitmap_get_height(const void* bitmap);
+int32_t simjot_bitmap_get_stride(const void* bitmap);
+uint8_t* simjot_bitmap_get_pixels(void* bitmap);
+int32_t simjot_bitmap_to_argb(const void* bitmap, uint32_t color, uint32_t* out_argb, int32_t out_stride);
+
+void* simjot_raster_glyph(const void* glyph, int32_t size, int32_t oversample, float gamma, float em_size);
+int32_t simjot_raster_stroke(void* bitmap, const void* stroke, float scale, float offset_x, float offset_y);
+int32_t simjot_render_glyph_to_buffer(const void* glyph, uint32_t* buffer, int32_t buf_width, int32_t buf_height,
+                                       int32_t x, int32_t y, int32_t size, uint32_t color, float em_size);
+
+/* Atlas building */
+void* simjot_atlas_create(int32_t width, int32_t height);
+void simjot_atlas_free(void* atlas);
+int32_t simjot_atlas_add_glyph(void* atlas, const void* bitmap, uint32_t codepoint, float advance, int32_t* out_x, int32_t* out_y);
+int32_t simjot_atlas_get_width(const void* atlas);
+int32_t simjot_atlas_get_height(const void* atlas);
+uint8_t* simjot_atlas_get_pixels(void* atlas);
+
+/* Serialization */
+int32_t simjot_font_pack(const void* font, uint8_t* buffer, int32_t buffer_len);
+void* simjot_font_unpack(const uint8_t* buffer, int32_t buffer_len);
+
 #ifdef __cplusplus
 }
 #endif
