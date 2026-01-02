@@ -74,6 +74,7 @@ import main.ui.components.clocks.SegmentClock;
 import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
@@ -365,12 +366,6 @@ public class MainMenuPanel extends JPanel {
         content.add(Box.createRigidArea(new Dimension(0, 10)));
         content.add(header);
 
-        // Time info right below header quote
-        TimeInfoPanel timePanelTop = new TimeInfoPanel();
-        timePanelTop.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(Box.createRigidArea(new Dimension(0, 6)));
-        content.add(timePanelTop);
-
         // ---- Clock and Today Calendar side-by-side ----
         JPanel clockPanel = createClockForStyle(SettingsStore.get().getClockStyle(), accent);
         clockPanel.setPreferredSize(new Dimension(200, 200));
@@ -454,8 +449,14 @@ public class MainMenuPanel extends JPanel {
 
         buttonPanel.add(iconRow);
 
+        FrostedGlassPanel menuGlass = new FrostedGlassPanel(new BorderLayout(), 18);
+        menuGlass.setOpaque(false);
+        menuGlass.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        menuGlass.setAlignmentX(Component.CENTER_ALIGNMENT);
+        menuGlass.add(buttonPanel, BorderLayout.CENTER);
+
         content.add(Box.createRigidArea(new Dimension(0, 20)));
-        content.add(buttonPanel);
+        content.add(menuGlass);
 
         header.startAnimation();
         // No fade-in animation; buttons are visible immediately
@@ -1143,35 +1144,5 @@ public class MainMenuPanel extends JPanel {
         return button;
     }
 
-    // ---------- Time Info Panel ----------
-    private static class TimeInfoPanel extends JPanel {
-
-        private final JLabel timeLbl = new JLabel();
-        private final JLabel pctLbl = new JLabel();
-
-        TimeInfoPanel() {
-            setOpaque(false);
-            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-            timeLbl.setForeground(Color.WHITE);
-            pctLbl.setForeground(Color.WHITE);
-            Font quoteFont = new Font("SansSerif", Font.ITALIC, 18);
-            timeLbl.setFont(quoteFont);
-            pctLbl.setFont(quoteFont);
-            timeLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-            pctLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-            add(timeLbl);
-            add(pctLbl);
-            javax.swing.Timer t = new javax.swing.Timer(1000, e -> update());
-            t.start();
-            update();
-        }
-
-        private void update() {
-            java.time.LocalTime now = java.time.LocalTime.now(java.time.ZoneId.systemDefault());
-            timeLbl.setText("It's currently " + now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-            int seconds = now.toSecondOfDay();
-            double pct = seconds / 86400.0 * 100.0;
-            pctLbl.setText(String.format("%.1f%% of the day has passed.", pct));
-        }
-    }
+    // Time info panel removed; keep layout focused on the header and main widgets.
 }

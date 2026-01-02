@@ -48,6 +48,7 @@ public class HeaderPanel extends JPanel {
     private int cachedW;
     private int cachedH;
     private Color cachedAccent;
+    private static final float PANEL_HEART_SCALE = 1.12f;
     
     public HeaderPanel() {
         this(Theme.getWidgetAccent());
@@ -196,6 +197,45 @@ public class HeaderPanel extends JPanel {
         int width = getWidth();
         int height = getHeight();
         if (width > 0 && height > 0) {
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+
+            // Precompute text shapes for panel sizing and drawing.
+            Font titleFont = new Font("Segoe UI", Font.BOLD, 36);
+            String text = "Simjot";
+            FontRenderContext frc = g2.getFontRenderContext();
+            GlyphVector gv = titleFont.createGlyphVector(frc, text);
+            Rectangle2D titleVisual = gv.getVisualBounds();
+            int x = (int) Math.round((width - titleVisual.getWidth()) / 2.0);
+            int y = height / 2;
+            Shape textShape = gv.getOutline(x, y);
+            Rectangle2D titleBounds = textShape.getBounds2D();
+
+            Font quoteFont = new Font("Segoe UI", Font.ITALIC, 18);
+            GlyphVector qgv = quoteFont.createGlyphVector(frc, quote);
+            Rectangle2D quoteVisual = qgv.getVisualBounds();
+            int quoteX = (int) Math.round((width - quoteVisual.getWidth()) / 2.0);
+            int quoteY = y + 30;
+            Shape quoteShape = qgv.getOutline(quoteX, quoteY);
+            Rectangle2D quoteBounds = quoteShape.getBounds2D();
+
+            // Inline next button hit area (used for hover/click).
+            int btnSize = 22;
+            int arrowCX = (int) Math.round(quoteBounds.getX() + quoteBounds.getWidth() + 16);
+            int arrowCY = (int) Math.round(quoteBounds.getY() + quoteBounds.getHeight() / 2.0);
+            nextHit.setBounds(arrowCX - btnSize / 2, arrowCY - btnSize / 2, btnSize, btnSize);
+
+            // Frosted glass panel behind heart + title + quote for contrast.
+            Shape heartBase = createHeartShape();
+            Rectangle hb = heartBase.getBounds();
+            double heartX = (width / 2.0) + hb.x * PANEL_HEART_SCALE;
+            double heartY = (height / 2.0 - 10) + hb.y * PANEL_HEART_SCALE;
+            Rectangle2D heartBounds = new Rectangle2D.Double(
+                heartX, heartY, hb.width * PANEL_HEART_SCALE, hb.height * PANEL_HEART_SCALE
+            );
+            Rectangle panelRect = computePanelRect(width, height, titleBounds, quoteBounds, heartBounds, nextHit);
+            paintFrostedPanel(g2, panelRect, textAlpha * 0.6f);
+
             if (cachedHeart == null || cachedW != width || cachedH != height || cachedAccent == null || !cachedAccent.equals(accent)) {
                 cachedW = width;
                 cachedH = height;
@@ -275,48 +315,35 @@ public class HeaderPanel extends JPanel {
                 gGlow.dispose();
             }
             g2.setTransform(old);
-        }
         
-        // Draw ECG pulse line under heart (solid, with slight beat bump)
-        if(ecgOpacity > 0f){
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, ecgOpacity));
-            float bump = 12f + spring * 160f; // amplitude bump at beat
-            g2.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.setColor(new Color(255,255,255, 220));
-            int ecgWidth = 150;
-            int startX = width/2 - ecgWidth/2;
-            int yBase = height/2 - 8;
-            Path2D path = new Path2D.Double();
-            path.moveTo(startX, yBase);
-            path.lineTo(startX+20, yBase);
-            path.lineTo(startX+35, yBase-bump);
-            path.lineTo(startX+50, yBase+0.75*bump);
-            path.lineTo(startX+70, yBase);
-            path.lineTo(startX+ecgWidth, yBase);
-            // Clip to progressive width
-            Shape oldClip2 = g2.getClip();
-            g2.setClip(startX, yBase-25, (int)(ecgWidth*ecgDraw), 50);
-            g2.draw(path);
-            // subtle crisp overlay
-            g2.setStroke(new BasicStroke(1f));
-            g2.setColor(new Color(255,255,255, 160));
-            g2.draw(path);
-            g2.setClip(oldClip2);
-            // reset composite for subsequent drawings
-            g2.setComposite(AlphaComposite.SrcOver);
-        }
-        
-        // Draw title text using vector glyphs with aero gradient & soft shadow
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        Font titleFont = new Font("Segoe UI", Font.BOLD, 36);
-        String text = "Simjot";
-        FontRenderContext frc = g2.getFontRenderContext();
-        GlyphVector gv = titleFont.createGlyphVector(frc, text);
-        Rectangle2D vb = gv.getVisualBounds();
-        int x = (int) Math.round((width - vb.getWidth()) / 2.0);
-        int y = height / 2;
-        Shape textShape = gv.getOutline(x, y);
+            // Draw ECG pulse line under heart (solid, with slight beat bump)
+            if (ecgOpacity > 0f) {
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, ecgOpacity));
+                float bump = 12f + spring * 160f; // amplitude bump at beat
+                g2.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(255,255,255, 220));
+                int ecgWidth = 150;
+                int startX = width/2 - ecgWidth/2;
+                int yBase = height/2 - 8;
+                Path2D path = new Path2D.Double();
+                path.moveTo(startX, yBase);
+                path.lineTo(startX+20, yBase);
+                path.lineTo(startX+35, yBase-bump);
+                path.lineTo(startX+50, yBase+0.75*bump);
+                path.lineTo(startX+70, yBase);
+                path.lineTo(startX+ecgWidth, yBase);
+                // Clip to progressive width
+                Shape oldClip2 = g2.getClip();
+                g2.setClip(startX, yBase-25, (int)(ecgWidth*ecgDraw), 50);
+                g2.draw(path);
+                // subtle crisp overlay
+                g2.setStroke(new BasicStroke(1f));
+                g2.setColor(new Color(255,255,255, 160));
+                g2.draw(path);
+                g2.setClip(oldClip2);
+                // reset composite for subsequent drawings
+                g2.setComposite(AlphaComposite.SrcOver);
+            }
 
         // Apply overall alpha for fade-in
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, textAlpha));
@@ -349,14 +376,7 @@ public class HeaderPanel extends JPanel {
         gh.dispose();
         
         // Draw the encouragement quote in italic with theme color, soft shadow and subtle highlight
-        Font quoteFont = new Font("Segoe UI", Font.ITALIC, 18);
-        FontRenderContext qfrc = g2.getFontRenderContext();
-        GlyphVector qgv = quoteFont.createGlyphVector(qfrc, quote);
-        Rectangle2D qvb = qgv.getVisualBounds();
-        int quoteX = (int) Math.round((width - qvb.getWidth()) / 2.0);
-        int quoteY = y + 30; // spacing below title
-        Shape quoteShape = qgv.getOutline(quoteX, quoteY);
-
+        
         // Apply global fade-in alpha
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, textAlpha));
 
@@ -388,10 +408,6 @@ public class HeaderPanel extends JPanel {
         g2.setClip(oldClip3);
         
         // ---- Inline vector 'Next' arrow button right of the quote ----
-        int btnSize = 22;
-        int arrowCX = (int) Math.round(qb.getX() + qb.getWidth() + 16);
-        int arrowCY = (int) Math.round(qb.getY() + qb.getHeight() / 2.0);
-        nextHit.setBounds(arrowCX - btnSize/2, arrowCY - btnSize/2, btnSize, btnSize);
 
         Graphics2D nb = (Graphics2D) g2.create();
         nb.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -418,6 +434,7 @@ public class HeaderPanel extends JPanel {
         nb.draw(chevron);
         nb.dispose();
 
+        }
         g2.dispose();
     }
     
@@ -430,5 +447,94 @@ public class HeaderPanel extends JPanel {
         path.curveTo(60, -10, 25, -50, 0, -20);
         path.closePath();
         return path;
+    }
+
+    private static Rectangle computePanelRect(int width,
+                                              int height,
+                                              Rectangle2D titleBounds,
+                                              Rectangle2D quoteBounds,
+                                              Rectangle2D heartBounds,
+                                              Rectangle nextBounds) {
+        double minX = Math.min(Math.min(titleBounds.getX(), quoteBounds.getX()), heartBounds.getX());
+        double maxX = Math.max(Math.max(titleBounds.getX() + titleBounds.getWidth(), quoteBounds.getX() + quoteBounds.getWidth()),
+                heartBounds.getX() + heartBounds.getWidth());
+        double minY = Math.min(Math.min(titleBounds.getY(), quoteBounds.getY()), heartBounds.getY());
+        double maxY = Math.max(Math.max(titleBounds.getY() + titleBounds.getHeight(), quoteBounds.getY() + quoteBounds.getHeight()),
+                heartBounds.getY() + heartBounds.getHeight());
+
+        if (nextBounds != null) {
+            minX = Math.min(minX, nextBounds.getX());
+            maxX = Math.max(maxX, nextBounds.getX() + nextBounds.getWidth());
+            minY = Math.min(minY, nextBounds.getY());
+            maxY = Math.max(maxY, nextBounds.getY() + nextBounds.getHeight());
+        }
+
+        int padX = 26;
+        int padY = 18;
+        Rectangle r = new Rectangle(
+            (int) Math.floor(minX) - padX,
+            (int) Math.floor(minY) - padY,
+            (int) Math.ceil(maxX - minX) + padX * 2,
+            (int) Math.ceil(maxY - minY) + padY * 2
+        );
+
+        int minXClamp = 12;
+        int minYClamp = 6;
+        int maxXClamp = width - 12;
+        int maxYClamp = height - 6;
+        int x = Math.max(minXClamp, r.x);
+        int y = Math.max(minYClamp, r.y);
+        int right = Math.min(maxXClamp, r.x + r.width);
+        int bottom = Math.min(maxYClamp, r.y + r.height);
+        int w = Math.max(0, right - x);
+        int h = Math.max(0, bottom - y);
+        return new Rectangle(x, y, w, h);
+    }
+
+    private static void paintFrostedPanel(Graphics2D g2, Rectangle r, float alpha) {
+        if (r == null || r.width <= 0 || r.height <= 0) return;
+        float clamped = Math.max(0f, Math.min(1f, alpha));
+        if (clamped <= 0f) return;
+        Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int arc = Math.min(22, Math.min(r.width, r.height));
+        int innerArc = Math.max(arc - 2, 2);
+        RoundRectangle2D shape = new RoundRectangle2D.Float(r.x, r.y, r.width, r.height, arc, arc);
+
+        GradientPaint base = new GradientPaint(
+            r.x, r.y, scaleAlpha(new Color(255, 255, 255, 190), clamped),
+            r.x, r.y + r.height, scaleAlpha(new Color(235, 235, 235, 120), clamped)
+        );
+        g2.setPaint(base);
+        g2.fill(shape);
+
+        GradientPaint sheen = new GradientPaint(
+            r.x, r.y, scaleAlpha(new Color(255, 255, 255, 110), clamped),
+            r.x, r.y + r.height * 0.55f, scaleAlpha(new Color(255, 255, 255, 20), clamped)
+        );
+        g2.setPaint(sheen);
+        g2.fill(shape);
+
+        GradientPaint shadow = new GradientPaint(
+            r.x, (float) (r.y + r.height * 0.45f), scaleAlpha(new Color(0, 0, 0, 12), clamped),
+            r.x, r.y + r.height, scaleAlpha(new Color(0, 0, 0, 35), clamped)
+        );
+        g2.setPaint(shadow);
+        g2.fill(shape);
+
+        g2.setStroke(new BasicStroke(1f));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), clamped));
+        g2.draw(new RoundRectangle2D.Float(r.x + 1.5f, r.y + 1.5f, r.width - 3f, r.height - 3f, innerArc, innerArc));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, 30), clamped));
+        g2.draw(new RoundRectangle2D.Float(r.x + 0.5f, r.y + 0.5f, r.width - 1f, r.height - 1f, arc, arc));
+
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+    }
+
+    private static Color scaleAlpha(Color color, float scale) {
+        int alpha = Math.round(color.getAlpha() * scale);
+        alpha = Math.max(0, Math.min(255, alpha));
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
     }
 }
