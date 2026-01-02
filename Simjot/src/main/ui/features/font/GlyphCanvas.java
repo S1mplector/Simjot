@@ -170,9 +170,9 @@ public class GlyphCanvas extends JPanel {
             return;
         }
         
-        // Apply smoothing
+        // Apply smoothing with adaptive resampling to avoid thick-stroke distortion
         if (smoothing && smoothIterations > 0) {
-            currentStroke.smooth(smoothIterations);
+            smoothStroke(currentStroke);
         }
         
         // Add to glyph
@@ -391,5 +391,19 @@ public class GlyphCanvas extends JPanel {
         path.closePath();
         
         g2.fill(path);
+    }
+
+    private void smoothStroke(CustomStroke stroke) {
+        if (stroke == null || stroke.getPointCount() < 3) return;
+        float thickness = stroke.getThickness();
+        float targetDist = Math.max(2.5f, 10.0f - thickness * 0.2f);
+        stroke.resample(targetDist);
+        int iterations = smoothIterations;
+        if (thickness >= 12f) iterations = Math.max(1, smoothIterations - 1);
+        if (thickness >= 24f) iterations = 1;
+        if (thickness >= 32f) iterations = 0;
+        if (iterations > 0) {
+            stroke.smooth(iterations);
+        }
     }
 }

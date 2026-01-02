@@ -11,6 +11,7 @@ package main.ui.features.font;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.util.ArrayList;
@@ -19,7 +20,6 @@ import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
-import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -30,6 +30,8 @@ import javax.swing.event.ListSelectionEvent;
 
 import main.core.font.CustomFont;
 import main.infrastructure.font.CustomFontRegistry;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 
 /**
  * Panel for managing the font library - list, rename, delete fonts.
@@ -70,25 +72,31 @@ public class FontLibraryPanel extends JPanel {
         
         JScrollPane scrollPane = new JScrollPane(fontList);
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(210, 210, 215)));
+        scrollPane.getVerticalScrollBar().setUI(new ModernScrollBarUI());
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
         
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         buttonPanel.setOpaque(false);
         
-        JButton newButton = new JButton("New");
+        RoundedButton newButton = new RoundedButton("New");
+        newButton.setPreferredSize(new Dimension(80, 26));
         newButton.addActionListener(e -> createNewFont());
         buttonPanel.add(newButton);
         
-        JButton renameButton = new JButton("Rename");
+        RoundedButton renameButton = new RoundedButton("Rename");
+        renameButton.setPreferredSize(new Dimension(90, 26));
         renameButton.addActionListener(e -> renameSelectedFont());
         buttonPanel.add(renameButton);
         
-        JButton duplicateButton = new JButton("Duplicate");
+        RoundedButton duplicateButton = new RoundedButton("Duplicate");
+        duplicateButton.setPreferredSize(new Dimension(100, 26));
         duplicateButton.addActionListener(e -> duplicateSelectedFont());
         buttonPanel.add(duplicateButton);
         
-        JButton deleteButton = new JButton("Delete");
+        RoundedButton deleteButton = new RoundedButton("Delete");
+        deleteButton.setPreferredSize(new Dimension(80, 26));
         deleteButton.addActionListener(e -> deleteSelectedFont());
         buttonPanel.add(deleteButton);
         

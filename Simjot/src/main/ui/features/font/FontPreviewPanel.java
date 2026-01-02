@@ -27,6 +27,8 @@ import javax.swing.JTextArea;
 
 import main.core.font.CustomFont;
 import main.infrastructure.font.CustomFontRenderer;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 
 /**
  * Panel for previewing custom font rendering with sample text.
@@ -78,7 +80,11 @@ public class FontPreviewPanel extends JPanel {
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) { updateSample(); }
         });
-        controlsPanel.add(new JScrollPane(sampleInput), BorderLayout.CENTER);
+        JScrollPane sampleScroll = new JScrollPane(sampleInput);
+        sampleScroll.getVerticalScrollBar().setUI(new ModernScrollBarUI());
+        sampleScroll.getVerticalScrollBar().setUnitIncrement(16);
+        sampleScroll.setBorder(BorderFactory.createEmptyBorder());
+        controlsPanel.add(sampleScroll, BorderLayout.CENTER);
         
         // Size selector
         JPanel sizePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
@@ -90,6 +96,8 @@ public class FontPreviewPanel extends JPanel {
             sizeCombo.addItem(size);
         }
         sizeCombo.setSelectedItem(previewSize);
+        sizeCombo.setUI(new ModernComboBoxUI());
+        sizeCombo.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
         sizeCombo.addActionListener(e -> {
             previewSize = (Integer) sizeCombo.getSelectedItem();
             repaintPreview();

@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -30,6 +29,8 @@ import javax.swing.ScrollPaneConstants;
 
 import main.core.font.CustomFont;
 import main.core.font.GlyphSet;
+import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 
 /**
  * Panel for navigating and selecting glyphs in a font.
@@ -67,15 +68,16 @@ public class GlyphNavigatorPanel extends JPanel {
         glyphSetCombo.addItem(GlyphSet.DIGITS);
         glyphSetCombo.addItem(GlyphSet.BASIC_PUNCTUATION);
         glyphSetCombo.addItem(GlyphSet.ASCII_PRINTABLE);
-        glyphSetCombo.setRenderer(new DefaultListCellRenderer() {
+        glyphSetCombo.setUI(new ModernComboBoxUI());
+        glyphSetCombo.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, 
                     int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                Object display = value;
                 if (value instanceof GlyphSet) {
-                    setText(((GlyphSet) value).getName());
+                    display = ((GlyphSet) value).getName();
                 }
-                return this;
+                return super.getListCellRendererComponent(list, display, index, isSelected, cellHasFocus);
             }
         });
         glyphSetCombo.addActionListener(e -> {
@@ -93,6 +95,7 @@ public class GlyphNavigatorPanel extends JPanel {
         scrollPane = new JScrollPane(gridPanel);
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(210, 210, 215)));
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.getVerticalScrollBar().setUI(new ModernScrollBarUI());
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         
         add(scrollPane, BorderLayout.CENTER);

@@ -18,11 +18,11 @@ import java.awt.event.WindowEvent;
 import java.nio.file.Path;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JPanel;
 
 import main.core.font.CustomFont;
+import main.ui.components.buttons.RoundedButton;
 
 /**
  * Dialog wrapper for the custom font studio.
@@ -67,11 +67,13 @@ public class CustomFontStudioDialog extends JDialog {
             BorderFactory.createEmptyBorder(4, 12, 4, 12)
         ));
         
-        JButton refreshButton = new JButton("Refresh");
+        RoundedButton refreshButton = new RoundedButton("Refresh");
+        refreshButton.setPreferredSize(new Dimension(120, 28));
         refreshButton.addActionListener(e -> studioPanel.refresh());
         buttonBar.add(refreshButton);
         
-        JButton closeButton = new JButton("Close");
+        RoundedButton closeButton = new RoundedButton("Close");
+        closeButton.setPreferredSize(new Dimension(120, 28));
         closeButton.addActionListener(e -> handleClose());
         buttonBar.add(closeButton);
         

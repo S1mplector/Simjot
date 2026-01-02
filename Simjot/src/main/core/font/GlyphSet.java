@@ -182,6 +182,6 @@ public final class GlyphSet {
     
     @Override
     public String toString() {
-        return String.format("GlyphSet('%s', %d glyphs)", name, codepoints.size());
+        return name;
     }
 }
