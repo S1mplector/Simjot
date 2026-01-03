@@ -10,7 +10,7 @@ This document covers building Simjot from source on all platforms.
 | Maven | 3.8+ | Required for building |
 | CMake | 3.20+ | Required for native C/C++ library |
 | C/C++ compiler | Clang/GCC/MSVC | Required for native library |
-| GHC/Cabal | 9.4+ | Optional, only for Haskell poetry module |
+| GHC/Cabal | 9.4+ | Required for Haskell poetry module |
 
 ## Quick Build and Run (Recommended)
 
