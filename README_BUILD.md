@@ -8,12 +8,23 @@ This document covers building Simjot from source on all platforms.
 |-------------|---------|-------|
 | JDK | 24+ | Ensure `java`, `javac`, and `jpackage` are on your `PATH` |
 | Maven | 3.8+ | Required for building |
-| GHC/Cabal | 9.4+ | Required for Haskell poetry module |
 | CMake | 3.20+ | Required for native C/C++ library |
+| C/C++ compiler | Clang/GCC/MSVC | Required for native library |
+| GHC/Cabal | 9.4+ | Optional, only for Haskell poetry module |
+
+## Quick Build and Run (Recommended)
+
+```bash
+# From the repository root
+./compile-native.sh --release
+./run.sh
+```
+
+This builds the native library, runs native tests, and launches Simjot with the correct FFM flags.
 
 ## Build Methods
 
-### 1. Maven Build (Recommended)
+### 1. Maven Build (Core Java)
 
 The simplest way to build Simjot:
 
@@ -31,11 +42,16 @@ Run with:
 java -jar target/Simjot-1.0.0.jar
 ```
 
+For native acceleration, build the C/C++ library with `./compile-native.sh` and use `./run.sh`.
+
 ### 2. IDE Build
 
 1. Import the `Simjot/` directory as a Maven project
 2. Set the main class to `main.ui.app.JournalApp`
 3. Build and run from your IDE
+
+If you want native acceleration inside the IDE, add VM options:
+`--enable-preview --enable-native-access=ALL-UNNAMED` and ensure the native library path is configured.
 
 Supported IDEs:
 - IntelliJ IDEA
@@ -59,7 +75,15 @@ jar --create --file Simjot.jar --main-class main.ui.app.JournalApp -C build/clas
 cp -r Simjot/src/main/resources/* build/classes/
 ```
 
+When running the jar manually, include `--enable-preview` and `--enable-native-access=ALL-UNNAMED`,
+and set `-Djava.library.path` to the native library directory (or use `./run.sh`).
+
 ## Native Packaging with jpackage (recommended)
+
+Before packaging, build the native library so it is copied into `Simjot/src/main/resources/native`:
+```bash
+./compile-native.sh --release
+```
 
 ### Windows
 
@@ -107,19 +131,25 @@ Output: `dist/Simjot/bin/Simjot`
 
 ## Running the Application
 
+### Recommended (Run Script)
+```bash
+./run.sh
+```
+
 ### From JAR
 ```bash
-java -jar Simjot.jar
+cd Simjot
+java -jar target/Simjot-*.jar
 ```
 
 ### With Custom Memory
 ```bash
-java -Xmx2g -jar Simjot.jar
+./run.sh -- -Xmx2g
 ```
 
 ### With Debug Logging
 ```bash
-SIMJOT_LOG=debug java -jar Simjot.jar
+SIMJOT_LOG=debug ./run.sh
 ```
 
 ## Troubleshooting
@@ -130,6 +160,8 @@ SIMJOT_LOG=debug java -jar Simjot.jar
 | `jpackage` not found | Included with JDK 14+; verify installation |
 | Missing resources | Ensure resources are copied to `build/classes/` |
 | Maven build fails | Run `mvn clean` then retry |
+| Native library not found | Run `./compile-native.sh` and ensure it copies into `Simjot/src/main/resources/native` |
+| FFM preview warnings | Expected with JDK 24; use `./run.sh` for the correct flags |
 
 ## Convenience Scripts
 
@@ -143,11 +175,13 @@ SIMJOT_LOG=debug java -jar Simjot.jar
 | `./run.sh` | JDK 24+ | `brew install openjdk@24` | See [Adoptium](https://adoptium.net) |
 | `./run.sh` | Maven 3.8+ | `brew install maven` | `sudo apt install maven` |
 
+Haskell is optional and only required if you want to build the Haskell poetry module.
+
 ### `./compile-native.sh` to build native library
 
-Compiles the C/C++ native library. 
-Please make sure to do this before running the application, 
-as Simjot will not work properly without it.
+Compiles the C/C++ native library.
+Please make sure to do this before running the application,
+as many features rely on the native library for full performance.
 
 ```bash
 ./compile-native.sh
@@ -225,3 +259,4 @@ Core dependencies are as follows:
 - **Apache PDFBox 2.0.29**: PDF export functionality
 - **JNativeHook 2.2.2**: Global hotkey support
 - **Batik 1.17**: SVG rendering
+- **Ollama** (optional): Local LLM backend for Sim AI features

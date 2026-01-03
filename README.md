@@ -4,13 +4,13 @@
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
-A highly personalizable and lightweight creative wellness application designed to help you capture your thoughts, express creativity, and track your well-being in an elegant environment.
+A highly personalizable creative wellness and writing studio with a modern Aero-inspired UI, native-accelerated core utilities, and rich journaling and poetry tools.
 
 ## Features
 
 ### **Multi-Format Content Creation**
-- Traditional diary-style entries with mood tracking, rich formatting, and customizable templates
-- Dedicated poetry editor with real-time syllable counting, rhyme scheme detection, meter analysis, and form recognition using Haskell poetry analysis module
+- Journal entries with mood tracking, rich formatting, images, and customizable templates
+- Dedicated poetry editor with real-time syllable counting, rhyme and meter analysis, and form detection powered by native engines (C/C++ and optional Haskell)
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
@@ -18,10 +18,10 @@ A highly personalizable and lightweight creative wellness application designed t
 - **Automatic mood logging** integrated with journal entries
 
 ### **Organization & Management**
-- Simjot features a **notebook system** with different types (Journal, Poetry)
-- All editors include a **smart auto-save functionality** with timestamp-based filenames
-- Additionally, Simjot has global **search and filtering** capabilities across all content
-- **Entry templates** with customizable fields and quick selection
+- Notebook system with different types (Journal, Poetry)
+- Smart auto-save functionality with timestamp-based filenames
+- Global search and filtering across all content
+- Entry templates with quick selection and customization
 
 ### **Security & Backup**
 - **Password Protection**: Lock your journal with AES-256 encryption
@@ -29,11 +29,12 @@ A highly personalizable and lightweight creative wellness application designed t
 - **Backup Verification**: Integrity checking and pruning by age
 - **Easy Restore**: Browse and restore from any backup point
 
-### **User Experience**
-- **Modern UI design** with smooth animations and transitions (can be disabled)
-- **Intuitive navigation** with card-based interface
-- **Tutorial system** for new users
-- **Global hotkeys** for quick capture
+### **Personalization & UI**
+- Aero-inspired UI with glass panels and smooth animations (can be disabled)
+- Themes, backgrounds, and a custom font studio for creating or importing fonts
+- Global hotkeys and quick actions for fast capture
+- Optional Sim AI companion via local Ollama
+- Native-accelerated search and analytics for large notebooks
 
 ## Screenshots
 
@@ -69,12 +70,20 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 - **Java 24 or higher** installed on your system
 - **JDK 24 or higher** for building the project
 - **Maven 3.8+** for dependency management and building
-- **GHC/Cabal** for Haskell poetry analysis module
-- **CMake** for native C/C++ library
+- **CMake 3.20+** and a C/C++ compiler for the native library (recommended)
+- **GHC/Cabal** for the Haskell poetry module (optional)
+- **Ollama** for the Sim AI companion (optional)
 
 ### Installation & Build
 
-#### Using Maven (Recommended)
+#### Recommended (Native-Enabled)
+```bash
+# From the repository root
+./compile-native.sh --release
+./run.sh
+```
+
+#### Using Maven (Core Build)
 ```bash
 cd Simjot
 mvn clean package
@@ -88,18 +97,24 @@ See [README_BUILD.md](README_BUILD.md) for detailed build instructions including
 
 ### Running the Application
 
-**Option 1: Via Maven**
+**Option 1: Run Script (Recommended)**
+```bash
+./run.sh
+```
+
+**Option 2: Via Maven**
 ```bash
 cd Simjot
 mvn exec:java -Dexec.mainClass="main.ui.app.JournalApp"
 ```
 
-**Option 2: JAR File**
+**Option 3: JAR File**
 ```bash
-java -jar Simjot.jar
+cd Simjot
+java -jar target/Simjot-*.jar
 ```
 
-**Option 3: Native Executable (after packaging)**
+**Option 4: Native Executable (after packaging)**
 - Windows: `dist/Simjot/Simjot.exe`
 - macOS: `build/macos-installer/Simjot.app`
 
@@ -144,31 +159,35 @@ On first startup, Simjot will prompt you to:
 - **MVC pattern** with observer-based UI updates
 - **Event-driven design** with event bus for component communication
 - **File-based persistence** with custom serialization
+- **Panama FFM integration** for native modules (C/C++)
+- **Optional Haskell FFI** for advanced poetry analysis
 
 ### Technologies Used
-- **Java 24** with Project Jigsaw (modular system)
+- **Java 24** with Project Jigsaw and Panama FFM (preview)
 - **Java Swing** for cross-platform GUI
 - **Java 2D Graphics** for drawing and image processing
 - **AES-256 encryption** for security features
-- **Native C/C++ library** for performance-critical operations
-- **Haskell FFI** for poetry analysis
+- **Native C/C++ libraries** for performance-critical operations
+- **Optional Haskell module** for poetry analysis
+- **Ollama** (optional) for Sim AI companion features
 
 ### File Formats
 - **Journal entries**: `.note` files with metadata and mood data
 - **Poems**: `.poem` files with title, content, and analysis metadata
 - **Settings**: JSON configuration in user directory
 - **Backups**: Compressed .sjbackup archives with selective content
+- **Custom fonts**: `.sjf` files created in the Custom Font Studio
 
 ## Customization
 
 ### Themes & Appearance
 - Multiple background options for different writing modes
-- Customizable font sizes for journal entries and notes
+- Customizable font sizes and custom fonts for journal entries and notes
 - Adjustable mood tracking visualization
 
 ### Settings Options
 - **General**: Default brush sizes, colors, auto-save intervals
-- **Appearance**: Themes, animations, font scaling
+- **Appearance**: Themes, animations, font scaling, custom fonts
 - **Security**: Password, auto-lock, encryption
 - **Storage**: Backup schedules, destinations, selective includes
 
@@ -193,7 +212,7 @@ See [LICENSE.md](LICENSE.md) for full terms.
 ### Debug Mode
 Enable debug logging by setting environment variable:
 ```bash
-SIMJOT_LOG=debug java -jar Simjot.jar
+SIMJOT_LOG=debug ./run.sh
 ```
 
 ---
