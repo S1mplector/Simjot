@@ -259,4 +259,3 @@ Core dependencies are as follows:
 - **Apache PDFBox 2.0.29**: PDF export functionality
 - **JNativeHook 2.2.2**: Global hotkey support
 - **Batik 1.17**: SVG rendering
-- **Ollama** (optional): Local LLM backend for Sim AI features
