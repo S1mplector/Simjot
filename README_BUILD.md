@@ -1,4 +1,4 @@
-# Simjot – Build Guide
+# Simjot Build Guide
 
 This document covers building Simjot from source on all platforms.
 
