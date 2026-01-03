@@ -556,7 +556,7 @@ public class ModernMoodChartPanel extends JPanel {
         footer.setOpaque(false);
         footer.setBorder(new EmptyBorder(8, 0, 16, 0));
         
-        IconMenuButton backButton = new IconMenuButton("Back to Menu", "back");
+        IconMenuButton backButton = new IconMenuButton("", "back");
         backButton.addActionListener(e -> app.switchCard(JournalApp.MAIN_MENU));
         footer.add(backButton);
         

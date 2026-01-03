@@ -8,6 +8,7 @@
 
 package main.ui.features.notebooks;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -43,6 +44,7 @@ import java.awt.dnd.DropTargetEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -65,10 +67,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.monitoring.AppPerf;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
@@ -200,6 +204,12 @@ public class NotebookManagerPanel extends JPanel {
             notebooksFlow.add(createTile(nb));
         }
         clusterPanel.add(notebooksFlow, BorderLayout.CENTER);
+
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setOpaque(false);
+        footer.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+        footer.add(new ClusterDivider(clusterId), BorderLayout.CENTER);
+        clusterPanel.add(footer, BorderLayout.SOUTH);
         
         // Make cluster a drop target
         setupClusterDropTarget(clusterPanel, clusterId);
@@ -456,6 +466,10 @@ public class NotebookManagerPanel extends JPanel {
             setOpaque(false);
             setBorder(BorderFactory.createEmptyBorder(2,2,2,2));
             addMouseListener(this);
+            addMouseMotionListener(new MouseMotionAdapter() {
+                @Override public void mouseMoved(MouseEvent e) { updateHandleTarget(e.getY()); }
+                @Override public void mouseDragged(MouseEvent e) { updateHandleTarget(e.getY()); }
+            });
             
             // Setup drag source for clustering
             dragSource = new DragSource();
@@ -552,6 +566,10 @@ public class NotebookManagerPanel extends JPanel {
         @Override public void dragDropEnd(DragSourceDropEvent dsde) {}
         
         private boolean hover=false;
+        private boolean handleTarget=false;
+        private float handleT=0f;
+        private Timer handleTimer;
+        private static final int HANDLE_REGION_HEIGHT = 28;
         
         @Override protected void paintComponent(Graphics g){
             super.paintComponent(g);
@@ -576,10 +594,27 @@ public class NotebookManagerPanel extends JPanel {
                 g2.drawRoundRect(1,1,w-3,h-9,arc,arc);
             }
 
+            // Drag handle hint (smooth fade-in near bottom)
+            if (handleT > 0.01f) {
+                float alpha = Math.min(1f, Math.max(0f, handleT));
+                int handleY = h - 18;
+                int dots = 7;
+                int spacing = 10;
+                int radius = 4;
+                int startX = w / 2 - (dots - 1) * spacing / 2;
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.35f + 0.55f * alpha));
+                g2.setColor(new Color(20, 20, 20, Math.round(140 * alpha)));
+                for (int i = 0; i < dots; i++) {
+                    int cx = startX + i * spacing;
+                    g2.fillOval(cx - radius / 2, handleY - radius / 2, radius, radius);
+                }
+                g2.setComposite(AlphaComposite.SrcOver);
+            }
+
             g2.dispose();
         }
-        @Override public void mouseEntered(MouseEvent e){ hover=true; repaint(); }
-        @Override public void mouseExited(MouseEvent e){ hover=false; repaint(); }
+        @Override public void mouseEntered(MouseEvent e){ hover=true; updateHandleTarget(e.getY()); repaint(); }
+        @Override public void mouseExited(MouseEvent e){ hover=false; setHandleTarget(false); repaint(); }
         @Override public void mouseClicked(MouseEvent e){
             if(SwingUtilities.isLeftMouseButton(e)){
                 if(e.getClickCount()==1){ openNotebook(nb); }
@@ -590,6 +625,60 @@ public class NotebookManagerPanel extends JPanel {
         }
         @Override public void mousePressed(MouseEvent e){}
         @Override public void mouseReleased(MouseEvent e){}
+
+        private void updateHandleTarget(int mouseY) {
+            int h = getHeight();
+            if (h <= 0) return;
+            boolean nearBottom = mouseY >= Math.max(0, h - HANDLE_REGION_HEIGHT);
+            if (nearBottom != handleTarget) {
+                setHandleTarget(nearBottom);
+            }
+        }
+
+        private void setHandleTarget(boolean target) {
+            if (isHandleAnimationDisabled()) {
+                handleTarget = target;
+                handleT = target ? 1f : 0f;
+                stopHandleTimer();
+                repaint();
+                return;
+            }
+            handleTarget = target;
+            if (handleTimer == null) {
+                handleTimer = new Timer(AppPerf.getAnimationDelay(), e -> animateHandle());
+                handleTimer.start();
+            }
+        }
+
+        private void animateHandle() {
+            float target = handleTarget ? 1f : 0f;
+            float step = Math.max(0.05f, Math.min(0.2f, AppPerf.getAnimationDelay() / 220f));
+            if (handleT < target) {
+                handleT = Math.min(target, handleT + step);
+            } else if (handleT > target) {
+                handleT = Math.max(target, handleT - step);
+            }
+            if (Math.abs(handleT - target) < 0.001f) {
+                handleT = target;
+                stopHandleTimer();
+            }
+            repaint();
+        }
+
+        private void stopHandleTimer() {
+            if (handleTimer != null) {
+                handleTimer.stop();
+                handleTimer = null;
+            }
+        }
+
+        private boolean isHandleAnimationDisabled() {
+            try {
+                return SettingsStore.get().isMainMenuAnimationsDisabled();
+            } catch (Throwable ignored) {
+                return false;
+            }
+        }
         
         private void showContextMenu(MouseEvent e) {
             JPopupMenu menu = new JPopupMenu();
