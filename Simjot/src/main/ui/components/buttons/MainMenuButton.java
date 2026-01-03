@@ -22,6 +22,7 @@ import java.awt.Paint;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.RadialGradientPaint;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -29,9 +30,15 @@ import java.awt.geom.RoundRectangle2D;
 
 import javax.swing.JButton;
 import javax.swing.SwingConstants;
+import javax.swing.Timer;
 
+import main.core.service.SettingsStore;
+import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.util.AccentColorUtil;
 
 /**
  * Main menu button with a calm, non-animated style.
@@ -39,7 +46,9 @@ import main.ui.theme.aero.AeroTheme;
  */
 public class MainMenuButton extends JButton {
     private final String iconId;
-    private boolean hovering = false;
+    private boolean hoverTarget = false;
+    private float hoverT = 0f;
+    private Timer hoverTimer;
 
     public MainMenuButton(String text, String iconId){
         super(text);
@@ -62,8 +71,8 @@ public class MainMenuButton extends JButton {
         setMaximumSize(new Dimension(minWidth, baseHeight + 6)); // allow slight vertical growth for layout
         // Hover listeners for simple state toggle (no animation)
         addMouseListener(new MouseAdapter(){
-            @Override public void mouseEntered(MouseEvent e){ hovering = true; repaint(); }
-            @Override public void mouseExited(MouseEvent e){ hovering = false; repaint(); }
+            @Override public void mouseEntered(MouseEvent e){ setHoverTarget(true); }
+            @Override public void mouseExited(MouseEvent e){ setHoverTarget(false); }
         });
     }
 
@@ -74,17 +83,59 @@ public class MainMenuButton extends JButton {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         int w = getWidth();
         int h = getHeight();
-        float radius = 14f;
+        int radius = 14;
 
-        Color base = new Color(245, 246, 250);
-        Color hover = new Color(235, 239, 245);
-        Color press = new Color(225, 231, 240);
-        Color border = new Color(190, 195, 205);
+        float t = hoverT;
+        if (pressed) t = Math.min(1f, t + 0.25f);
 
-        Color bg = pressed ? press : (hovering ? hover : base);
-        g2.setColor(bg);
-        g2.fill(new RoundRectangle2D.Float(0, 0, w, h, radius, radius));
-        g2.setColor(border);
+        Rectangle r = new Rectangle(0, 0, w, h);
+        Color accent = resolveAccent();
+        Color baseTop = new Color(250, 251, 255, 230);
+        Color baseBottom = new Color(232, 236, 242, 220);
+        Color hoverTop = new Color(255, 255, 255, 245);
+        Color hoverBottom = new Color(220, 232, 248, 235);
+        Color top = mix(baseTop, hoverTop, t);
+        Color bottom = mix(baseBottom, hoverBottom, t);
+        if (pressed) {
+            top = darken(top, 0.08f);
+            bottom = darken(bottom, 0.12f);
+        }
+
+        if (Theme.isPlainWhite()) {
+            g2.setColor(mix(new Color(245, 246, 250), new Color(232, 238, 246), t));
+            g2.fill(new RoundRectangle2D.Float(0, 0, w, h, radius, radius));
+        } else {
+            if (t > 0.01f) {
+                Color glow = withAlpha(accent, Math.round(90 * t));
+                AeroPainters.paintOuterGlow(g2, r, radius, glow, 8, Math.round(60 + 60 * t));
+            }
+            AeroPainters.paintVerticalGradient(g2, r, top, bottom, radius);
+            AeroPainters.paintGlassOverlay(g2, r, radius);
+            if (t > 0.01f) {
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.08f + 0.22f * t));
+                AeroPainters.paintVerticalGradient(
+                        g2,
+                        new Rectangle(2, 2, Math.max(1, w - 4), Math.max(1, h / 2)),
+                        new Color(255, 255, 255, 210),
+                        new Color(255, 255, 255, 0),
+                        Math.max(8, radius - 2)
+                );
+                g2.setComposite(AlphaComposite.SrcOver);
+                RadialGradientPaint wash = new RadialGradientPaint(
+                        new Point(w / 2, h),
+                        Math.max(w, h),
+                        new float[]{0f, 1f},
+                        new Color[]{withAlpha(accent, Math.round(110 * t)), withAlpha(accent, 0)}
+                );
+                g2.setPaint(wash);
+                g2.fill(new RoundRectangle2D.Float(1, 1, w - 2f, h - 2f, radius - 2f, radius - 2f));
+            }
+            AeroPainters.paintInnerStroke(g2, r, radius, new Color(255, 255, 255, Math.round(70 + 70 * t)));
+        }
+
+        Color baseBorder = new Color(190, 195, 205);
+        Color accentBorder = withAlpha(accent, 160);
+        g2.setColor(mix(baseBorder, accentBorder, t * 0.7f));
         g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, radius, radius));
 
         // Draw icon + text
@@ -113,6 +164,89 @@ public class MainMenuButton extends JButton {
         int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
         g2.drawString(text, textX, textY);
         g2.dispose();
+    }
+
+    @Override
+    public void setEnabled(boolean enabled) {
+        super.setEnabled(enabled);
+        if (!enabled) {
+            setHoverTarget(false);
+        }
+    }
+
+    private void setHoverTarget(boolean hover) {
+        hoverTarget = hover;
+        if (isHoverAnimationDisabled()) {
+            hoverT = hover ? 1f : 0f;
+            stopHoverTimer();
+            repaint();
+            return;
+        }
+        if (hoverTimer == null) {
+            hoverTimer = new Timer(AppPerf.getAnimationDelay(), e -> animateHover());
+            hoverTimer.start();
+        }
+    }
+
+    private void animateHover() {
+        float target = hoverTarget ? 1f : 0f;
+        float step = Math.max(0.04f, Math.min(0.2f, AppPerf.getAnimationDelay() / 200f));
+        if (hoverT < target) {
+            hoverT = Math.min(target, hoverT + step);
+        } else if (hoverT > target) {
+            hoverT = Math.max(target, hoverT - step);
+        }
+        if (Math.abs(hoverT - target) < 0.001f) {
+            hoverT = target;
+            stopHoverTimer();
+        }
+        repaint();
+    }
+
+    private void stopHoverTimer() {
+        if (hoverTimer != null) {
+            hoverTimer.stop();
+            hoverTimer = null;
+        }
+    }
+
+    private boolean isHoverAnimationDisabled() {
+        try {
+            return SettingsStore.get().isMainMenuAnimationsDisabled();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static Color resolveAccent() {
+        try {
+            int rgb = SettingsStore.get().getMainMenuAccentRGB();
+            if (rgb != Integer.MIN_VALUE) return new Color(rgb);
+        } catch (Throwable ignored) {
+        }
+        return AccentColorUtil.defaultAccent();
+    }
+
+    private static Color mix(Color a, Color b, float t) {
+        float clamped = Math.max(0f, Math.min(1f, t));
+        int r = Math.round(a.getRed() + (b.getRed() - a.getRed()) * clamped);
+        int g = Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * clamped);
+        int bch = Math.round(a.getBlue() + (b.getBlue() - a.getBlue()) * clamped);
+        int aCh = Math.round(a.getAlpha() + (b.getAlpha() - a.getAlpha()) * clamped);
+        return new Color(r, g, bch, aCh);
+    }
+
+    private static Color withAlpha(Color c, int alpha) {
+        int a = Math.max(0, Math.min(255, alpha));
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
+    }
+
+    private static Color darken(Color c, float amount) {
+        float t = Math.max(0f, Math.min(1f, amount));
+        int r = Math.round(c.getRed() * (1f - t));
+        int g = Math.round(c.getGreen() * (1f - t));
+        int b = Math.round(c.getBlue() * (1f - t));
+        return new Color(r, g, b, c.getAlpha());
     }
 
     // Icon path resolution is centralized in ImageIconRenderer.mapIdToResource

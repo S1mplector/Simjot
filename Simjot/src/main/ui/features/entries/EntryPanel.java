@@ -738,6 +738,7 @@ public class EntryPanel extends AbstractEditorPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         // Apply modern, slim scrollbars (match PoemPanel)
         JScrollBar vbar = scrollPane.getVerticalScrollBar();
         vbar.setUI(new ModernScrollBarUI());

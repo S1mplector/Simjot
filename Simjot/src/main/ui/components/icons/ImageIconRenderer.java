@@ -465,7 +465,7 @@ public final class ImageIconRenderer {
         if (resourceExists(direct)) return direct;
         String alias = switch (id) {
             case "smile", "mood", "moodchart" -> "moodchart";
-            case "saveandexit", "save_and_exit" -> "saveandexit";
+            case "saveandexit", "save_and_exit" -> "exit";
             case "wrench", "settings", "options", "general_settings", "settings_general" -> "settings";
             case "appearance_settings", "settings_appearance" -> "settings_appearance";
             case "storage_settings", "settings_storage" -> "settings_storage";

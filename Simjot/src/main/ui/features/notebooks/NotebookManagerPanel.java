@@ -44,11 +44,14 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -69,10 +72,12 @@ import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.fields.TitleDividerField;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.components.icons.ImageIconRenderer;
 
 public class NotebookManagerPanel extends JPanel {
     private final NotebookStore store = new NotebookStore();
@@ -259,48 +264,76 @@ public class NotebookManagerPanel extends JPanel {
         return tile;
     }
 
-    private static BufferedImage createIcon(NotebookInfo nb){
-        final int S = 100; // tile icon canvas
-        final int ICON_SIZE = 72;
-        BufferedImage canvas = new BufferedImage(S, S, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = canvas.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    private static final int NOTEBOOK_ICON_SIZE = 72;
+    private static final Map<String, BufferedImage> CUSTOM_ICON_CACHE = new HashMap<>();
 
-        int x = (S - ICON_SIZE) / 2;
-        int y = (S - ICON_SIZE) / 2;
-        
-        // Check for custom icon first
+    private static Icon createIcon(NotebookInfo nb){
+        // Prefer a custom icon if set, with HiDPI-friendly rendering.
         String customPath = nb.getCustomIconPath();
         if (customPath != null && !customPath.isEmpty()) {
-            try {
-                BufferedImage customImg = javax.imageio.ImageIO.read(new java.io.File(customPath));
-                if (customImg != null) {
-                    java.awt.Image scaled = customImg.getScaledInstance(ICON_SIZE, ICON_SIZE, java.awt.Image.SCALE_SMOOTH);
-                    g2.drawImage(scaled, x, y, null);
-                    g2.dispose();
-                    return canvas;
-                }
-            } catch (Exception ignored) {}
+            BufferedImage customImg = loadCustomIcon(customPath);
+            if (customImg != null) {
+                return new HiDpiImageIcon(customImg, NOTEBOOK_ICON_SIZE);
+            }
         }
-        
-        // Use default notebook icon with system accent color
-        String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
-        java.awt.image.BufferedImage scaled = (res != null)
-                ? main.ui.components.icons.ImageIconRenderer.get(res, ICON_SIZE, true)
-                : null;
 
-        if (scaled != null) {
-            g2.drawImage(scaled, x, y, null);
-        } else {
-            // Fallback: simple vector placeholder
-            g2.setColor(new Color(200, 200, 200));
-            g2.fillRoundRect(x, y, ICON_SIZE, ICON_SIZE, 10, 10);
-            g2.setColor(new Color(150, 150, 150));
-            g2.drawRoundRect(x, y, ICON_SIZE, ICON_SIZE, 10, 10);
+        // Default notebook icon from resources (HiDPI-aware).
+        String res = ImageIconRenderer.mapIdToResource("notebook");
+        if (res != null) {
+            return ImageIconRenderer.icon(res, NOTEBOOK_ICON_SIZE, true);
         }
+
+        // Fallback: simple placeholder
+        return new ImageIcon(createFallbackIcon(NOTEBOOK_ICON_SIZE));
+    }
+
+    private static BufferedImage loadCustomIcon(String path) {
+        BufferedImage cached = CUSTOM_ICON_CACHE.get(path);
+        if (cached != null) return cached;
+        try {
+            BufferedImage img = javax.imageio.ImageIO.read(new File(path));
+            if (img != null) {
+                CUSTOM_ICON_CACHE.put(path, img);
+            }
+            return img;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static BufferedImage createFallbackIcon(int size) {
+        BufferedImage canvas = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = canvas.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(new Color(200, 200, 200));
+        g2.fillRoundRect(0, 0, size, size, 10, 10);
+        g2.setColor(new Color(150, 150, 150));
+        g2.drawRoundRect(0, 0, size - 1, size - 1, 10, 10);
         g2.dispose();
         return canvas;
+    }
+
+    private static final class HiDpiImageIcon implements Icon {
+        private final BufferedImage src;
+        private final int size;
+
+        private HiDpiImageIcon(BufferedImage src, int size) {
+            this.src = src;
+            this.size = size;
+        }
+
+        @Override public int getIconWidth() { return size; }
+        @Override public int getIconHeight() { return size; }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.drawImage(src, x, y, size, size, null);
+            g2.dispose();
+        }
     }
 
     private static int countEntries(NotebookInfo nb){
@@ -329,7 +362,7 @@ public class NotebookManagerPanel extends JPanel {
             dragSource = new DragSource();
             dragSource.createDefaultDragGestureRecognizer(this, DnDConstants.ACTION_MOVE, this);
 
-            JLabel icon = new JLabel(new ImageIcon(createIcon(nb)));
+            JLabel icon = new JLabel(createIcon(nb));
             icon.setHorizontalAlignment(SwingConstants.CENTER);
             MouseAdapter forward = new MouseAdapter(){
                 @Override public void mouseEntered(MouseEvent e){ NotebookTile.this.mouseEntered(e); }
