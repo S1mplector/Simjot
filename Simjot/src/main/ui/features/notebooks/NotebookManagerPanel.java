@@ -16,6 +16,7 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -42,6 +43,7 @@ import java.awt.dnd.DropTargetEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.HashMap;
@@ -53,6 +55,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -77,7 +80,6 @@ import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
-import main.ui.components.icons.ImageIconRenderer;
 
 public class NotebookManagerPanel extends JPanel {
     private final NotebookStore store = new NotebookStore();
@@ -167,18 +169,13 @@ public class NotebookManagerPanel extends JPanel {
         JPanel clusterPanel = new JPanel(new BorderLayout(8, 8));
         clusterPanel.setOpaque(false);
         clusterPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        clusterPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(147, 112, 219, 150)),
-            BorderFactory.createEmptyBorder(8, 12, 8, 12)
-        ));
+        clusterPanel.setBorder(BorderFactory.createEmptyBorder(6, 12, 10, 12));
         
         // Cluster header with name and actions
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
-        JLabel clusterLabel = new JLabel(clusterId);
-        clusterLabel.setFont(clusterLabel.getFont().deriveFont(Font.BOLD, 14f));
-        clusterLabel.setForeground(new Color(80, 80, 80));
-        header.add(clusterLabel, BorderLayout.WEST);
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
+        header.add(new ClusterDivider(clusterId), BorderLayout.CENTER);
         
         // Cluster actions - notebook delete icon button
         ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("", "delete_notebook");
@@ -208,6 +205,108 @@ public class NotebookManagerPanel extends JPanel {
         setupClusterDropTarget(clusterPanel, clusterId);
         
         return clusterPanel;
+    }
+
+    private static final class ClusterDivider extends JComponent {
+        private static final int HEIGHT = 28;
+        private final String text;
+
+        private ClusterDivider(String text) {
+            this.text = text == null ? "" : text.trim();
+            setOpaque(false);
+            setFont(AeroTheme.defaultBoldFont(13f));
+            setForeground(new Color(60, 60, 60));
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(180, HEIGHT);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) { g2.dispose(); return; }
+
+            FontMetrics fm = g2.getFontMetrics(getFont());
+            int centerX = w / 2;
+            int lineY = h / 2 + 4;
+            int padX = 16;
+
+            String label = text;
+            int maxTextWidth = Math.max(0, w - padX * 2 - 120);
+            if (!label.isEmpty()) {
+                label = elideText(label, fm, maxTextWidth);
+            }
+            int textW = label.isEmpty() ? 0 : fm.stringWidth(label);
+            int innerGap = textW > 0 ? (textW / 2 + 14) : 16;
+            int leftLineEnd = centerX - innerGap;
+            int rightLineStart = centerX + innerGap;
+
+            Color line = new Color(60, 60, 60, 170);
+            g2.setColor(line);
+            g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int lineStart = padX;
+            int lineEnd = w - padX;
+            if (leftLineEnd > lineStart + 4) {
+                g2.drawLine(lineStart, lineY, leftLineEnd, lineY);
+            }
+            if (rightLineStart < lineEnd - 4) {
+                g2.drawLine(rightLineStart, lineY, lineEnd, lineY);
+            }
+
+            int capW = 12;
+            int capH = 4;
+            if (leftLineEnd > lineStart + 4) {
+                g2.fillRoundRect(lineStart - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
+            }
+            if (rightLineStart < lineEnd - 4) {
+                g2.fillRoundRect(lineEnd - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
+            }
+
+            int diamond = 10;
+            Path2D diamondShape = new Path2D.Float();
+            diamondShape.moveTo(centerX, lineY - diamond / 2f);
+            diamondShape.lineTo(centerX + diamond / 2f, lineY);
+            diamondShape.lineTo(centerX, lineY + diamond / 2f);
+            diamondShape.lineTo(centerX - diamond / 2f, lineY);
+            diamondShape.closePath();
+            g2.fill(diamondShape);
+
+            int leafW = 8;
+            int leafH = 3;
+            int leafOffset = diamond / 2 + 8;
+            g2.fillRoundRect(centerX - leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
+            g2.fillRoundRect(centerX + leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
+
+            if (!label.isEmpty()) {
+                int textX = centerX - textW / 2;
+                int textY = lineY - 6;
+                if (textY < fm.getAscent()) textY = fm.getAscent();
+                if (textY > h - fm.getDescent()) textY = h - fm.getDescent();
+                g2.setColor(getForeground());
+                g2.setFont(getFont());
+                g2.drawString(label, textX, textY);
+            }
+
+            g2.dispose();
+        }
+
+        private static String elideText(String input, FontMetrics fm, int maxWidth) {
+            if (input == null || input.isEmpty()) return "";
+            if (maxWidth <= 0) return "";
+            if (fm.stringWidth(input) <= maxWidth) return input;
+            String ellipsis = "...";
+            int max = input.length();
+            while (max > 0 && fm.stringWidth(input.substring(0, max) + ellipsis) > maxWidth) {
+                max--;
+            }
+            if (max <= 0) return "";
+            return input.substring(0, max).trim() + ellipsis;
+        }
     }
     
     private void setupClusterDropTarget(JPanel clusterPanel, String clusterId) {

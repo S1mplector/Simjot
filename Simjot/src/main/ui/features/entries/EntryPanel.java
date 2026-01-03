@@ -991,11 +991,7 @@ public class EntryPanel extends AbstractEditorPanel {
             doc.insertString(pos, " ", attrs);
             doc.insertString(pos + 1, "\n", null);
 
-            ensureSimStyles();
-            Style normal = doc.getStyle("normalText");
-            String sep = "——————————————";
-            doc.insertString(pos + 2, sep + "\n\n", normal);
-            contentArea.setCaretPosition(Math.min(doc.getLength(), pos + 2 + sep.length() + 2));
+            contentArea.setCaretPosition(Math.min(doc.getLength(), pos + 2));
             contentArea.requestFocusInWindow();
         } catch (BadLocationException ignored) {}
     }

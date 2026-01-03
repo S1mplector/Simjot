@@ -430,8 +430,6 @@ cat > "$RESOURCES_DIR/welcome.html" <<EOF
         <li>Mood tracking with charts and trends</li>
         <li>Notebook organization, search, and smart autosave</li>
         <li>Custom fonts, themes, and background personalization</li>
-        <li>Security and backups: AES-256, verification, and restore</li>
-        <li>Optional Sim AI companion via local Ollama</li>
     </ul>
 </body>
 </html>
@@ -452,7 +450,6 @@ cat > "$RESOURCES_DIR/conclusion.html" <<EOF
     <h1>Installation Complete!</h1>
     <p>$APP_NAME has been installed successfully.</p>
     <p>You can find it in your Applications folder:</p>
-    <p class="path">/Applications/$APP_NAME.app</p>
     <p>You can also search for "$APP_NAME" in Spotlight (⌘ + Space).</p>
     <p><strong>Getting Started:</strong></p>
     <ol>
