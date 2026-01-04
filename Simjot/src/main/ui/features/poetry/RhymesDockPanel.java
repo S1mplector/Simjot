@@ -19,6 +19,7 @@ import java.util.Locale;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
@@ -26,6 +27,8 @@ import javax.swing.SwingUtilities;
 import main.core.poetry.PoetryUtils;
 import main.core.sim.llm.api.DefaultSimSuggestionService;
 import main.core.sim.llm.api.SimSuggestionService;
+import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 
 /**
  * Simple dock showing rhyme key and lightweight rhyme/synonym suggestions
@@ -46,8 +49,6 @@ public class RhymesDockPanel extends JPanel {
         setOpaque(false);
         title.setFont(title.getFont().deriveFont(Font.BOLD));
         title.setBorder(BorderFactory.createEmptyBorder(6,6,4,6));
-        // Simple header: just the title (monochrome)
-        add(title, BorderLayout.NORTH);
 
         body.setOpaque(false);
         body.setEditable(false);
@@ -57,7 +58,18 @@ public class RhymesDockPanel extends JPanel {
         body.setForeground(new Color(70,70,70));
         JScrollPane sp = new JScrollPane(body){
             { setBorder(BorderFactory.createEmptyBorder()); setOpaque(false); getViewport().setOpaque(false);} };
-        add(sp, BorderLayout.CENTER);
+        JScrollBar vbar = sp.getVerticalScrollBar();
+        if (vbar != null) {
+            vbar.setUI(new ModernScrollBarUI());
+            vbar.setUnitIncrement(14);
+            vbar.setPreferredSize(new Dimension(12, Integer.MAX_VALUE));
+        }
+
+        FrostedGlassPanel chrome = new FrostedGlassPanel(new BorderLayout(), 16);
+        chrome.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        chrome.add(title, BorderLayout.NORTH);
+        chrome.add(sp, BorderLayout.CENTER);
+        add(chrome, BorderLayout.CENTER);
         setPreferredSize(new Dimension(220, 0));
         setBorder(BorderFactory.createEmptyBorder(6,6,6,6));
     }
