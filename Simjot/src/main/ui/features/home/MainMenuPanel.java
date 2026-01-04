@@ -382,8 +382,8 @@ public class MainMenuPanel extends JPanel {
         clockPanel.setMaximumSize(new Dimension(220, 220));
 
         JPanel calendarPanel = createCalendarForStyle(SettingsStore.get().getCalendarStyle(), accent);
-        calendarPanel.setPreferredSize(new Dimension(150, 150));
-        calendarPanel.setMaximumSize(new Dimension(170, 170));
+        calendarPanel.setPreferredSize(new Dimension(220, 240));
+        calendarPanel.setMaximumSize(new Dimension(260, 280));
 
         JPanel clockRow = new JPanel();
         clockRow.setOpaque(false);

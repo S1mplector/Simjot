@@ -52,7 +52,7 @@ public class ClannadCalendar extends JPanel {
 
     public ClannadCalendar(Color accent) {
         setOpaque(false);
-        setPreferredSize(new Dimension(170, 185));
+        setPreferredSize(new Dimension(255, 278));
         this.accent = accent;
         loadTemplateImage();
         timer = new Timer(60000, e -> tick());
@@ -121,7 +121,7 @@ public class ClannadCalendar extends JPanel {
             // Month text position (orange oval area at top) 
             // Oval center is approximately at 50% x, 13% y of the image
             int monthCenterX = drawX + (int)(templateImage.getWidth() * 0.50 * scaleX);
-            int monthCenterY = drawY + (int)(templateImage.getHeight() * 0.16 * scaleY);
+            int monthCenterY = drawY + (int)(templateImage.getHeight() * 0.24 * scaleY);
             
             // Day number position (center of main circle)
             // Center is approximately at 48% x, 48% y

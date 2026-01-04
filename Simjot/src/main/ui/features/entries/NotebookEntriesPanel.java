@@ -335,9 +335,10 @@ public class NotebookEntriesPanel extends JPanel {
             content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.Y_AXIS));
             content.setOpaque(false);
             
-            title.setFont(new Font("Snell Roundhand", Font.BOLD, 16));
+            title.setFont(new Font("Snell Roundhand", Font.BOLD, 18));
             title.setForeground(new Color(0x2B, 0x2B, 0x2B));
-            title.setAlignmentX(Component.LEFT_ALIGNMENT);
+            title.setAlignmentX(Component.CENTER_ALIGNMENT);
+            title.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             
             snippet.setFont(snippet.getFont().deriveFont(Font.PLAIN, 12f));
             snippet.setForeground(new Color(90, 95, 110));
@@ -389,8 +390,8 @@ public class NotebookEntriesPanel extends JPanel {
             
             add(statsPanel, BorderLayout.EAST);
             
-            // Extra left padding so text never collides with the left accent bar
-            setBorder(BorderFactory.createEmptyBorder(8, 22, 8, 12));
+            // Minimal left padding - title should be at very left
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 12));
         }
 
         @Override
