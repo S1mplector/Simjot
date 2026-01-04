@@ -63,7 +63,7 @@ The icons are provided under a **Source-Available Commercial License with Attrib
 | Permission | Granted? | Conditions |
 |------------|----------|------------|
 | View and study icons | ✅ Yes | — |
-| Use in personal projects | ✅ Yes | Attribution required |
+| Use in personal projects | ✅ Yes | — |
 | Use in commercial projects | ✅ Yes | Attribution required |
 | Modify icons | ✅ Yes | Attribution required |
 | Redistribute icons | ✅ Yes | Attribution required |
@@ -72,7 +72,7 @@ The icons are provided under a **Source-Available Commercial License with Attrib
 
 ### Required Attribution
 
-When using the icons in any project (personal or commercial), you **MUST** provide visible attribution to the artist. Acceptable attribution formats include:
+When using the icons in any commercial project, you **MUST** provide visible attribution to the artist. Acceptable attribution formats include:
 
 **In application UI, documentation, or credits:**
 ```
