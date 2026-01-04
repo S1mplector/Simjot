@@ -26,6 +26,23 @@ public final class QuoteLibrary {
 
     private QuoteLibrary() {}
 
+    public static List<QuoteEntry> loadQuoteEntries() {
+        List<String> cached = cachedQuotes;
+        if (cached != null) {
+            List<QuoteEntry> legacy = new ArrayList<>(cached.size());
+            for (String q : cached) legacy.add(new QuoteEntry(q, null));
+            return legacy;
+        }
+        synchronized (QuoteLibrary.class) {
+            if (cachedQuotes != null) {
+                List<QuoteEntry> legacy = new ArrayList<>(cachedQuotes.size());
+                for (String q : cachedQuotes) legacy.add(new QuoteEntry(q, null));
+                return legacy;
+            }
+        }
+        return loadQuoteEntriesInternal();
+    }
+
     public static List<String> loadQuotes() {
         List<String> cached = cachedQuotes;
         if (cached != null) return cached;
@@ -38,6 +55,12 @@ public final class QuoteLibrary {
             cachedQuotes = Collections.unmodifiableList(loaded);
             return cachedQuotes;
         }
+    }
+
+    private static List<QuoteEntry> loadQuoteEntriesInternal() {
+        byte[] data = readResourceBytes(QUOTES_RESOURCE);
+        if (data == null || data.length == 0) return Collections.emptyList();
+        return parseQuoteEntriesJson(data);
     }
 
     private static List<String> loadQuotesInternal() {
@@ -64,7 +87,7 @@ public final class QuoteLibrary {
     }
 
     private static List<String> parseQuotesJson(byte[] data) {
-        String json = new String(data, StandardCharsets.UTF_8);
+        String json = decodeJson(data);
         int len = json.length();
         int i = skipWhitespace(json, 0);
         if (i >= len || json.charAt(i) != '[') return Collections.emptyList();
@@ -91,6 +114,65 @@ public final class QuoteLibrary {
             i = end;
         }
         return out;
+    }
+
+    private static List<QuoteEntry> parseQuoteEntriesJson(byte[] data) {
+        String json = decodeJson(data);
+        int len = json.length();
+        int i = skipWhitespace(json, 0);
+        if (i >= len || json.charAt(i) != '[') return Collections.emptyList();
+        i++;
+        List<QuoteEntry> out = new ArrayList<>(256);
+        while (i < len) {
+            i = skipWhitespace(json, i);
+            if (i >= len) break;
+            char c = json.charAt(i);
+            if (c == ']') break;
+            if (c != '{') {
+                i++;
+                continue;
+            }
+            int start = i;
+            int end = findObjectEnd(json, i);
+            if (end <= start) break;
+            String obj = json.substring(start, end);
+            String text = NativeJson.getString(obj, "quoteText");
+            if (text != null) {
+                String trimmed = text.trim();
+                if (!trimmed.isEmpty()) {
+                    String author = NativeJson.getString(obj, "quoteAuthor");
+                    if (author != null) {
+                        author = author.trim();
+                        if (author.isEmpty()) author = null;
+                    }
+                    out.add(new QuoteEntry(trimmed, author));
+                }
+            }
+            i = end;
+        }
+        return out;
+    }
+
+    private static String decodeJson(byte[] data) {
+        try {
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (Throwable ignored) {
+            try {
+                return new String(data, java.nio.charset.Charset.forName("windows-1252"));
+            } catch (Throwable ignored2) {
+                return new String(data, StandardCharsets.UTF_8);
+            }
+        }
+    }
+
+    public static final class QuoteEntry {
+        public final String text;
+        public final String author;
+
+        public QuoteEntry(String text, String author) {
+            this.text = text;
+            this.author = author;
+        }
     }
 
     private static int skipWhitespace(String json, int i) {

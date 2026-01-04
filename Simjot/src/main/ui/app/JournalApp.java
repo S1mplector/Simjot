@@ -872,7 +872,7 @@ public class JournalApp extends JFrame {
 
     public void restartAfterSettingsChange() {
         relaunchCurrentProcess();
-        exitGracefully();
+        exitGracefully(false);
     }
 
     // Rebuilds the main menu panel (e.g., when wallpaper or theme changes)
@@ -923,6 +923,10 @@ public class JournalApp extends JFrame {
      * then exits the JVM.
      */
     public void exitGracefully() {
+        exitGracefully(true);
+    }
+
+    private void exitGracefully(boolean showSplash) {
         if (!exitInProgress.compareAndSet(false, true)) {
             return; // Already exiting; avoid re-entrant shutdown work
         }
@@ -937,32 +941,36 @@ public class JournalApp extends JFrame {
                 }
             } catch (Throwable ignored) {}
             CustomMessageDialog.setGlobalSuppressed(true);
-            final AeroSplashScreen splash = new AeroSplashScreen();
-            splash.setStatus("Exiting…");
-            splash.setVisible(true);
-            final long exitSplashShownAt = System.nanoTime();
+            final AeroSplashScreen splash = showSplash ? new AeroSplashScreen() : null;
+            if (splash != null) {
+                splash.setStatus("Exiting…");
+                splash.setVisible(true);
+            }
+            final long exitSplashShownAt = showSplash ? System.nanoTime() : 0L;
 
-            try {
-                Thread pulse = new Thread(() -> {
-                    try {
-                        while (exitInProgress.get()) {
-                            long elapsedMs = (System.nanoTime() - exitSplashShownAt) / 1_000_000L;
-                            if (elapsedMs >= 9000 && elapsedMs < 18000) {
-                                SwingUtilities.invokeLater(() -> {
-                                    try { splash.setStatus("Still exiting…"); } catch (Throwable ignored) {}
-                                });
-                            } else if (elapsedMs >= 18000 && elapsedMs < (EXIT_WATCHDOG_TIMEOUT_MS - 500)) {
-                                SwingUtilities.invokeLater(() -> {
-                                    try { splash.setStatus("Finishing up…"); } catch (Throwable ignored) {}
-                                });
+            if (splash != null) {
+                try {
+                    Thread pulse = new Thread(() -> {
+                        try {
+                            while (exitInProgress.get()) {
+                                long elapsedMs = (System.nanoTime() - exitSplashShownAt) / 1_000_000L;
+                                if (elapsedMs >= 9000 && elapsedMs < 18000) {
+                                    SwingUtilities.invokeLater(() -> {
+                                        try { splash.setStatus("Still exiting…"); } catch (Throwable ignored) {}
+                                    });
+                                } else if (elapsedMs >= 18000 && elapsedMs < (EXIT_WATCHDOG_TIMEOUT_MS - 500)) {
+                                    SwingUtilities.invokeLater(() -> {
+                                        try { splash.setStatus("Finishing up…"); } catch (Throwable ignored) {}
+                                    });
+                                }
+                                Thread.sleep(EXIT_PULSE_MS);
                             }
-                            Thread.sleep(EXIT_PULSE_MS);
-                        }
-                    } catch (Throwable ignored) {}
-                }, "SimjotExitPulse");
-                pulse.setDaemon(true);
-                pulse.start();
-            } catch (Throwable ignored) {}
+                        } catch (Throwable ignored) {}
+                    }, "SimjotExitPulse");
+                    pulse.setDaemon(true);
+                    pulse.start();
+                } catch (Throwable ignored) {}
+            }
 
             try { setEnabled(false); } catch (Throwable ignored) {}
             try { setVisible(false); } catch (Throwable ignored) {}
@@ -1002,9 +1010,15 @@ public class JournalApp extends JFrame {
                     return null;
                 }
                 @Override protected void process(java.util.List<String> chunks) {
-                    if (!chunks.isEmpty()) splash.setStatus(chunks.get(chunks.size()-1));
+                    if (splash != null && !chunks.isEmpty()) {
+                        splash.setStatus(chunks.get(chunks.size()-1));
+                    }
                 }
                 @Override protected void done() {
+                    if (splash == null) {
+                        try { System.exit(0); } catch (Throwable ignored) {}
+                        return;
+                    }
                     long elapsedMs = (System.nanoTime() - exitSplashShownAt) / 1_000_000L;
                     int remaining = EXIT_MIN_SPLASH_MS - (int) elapsedMs;
                     if (remaining < 0) remaining = 0;

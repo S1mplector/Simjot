@@ -32,9 +32,11 @@ import main.ui.theme.aero.AeroTheme;
  * Displays a custom message and ensures robust preference saving.
  */
 public class SettingsSaveSplash extends JWindow {
+    private static final int MIN_VISIBLE_MS = 1000;
     private final JLabel headerLabel = new JLabel("Please wait while Simjot saves your preferences.", SwingConstants.CENTER);
     private final JLabel statusLabel = new JLabel("Initializing...", SwingConstants.CENTER);
     private final ModernSpinner spinner = new ModernSpinner(28, new Color(0, 120, 215));
+    private volatile long shownAtMs = -1L;
 
     public SettingsSaveSplash() {
         setAlwaysOnTop(true);
@@ -79,6 +81,14 @@ public class SettingsSaveSplash extends JWindow {
         setContentPane(content);
     }
 
+    @Override
+    public void setVisible(boolean visible) {
+        if (visible) {
+            shownAtMs = System.currentTimeMillis();
+        }
+        super.setVisible(visible);
+    }
+
     public void setStatus(String text) {
         if (text != null && !text.equals(statusLabel.getText())) {
             statusLabel.setText(text);
@@ -88,6 +98,19 @@ public class SettingsSaveSplash extends JWindow {
     public void fadeOutAndDispose() { fadeOutAndDispose(null); }
 
     public void fadeOutAndDispose(Runnable onComplete) {
+        long elapsed = shownAtMs > 0 ? System.currentTimeMillis() - shownAtMs : MIN_VISIBLE_MS;
+        long delay = MIN_VISIBLE_MS - elapsed;
+        if (delay > 0) {
+            Timer wait = new Timer((int) delay, null);
+            wait.setRepeats(false);
+            wait.addActionListener(e -> startFade(onComplete));
+            wait.start();
+            return;
+        }
+        startFade(onComplete);
+    }
+
+    private void startFade(Runnable onComplete) {
         final float[] alpha = {1f};
         Timer t = new Timer(15, null);
         t.addActionListener(e -> {

@@ -13,8 +13,12 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Dialog;
+import java.awt.FileDialog;
+import java.awt.FilenameFilter;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -61,6 +65,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 
 import main.infrastructure.ffi.NativeAccess;
+import main.ui.app.AppLifecycle;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
 import main.ui.components.scrollbar.ModernScrollBarUI;
@@ -148,6 +153,7 @@ public class SimjotFileChooser extends JDialog {
     private ViewMode viewMode = ViewMode.LIST;
     private File currentDirectory;
     private File selectedFile;
+    private String suggestedFileName;
     private boolean showHiddenFiles = false;
     private boolean multiSelectionEnabled = false;
     private List<File> selectedFiles = new ArrayList<>();
@@ -217,6 +223,11 @@ public class SimjotFileChooser extends JDialog {
      */
     public File showDialog() {
         selectedFile = null;
+        if (useNativeDialog()) {
+            selectedFile = showNativeDialog(false);
+            dispose();
+            return selectedFile;
+        }
         loadDirectory(currentDirectory);
         setVisible(true);
         return selectedFile;
@@ -229,6 +240,13 @@ public class SimjotFileChooser extends JDialog {
     public List<File> showMultiDialog() {
         selectedFiles.clear();
         multiSelectionEnabled = true;
+        if (useNativeDialog()) {
+            List<File> files = showNativeMultiDialog();
+            selectedFiles.clear();
+            if (files != null) selectedFiles.addAll(files);
+            dispose();
+            return new ArrayList<>(selectedFiles);
+        }
         fileList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         loadDirectory(currentDirectory);
         setVisible(true);
@@ -278,6 +296,7 @@ public class SimjotFileChooser extends JDialog {
      * Sets the suggested filename (for save dialogs).
      */
     public void setSuggestedFileName(String name) {
+        this.suggestedFileName = name;
         if (filenameField != null) {
             filenameField.setText(name);
         }
@@ -339,6 +358,106 @@ public class SimjotFileChooser extends JDialog {
         
         setContentPane(mainPanel);
         updateTitleForMode();
+    }
+
+    private boolean useNativeDialog() {
+        return AppLifecycle.isMacOS();
+    }
+
+    private File showNativeDialog(boolean allowMultiple) {
+        String prevDirProp = null;
+        if (mode == Mode.DIRECTORY) {
+            prevDirProp = System.getProperty("apple.awt.fileDialogForDirectories");
+            System.setProperty("apple.awt.fileDialogForDirectories", "true");
+        }
+        try {
+            FileDialog dialog = createNativeDialog(allowMultiple);
+            dialog.setVisible(true);
+            if (allowMultiple) {
+                File[] files = dialog.getFiles();
+                if (files != null && files.length > 0) {
+                    selectedFiles.addAll(Arrays.asList(files));
+                    return files[0];
+                }
+                return null;
+            }
+            String file = dialog.getFile();
+            if (file == null || file.isEmpty()) {
+                return null;
+            }
+            String dir = dialog.getDirectory();
+            File selection = dir != null ? new File(dir, file) : new File(file);
+            if (mode == Mode.DIRECTORY && selection.isFile()) {
+                File parent = selection.getParentFile();
+                return parent != null ? parent : selection;
+            }
+            return selection;
+        } finally {
+            if (mode == Mode.DIRECTORY) {
+                if (prevDirProp == null) {
+                    System.clearProperty("apple.awt.fileDialogForDirectories");
+                } else {
+                    System.setProperty("apple.awt.fileDialogForDirectories", prevDirProp);
+                }
+            }
+        }
+    }
+
+    private List<File> showNativeMultiDialog() {
+        showNativeDialog(true);
+        return selectedFiles.isEmpty() ? null : new ArrayList<>(selectedFiles);
+    }
+
+    private FileDialog createNativeDialog(boolean allowMultiple) {
+        int dialogMode = (mode == Mode.SAVE) ? FileDialog.SAVE : FileDialog.LOAD;
+        Window owner = getOwner();
+        FileDialog dialog;
+        if (owner instanceof Frame) {
+            dialog = new FileDialog((Frame) owner, getTitle(), dialogMode);
+        } else if (owner instanceof Dialog) {
+            dialog = new FileDialog((Dialog) owner, getTitle(), dialogMode);
+        } else {
+            dialog = new FileDialog((Frame) null, getTitle(), dialogMode);
+        }
+
+        if (currentDirectory != null) {
+            dialog.setDirectory(currentDirectory.getAbsolutePath());
+        }
+        if (suggestedFileName != null && !suggestedFileName.isBlank()) {
+            dialog.setFile(suggestedFileName);
+        }
+        dialog.setMultipleMode(allowMultiple);
+
+        if (mode != Mode.DIRECTORY) {
+            FilenameFilter filter = createNativeFilter();
+            if (filter != null) {
+                dialog.setFilenameFilter(filter);
+            }
+        }
+        return dialog;
+    }
+
+    private FilenameFilter createNativeFilter() {
+        if (activeFilter == null) {
+            return (dir, name) -> acceptHiddenFilter(dir, name) && true;
+        }
+        return (dir, name) -> {
+            if (!acceptHiddenFilter(dir, name)) return false;
+            File file = new File(dir, name);
+            if (file.isDirectory()) return true;
+            return activeFilter.accepts(file);
+        };
+    }
+
+    private boolean acceptHiddenFilter(File dir, String name) {
+        if (showHiddenFiles) return true;
+        if (name == null || name.isEmpty()) return false;
+        if (name.startsWith(".")) return false;
+        try {
+            return !new File(dir, name).isHidden();
+        } catch (Throwable ignored) {
+            return true;
+        }
     }
     
     private JPanel createNavigationBar() {

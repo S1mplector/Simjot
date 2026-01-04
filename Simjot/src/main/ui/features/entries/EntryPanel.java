@@ -502,11 +502,7 @@ public class EntryPanel extends AbstractEditorPanel {
             rightToolbar.add(clockBtn);
             rightToolbar.add(Box.createHorizontalStrut(6));
         }
-        ToolbarMenuIconButton restoreBtn = new ToolbarMenuIconButton("", "load");
-        restoreBtn.setToolTipText("Restore previous version");
-        restoreBtn.addActionListener(e -> showRestoreDialog());
-        rightToolbar.add(restoreBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
+        // Restore button removed as requested.
         ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("", "fullscreen");
         dfBtn.setToolTipText("Distraction-Free Mode");
         dfBtn.addActionListener(e -> toggleDistractionFree());

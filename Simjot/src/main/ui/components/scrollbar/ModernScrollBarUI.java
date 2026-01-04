@@ -23,15 +23,25 @@ import javax.swing.plaf.basic.BasicScrollBarUI;
 
 public class ModernScrollBarUI extends BasicScrollBarUI {
     private static final int ARC = 10;
+    private static final int THICKNESS = 14;
 
     @Override
     protected void configureScrollBarColors() {
-        this.thumbColor = new Color(210, 225, 245, 210);
-        this.thumbDarkShadowColor = new Color(150, 175, 210, 160);
-        this.thumbHighlightColor = new Color(235, 245, 255, 200);
-        this.thumbLightShadowColor = new Color(235, 245, 255, 200);
-        this.trackColor = new Color(250, 250, 250, 150);
-        this.trackHighlightColor = new Color(235, 245, 255, 140);
+        this.thumbColor = new Color(214, 218, 224, 210);
+        this.thumbDarkShadowColor = new Color(160, 166, 175, 160);
+        this.thumbHighlightColor = new Color(248, 248, 250, 200);
+        this.thumbLightShadowColor = new Color(248, 248, 250, 200);
+        this.trackColor = new Color(247, 247, 247, 160);
+        this.trackHighlightColor = new Color(235, 235, 235, 140);
+    }
+
+    @Override
+    public Dimension getPreferredSize(JComponent c) {
+        Dimension base = super.getPreferredSize(c);
+        if (scrollbar != null && scrollbar.getOrientation() == Adjustable.VERTICAL) {
+            return new Dimension(THICKNESS, base.height);
+        }
+        return new Dimension(base.width, THICKNESS);
     }
     @Override
     protected JButton createDecreaseButton(int orientation) {
@@ -58,8 +68,8 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
 
         RoundRectangle2D shape = new RoundRectangle2D.Float(x, y, w, h, arc, arc);
 
-        Color top = scaleAlpha(new Color(210, 225, 245, 215), enabledScale);
-        Color bottom = scaleAlpha(new Color(180, 205, 235, 200), enabledScale);
+        Color top = scaleAlpha(new Color(246, 246, 248, 220), enabledScale);
+        Color bottom = scaleAlpha(new Color(204, 210, 218, 210), enabledScale);
         GradientPaint base = vertical
             ? new GradientPaint(0, y, top, 0, y + h, bottom)
             : new GradientPaint(x, 0, top, x + w, 0, bottom);
@@ -67,25 +77,25 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
         g2.fill(shape);
 
         GradientPaint sheen = vertical
-            ? new GradientPaint(0, y, scaleAlpha(new Color(255, 255, 255, 120), enabledScale),
-                                0, y + h * 0.55f, scaleAlpha(new Color(255, 255, 255, 25), enabledScale))
-            : new GradientPaint(x, 0, scaleAlpha(new Color(255, 255, 255, 120), enabledScale),
-                                x + w * 0.55f, 0, scaleAlpha(new Color(255, 255, 255, 25), enabledScale));
+            ? new GradientPaint(0, y, scaleAlpha(new Color(255, 255, 255, 160), enabledScale),
+                                0, y + h * 0.55f, scaleAlpha(new Color(255, 255, 255, 40), enabledScale))
+            : new GradientPaint(x, 0, scaleAlpha(new Color(255, 255, 255, 160), enabledScale),
+                                x + w * 0.55f, 0, scaleAlpha(new Color(255, 255, 255, 40), enabledScale));
         g2.setPaint(sheen);
         g2.fill(shape);
 
         GradientPaint shadow = vertical
-            ? new GradientPaint(0, y + h * 0.45f, scaleAlpha(new Color(0, 0, 0, 12), enabledScale),
-                                0, y + h, scaleAlpha(new Color(0, 0, 0, 35), enabledScale))
-            : new GradientPaint(x + w * 0.45f, 0, scaleAlpha(new Color(0, 0, 0, 12), enabledScale),
-                                x + w, 0, scaleAlpha(new Color(0, 0, 0, 35), enabledScale));
+            ? new GradientPaint(0, y + h * 0.45f, scaleAlpha(new Color(0, 0, 0, 10), enabledScale),
+                                0, y + h, scaleAlpha(new Color(0, 0, 0, 32), enabledScale))
+            : new GradientPaint(x + w * 0.45f, 0, scaleAlpha(new Color(0, 0, 0, 10), enabledScale),
+                                x + w, 0, scaleAlpha(new Color(0, 0, 0, 32), enabledScale));
         g2.setPaint(shadow);
         g2.fill(shape);
 
         int innerArc = Math.max(arc - 2, 2);
-        g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), enabledScale));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, 120), enabledScale));
         g2.draw(new RoundRectangle2D.Float(x + 1f, y + 1f, w - 2f, h - 2f, innerArc, innerArc));
-        g2.setColor(scaleAlpha(new Color(120, 150, 190, 160), enabledScale));
+        g2.setColor(scaleAlpha(new Color(150, 156, 164, 170), enabledScale));
         g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, arc, arc));
         g2.dispose();
     }
@@ -106,8 +116,8 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
 
         RoundRectangle2D shape = new RoundRectangle2D.Float(x, y, w, h, arc, arc);
 
-        Color top = scaleAlpha(new Color(255, 255, 255, 140), enabledScale);
-        Color bottom = scaleAlpha(new Color(235, 240, 245, 110), enabledScale);
+        Color top = scaleAlpha(new Color(250, 250, 250, 160), enabledScale);
+        Color bottom = scaleAlpha(new Color(228, 231, 235, 140), enabledScale);
         GradientPaint base = vertical
             ? new GradientPaint(0, y, top, 0, y + h, bottom)
             : new GradientPaint(x, 0, top, x + w, 0, bottom);
@@ -115,17 +125,17 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
         g2.fill(shape);
 
         GradientPaint sheen = vertical
-            ? new GradientPaint(0, y, scaleAlpha(new Color(255, 255, 255, 90), enabledScale),
-                                0, y + h * 0.55f, scaleAlpha(new Color(255, 255, 255, 20), enabledScale))
-            : new GradientPaint(x, 0, scaleAlpha(new Color(255, 255, 255, 90), enabledScale),
-                                x + w * 0.55f, 0, scaleAlpha(new Color(255, 255, 255, 20), enabledScale));
+            ? new GradientPaint(0, y, scaleAlpha(new Color(255, 255, 255, 110), enabledScale),
+                                0, y + h * 0.55f, scaleAlpha(new Color(255, 255, 255, 35), enabledScale))
+            : new GradientPaint(x, 0, scaleAlpha(new Color(255, 255, 255, 110), enabledScale),
+                                x + w * 0.55f, 0, scaleAlpha(new Color(255, 255, 255, 35), enabledScale));
         g2.setPaint(sheen);
         g2.fill(shape);
 
         int innerArc = Math.max(arc - 2, 2);
-        g2.setColor(scaleAlpha(new Color(255, 255, 255, 70), enabledScale));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, 85), enabledScale));
         g2.draw(new RoundRectangle2D.Float(x + 1f, y + 1f, w - 2f, h - 2f, innerArc, innerArc));
-        g2.setColor(scaleAlpha(new Color(0, 0, 0, 25), enabledScale));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, 22), enabledScale));
         g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, arc, arc));
         g2.dispose();
     }
@@ -157,17 +167,17 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
             int innerArc = Math.max(arc - 2, 2);
 
             GradientPaint base = new GradientPaint(
-                0, 0, scaleAlpha(new Color(255, 255, 255, 150), enabledScale),
-                0, h, scaleAlpha(new Color(230, 235, 245, 110), enabledScale)
+                0, 0, scaleAlpha(new Color(255, 255, 255, 160), enabledScale),
+                0, h, scaleAlpha(new Color(230, 233, 236, 120), enabledScale)
             );
             g2.setPaint(base);
             g2.fill(shape);
-            g2.setColor(scaleAlpha(new Color(255, 255, 255, 80), enabledScale));
+            g2.setColor(scaleAlpha(new Color(255, 255, 255, 100), enabledScale));
             g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, innerArc, innerArc));
-            g2.setColor(scaleAlpha(new Color(0, 0, 0, 35), enabledScale));
+            g2.setColor(scaleAlpha(new Color(0, 0, 0, 30), enabledScale));
             g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, arc, arc));
 
-            g2.setColor(scaleAlpha(new Color(110, 120, 135, 200), enabledScale));
+            g2.setColor(scaleAlpha(new Color(110, 114, 120, 200), enabledScale));
             int[] x, y;
             if (direction == SwingConstants.NORTH) {
                 x = new int[]{w/2-4, w/2, w/2+4};

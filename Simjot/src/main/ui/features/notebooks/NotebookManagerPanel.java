@@ -179,7 +179,7 @@ public class NotebookManagerPanel extends JPanel {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         header.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
-        header.add(new ClusterDivider(clusterId), BorderLayout.CENTER);
+        header.add(new ClusterDivider(clusterId, true), BorderLayout.CENTER);
         
         // Cluster actions - notebook delete icon button
         ToolbarMenuIconButton disbandBtn = new ToolbarMenuIconButton("", "delete_notebook");
@@ -208,7 +208,7 @@ public class NotebookManagerPanel extends JPanel {
         JPanel footer = new JPanel(new BorderLayout());
         footer.setOpaque(false);
         footer.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
-        footer.add(new ClusterDivider(clusterId), BorderLayout.CENTER);
+        footer.add(new ClusterDivider(clusterId, false), BorderLayout.CENTER);
         clusterPanel.add(footer, BorderLayout.SOUTH);
         
         // Make cluster a drop target
@@ -220,11 +220,13 @@ public class NotebookManagerPanel extends JPanel {
     private static final class ClusterDivider extends JComponent {
         private static final int HEIGHT = 28;
         private final String text;
+        private final boolean showText;
 
-        private ClusterDivider(String text) {
+        private ClusterDivider(String text, boolean showText) {
             this.text = text == null ? "" : text.trim();
+            this.showText = showText;
             setOpaque(false);
-            setFont(AeroTheme.defaultBoldFont(13f));
+            setFont(resolveClusterFont(15f));
             setForeground(new Color(60, 60, 60));
         }
 
@@ -246,7 +248,7 @@ public class NotebookManagerPanel extends JPanel {
             int lineY = h / 2 + 4;
             int padX = 16;
 
-            String label = text;
+            String label = showText ? text : "";
             int maxTextWidth = Math.max(0, w - padX * 2 - 120);
             if (!label.isEmpty()) {
                 label = elideText(label, fm, maxTextWidth);
@@ -317,6 +319,15 @@ public class NotebookManagerPanel extends JPanel {
             if (max <= 0) return "";
             return input.substring(0, max).trim() + ellipsis;
         }
+    }
+
+    private static Font resolveClusterFont(float size) {
+        String family = "Zapfino";
+        Font f = new Font(family, Font.PLAIN, Math.round(size));
+        if (!family.equalsIgnoreCase(f.getFamily())) {
+            f = AeroTheme.defaultBoldFont(size);
+        }
+        return f;
     }
     
     private void setupClusterDropTarget(JPanel clusterPanel, String clusterId) {

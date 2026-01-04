@@ -41,7 +41,8 @@ public class HeaderPanel extends JPanel {
     private double lastBeatValue = 0; // for peak detection on eased curve
     private float spring = 0f;      // small overshoot that decays after peak
     private String quote;
-    private java.util.List<String> quotePool;
+    private String quoteAuthor;
+    private java.util.List<QuoteLibrary.QuoteEntry> quotePool;
     private int quoteIndex = 0;
     private final Color accent;
     private BufferedImage cachedHeart;
@@ -60,16 +61,22 @@ public class HeaderPanel extends JPanel {
         setLayout(new BorderLayout());
         this.accent = (accent != null ? accent : AeroTheme.AERO_BLUE);
         // Load curated quotes from resources (native-accelerated I/O when available).
-        quotePool = new java.util.ArrayList<>(QuoteLibrary.loadQuotes());
+        quotePool = new java.util.ArrayList<>(QuoteLibrary.loadQuoteEntries());
         try {
             String[] custom = SettingsStore.get().getHeaderCustomQuotes();
             if (custom != null) {
-                for (String q : custom) if (q != null && !q.trim().isEmpty()) quotePool.add(q.trim());
+                for (String q : custom) {
+                    if (q != null && !q.trim().isEmpty()) {
+                        quotePool.add(new QuoteLibrary.QuoteEntry(q.trim(), null));
+                    }
+                }
             }
         } catch (Throwable ignored) {}
-        if (quotePool.isEmpty()) quotePool.add("Take a deep breath. You are enough.");
+        if (quotePool.isEmpty()) quotePool.add(new QuoteLibrary.QuoteEntry("Take a deep breath. You are enough.", null));
         quoteIndex = new Random().nextInt(quotePool.size());
-        quote = quotePool.get(quoteIndex);
+        QuoteLibrary.QuoteEntry initial = quotePool.get(quoteIndex);
+        quote = initial.text;
+        quoteAuthor = initial.author;
 
         // Mouse interactivity for inline chevron button
         MouseAdapter mx = new MouseAdapter() {
@@ -159,14 +166,14 @@ public class HeaderPanel extends JPanel {
     private void advanceQuote(){
         if (quotePool == null || quotePool.isEmpty()) return;
         quoteIndex = (quoteIndex + 1) % quotePool.size();
-        String next = quotePool.get(quoteIndex);
+        QuoteLibrary.QuoteEntry next = quotePool.get(quoteIndex);
         startQuoteFadeTo(next);
     }
 
-    private void startQuoteFadeTo(String next){
+    private void startQuoteFadeTo(QuoteLibrary.QuoteEntry next){
         if (fadeTimer != null && fadeTimer.isRunning()) fadeTimer.stop();
         if (quoteFadeTimer != null) quoteFadeTimer.stop();
-        final String target = next;
+        final QuoteLibrary.QuoteEntry target = next;
         final int[] phaseRef = {0}; // 0 = fade out, 1 = fade in
         quoteFadeTimer = new Timer(40, ev -> {
             if (phaseRef[0] == 0){
@@ -174,7 +181,8 @@ public class HeaderPanel extends JPanel {
                 if (textAlpha <= 0f){
                     textAlpha = 0f;
                     phaseRef[0] = 1;
-                    quote = target;
+                    quote = target.text;
+                    quoteAuthor = target.author;
                 }
             } else {
                 textAlpha += 0.10f;
@@ -219,6 +227,19 @@ public class HeaderPanel extends JPanel {
             Shape quoteShape = qgv.getOutline(quoteX, quoteY);
             Rectangle2D quoteBounds = quoteShape.getBounds2D();
 
+            String authorText = formatAuthorText(quoteAuthor);
+            Font authorFont = new Font("Segoe UI", Font.PLAIN, 14);
+            Shape authorShape = null;
+            Rectangle2D authorBounds = null;
+            if (authorText != null && !authorText.isBlank()) {
+                GlyphVector agv = authorFont.createGlyphVector(frc, authorText);
+                Rectangle2D authorVisual = agv.getVisualBounds();
+                int authorX = (int) Math.round((width - authorVisual.getWidth()) / 2.0);
+                int authorY = quoteY + 22;
+                authorShape = agv.getOutline(authorX, authorY);
+                authorBounds = authorShape.getBounds2D();
+            }
+
             // Inline next button hit area (used for hover/click).
             int btnSize = 22;
             int arrowCX = (int) Math.round(quoteBounds.getX() + quoteBounds.getWidth() + 16);
@@ -233,7 +254,7 @@ public class HeaderPanel extends JPanel {
             Rectangle2D heartBounds = new Rectangle2D.Double(
                 heartX, heartY, hb.width * PANEL_HEART_SCALE, hb.height * PANEL_HEART_SCALE
             );
-            Rectangle panelRect = computePanelRect(width, height, titleBounds, quoteBounds, heartBounds, nextHit);
+            Rectangle panelRect = computePanelRect(width, height, titleBounds, quoteBounds, authorBounds, heartBounds, nextHit);
             paintFrostedPanel(g2, panelRect, textAlpha * 0.6f);
 
             if (cachedHeart == null || cachedW != width || cachedH != height || cachedAccent == null || !cachedAccent.equals(accent)) {
@@ -407,6 +428,20 @@ public class HeaderPanel extends JPanel {
         g2.fill(new Rectangle2D.Double(qb.getX(), qb.getY(), qb.getWidth(), qb.getHeight() * 0.5));
         g2.setClip(oldClip3);
         
+        // Author line (subtle, below quote)
+        if (authorText != null && !authorText.isBlank()) {
+            Graphics2D aShadow = (Graphics2D) g2.create();
+            aShadow.translate(0.8, 0.8);
+            aShadow.setColor(new Color(0, 0, 0, 60));
+            aShadow.fill(authorShape);
+            aShadow.dispose();
+
+            Graphics2D aFill = (Graphics2D) g2.create();
+            aFill.setColor(new Color(255, 255, 255, 220));
+            aFill.fill(authorShape);
+            aFill.dispose();
+        }
+
         // ---- Inline vector 'Next' arrow button right of the quote ----
 
         Graphics2D nb = (Graphics2D) g2.create();
@@ -453,6 +488,7 @@ public class HeaderPanel extends JPanel {
                                               int height,
                                               Rectangle2D titleBounds,
                                               Rectangle2D quoteBounds,
+                                              Rectangle2D authorBounds,
                                               Rectangle2D heartBounds,
                                               Rectangle nextBounds) {
         double minX = Math.min(Math.min(titleBounds.getX(), quoteBounds.getX()), heartBounds.getX());
@@ -461,6 +497,13 @@ public class HeaderPanel extends JPanel {
         double minY = Math.min(Math.min(titleBounds.getY(), quoteBounds.getY()), heartBounds.getY());
         double maxY = Math.max(Math.max(titleBounds.getY() + titleBounds.getHeight(), quoteBounds.getY() + quoteBounds.getHeight()),
                 heartBounds.getY() + heartBounds.getHeight());
+
+        if (authorBounds != null) {
+            minX = Math.min(minX, authorBounds.getX());
+            maxX = Math.max(maxX, authorBounds.getX() + authorBounds.getWidth());
+            minY = Math.min(minY, authorBounds.getY());
+            maxY = Math.max(maxY, authorBounds.getY() + authorBounds.getHeight());
+        }
 
         if (nextBounds != null) {
             minX = Math.min(minX, nextBounds.getX());
@@ -489,6 +532,16 @@ public class HeaderPanel extends JPanel {
         int w = Math.max(0, right - x);
         int h = Math.max(0, bottom - y);
         return new Rectangle(x, y, w, h);
+    }
+
+    private static String formatAuthorText(String author) {
+        if (author == null) return "";
+        String trimmed = author.trim();
+        if (trimmed.isEmpty()) return "";
+        if (trimmed.startsWith("—") || trimmed.startsWith("-")) {
+            return trimmed;
+        }
+        return "— " + trimmed;
     }
 
     private static void paintFrostedPanel(Graphics2D g2, Rectangle r, float alpha) {
