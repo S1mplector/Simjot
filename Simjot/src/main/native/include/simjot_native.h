@@ -1667,6 +1667,8 @@ int32_t simjot_link_at_position(const char* text, int32_t len, int32_t position,
 #define simjot_stroke_clear sjf_stroke_clear
 #define simjot_stroke_smooth sjf_stroke_smooth
 #define simjot_stroke_length sjf_stroke_length
+#define simjot_stroke_get_point_count sjf_stroke_get_point_count
+#define simjot_stroke_get_points sjf_stroke_get_points
 #define simjot_stroke_bounds sjf_stroke_bounds
 #define simjot_stroke_translate sjf_stroke_translate
 #define simjot_stroke_scale sjf_stroke_scale
@@ -1741,6 +1743,8 @@ int32_t simjot_stroke_add_point(void* stroke, float x, float y, float pressure, 
 void simjot_stroke_clear(void* stroke);
 int32_t simjot_stroke_smooth(void* stroke, int32_t iterations, float tension, float resample_dist, int32_t preserve_corners);
 float simjot_stroke_length(const void* stroke);
+int32_t simjot_stroke_get_point_count(const void* stroke);
+int32_t simjot_stroke_get_points(const void* stroke, float* out, int32_t out_len);
 void simjot_stroke_bounds(const void* stroke, float* min_x, float* min_y, float* max_x, float* max_y);
 void simjot_stroke_translate(void* stroke, float dx, float dy);
 void simjot_stroke_scale(void* stroke, float sx, float sy, float cx, float cy);

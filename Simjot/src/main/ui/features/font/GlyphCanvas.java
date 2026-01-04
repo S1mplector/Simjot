@@ -27,6 +27,7 @@ import javax.swing.JPanel;
 import main.core.font.CustomGlyph;
 import main.core.font.CustomStroke;
 import main.core.font.StrokePoint;
+import main.infrastructure.font.NativeStrokeSupport;
 import main.infrastructure.input.TabletInputSupport;
 
 /**
@@ -517,11 +518,16 @@ public class GlyphCanvas extends JPanel {
         if (stroke == null || stroke.getPointCount() < 3) return;
         float thickness = stroke.getThickness();
         float targetDist = Math.max(2.5f, 10.0f - thickness * 0.2f);
-        stroke.resample(targetDist);
         int iterations = smoothIterations;
         if (thickness >= 12f) iterations = Math.max(1, smoothIterations - 1);
         if (thickness >= 24f) iterations = 1;
         if (thickness >= 32f) iterations = 0;
+        if (NativeStrokeSupport.isAvailable()) {
+            if (NativeStrokeSupport.smoothStroke(stroke, iterations, 0.5f, targetDist, true)) {
+                return;
+            }
+        }
+        stroke.resample(targetDist);
         if (iterations > 0) {
             stroke.smooth(iterations);
         }

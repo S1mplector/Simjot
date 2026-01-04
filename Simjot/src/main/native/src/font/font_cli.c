@@ -38,7 +38,8 @@ extern int32_t sjf_glyph_add_stroke(sjf_glyph_t* glyph, const sjf_stroke_t* stro
 extern sjf_stroke_t* sjf_stroke_create(int32_t initial_capacity);
 extern void sjf_stroke_free(sjf_stroke_t* stroke);
 extern int32_t sjf_stroke_add_point(sjf_stroke_t* stroke, float x, float y, float pressure, float timestamp);
-extern int32_t sjf_stroke_smooth(sjf_stroke_t* stroke, const void* opts);
+extern int32_t sjf_stroke_smooth(sjf_stroke_t* stroke, int32_t iterations, float tension,
+                                 float resample_distance, int32_t preserve_corners);
 extern sjf_bitmap_t* sjf_raster_glyph(const sjf_glyph_t* glyph, const sjf_raster_opts_t* opts, float em_size);
 extern void sjf_bitmap_free(sjf_bitmap_t* bmp);
 extern int32_t sjf_glyph_compute_metrics(sjf_glyph_t* glyph, float em_size);
@@ -232,7 +233,7 @@ static int cmd_test(void) {
     
     /* Test 5: Smooth stroke */
     printf("Test 5: Smooth stroke... ");
-    if (sjf_stroke_smooth(stroke, NULL) == SJF_OK) {
+    if (sjf_stroke_smooth(stroke, -1, 0.0f, 0.0f, 1) == SJF_OK) {
         printf("PASS (points: %d)\n", stroke->point_count);
     } else {
         printf("FAIL\n");

@@ -253,7 +253,7 @@ static std::vector<int32_t> detect_corners(const std::vector<sjf_point_t>& point
  * PUBLIC API - Stroke Smoothing
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-extern "C" int32_t sjf_stroke_smooth(sjf_stroke_t* stroke, const sjf_smooth_opts_t* opts) {
+static int32_t stroke_smooth_impl(sjf_stroke_t* stroke, const sjf_smooth_opts_t* opts) {
     if (!stroke || stroke->point_count < SJF_MIN_STROKE_POINTS) {
         return SJF_ERR_NULL_PTR;
     }
@@ -334,6 +334,30 @@ extern "C" int32_t sjf_stroke_smooth(sjf_stroke_t* stroke, const sjf_smooth_opts
     return SJF_OK;
 }
 
+extern "C" int32_t sjf_stroke_smooth(sjf_stroke_t* stroke, int32_t iterations, float tension,
+                                     float resample_distance, int32_t preserve_corners) {
+    sjf_smooth_opts_t opts = {
+        SJF_SMOOTH_ITERATIONS,
+        0.5f,
+        SJF_RESAMPLE_DISTANCE,
+        1,
+        0.7f
+    };
+
+    if (iterations >= 0) {
+        opts.iterations = iterations;
+    }
+    if (tension > 0.0f) {
+        opts.tension = tension;
+    }
+    if (resample_distance > 0.0f) {
+        opts.resample_distance = resample_distance;
+    }
+    opts.preserve_corners = preserve_corners ? 1 : 0;
+
+    return stroke_smooth_impl(stroke, &opts);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * STROKE PATH LENGTH AND BOUNDS
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -349,6 +373,25 @@ extern "C" float sjf_stroke_length(const sjf_stroke_t* stroke) {
         );
     }
     return length;
+}
+
+extern "C" int32_t sjf_stroke_get_point_count(const sjf_stroke_t* stroke) {
+    if (!stroke) return 0;
+    return stroke->point_count;
+}
+
+extern "C" int32_t sjf_stroke_get_points(const sjf_stroke_t* stroke, float* out, int32_t out_len) {
+    if (!stroke || !out) return SJF_ERR_NULL_PTR;
+    int32_t needed = stroke->point_count * 4;
+    if (out_len < needed) return SJF_ERR_BUFFER_TOO_SMALL;
+    for (int32_t i = 0; i < stroke->point_count; i++) {
+        int32_t idx = i * 4;
+        out[idx] = stroke->points[i].x;
+        out[idx + 1] = stroke->points[i].y;
+        out[idx + 2] = stroke->points[i].pressure;
+        out[idx + 3] = stroke->points[i].timestamp;
+    }
+    return needed;
 }
 
 extern "C" void sjf_stroke_bounds(const sjf_stroke_t* stroke, 

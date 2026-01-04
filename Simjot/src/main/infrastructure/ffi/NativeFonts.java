@@ -66,6 +66,8 @@ public final class NativeFonts implements AutoCloseable {
     private final MethodHandle strokeClearHandle;
     private final MethodHandle strokeSmoothHandle;
     private final MethodHandle strokeLengthHandle;
+    private final MethodHandle strokeGetPointCountHandle;
+    private final MethodHandle strokeGetPointsHandle;
     private final MethodHandle strokeBoundsHandle;
     private final MethodHandle strokeTranslateHandle;
     private final MethodHandle strokeScaleHandle;
@@ -176,6 +178,10 @@ public final class NativeFonts implements AutoCloseable {
                 ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT));
         strokeLengthHandle = downcall("sjf_stroke_length",
             FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS));
+        strokeGetPointCountHandle = downcall("sjf_stroke_get_point_count",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        strokeGetPointsHandle = downcall("sjf_stroke_get_points",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         strokeBoundsHandle = downcall("sjf_stroke_bounds",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS));
@@ -573,7 +579,23 @@ public final class NativeFonts implements AutoCloseable {
             throw new RuntimeException("strokeLength failed", t);
         }
     }
-    
+
+    public int strokeGetPointCount(MemorySegment stroke) {
+        try {
+            return (int) strokeGetPointCountHandle.invokeExact(stroke);
+        } catch (Throwable t) {
+            throw new RuntimeException("strokeGetPointCount failed", t);
+        }
+    }
+
+    public int strokeGetPoints(MemorySegment stroke, MemorySegment out, int outLen) {
+        try {
+            return (int) strokeGetPointsHandle.invokeExact(stroke, out, outLen);
+        } catch (Throwable t) {
+            throw new RuntimeException("strokeGetPoints failed", t);
+        }
+    }
+
     public void strokeTranslate(MemorySegment stroke, float dx, float dy) {
         try {
             strokeTranslateHandle.invokeExact(stroke, dx, dy);
