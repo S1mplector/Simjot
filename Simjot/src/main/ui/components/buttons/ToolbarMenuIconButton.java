@@ -40,10 +40,10 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         setFocusPainted(false);
         setForeground(AeroTheme.TEXT_PRIMARY);
         setFont(new Font("SansSerif", Font.BOLD, 13));
-        Dimension d = new Dimension(42, 42);
+        Dimension d = new Dimension(46, 46);
         setPreferredSize(d);
         setMinimumSize(d);
-        setMaximumSize(new Dimension(64, 42));
+        setMaximumSize(new Dimension(70, 46));
 
         addMouseListener(new MouseAdapter() {
             @Override public void mouseEntered(MouseEvent e) { hovering = true; repaint(); }

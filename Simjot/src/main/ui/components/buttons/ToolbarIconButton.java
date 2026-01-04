@@ -51,7 +51,7 @@ public class ToolbarIconButton extends JButton {
 
     public ToolbarIconButton(String iconId){
         this.id = iconId.toLowerCase();
-        setPreferredSize(new Dimension(40,40));
+        setPreferredSize(new Dimension(46,46));
         setFocusPainted(false); setBorderPainted(false); setContentAreaFilled(false);
 
         // Centralized mapping for icons; fallback to legacy img/{id}.png

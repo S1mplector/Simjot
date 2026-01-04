@@ -36,10 +36,10 @@ public class HandStyleToggleButton extends JToggleButton {
         setContentAreaFilled(false);
         setOpaque(false);
         setFont(resolveFont());
-        Dimension d = new Dimension(44, 32);
+        Dimension d = new Dimension(48, 36);
         setPreferredSize(d);
         setMinimumSize(d);
-        setMaximumSize(new Dimension(64, 36));
+        setMaximumSize(new Dimension(70, 40));
     }
 
     private Font resolveFont() {

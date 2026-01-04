@@ -21,7 +21,9 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.LinearGradientPaint;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
@@ -172,6 +174,15 @@ public class NotebookEntriesPanel extends JPanel {
         } catch (Throwable ignored) {}
     });
 
+    private final float[] selectionSweepPhase = new float[]{0f};
+    private final javax.swing.Timer selectionSweepTimer = new javax.swing.Timer(33, e -> {
+        try {
+            selectionSweepPhase[0] += 0.018f;
+            if (selectionSweepPhase[0] > 1f) selectionSweepPhase[0] -= 1f;
+            list.repaint();
+        } catch (Throwable ignored) {}
+    });
+
     // Folder watch
     private WatchService watchService;
     private Thread watchThread;
@@ -224,6 +235,7 @@ public class NotebookEntriesPanel extends JPanel {
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
         private int moodValue = -1;
+        private float selectionSweepPhase = 0f;
         private final DateDividerRenderer divider = new DateDividerRenderer();
 
         // Background image cache (scaled+blurred per size)
@@ -316,6 +328,12 @@ public class NotebookEntriesPanel extends JPanel {
             Float delProg = file != null && deleteAnim != null ? deleteAnim.get(file) : null;
             deleteProgress = delProg == null ? 0f : delProg;
             moodValue = file != null && moods != null ? moods.getOrDefault(file, -1) : -1;
+            Object phaseObj = list.getClientProperty("selectionSweepPhase");
+            if (phaseObj instanceof float[] arr && arr.length > 0) {
+                selectionSweepPhase = arr[0];
+            } else {
+                selectionSweepPhase = 0f;
+            }
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
             Date created = file != null ? resolveCreatedDate(file) : new Date();
@@ -384,6 +402,29 @@ public class NotebookEntriesPanel extends JPanel {
             }
             g2.setClip(oldClip);
 
+            // Selected sweep highlight (subtle Aero-like sheen)
+            if (selected && deleteProgress <= 0.01f) {
+                int bandW = Math.max(80, Math.round(w * 0.35f));
+                float startX = (selectionSweepPhase * 1.4f - 0.2f) * w;
+                Shape sweepClip = g2.getClip();
+                g2.setClip(shape);
+                Composite old = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.16f));
+                LinearGradientPaint sweep = new LinearGradientPaint(
+                    startX, 0, startX + bandW, 0,
+                    new float[]{0f, 0.5f, 1f},
+                    new Color[]{
+                        new Color(255, 255, 255, 0),
+                        new Color(255, 255, 255, 180),
+                        new Color(255, 255, 255, 0)
+                    }
+                );
+                g2.setPaint(sweep);
+                g2.fill(shape);
+                g2.setComposite(old);
+                g2.setClip(sweepClip);
+            }
+
             // Accent bar
             Color base = moodColorAt(moodValue);
             Color accentTop = shiftColor(base, 0.18f);
@@ -406,14 +447,14 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private static final class DateDividerRenderer extends JComponent {
-        private static final int HEIGHT = 50;
+        private static final int HEIGHT = 64;
         private String label = "";
 
         private DateDividerRenderer() {
             setOpaque(false);
             setFont(resolveClusterFont(16f));
             setForeground(new Color(60, 60, 60));
-            setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
+            setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
         }
 
         void setLabel(String label) {
@@ -436,7 +477,7 @@ public class NotebookEntriesPanel extends JPanel {
 
             FontMetrics fm = g2.getFontMetrics(getFont());
             int centerX = w / 2;
-            int lineY = h / 2 + 6;
+            int lineY = h / 2 + 8;
             int padX = 16;
 
             String text = elideText(label, fm, Math.max(0, w - padX * 2 - 120));
@@ -483,7 +524,7 @@ public class NotebookEntriesPanel extends JPanel {
 
             if (!text.isEmpty()) {
                 int textX = centerX - textW / 2;
-                int textY = lineY - 8;
+                int textY = lineY - 10;
                 if (textY < fm.getAscent()) textY = fm.getAscent();
                 if (textY > h - fm.getDescent()) textY = h - fm.getDescent();
                 g2.setColor(getForeground());
@@ -593,6 +634,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("wordCounts", wordCounts);
         list.putClientProperty("moods", moodValues);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
+        list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(-1);
         list.setCellRenderer(new EntryCardRenderer());
@@ -616,6 +658,7 @@ public class NotebookEntriesPanel extends JPanel {
                     else list.clearSelection();
                 }
             }
+            updateSelectionSweepState();
         });
         listScroll = new JScrollPane(list);
         add(listScroll,BorderLayout.CENTER);
@@ -830,6 +873,7 @@ public class NotebookEntriesPanel extends JPanel {
         if (sel != null && ordered.contains(sel)) {
             selectFile(sel, false);
         }
+        updateSelectionSweepState();
         // Restore approximate scroll position
         try {
             JScrollBar bar = listScroll.getVerticalScrollBar();
@@ -1123,6 +1167,7 @@ public class NotebookEntriesPanel extends JPanel {
         try { watchDebounce.stop(); } catch (Throwable ignored) {}
         try { reorderAnimTimer.stop(); } catch (Throwable ignored) {}
         try { deleteAnimTimer.stop(); } catch (Throwable ignored) {}
+        try { selectionSweepTimer.stop(); } catch (Throwable ignored) {}
         try {
             if (metaLoader != null && !metaLoader.isDone()) {
                 metaLoader.cancel(true);
@@ -1339,6 +1384,18 @@ public class NotebookEntriesPanel extends JPanel {
                 if (scroll) list.ensureIndexIsVisible(i);
                 return;
             }
+        }
+    }
+
+    private void updateSelectionSweepState() {
+        EntryRow row = list.getSelectedValue();
+        boolean active = row != null && !row.isHeader();
+        if (active) {
+            if (!selectionSweepTimer.isRunning()) selectionSweepTimer.start();
+        } else {
+            if (selectionSweepTimer.isRunning()) selectionSweepTimer.stop();
+            selectionSweepPhase[0] = 0f;
+            list.repaint();
         }
     }
 
