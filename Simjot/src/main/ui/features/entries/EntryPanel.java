@@ -72,6 +72,9 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.Element;
+import javax.swing.text.DefaultStyledDocument;
+import javax.swing.text.AttributeSet;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.Style;
@@ -1502,18 +1505,18 @@ public class EntryPanel extends AbstractEditorPanel {
                 writer.flush();
             } else {
                 // Regular mode: write image manifest header, then RTF appended below
-                manifestForRestore = buildImageManifest((StyledDocument) contentArea.getDocument());
+                TokenizedDocument tokenized = buildTokenizedDocument((StyledDocument) contentArea.getDocument());
+                manifestForRestore = tokenized.manifest;
                 if (manifestForRestore == null) manifestForRestore = "";
-                tokensApplied = true;
                 writer.println("IMGMAP:" + manifestForRestore);
                 writer.println();
                 writer.flush();
 
                 // Append RTF styling
                 RTFEditorKit kit = new RTFEditorKit();
-                StyledDocument sd = (StyledDocument) contentArea.getDocument();
+                StyledDocument sd = tokenized.doc;
                 try {
-                    // Document already tokenized by buildImageManifest for header; just write it.
+                    // Write the tokenized document copy to avoid mutating the live editor.
                     kit.write(baos, sd, 0, sd.getLength());
                 } catch (BadLocationException ble) {
                     // fallback to plain text if unexpected
@@ -1564,16 +1567,6 @@ public class EntryPanel extends AbstractEditorPanel {
                 throw io;
             }
 
-            // Restore icons back into the live document so the UI remains unchanged
-            if (!meta.guided && tokensApplied) {
-                try {
-                    StyledDocument sd = (StyledDocument) contentArea.getDocument();
-                    if (manifestForRestore != null && !manifestForRestore.isBlank()) {
-                        restoreIconsFromTokens(sd, manifestForRestore);
-                    }
-                } catch (Throwable ignored) {}
-            }
-
             // Record versioned snapshot
             try {
                 int keep = SettingsStore.get().getBackupKeepCount();
@@ -1601,14 +1594,6 @@ public class EntryPanel extends AbstractEditorPanel {
             updateSaveIndicatorFromCurrentFile();
         } catch (IOException ex) {
             ex.printStackTrace();
-            if (tokensApplied) {
-                try {
-                    StyledDocument sd = (StyledDocument) contentArea.getDocument();
-                    if (manifestForRestore != null && !manifestForRestore.isBlank()) {
-                        restoreIconsFromTokens(sd, manifestForRestore);
-                    }
-                } catch (Throwable ignored) {}
-            }
             SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog());
             if (saveIndicator != null) saveIndicator.setError("Error saving");
         }
@@ -1701,6 +1686,98 @@ public class EntryPanel extends AbstractEditorPanel {
         } catch (Throwable t) {
             return "";
         }
+    }
+
+    private static final class TokenizedDocument {
+        private final StyledDocument doc;
+        private final String manifest;
+
+        private TokenizedDocument(StyledDocument doc, String manifest) {
+            this.doc = doc;
+            this.manifest = manifest;
+        }
+    }
+
+    private TokenizedDocument buildTokenizedDocument(StyledDocument src) {
+        DefaultStyledDocument out = new DefaultStyledDocument(src.getStyleContext());
+        StringBuilder manifest = new StringBuilder(128);
+
+        try {
+            Element root = src.getDefaultRootElement();
+            int paraCount = root.getElementCount();
+            int[] paraStarts = new int[paraCount];
+            AttributeSet[] paraAttrs = new AttributeSet[paraCount];
+            int[] paraOutOffsets = new int[paraCount];
+            java.util.Arrays.fill(paraOutOffsets, -1);
+            for (int i = 0; i < paraCount; i++) {
+                Element p = root.getElement(i);
+                paraStarts[i] = p.getStartOffset();
+                paraAttrs[i] = p.getAttributes();
+            }
+
+            int nextPara = 0;
+            int pos = 0;
+            int len = src.getLength();
+            int outPos = 0;
+            while (pos < len) {
+                while (nextPara < paraCount && pos >= paraStarts[nextPara]) {
+                    paraOutOffsets[nextPara] = outPos;
+                    nextPara++;
+                }
+                Element el = src.getCharacterElement(pos);
+                if (el == null) {
+                    pos++;
+                    continue;
+                }
+                AttributeSet as = el.getAttributes();
+                Object ico = StyleConstants.getIcon(as);
+                int end = Math.min(el.getEndOffset(), len);
+                if (ico instanceof ImageIcon) {
+                    ImageIcon icon = (ImageIcon) ico;
+                    int w = icon.getIconWidth();
+                    int h = icon.getIconHeight();
+                    Object srcAttr = as.getAttribute("imageSourceFile");
+                    File srcFile = (srcAttr instanceof File) ? (File) srcAttr : null;
+                    if (srcFile == null) {
+                        File dir = new File(journalFolder, "attachments");
+                        if (!dir.exists()) dir.mkdirs();
+                        String name = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new java.util.Date()) + ".png";
+                        srcFile = new File(dir, name);
+                        try {
+                            BufferedImage buf = toBuffered(icon.getImage());
+                            ImageIO.write(buf, "PNG", srcFile);
+                        } catch (Throwable ignored) {}
+                    }
+                    String rel = makeRelativeToJournal(srcFile);
+                    String token = "[[IMG|" + rel + "|" + w + "x" + h + "]]";
+                    out.insertString(outPos, token, null);
+                    outPos += token.length();
+                    if (manifest.length() > 0) manifest.append(';');
+                    manifest.append(rel).append('|').append(w).append('x').append(h);
+                } else {
+                    String seg = src.getText(pos, end - pos);
+                    out.insertString(outPos, seg, as);
+                    outPos += seg.length();
+                }
+                pos = end;
+            }
+            while (nextPara < paraCount) {
+                paraOutOffsets[nextPara] = outPos;
+                nextPara++;
+            }
+            for (int i = 0; i < paraCount; i++) {
+                int start = paraOutOffsets[i];
+                if (start >= 0 && start <= out.getLength()) {
+                    out.setParagraphAttributes(start, 1, paraAttrs[i], true);
+                }
+            }
+        } catch (BadLocationException ignored) {
+            try {
+                out.insertString(0, src.getText(0, src.getLength()), null);
+            } catch (BadLocationException ignoredAgain) {}
+        }
+
+        return new TokenizedDocument(out, manifest.toString());
     }
 
     private void restoreIconsFromTokens(StyledDocument doc, String manifest) {
