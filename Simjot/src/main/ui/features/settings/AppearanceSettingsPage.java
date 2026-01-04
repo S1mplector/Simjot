@@ -37,6 +37,7 @@ import javax.swing.JSlider;
 import main.core.service.SettingsStore;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.calendars.CircularCalendar;
+import main.ui.components.calendars.ClannadCalendar;
 import main.ui.components.calendars.DotMatrixCalendar;
 import main.ui.components.calendars.GlassCalendar;
 import main.ui.components.calendars.MinimalistCalendar;
@@ -75,7 +76,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private String selectedClockStyle;
     private String selectedCalendarStyle;
     private static final String[] CLOCK_STYLES = {"Classic", "Minimalist", "Neon", "Swiss", "Sunburst", "Segment", "Polar", "Binary", "Flip", "Orbital", "Radar", "Word"};
-    private static final String[] CALENDAR_STYLES = {"Classic", "Minimalist", "TornPage", "Circular", "PostIt", "Glass", "Vertical", "DotMatrix", "Stamp", "Retro", "Neon"};
+    private static final String[] CALENDAR_STYLES = {"Classic", "Minimalist", "TornPage", "Circular", "PostIt", "Glass", "Vertical", "DotMatrix", "Stamp", "Retro", "Neon", "Clannad"};
 
     AppearanceSettingsPage() {
         setLayout(new GridBagLayout());
@@ -220,6 +221,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             case "Stamp" -> new StampCalendar();
             case "Retro" -> new RetroCalendar();
             case "Neon" -> new NeonCalendar();
+            case "Clannad" -> new ClannadCalendar();
             default -> new TodayCalendarPanel();
         };
     }

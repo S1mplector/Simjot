@@ -256,7 +256,10 @@ public class NotebookEntriesPanel extends JPanel {
     // Renderer for entry cards inside a notebook
     private static class EntryCardRenderer extends JPanel implements ListCellRenderer<EntryRow> {
         private final JLabel title = new JLabel();
-        private final JLabel meta = new JLabel();
+        private final JLabel sizeLabel = new JLabel();
+        private final JLabel wordsLabel = new JLabel();
+        private final JLabel createdLabel = new JLabel();
+        private final JLabel editedLabel = new JLabel();
         private final JTextArea snippet = new JTextArea();
         private final Color cardBg = new Color(252, 253, 255);
         private final Color cardBorder = new Color(190, 200, 214);
@@ -325,27 +328,67 @@ public class NotebookEntriesPanel extends JPanel {
 
         EntryCardRenderer() {
             setOpaque(false);
-            setLayout(new BorderLayout(10, 0));
+            setLayout(new BorderLayout(12, 0));
+            
+            // Left content panel: title + preview, right-aligned
             JPanel content = new JPanel();
             content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.Y_AXIS));
             content.setOpaque(false);
-            title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
+            
+            title.setFont(new Font("Snell Roundhand", Font.BOLD, 16));
             title.setForeground(new Color(0x2B, 0x2B, 0x2B));
-            meta.setFont(meta.getFont().deriveFont(12f));
-            meta.setForeground(metaColor);
-            snippet.setFont(meta.getFont().deriveFont(Font.PLAIN, 12f));
+            title.setAlignmentX(Component.LEFT_ALIGNMENT);
+            
+            snippet.setFont(snippet.getFont().deriveFont(Font.PLAIN, 12f));
             snippet.setForeground(new Color(90, 95, 110));
             snippet.setLineWrap(true);
             snippet.setWrapStyleWord(true);
             snippet.setEditable(false);
             snippet.setOpaque(false);
             snippet.setFocusable(false);
-            snippet.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+            snippet.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
             snippet.setRows(2);
+            
             content.add(title);
-            content.add(meta);
             content.add(snippet);
             add(content, BorderLayout.CENTER);
+            
+            // Right stats panel: vertically stacked stats
+            JPanel statsPanel = new JPanel();
+            statsPanel.setLayout(new javax.swing.BoxLayout(statsPanel, javax.swing.BoxLayout.Y_AXIS));
+            statsPanel.setOpaque(false);
+            statsPanel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+            
+            Font statsFont = title.getFont().deriveFont(Font.PLAIN, 11f);
+            Color statsColor = metaColor;
+            
+            sizeLabel.setFont(statsFont);
+            sizeLabel.setForeground(statsColor);
+            sizeLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+            
+            wordsLabel.setFont(statsFont);
+            wordsLabel.setForeground(statsColor);
+            wordsLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+            
+            createdLabel.setFont(statsFont);
+            createdLabel.setForeground(statsColor);
+            createdLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+            
+            editedLabel.setFont(statsFont);
+            editedLabel.setForeground(statsColor);
+            editedLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+            
+            statsPanel.add(sizeLabel);
+            statsPanel.add(javax.swing.Box.createVerticalStrut(2));
+            statsPanel.add(wordsLabel);
+            statsPanel.add(javax.swing.Box.createVerticalStrut(2));
+            statsPanel.add(createdLabel);
+            statsPanel.add(javax.swing.Box.createVerticalStrut(2));
+            statsPanel.add(editedLabel);
+            statsPanel.add(javax.swing.Box.createVerticalGlue());
+            
+            add(statsPanel, BorderLayout.EAST);
+            
             // Extra left padding so text never collides with the left accent bar
             setBorder(BorderFactory.createEmptyBorder(8, 22, 8, 12));
         }
@@ -392,7 +435,12 @@ public class NotebookEntriesPanel extends JPanel {
             title.setText(displayTitle);
             SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
             String size = file != null ? NotebookEntriesPanel.humanReadableSize(file.length()) : "-";
-            meta.setText(String.format("%s  •  %s  •  Created %s  •  Last edited %s", size, wc+" words", df.format(created), df.format(modified)));
+            
+            // Update individual stat labels
+            sizeLabel.setText(size);
+            wordsLabel.setText(wc + " words");
+            createdLabel.setText("Created " + df.format(created));
+            editedLabel.setText("Edited " + df.format(modified));
             PreviewSnapshot snap = (file != null && previews != null) ? previews.get(file) : null;
             String previewText = snap != null ? snap.snippet : "";
             snippet.setText(previewText == null ? "" : previewText);

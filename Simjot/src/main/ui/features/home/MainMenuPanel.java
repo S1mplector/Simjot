@@ -54,6 +54,7 @@ import main.ui.components.DragController;
 import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.MainMenuButton;
 import main.ui.components.calendars.CircularCalendar;
+import main.ui.components.calendars.ClannadCalendar;
 import main.ui.components.calendars.DotMatrixCalendar;
 import main.ui.components.calendars.GlassCalendar;
 import main.ui.components.calendars.MinimalistCalendar;
@@ -710,6 +711,7 @@ public class MainMenuPanel extends JPanel {
             case "Stamp" -> new StampCalendar(accent);
             case "Retro" -> new RetroCalendar(accent);
             case "Neon" -> new NeonCalendar(accent);
+            case "Clannad" -> new ClannadCalendar(accent);
             default -> new TodayCalendarPanel(accent);
         };
     }
