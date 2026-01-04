@@ -28,6 +28,10 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.BufferedReader;
 import java.io.File;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -79,12 +83,13 @@ import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.theme.aero.AeroTheme;
 
 public class NotebookEntriesPanel extends JPanel {
     private final JournalApp app;
     private final NotebookInfo nb;
-    private final DefaultListModel<File> model = new DefaultListModel<>();
-    private final JList<File> list = new JList<>(model);
+    private final DefaultListModel<EntryRow> model = new DefaultListModel<>();
+    private final JList<EntryRow> list = new JList<>(model);
     private final JTextField searchField = new AeroTextField(20);
     private final JComboBox<String> sortBox = new JComboBox<>(new String[]{
             "Date (Newest)",
@@ -96,6 +101,7 @@ public class NotebookEntriesPanel extends JPanel {
 
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
+    private final java.util.Map<File,Integer> moodValues = new java.util.HashMap<>();
     private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
 
@@ -170,8 +176,8 @@ public class NotebookEntriesPanel extends JPanel {
     private volatile boolean disposed = false;
 
     private static class FileMeta {
-        final File file; final int wc; final String title;
-        FileMeta(File f, int wc, String title){ this.file=f; this.wc=wc; this.title=title; }
+        final File file; final int wc; final String title; final int mood;
+        FileMeta(File f, int wc, String title, int mood){ this.file=f; this.wc=wc; this.title=title; this.mood=mood; }
     }
 
     private static class MetaSnapshot {
@@ -179,19 +185,30 @@ public class NotebookEntriesPanel extends JPanel {
         final long length;
         final int wordCount;
         final String title;
-        MetaSnapshot(long lastModified, long length, int wordCount, String title) {
+        final int mood;
+        MetaSnapshot(long lastModified, long length, int wordCount, String title, int mood) {
             this.lastModified = lastModified;
             this.length = length;
             this.wordCount = wordCount;
             this.title = title;
+            this.mood = mood;
         }
         boolean isFresh(File f) {
             return f != null && f.lastModified() == lastModified && f.length() == length;
         }
     }
 
+    private static class TitleMood {
+        final String title;
+        final int mood;
+        TitleMood(String title, int mood) {
+            this.title = title == null ? "" : title;
+            this.mood = mood;
+        }
+    }
+
     // Renderer for entry cards inside a notebook
-    private static class EntryCardRenderer extends JPanel implements ListCellRenderer<File> {
+    private static class EntryCardRenderer extends JPanel implements ListCellRenderer<EntryRow> {
         private final JLabel title = new JLabel();
         private final JLabel meta = new JLabel();
         private final Color cardBg = new Color(252, 253, 255);
@@ -203,6 +220,8 @@ public class NotebookEntriesPanel extends JPanel {
         private boolean selected;
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
+        private int moodValue = -1;
+        private final DateDividerRenderer divider = new DateDividerRenderer();
 
         // Background image cache (scaled+blurred per size)
         private static BufferedImage ENTRY_BG_BASE;
@@ -272,38 +291,40 @@ public class NotebookEntriesPanel extends JPanel {
         }
 
         @Override
-        public Component getListCellRendererComponent(JList<? extends File> list, File value, int index, boolean isSelected, boolean cellHasFocus) {
+        public Component getListCellRendererComponent(JList<? extends EntryRow> list, EntryRow value, int index, boolean isSelected, boolean cellHasFocus) {
+            if (value != null && value.isHeader()) {
+                divider.setLabel(value.label);
+                return divider;
+            }
             // Title will be set externally via putClientProperty on the list for this renderer
             @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
             @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
+            @SuppressWarnings("unchecked") Map<File,Integer> moods = (Map<File,Integer>) list.getClientProperty("moods");
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
-            String fallback = value.getName();
+            File file = value != null ? value.file : null;
+            String fallback = file != null ? file.getName() : "";
             int dotIdx = fallback.lastIndexOf('.');
             if (dotIdx > 0) fallback = fallback.substring(0, dotIdx);
-            String t = titles != null ? titles.get(value) : null;
-            int wc = wordCounts != null ? wordCounts.getOrDefault(value, 0) : 0;
-            Float glow = reorderAnim != null ? reorderAnim.get(value) : null;
+            String t = file != null && titles != null ? titles.get(file) : null;
+            int wc = file != null && wordCounts != null ? wordCounts.getOrDefault(file, 0) : 0;
+            Float glow = file != null && reorderAnim != null ? reorderAnim.get(file) : null;
             reorderGlow = glow == null ? 0f : glow;
-            Float delProg = deleteAnim != null ? deleteAnim.get(value) : null;
+            Float delProg = file != null && deleteAnim != null ? deleteAnim.get(file) : null;
             deleteProgress = delProg == null ? 0f : delProg;
+            moodValue = file != null && moods != null ? moods.getOrDefault(file, -1) : -1;
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
-            Date created = new Date(value.lastModified());
-            try {
-                String nm = value.getName();
-                String base = nm.contains(".") ? nm.substring(0, nm.lastIndexOf('.')) : nm;
-                SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                created = fmt.parse(base);
-            } catch (Exception ignored) {}
-            Date modified = new Date(value.lastModified());
+            Date created = file != null ? resolveCreatedDate(file) : new Date();
+            Date modified = file != null ? new Date(file.lastModified()) : new Date();
 
             String displayTitle = (t==null||t.isBlank()) ? fallback : t;
             title.setText(displayTitle);
             SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
-            String size = NotebookEntriesPanel.humanReadableSize(value.length());
+            String size = file != null ? NotebookEntriesPanel.humanReadableSize(file.length()) : "-";
             meta.setText(String.format("%s  •  %s  •  Created %s  •  Last edited %s", size, wc+" words", df.format(created), df.format(modified)));
             this.selected = isSelected;
+            setPreferredSize(new Dimension(1, 84));
             return this;
         }
 
@@ -361,7 +382,10 @@ public class NotebookEntriesPanel extends JPanel {
             g2.setClip(oldClip);
 
             // Accent bar
-            g2.setPaint(new GradientPaint(0, 8, new Color(102, 168, 255), 0, h - 8, new Color(70, 120, 240)));
+            Color base = moodColorAt(moodValue);
+            Color top = shiftColor(base, 0.18f);
+            Color bottom = shiftColor(base, -0.22f);
+            g2.setPaint(new GradientPaint(0, 8, top, 0, h - 8, bottom));
             g2.fillRoundRect(6, 9, 6, h - 18, 6, 6);
 
             // Borders
@@ -375,6 +399,147 @@ public class NotebookEntriesPanel extends JPanel {
             g2.drawRoundRect(5, 4, w - 10, h - 8, arc - 1, arc - 1);
             g2.dispose();
             super.paintComponent(g);
+        }
+    }
+
+    private static final class DateDividerRenderer extends JComponent {
+        private static final int HEIGHT = 30;
+        private String label = "";
+
+        private DateDividerRenderer() {
+            setOpaque(false);
+            setFont(resolveClusterFont(16f));
+            setForeground(new Color(60, 60, 60));
+        }
+
+        void setLabel(String label) {
+            this.label = label == null ? "" : label.trim();
+            setPreferredSize(new Dimension(1, HEIGHT));
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(180, HEIGHT);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) { g2.dispose(); return; }
+
+            FontMetrics fm = g2.getFontMetrics(getFont());
+            int centerX = w / 2;
+            int lineY = h / 2 + 5;
+            int padX = 16;
+
+            String text = elideText(label, fm, Math.max(0, w - padX * 2 - 120));
+            int textW = text.isEmpty() ? 0 : fm.stringWidth(text);
+            int innerGap = textW > 0 ? (textW / 2 + 14) : 16;
+            int leftLineEnd = centerX - innerGap;
+            int rightLineStart = centerX + innerGap;
+
+            Color line = new Color(60, 60, 60, 170);
+            g2.setColor(line);
+            g2.setStroke(new java.awt.BasicStroke(1.6f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+            int lineStart = padX;
+            int lineEnd = w - padX;
+            if (leftLineEnd > lineStart + 4) {
+                g2.drawLine(lineStart, lineY, leftLineEnd, lineY);
+            }
+            if (rightLineStart < lineEnd - 4) {
+                g2.drawLine(rightLineStart, lineY, lineEnd, lineY);
+            }
+
+            int capW = 12;
+            int capH = 4;
+            if (leftLineEnd > lineStart + 4) {
+                g2.fillRoundRect(lineStart - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
+            }
+            if (rightLineStart < lineEnd - 4) {
+                g2.fillRoundRect(lineEnd - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
+            }
+
+            int diamond = 10;
+            java.awt.geom.Path2D diamondShape = new java.awt.geom.Path2D.Float();
+            diamondShape.moveTo(centerX, lineY - diamond / 2f);
+            diamondShape.lineTo(centerX + diamond / 2f, lineY);
+            diamondShape.lineTo(centerX, lineY + diamond / 2f);
+            diamondShape.lineTo(centerX - diamond / 2f, lineY);
+            diamondShape.closePath();
+            g2.fill(diamondShape);
+
+            int leafW = 8;
+            int leafH = 3;
+            int leafOffset = diamond / 2 + 8;
+            g2.fillRoundRect(centerX - leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
+            g2.fillRoundRect(centerX + leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
+
+            if (!text.isEmpty()) {
+                int textX = centerX - textW / 2;
+                int textY = lineY - 7;
+                if (textY < fm.getAscent()) textY = fm.getAscent();
+                if (textY > h - fm.getDescent()) textY = h - fm.getDescent();
+                g2.setColor(getForeground());
+                g2.setFont(getFont());
+                g2.drawString(text, textX, textY);
+            }
+
+            g2.dispose();
+        }
+
+        private static String elideText(String input, FontMetrics fm, int maxWidth) {
+            if (input == null || input.isEmpty()) return "";
+            if (maxWidth <= 0) return "";
+            if (fm.stringWidth(input) <= maxWidth) return input;
+            String ellipsis = "...";
+            int max = input.length();
+            while (max > 0 && fm.stringWidth(input.substring(0, max) + ellipsis) > maxWidth) {
+                max--;
+            }
+            if (max <= 0) return "";
+            return input.substring(0, max).trim() + ellipsis;
+        }
+    }
+
+    private static final class EntryRow {
+        enum Kind { HEADER, FILE }
+        final Kind kind;
+        final File file;
+        final LocalDate date;
+        final String label;
+
+        private EntryRow(Kind kind, File file, LocalDate date, String label) {
+            this.kind = kind;
+            this.file = file;
+            this.date = date;
+            this.label = label;
+        }
+
+        static EntryRow header(LocalDate date, String label) {
+            return new EntryRow(Kind.HEADER, null, date, label);
+        }
+
+        static EntryRow file(File file) {
+            return new EntryRow(Kind.FILE, file, null, null);
+        }
+
+        boolean isHeader() { return kind == Kind.HEADER; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof EntryRow other)) return false;
+            if (kind != other.kind) return false;
+            if (kind == Kind.FILE) return Objects.equals(file, other.file);
+            return Objects.equals(date, other.date);
+        }
+
+        @Override
+        public int hashCode() {
+            return kind == Kind.FILE ? Objects.hash(kind, file) : Objects.hash(kind, date);
         }
     }
 
@@ -422,13 +587,30 @@ public class NotebookEntriesPanel extends JPanel {
         // Attach shared maps for renderer access
         list.putClientProperty("titles", titles);
         list.putClientProperty("wordCounts", wordCounts);
+        list.putClientProperty("moods", moodValues);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.setBackground(new Color(247, 247, 249));
-        list.setFixedCellHeight(84);
+        list.setFixedCellHeight(-1);
         list.setCellRenderer(new EntryCardRenderer());
         list.addMouseListener(new MouseAdapter(){
             @Override public void mouseClicked(MouseEvent e){
                 if(e.getClickCount()==2){ openSelected(); }
+            }
+        });
+        list.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            int idx = list.getSelectedIndex();
+            if (idx < 0 || idx >= model.size()) return;
+            EntryRow row = model.get(idx);
+            if (row != null && row.isHeader()) {
+                int next = findNextFileIndex(idx);
+                if (next >= 0) {
+                    list.setSelectedIndex(next);
+                } else {
+                    int prev = findPrevFileIndex(idx);
+                    if (prev >= 0) list.setSelectedIndex(prev);
+                    else list.clearSelection();
+                }
             }
         });
         listScroll = new JScrollPane(list);
@@ -525,6 +707,7 @@ public class NotebookEntriesPanel extends JPanel {
             // Prune caches for removed files but preserve known titles to avoid flicker
             titles.keySet().retainAll(current);
             wordCounts.keySet().retainAll(current);
+            moodValues.keySet().retainAll(current);
             metaComputed.retainAll(current);
             synchronized (metaQueued) { metaQueued.retainAll(current); }
             metaCache.keySet().retainAll(current);
@@ -536,6 +719,7 @@ public class NotebookEntriesPanel extends JPanel {
                 if (snap != null && snap.isFresh(f)) {
                     titles.put(f, snap.title);
                     wordCounts.put(f, snap.wordCount);
+                    moodValues.put(f, snap.mood);
                     metaComputed.add(f);
                     refreshedCache.put(f, snap);
                 } else {
@@ -548,6 +732,7 @@ public class NotebookEntriesPanel extends JPanel {
                     titles.put(f, (dot > 0 ? nm.substring(0, dot) : nm));
                 }
                 if (!wordCounts.containsKey(f)) wordCounts.put(f, 0);
+                if (!moodValues.containsKey(f)) moodValues.put(f, -1);
             }
             metaCache.clear();
             metaCache.putAll(refreshedCache);
@@ -557,6 +742,7 @@ public class NotebookEntriesPanel extends JPanel {
             allFiles = new ArrayList<>();
             titles.clear();
             wordCounts.clear();
+            moodValues.clear();
             metaComputed.clear();
             metaQueued.clear();
             metaCache.clear();
@@ -572,7 +758,7 @@ public class NotebookEntriesPanel extends JPanel {
     private void applyFilterSort(){
         if (disposed) return;
         // Preserve selection and scroll to minimize visible twitch
-        File sel = list.getSelectedValue();
+        File sel = getSelectedFile();
         int scrollVal = 0;
         try { scrollVal = listScroll.getVerticalScrollBar().getValue(); } catch (Throwable ignored) {}
 
@@ -592,44 +778,53 @@ public class NotebookEntriesPanel extends JPanel {
             }
             return true;
         }).collect(Collectors.toList());
-        switch(sortBox.getSelectedIndex()){
-            case 0 -> filtered.sort(Comparator
-                    .comparingLong(File::lastModified)
+        Comparator<File> withinDate;
+        boolean dateDesc = true;
+        switch (sortBox.getSelectedIndex()) {
+            case 0 -> {
+                dateDesc = true;
+                withinDate = Comparator.comparingLong(NotebookEntriesPanel::entrySortTimestamp)
                     .reversed()
-                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
-            case 1 -> filtered.sort(Comparator
-                    .comparingLong(File::lastModified)
-                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
-            case 2 -> filtered.sort(Comparator
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
+            }
+            case 1 -> {
+                dateDesc = false;
+                withinDate = Comparator.comparingLong(NotebookEntriesPanel::entrySortTimestamp)
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
+            }
+            case 2 -> withinDate = Comparator
                     .comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER)
-                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
-            case 3 -> filtered.sort(Comparator
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
+            case 3 -> withinDate = Comparator
                     .comparing((File fl)-> java.util.Objects.toString(titles.get(fl), fl.getName()), String.CASE_INSENSITIVE_ORDER)
                     .reversed()
-                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
-            case 4 -> filtered.sort(Comparator
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
+            case 4 -> withinDate = Comparator
                     .comparingInt((File f)->wordCounts.getOrDefault(f,0))
                     .reversed()
-                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
-            case 5 -> filtered.sort(Comparator
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
+            case 5 -> withinDate = Comparator
                     .comparingInt((File f)->wordCounts.getOrDefault(f,0))
-                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT)));
+                    .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
+            default -> withinDate = Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER);
         }
+        List<File> ordered = orderByDateGroups(filtered, dateDesc, withinDate);
+        List<EntryRow> rows = buildGroupedRows(ordered);
         // If order hasn't changed, skip rebuild to avoid flicker
-        boolean sameOrder = (model.size() == filtered.size());
+        boolean sameOrder = (model.size() == rows.size());
         if (sameOrder) {
             for (int i = 0; i < model.size(); i++) {
-                if (!Objects.equals(model.get(i), filtered.get(i))) { sameOrder = false; break; }
+                if (!Objects.equals(model.get(i), rows.get(i))) { sameOrder = false; break; }
             }
         }
         if (!sameOrder) {
-            java.util.Set<File> changed = updateModelWithMinimalChanges(filtered);
+            java.util.Set<File> changed = updateModelWithMinimalChanges(rows);
             bumpReorderAnimation(changed);
         }
 
         // Restore selection without forcing scroll
-        if (sel != null && filtered.contains(sel)) {
-            list.setSelectedValue(sel, false);
+        if (sel != null && ordered.contains(sel)) {
+            selectFile(sel, false);
         }
         // Restore approximate scroll position
         try {
@@ -642,11 +837,11 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     // Returns set of files that were inserted or moved
-    private java.util.Set<File> updateModelWithMinimalChanges(java.util.List<File> target){
+    private java.util.Set<File> updateModelWithMinimalChanges(java.util.List<EntryRow> target){
         java.util.Set<File> changed = new java.util.HashSet<>();
         int i = 0;
         while (i < target.size()) {
-            File desired = target.get(i);
+            EntryRow desired = target.get(i);
             if (i < model.size() && java.util.Objects.equals(model.get(i), desired)) {
                 i++;
                 continue;
@@ -656,11 +851,11 @@ public class NotebookEntriesPanel extends JPanel {
                 // Move existing item to new position
                 model.remove(existingIdx);
                 model.add(i, desired);
-                changed.add(desired);
+                if (!desired.isHeader()) changed.add(desired.file);
             } else {
                 // Insert new item
                 model.add(i, desired);
-                changed.add(desired);
+                if (!desired.isHeader()) changed.add(desired.file);
             }
             i++;
         }
@@ -671,9 +866,9 @@ public class NotebookEntriesPanel extends JPanel {
         return changed;
     }
 
-    private int indexOfInModel(File f, int start){
+    private int indexOfInModel(EntryRow row, int start){
         for (int i = Math.max(0, start); i < model.size(); i++) {
-            if (java.util.Objects.equals(model.get(i), f)) return i;
+            if (java.util.Objects.equals(model.get(i), row)) return i;
         }
         return -1;
     }
@@ -692,7 +887,7 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void deleteSelected(){
-        File f = list.getSelectedValue();
+        File f = getSelectedFile();
         if(f==null) return;
         String title = java.util.Objects.toString(titles.get(f), f.getName());
         boolean ok = CustomConfirmDialog.confirm(this, "Delete Entry", "Delete entry '"+title+"'?");
@@ -809,7 +1004,7 @@ public class NotebookEntriesPanel extends JPanel {
         popup.show(this, 200, 40);
     }
 
-    private void openSelected(){ File f=list.getSelectedValue(); if(f!=null) openFile(f); }
+    private void openSelected(){ File f = getSelectedFile(); if(f!=null) openFile(f); }
 
     private void openFile(File f){
         app.openExistingEntryEditor(nb, f);
@@ -842,43 +1037,54 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private String extractTitle(File f){
+        return extractTitleAndMood(f).title;
+    }
+
+    private TitleMood extractTitleAndMood(File f){
+        if (f == null) return new TitleMood("", -1);
         if (EncryptionManager.isEncrypted(f)) {
             EncryptedMetadata.Meta meta = EncryptionManager.readMetadata(f);
-            if (meta != null && meta.title != null) return meta.title.trim();
-            return "";
+            String title = meta != null && meta.title != null ? meta.title.trim() : "";
+            int mood = meta != null ? meta.mood : -1;
+            return new TitleMood(title, mood);
         }
         String nm = f.getName();
         String lower = nm.toLowerCase();
         if(lower.endsWith(".note")||lower.endsWith(".poem")||lower.endsWith(".txt")||lower.endsWith(".rtf")||lower.endsWith(".ntk")){
-            // Try native title extraction first
-            String nativeTitle = main.infrastructure.ffi.NativeAccess.extractTitle(f.getAbsolutePath());
-            if (nativeTitle != null && !nativeTitle.isEmpty()) {
-                // Check if it's a header line, parse it
-                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(nativeTitle);
-                if (meta != null && meta.title != null && !meta.title.isBlank()) {
-                    return meta.title.trim();
-                }
-                return nativeTitle.trim();
-            }
-            // Java fallback
+            // Read header for mood + title (first line only)
             try(BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)){
                 String first = br.readLine();
-                if (first == null) return "";
-                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
-                if (meta != null) {
-                    if (meta.title != null && !meta.title.isBlank()) return meta.title.trim();
-                    // Skip optional blank separator
-                    String next = br.readLine();
-                    if (next != null && next.isBlank()) next = br.readLine();
-                    if (next != null && !next.isBlank()) return next.trim();
-                    return "";
+                if (first != null) {
+                    EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
+                    if (meta != null) {
+                        String title = meta.title != null ? meta.title.trim() : "";
+                        if (title.isBlank()) {
+                            String next = br.readLine();
+                            if (next != null && next.isBlank()) next = br.readLine();
+                            if (next != null && !next.isBlank()) title = next.trim();
+                        }
+                        return new TitleMood(title, meta.mood);
+                    }
+                    if (!first.isBlank()) {
+                        return new TitleMood(first.trim(), -1);
+                    }
                 }
-                if(!first.isBlank()) return first.trim();
-            }catch(Exception ignore){}
+            } catch (Exception ignore) {}
+            // Fallback to native title extraction
+            String nativeTitle = main.infrastructure.ffi.NativeAccess.extractTitle(f.getAbsolutePath());
+            if (nativeTitle != null && !nativeTitle.isEmpty()) {
+                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(nativeTitle);
+                if (meta != null) {
+                    String title = meta.title != null ? meta.title.trim() : "";
+                    return new TitleMood(title, meta.mood);
+                }
+                return new TitleMood(nativeTitle.trim(), -1);
+            }
         }
         // fallback: strip extension
         int dot = nm.lastIndexOf('.');
-        return dot>0? nm.substring(0,dot): nm;
+        String fallback = dot>0? nm.substring(0,dot): nm;
+        return new TitleMood(fallback, -1);
     }
 
     /** Reload the file list and update the UI */
@@ -1009,8 +1215,10 @@ public class NotebookEntriesPanel extends JPanel {
             if (first < 0 || last < 0 || last < first) return;
             java.util.List<File> visible = new java.util.ArrayList<>();
             for (int i = first; i <= last && i < model.size(); i++) {
-                File f = model.get(i);
-                if (f != null) visible.add(f);
+                EntryRow row = model.get(i);
+                if (row != null && !row.isHeader() && row.file != null) {
+                    visible.add(row.file);
+                }
             }
             if (!visible.isEmpty()) {
                 startPrioritizedMetaLoader(visible);
@@ -1037,8 +1245,10 @@ public class NotebookEntriesPanel extends JPanel {
                         metaQueued.add(f);
                     }
                     int wc = calculateWordCount(f);
-                    String t = extractTitle(f);
-                    publish(new FileMeta(f, wc, t));
+                    TitleMood tm = extractTitleAndMood(f);
+                    String t = tm.title;
+                    int mood = tm.mood;
+                    publish(new FileMeta(f, wc, t, mood));
                     if (isCancelled()) break;
                 }
                 return null;
@@ -1047,12 +1257,14 @@ public class NotebookEntriesPanel extends JPanel {
                 for (FileMeta m : chunks) {
                     titles.put(m.file, m.title);
                     wordCounts.put(m.file, m.wc);
+                    moodValues.put(m.file, m.mood);
                     metaComputed.add(m.file);
                     metaCache.put(m.file, new MetaSnapshot(
                             m.file.lastModified(),
                             m.file.length(),
                             m.wc,
-                            m.title
+                            m.title,
+                            m.mood
                     ));
                 }
                 update();
@@ -1072,5 +1284,145 @@ public class NotebookEntriesPanel extends JPanel {
     private static void logWarn(String msg, Throwable t){
         System.err.println("[NotebookEntriesPanel] " + msg + (t != null ? " (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ")" : ""));
         if (t != null) t.printStackTrace(System.err);
+    }
+
+    private List<EntryRow> buildGroupedRows(List<File> files) {
+        List<EntryRow> rows = new ArrayList<>();
+        if (files == null || files.isEmpty()) return rows;
+        LocalDate current = null;
+        for (File f : files) {
+            LocalDate date = resolveEntryDate(f);
+            if (current == null || !current.equals(date)) {
+                current = date;
+                rows.add(EntryRow.header(date, formatEntryDate(date)));
+            }
+            rows.add(EntryRow.file(f));
+        }
+        return rows;
+    }
+
+    private List<File> orderByDateGroups(List<File> files, boolean dateDesc, Comparator<File> withinDate) {
+        if (files == null || files.isEmpty()) return java.util.Collections.emptyList();
+        Map<LocalDate, List<File>> grouped = new HashMap<>();
+        for (File f : files) {
+            LocalDate date = resolveEntryDate(f);
+            grouped.computeIfAbsent(date, k -> new ArrayList<>()).add(f);
+        }
+        List<LocalDate> dates = new ArrayList<>(grouped.keySet());
+        dates.sort(dateDesc ? Comparator.reverseOrder() : Comparator.naturalOrder());
+        List<File> ordered = new ArrayList<>(files.size());
+        for (LocalDate date : dates) {
+            List<File> group = grouped.get(date);
+            if (group == null) continue;
+            group.sort(withinDate);
+            ordered.addAll(group);
+        }
+        return ordered;
+    }
+
+    private File getSelectedFile() {
+        EntryRow row = list.getSelectedValue();
+        if (row == null || row.isHeader()) return null;
+        return row.file;
+    }
+
+    private void selectFile(File file, boolean scroll) {
+        if (file == null) return;
+        for (int i = 0; i < model.size(); i++) {
+            EntryRow row = model.get(i);
+            if (row != null && !row.isHeader() && Objects.equals(file, row.file)) {
+                list.setSelectedIndex(i);
+                if (scroll) list.ensureIndexIsVisible(i);
+                return;
+            }
+        }
+    }
+
+    private int findNextFileIndex(int start) {
+        for (int i = Math.max(0, start + 1); i < model.size(); i++) {
+            EntryRow row = model.get(i);
+            if (row != null && !row.isHeader()) return i;
+        }
+        return -1;
+    }
+
+    private int findPrevFileIndex(int start) {
+        for (int i = Math.min(model.size() - 1, start - 1); i >= 0; i--) {
+            EntryRow row = model.get(i);
+            if (row != null && !row.isHeader()) return i;
+        }
+        return -1;
+    }
+
+    private static LocalDate resolveEntryDate(File file) {
+        long ts = entrySortTimestamp(file);
+        return Instant.ofEpochMilli(ts)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate();
+    }
+
+    private static long entrySortTimestamp(File file) {
+        return file != null ? file.lastModified() : System.currentTimeMillis();
+    }
+
+    private static Date resolveCreatedDate(File file) {
+        if (file == null) return new Date();
+        Date created = new Date(file.lastModified());
+        try {
+            String nm = file.getName();
+            String base = nm.contains(".") ? nm.substring(0, nm.lastIndexOf('.')) : nm;
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            created = fmt.parse(base);
+        } catch (Exception ignored) {}
+        return created;
+    }
+
+    private static String formatEntryDate(LocalDate date) {
+        if (date == null) return "";
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy");
+        return fmt.format(date);
+    }
+
+    private static Font resolveClusterFont(float size) {
+        String family = "Zapfino";
+        Font f = new Font(family, Font.PLAIN, Math.round(size));
+        if (!family.equalsIgnoreCase(f.getFamily())) {
+            f = AeroTheme.defaultBoldFont(size);
+        }
+        return f;
+    }
+
+    private static Color moodColorAt(int mood) {
+        if (mood < 0) {
+            return new Color(102, 168, 255);
+        }
+        float v = Math.max(0f, Math.min(100f, mood)) / 100f;
+        Color cool = new Color(0, 122, 204);
+        Color mid = new Color(200, 200, 200);
+        Color warm = new Color(255, 120, 50);
+        if (v <= 0.5f) {
+            return lerp(cool, mid, v / 0.5f);
+        }
+        return lerp(mid, warm, (v - 0.5f) / 0.5f);
+    }
+
+    private static Color shiftColor(Color base, float delta) {
+        if (base == null) return new Color(120, 120, 120);
+        float r = base.getRed() / 255f;
+        float g = base.getGreen() / 255f;
+        float b = base.getBlue() / 255f;
+        r = Math.max(0f, Math.min(1f, r + delta));
+        g = Math.max(0f, Math.min(1f, g + delta));
+        b = Math.max(0f, Math.min(1f, b + delta));
+        return new Color(r, g, b, base.getAlpha() / 255f);
+    }
+
+    private static Color lerp(Color a, Color b, float t) {
+        float clamped = Math.max(0f, Math.min(1f, t));
+        int r = Math.round(a.getRed() + (b.getRed() - a.getRed()) * clamped);
+        int g = Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * clamped);
+        int bl = Math.round(a.getBlue() + (b.getBlue() - a.getBlue()) * clamped);
+        int alpha = Math.round(a.getAlpha() + (b.getAlpha() - a.getAlpha()) * clamped);
+        return new Color(r, g, bl, alpha);
     }
 }
