@@ -401,6 +401,7 @@ public class PoemPanel extends AbstractEditorPanel {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         // Apply modern, slim scrollbars
         JScrollBar vbar = scrollPane.getVerticalScrollBar();
         vbar.setUI(new ModernScrollBarUI());
@@ -659,26 +660,17 @@ public class PoemPanel extends AbstractEditorPanel {
         guidedToggle.addActionListener(e -> setGuidedMode(guidedToggle.isSelected()));
         row.add(guidedToggle);
 
-        JButton rescanBtn = new RoundedButton("Rescan");
-        rescanBtn.putClientProperty("iconId", "rescan");
-        rescanBtn.setFocusable(false);
-        rescanBtn.setToolTipText("Refresh meter detection");
-        rescanBtn.addActionListener(e -> {
-            if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
-            refreshToolkitStatus();
-        });
-        row.add(rescanBtn);
-
         row.add(Box.createHorizontalStrut(10));
         toolkitStatusLabel = new JLabel("Active form: None • Detected: —");
         toolkitStatusLabel.setForeground(new Color(60, 60, 60));
         toolkitStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         row.add(toolkitStatusLabel);
 
-        toolkitHintLabel = new JLabel("Choose a form to set gentle line targets.");
+        toolkitHintLabel = new JLabel("");
         toolkitHintLabel.setForeground(new Color(90, 90, 90));
         toolkitHintLabel.setFont(new Font("SansSerif", Font.ITALIC, 11));
-        baseToolkitHint = toolkitHintLabel.getText();
+        toolkitHintLabel.setVisible(false);
+        baseToolkitHint = "";
         baseToolkitHintFont = toolkitHintLabel.getFont();
         baseToolkitHintColor = toolkitHintLabel.getForeground();
 
@@ -736,22 +728,32 @@ public class PoemPanel extends AbstractEditorPanel {
     
     private void updateGuidedHint(String guidedText) {
         if (toolkitHintLabel == null) return;
+        String text;
+        Font font = baseToolkitHintFont;
+        Color color = baseToolkitHintColor;
         if (!guidedModeEnabled || guidedText == null || guidedText.isBlank()) {
-            toolkitHintLabel.setText(baseToolkitHint);
-            if (baseToolkitHintFont != null) toolkitHintLabel.setFont(baseToolkitHintFont);
-            if (baseToolkitHintColor != null) toolkitHintLabel.setForeground(baseToolkitHintColor);
+            text = baseToolkitHint;
+        } else {
+            if (baseToolkitHint == null || baseToolkitHint.isBlank()) {
+                text = guidedText;
+            } else {
+                text = baseToolkitHint + "  |  " + guidedText;
+            }
+            if (baseToolkitHintFont != null) {
+                int style = baseToolkitHintFont.getStyle() | Font.BOLD;
+                font = baseToolkitHintFont.deriveFont(style);
+            }
+            color = new Color(80, 70, 60);
+        }
+        if (text == null || text.isBlank()) {
+            toolkitHintLabel.setText("");
+            toolkitHintLabel.setVisible(false);
             return;
         }
-        if (baseToolkitHint == null || baseToolkitHint.isBlank()) {
-            toolkitHintLabel.setText(guidedText);
-        } else {
-            toolkitHintLabel.setText(baseToolkitHint + "  |  " + guidedText);
-        }
-        if (baseToolkitHintFont != null) {
-            int style = baseToolkitHintFont.getStyle() | Font.BOLD;
-            toolkitHintLabel.setFont(baseToolkitHintFont.deriveFont(style));
-        }
-        toolkitHintLabel.setForeground(new Color(80, 70, 60));
+        toolkitHintLabel.setVisible(true);
+        toolkitHintLabel.setText(text);
+        if (font != null) toolkitHintLabel.setFont(font);
+        if (color != null) toolkitHintLabel.setForeground(color);
     }
     
     private GuidedFormConfig guidedConfigForPreset(String preset) {
