@@ -13,8 +13,10 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Composite;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -28,10 +30,6 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.BufferedReader;
 import java.io.File;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -41,6 +39,10 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -57,6 +59,7 @@ import javax.swing.Box;
 import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -383,9 +386,9 @@ public class NotebookEntriesPanel extends JPanel {
 
             // Accent bar
             Color base = moodColorAt(moodValue);
-            Color top = shiftColor(base, 0.18f);
-            Color bottom = shiftColor(base, -0.22f);
-            g2.setPaint(new GradientPaint(0, 8, top, 0, h - 8, bottom));
+            Color accentTop = shiftColor(base, 0.18f);
+            Color accentBottom = shiftColor(base, -0.22f);
+            g2.setPaint(new GradientPaint(0, 8, accentTop, 0, h - 8, accentBottom));
             g2.fillRoundRect(6, 9, 6, h - 18, 6, 6);
 
             // Borders
@@ -403,13 +406,14 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private static final class DateDividerRenderer extends JComponent {
-        private static final int HEIGHT = 30;
+        private static final int HEIGHT = 50;
         private String label = "";
 
         private DateDividerRenderer() {
             setOpaque(false);
             setFont(resolveClusterFont(16f));
             setForeground(new Color(60, 60, 60));
+            setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
         }
 
         void setLabel(String label) {
@@ -432,7 +436,7 @@ public class NotebookEntriesPanel extends JPanel {
 
             FontMetrics fm = g2.getFontMetrics(getFont());
             int centerX = w / 2;
-            int lineY = h / 2 + 5;
+            int lineY = h / 2 + 6;
             int padX = 16;
 
             String text = elideText(label, fm, Math.max(0, w - padX * 2 - 120));
@@ -479,7 +483,7 @@ public class NotebookEntriesPanel extends JPanel {
 
             if (!text.isEmpty()) {
                 int textX = centerX - textW / 2;
-                int textY = lineY - 7;
+                int textY = lineY - 8;
                 if (textY < fm.getAscent()) textY = fm.getAscent();
                 if (textY > h - fm.getDescent()) textY = h - fm.getDescent();
                 g2.setColor(getForeground());
