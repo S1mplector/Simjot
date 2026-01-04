@@ -337,8 +337,12 @@ public class NotebookEntriesPanel extends JPanel {
             
             title.setFont(new Font("Snell Roundhand", Font.BOLD, 18));
             title.setForeground(new Color(0x2B, 0x2B, 0x2B));
-            title.setAlignmentX(Component.CENTER_ALIGNMENT);
-            title.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+            
+            // Wrap title in left-aligned flow panel to prevent BoxLayout stretch
+            JPanel titleWrapper = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
+            titleWrapper.setOpaque(false);
+            titleWrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+            titleWrapper.add(title);
             
             snippet.setFont(snippet.getFont().deriveFont(Font.PLAIN, 12f));
             snippet.setForeground(new Color(90, 95, 110));
@@ -350,7 +354,7 @@ public class NotebookEntriesPanel extends JPanel {
             snippet.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
             snippet.setRows(2);
             
-            content.add(title);
+            content.add(titleWrapper);
             content.add(snippet);
             add(content, BorderLayout.CENTER);
             
@@ -391,7 +395,7 @@ public class NotebookEntriesPanel extends JPanel {
             add(statsPanel, BorderLayout.EAST);
             
             // Minimal left padding - title should be at very left
-            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 12));
+            setBorder(BorderFactory.createEmptyBorder(8, 18, 8, 12));
         }
 
         @Override

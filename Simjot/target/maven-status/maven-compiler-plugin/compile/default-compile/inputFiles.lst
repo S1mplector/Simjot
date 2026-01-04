@@ -33,6 +33,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/NotebookEditor.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/input/CustomInputDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/buttons/MainMenuButton.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/font/NativeStrokeSupport.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/home/ModernMoodChartPanel.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/NotebookEditorType.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/WordClock.java
@@ -239,6 +240,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/export/PoemExportDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/sim/llm/api/SimLLMResponse.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/io/NativeJson.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/calendars/ClannadCalendar.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/home/DayPanel.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/SegmentClock.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/SwissRailwayClock.java
