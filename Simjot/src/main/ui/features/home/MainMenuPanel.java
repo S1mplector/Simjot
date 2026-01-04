@@ -411,8 +411,8 @@ public class MainMenuPanel extends JPanel {
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // ---------- WRITING section ----------
-        JLabel writingHeader = new JLabel("Poetry And Journaling Studio");
+        // Main main menu buttons section 
+        JLabel writingHeader = new JLabel("");
         writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
         writingHeader.setForeground(Color.WHITE);
         writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));
