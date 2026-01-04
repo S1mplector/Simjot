@@ -8,8 +8,8 @@
 
 package main.ui.components.editor;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -29,6 +29,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.awt.geom.RoundRectangle2D;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -43,7 +44,6 @@ import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -54,6 +54,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.TransferHandler;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultCaret;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -61,6 +62,10 @@ import javax.swing.text.StyledDocument;
 
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
+import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.slider.MoodSlider;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * ImagePasteManager - Overhauled for simplicity and stability.
@@ -213,26 +218,30 @@ public final class ImagePasteManager {
 
         // Scale to fit max width (keeping aspect)
         BufferedImage scaled = scaleToMaxWidth(bi, maxWidthPx);
+        BufferedImage softened = softenCornersIfNeeded(scaled);
         // Save to disk
         File out = new File(attachmentsDir, timestampName()+".png");
         try {
-            long approxBytes = (long) scaled.getWidth() * (long) scaled.getHeight() * 4L;
+            long approxBytes = (long) softened.getWidth() * (long) softened.getHeight() * 4L;
             FileIO.ensureSpace(out.toPath(), approxBytes + 4096L, "image attachment");
         } catch (IOException e) {
             return false;
         }
-        try { ImageIO.write(scaled, "PNG", out); } catch (IOException e) { /* ignore, still insert */ }
+        try { ImageIO.write(softened, "PNG", out); } catch (IOException e) { /* ignore, still insert */ }
 
         // Cache in native memory for scroll performance
-        cacheImageNative(scaled, out);
+        cacheImageNative(softened, out);
 
         // Insert as icon at caret, preserving scroll position to prevent jumping
-        ImageIcon icon = new ImageIcon(scaled);
+        ImageIcon icon = new ImageIcon(softened);
         SimpleAttributeSet attrs = new SimpleAttributeSet();
         StyleConstants.setIcon(attrs, icon);
         // Keep track of the source file so we can rescale later
         attrs.addAttribute("imageSourceFile", out);
         StyledDocument doc = editor.getStyledDocument();
+        DefaultCaret caret = (editor.getCaret() instanceof DefaultCaret)
+            ? (DefaultCaret) editor.getCaret() : null;
+        int oldPolicy = caret != null ? caret.getUpdatePolicy() : -1;
         try {
             // Save current scroll position before insertion
             javax.swing.JViewport viewport = null;
@@ -243,6 +252,9 @@ public final class ImagePasteManager {
             Point savedScrollPos = viewport != null ? viewport.getViewPosition() : null;
             
             int pos = editor.getCaretPosition();
+            if (caret != null) {
+                caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
+            }
             doc.insertString(pos, " ", attrs);
             // Add a trailing newline for spacing
             doc.insertString(pos+1, "\n", null);
@@ -251,25 +263,26 @@ public final class ImagePasteManager {
             // and restore scroll position if user was scrolled away
             final javax.swing.JViewport vp = viewport;
             final Point scrollPos = savedScrollPos;
+            final DefaultCaret caretRef = caret;
+            final int caretPolicy = oldPolicy;
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Move caret
                     editor.setCaretPosition(Math.min(doc.getLength(), pos + 2));
                     // Restore scroll position to prevent jump
-                    if (vp != null && scrollPos != null) {
-                        // Only restore if the image insertion would cause a jump
-                        // (i.e., the new view position differs significantly)
-                        Point newPos = vp.getViewPosition();
-                        if (Math.abs(newPos.y - scrollPos.y) > 50) {
-                            vp.setViewPosition(scrollPos);
-                        }
-                    }
+                    if (vp != null && scrollPos != null) vp.setViewPosition(scrollPos);
                 } catch (Throwable ignored) {}
+                if (caretRef != null && caretPolicy >= 0) {
+                    caretRef.setUpdatePolicy(caretPolicy);
+                }
             });
             
             editor.requestFocusInWindow();
             return true;
         } catch (BadLocationException e) {
+            if (caret != null && oldPolicy >= 0) {
+                try { caret.setUpdatePolicy(oldPolicy); } catch (Throwable ignored) {}
+            }
             return false;
         }
     }
@@ -461,69 +474,32 @@ public final class ImagePasteManager {
         
         // Create a sleek floating toolbar
         JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
+        toolbar.setBackground(new Color(0, 0, 0, 0));
         toolbar.setAlwaysOnTop(true);
         activeOverlay = toolbar;
         
-        JPanel content = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // Soft shadow
-                g2.setColor(new Color(0, 0, 0, 20));
-                g2.fillRoundRect(2, 2, getWidth() - 2, getHeight() - 2, 16, 16);
-                // Background
-                g2.setColor(new Color(255, 255, 255, 250));
-                g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 2, 16, 16);
-                // Border
-                g2.setColor(new Color(200, 200, 200));
-                g2.drawRoundRect(0, 0, getWidth() - 3, getHeight() - 3, 16, 16);
-                g2.dispose();
-            }
-        };
-        content.setOpaque(false);
-        content.setLayout(new java.awt.BorderLayout(8, 0));
+        FrostedGlassPanel content = new FrostedGlassPanel(new java.awt.BorderLayout(10, 0), 16);
         content.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         
         // Slider for resizing
-        javax.swing.JSlider sizeSlider = new javax.swing.JSlider(minW, maxW, currentW);
-        sizeSlider.setOpaque(false);
-        sizeSlider.setPreferredSize(new Dimension(140, 20));
+        MoodSlider sizeSlider = new MoodSlider();
+        sizeSlider.setMinimum(minW);
+        sizeSlider.setMaximum(maxW);
+        sizeSlider.setValue(currentW);
+        sizeSlider.setPreferredSize(new Dimension(180, 28));
         sizeSlider.setFocusable(false);
         
         // Size label
         JLabel sizeLabel = new JLabel(currentW + "px");
-        sizeLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        sizeLabel.setForeground(new Color(100, 100, 100));
+        sizeLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        sizeLabel.setForeground(new Color(90, 95, 105));
         sizeLabel.setPreferredSize(new Dimension(45, 20));
         
-        // Delete button - simple red X
-        JButton deleteBtn = new JButton("X") {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                if (getModel().isPressed()) {
-                    g2.setColor(new Color(200, 60, 60));
-                } else if (getModel().isRollover()) {
-                    g2.setColor(new Color(220, 80, 80));
-                } else {
-                    g2.setColor(new Color(180, 80, 80));
-                }
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.setColor(Color.WHITE);
-                g2.setFont(new Font("SansSerif", Font.BOLD, 11));
-                java.awt.FontMetrics fm = g2.getFontMetrics();
-                int tx = (getWidth() - fm.stringWidth("X")) / 2;
-                int ty = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
-                g2.drawString("X", tx, ty);
-                g2.dispose();
-            }
-        };
-        deleteBtn.setPreferredSize(new Dimension(24, 20));
-        deleteBtn.setBorderPainted(false);
-        deleteBtn.setContentAreaFilled(false);
-        deleteBtn.setFocusPainted(false);
+        ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
+        deleteBtn.setPreferredSize(new Dimension(30, 30));
+        deleteBtn.setMinimumSize(new Dimension(30, 30));
+        deleteBtn.setMaximumSize(new Dimension(30, 30));
         deleteBtn.setToolTipText("Delete image");
-        deleteBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         
         // Slider change listener with debounce
         final Timer[] resizeTimer = new Timer[1];
@@ -674,6 +650,7 @@ public final class ImagePasteManager {
             
             // Use resizeToWidth for both upscaling and downscaling
             BufferedImage scaled = resizeToWidth(orig, targetW);
+            scaled = softenCornersIfNeeded(scaled);
             ImageIcon newIcon = new ImageIcon(scaled);
             
             StyledDocument doc = editor.getStyledDocument();
@@ -715,5 +692,47 @@ public final class ImagePasteManager {
         try {
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(t, null);
         } catch (Throwable ignored) {}
+    }
+
+    private static BufferedImage softenCornersIfNeeded(BufferedImage src) {
+        if (src == null) return null;
+        if (!shouldSoftenCorners(src)) return src;
+        int w = src.getWidth();
+        int h = src.getHeight();
+        int radius = Math.max(4, Math.min(10, Math.round(Math.min(w, h) * 0.02f)));
+        if (radius <= 0) return src;
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setComposite(AlphaComposite.Src);
+        g2.setColor(new Color(0, 0, 0, 0));
+        g2.fillRect(0, 0, w, h);
+        RoundRectangle2D.Float clip = new RoundRectangle2D.Float(0f, 0f, w, h, radius * 2f, radius * 2f);
+        g2.setClip(clip);
+        g2.drawImage(src, 0, 0, null);
+        g2.dispose();
+        return out;
+    }
+
+    private static boolean shouldSoftenCorners(BufferedImage src) {
+        try {
+            int w = src.getWidth();
+            int h = src.getHeight();
+            if (w <= 4 || h <= 4) return false;
+            int[] corners = new int[] {
+                src.getRGB(0, 0),
+                src.getRGB(w - 1, 0),
+                src.getRGB(0, h - 1),
+                src.getRGB(w - 1, h - 1)
+            };
+            int opaque = 0;
+            for (int argb : corners) {
+                int a = (argb >>> 24) & 0xFF;
+                if (a >= 240) opaque++;
+            }
+            return opaque >= 3;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 }

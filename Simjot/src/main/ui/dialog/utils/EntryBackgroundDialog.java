@@ -121,7 +121,7 @@ public class EntryBackgroundDialog extends JDialog {
         okBtn.setToolTipText("Apply changes");
         okBtn.addActionListener(e -> saveAndClose());
         
-        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
+        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
         cancelBtn.setToolTipText("Cancel changes");
         cancelBtn.addActionListener(e -> dispose());
         
