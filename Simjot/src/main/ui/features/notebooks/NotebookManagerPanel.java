@@ -13,12 +13,14 @@ import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Composite;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Frame;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
@@ -46,6 +48,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.HashMap;
@@ -388,6 +391,10 @@ public class NotebookManagerPanel extends JPanel {
     private static final Map<String, BufferedImage> CUSTOM_ICON_CACHE = new HashMap<>();
 
     private static Icon createIcon(NotebookInfo nb){
+        return createIcon(nb, false);
+    }
+
+    private static Icon createIcon(NotebookInfo nb, boolean withPen){
         // Prefer a custom icon if set, with HiDPI-friendly rendering.
         String customPath = nb.getCustomIconPath();
         if (customPath != null && !customPath.isEmpty()) {
@@ -398,7 +405,7 @@ public class NotebookManagerPanel extends JPanel {
         }
 
         // Default notebook icon from resources (HiDPI-aware).
-        String res = ImageIconRenderer.mapIdToResource("notebook");
+        String res = ImageIconRenderer.mapIdToResource(withPen ? "notebook" : "notebook_nopen");
         if (res != null) {
             return ImageIconRenderer.icon(res, NOTEBOOK_ICON_SIZE, true);
         }
@@ -486,8 +493,12 @@ public class NotebookManagerPanel extends JPanel {
             dragSource = new DragSource();
             dragSource.createDefaultDragGestureRecognizer(this, DnDConstants.ACTION_MOVE, this);
 
-            JLabel icon = new JLabel(createIcon(nb));
-            icon.setHorizontalAlignment(SwingConstants.CENTER);
+            String customPath = nb.getCustomIconPath();
+            boolean hasCustomIcon = customPath != null && !customPath.isEmpty() && loadCustomIcon(customPath) != null;
+            baseIcon = createIcon(nb, false);
+            hoverIcon = hasCustomIcon ? null : createIcon(nb, true);
+            JComponent icon = new NotebookIconPanel();
+            icon.setPreferredSize(new Dimension(NOTEBOOK_ICON_SIZE + 8, NOTEBOOK_ICON_SIZE + 8));
             MouseAdapter forward = new MouseAdapter(){
                 @Override public void mouseEntered(MouseEvent e){ NotebookTile.this.mouseEntered(e); }
                 @Override public void mouseExited(MouseEvent e){ NotebookTile.this.mouseExited(e); }
@@ -576,11 +587,17 @@ public class NotebookManagerPanel extends JPanel {
         @Override public void dragExit(DragSourceEvent dse) {}
         @Override public void dragDropEnd(DragSourceDropEvent dsde) {}
         
-        private boolean hover=false;
+        private boolean hoverTarget=false;
+        private float hoverT=0f;
+        private float hoverV=0f;
+        private long hoverLastNs=0L;
+        private Timer hoverTimer;
         private boolean handleTarget=false;
         private float handleT=0f;
         private Timer handleTimer;
         private static final int HANDLE_REGION_HEIGHT = 28;
+        private final Icon baseIcon;
+        private final Icon hoverIcon;
         
         @Override protected void paintComponent(Graphics g){
             super.paintComponent(g);
@@ -590,6 +607,7 @@ public class NotebookManagerPanel extends JPanel {
             int w = getWidth();
             int h = getHeight();
             int arc = 16;
+            float t = smoothStep(hoverT);
 
             // Accent color indicator
             Color accent = nb.getAccentColor();
@@ -597,12 +615,25 @@ public class NotebookManagerPanel extends JPanel {
             g2.fillRoundRect(0, h - 6, w, 6, 4, 4);
 
             // Subtle hover background
-            if(hover){
-                g2.setColor(new Color(255,255,255,90));
-                g2.fillRoundRect(0,0,w-1,h-7,arc,arc);
-                g2.setColor(new Color(0,0,0,40));
-                g2.setStroke(new BasicStroke(1.5f));
-                g2.drawRoundRect(1,1,w-3,h-9,arc,arc);
+            if (t > 0.01f) {
+                float alpha = 0.35f + 0.45f * t;
+                int overlayH = Math.max(1, h - 9);
+                RoundRectangle2D overlay = new RoundRectangle2D.Float(1, 1, w - 3f, overlayH, arc, arc);
+                Composite old = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+                g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 220), 0, overlayH,
+                        new Color(224, 232, 244, 210)));
+                g2.fill(overlay);
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.25f * t));
+                g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 200),
+                        0, overlayH * 0.5f, new Color(255, 255, 255, 0)));
+                g2.fill(overlay);
+                g2.setComposite(old);
+                g2.setColor(new Color(255, 255, 255, Math.round(130 * t)));
+                g2.drawRoundRect(2, 2, w - 5, overlayH - 2, arc - 2, arc - 2);
+                g2.setColor(new Color(0, 0, 0, Math.round(50 * t)));
+                g2.setStroke(new BasicStroke(1.4f));
+                g2.drawRoundRect(1, 1, w - 3, overlayH, arc, arc);
             }
 
             // Drag handle hint (smooth fade-in near bottom)
@@ -624,8 +655,8 @@ public class NotebookManagerPanel extends JPanel {
 
             g2.dispose();
         }
-        @Override public void mouseEntered(MouseEvent e){ hover=true; updateHandleTarget(e.getY()); repaint(); }
-        @Override public void mouseExited(MouseEvent e){ hover=false; setHandleTarget(false); repaint(); }
+        @Override public void mouseEntered(MouseEvent e){ setHoverTarget(true); updateHandleTarget(e.getY()); }
+        @Override public void mouseExited(MouseEvent e){ setHoverTarget(false); setHandleTarget(false); }
         @Override public void mouseClicked(MouseEvent e){
             if(SwingUtilities.isLeftMouseButton(e)){
                 if(e.getClickCount()==1){ openNotebook(nb); }
@@ -661,6 +692,50 @@ public class NotebookManagerPanel extends JPanel {
             }
         }
 
+        private void setHoverTarget(boolean target) {
+            if (isHandleAnimationDisabled()) {
+                hoverTarget = target;
+                hoverT = target ? 1f : 0f;
+                hoverV = 0f;
+                hoverLastNs = 0L;
+                stopHoverTimer();
+                repaint();
+                return;
+            }
+            hoverTarget = target;
+            if (hoverTimer == null) {
+                hoverLastNs = 0L;
+                hoverTimer = new Timer(AppPerf.getAnimationDelay(), e -> animateHover());
+                hoverTimer.start();
+            }
+        }
+
+        private void animateHover() {
+            float target = hoverTarget ? 1f : 0f;
+            long now = System.nanoTime();
+            if (hoverLastNs == 0L) hoverLastNs = now;
+            float dt = (now - hoverLastNs) / 1_000_000_000f;
+            hoverLastNs = now;
+            dt = Math.max(0f, Math.min(0.05f, dt));
+
+            float smoothTime = 0.18f;
+            float omega = 2f / smoothTime;
+            float x = omega * dt;
+            float exp = 1f / (1f + x + 0.48f * x * x + 0.235f * x * x * x);
+            float change = hoverT - target;
+            float temp = (hoverV + omega * change) * dt;
+            hoverV = (hoverV - omega * temp) * exp;
+            hoverT = target + (change + temp) * exp;
+            hoverT = clamp01(hoverT);
+
+            if (Math.abs(hoverT - target) < 0.001f && Math.abs(hoverV) < 0.001f) {
+                hoverT = target;
+                hoverV = 0f;
+                stopHoverTimer();
+            }
+            repaint();
+        }
+
         private void animateHandle() {
             float target = handleTarget ? 1f : 0f;
             float step = Math.max(0.05f, Math.min(0.2f, AppPerf.getAnimationDelay() / 220f));
@@ -683,11 +758,55 @@ public class NotebookManagerPanel extends JPanel {
             }
         }
 
+        private void stopHoverTimer() {
+            if (hoverTimer != null) {
+                hoverTimer.stop();
+                hoverTimer = null;
+            }
+        }
+
         private boolean isHandleAnimationDisabled() {
             try {
                 return SettingsStore.get().isMainMenuAnimationsDisabled();
             } catch (Throwable ignored) {
                 return false;
+            }
+        }
+
+        private static float clamp01(float v) {
+            return Math.max(0f, Math.min(1f, v));
+        }
+
+        private static float smoothStep(float t) {
+            float clamped = clamp01(t);
+            return clamped * clamped * (3f - 2f * clamped);
+        }
+
+        private class NotebookIconPanel extends JComponent {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int size = NOTEBOOK_ICON_SIZE;
+                int x = (getWidth() - size) / 2;
+                int y = (getHeight() - size) / 2;
+                float t = smoothStep(hoverT);
+                Icon base = baseIcon;
+                Icon hoverI = hoverIcon;
+                if (base != null && hoverI != null && t > 0.001f) {
+                    Composite old = g2.getComposite();
+                    float baseAlpha = 1f - t;
+                    if (baseAlpha > 0.001f) {
+                        g2.setComposite(AlphaComposite.SrcOver.derive(baseAlpha));
+                        base.paintIcon(this, g2, x, y);
+                    }
+                    g2.setComposite(AlphaComposite.SrcOver.derive(t));
+                    hoverI.paintIcon(this, g2, x, y);
+                    g2.setComposite(old);
+                } else if (base != null) {
+                    base.paintIcon(this, g2, x, y);
+                }
+                g2.dispose();
             }
         }
         
