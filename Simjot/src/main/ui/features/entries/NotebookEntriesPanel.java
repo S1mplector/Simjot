@@ -601,6 +601,10 @@ public class NotebookEntriesPanel extends JPanel {
         ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("", "back");
         backBtn.setToolTipText("Back to Notebooks");
         backBtn.addActionListener(e->app.switchCard(JournalApp.NOTEBOOK_MANAGER));
+        Dimension bigButtonSize = new Dimension(80, 80);
+        backBtn.setPreferredSize(bigButtonSize);
+        backBtn.setMinimumSize(bigButtonSize);
+        backBtn.setMaximumSize(new Dimension(96, 80));
 
         ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("", "new");
         newBtn.addActionListener(e->createNew());
@@ -609,6 +613,11 @@ public class NotebookEntriesPanel extends JPanel {
 
         ToolbarMenuIconButton delNbBtn = new ToolbarMenuIconButton("", "delete_notebook");
         delNbBtn.addActionListener(e->deleteNotebook());
+        for (ToolbarMenuIconButton btn : new ToolbarMenuIconButton[]{newBtn, deleteBtn, delNbBtn}) {
+            btn.setPreferredSize(bigButtonSize);
+            btn.setMinimumSize(bigButtonSize);
+            btn.setMaximumSize(new Dimension(96, 80));
+        }
 
         top.add(backBtn);
         top.add(new JLabel(nb.getName()));

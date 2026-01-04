@@ -10,7 +10,9 @@ package main.ui.features.poetry;
 
 import main.core.poetry.MeterScanner;
 import main.core.poetry.MeterAnalysis;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
+import main.ui.components.spinner.ModernSpinnerUI;
 
 import javax.swing.*;
 import java.awt.*;
@@ -105,6 +107,7 @@ public class StatsSidebarPanel extends JPanel {
         JLabel meterLbl = new JLabel("Meter:");
         meterLbl.setForeground(new Color(70,70,70));
         targetSpinner.setToolTipText("Target syllables per line (0 = off)");
+        targetSpinner.setUI(new ModernSpinnerUI());
         ((JSpinner.DefaultEditor)targetSpinner.getEditor()).getTextField().setColumns(2);
         targetSpinner.addChangeListener(e -> {
             if (suppressSpinnerEvents) return;
@@ -259,9 +262,12 @@ public class StatsSidebarPanel extends JPanel {
         summaryLabel.setBorder(BorderFactory.createEmptyBorder(4, 2, 2, 2));
         footer.add(summaryLabel, BorderLayout.CENTER);
 
-        add(header, BorderLayout.NORTH);
-        add(sp, BorderLayout.CENTER);
-        add(footer, BorderLayout.SOUTH);
+        FrostedGlassPanel chrome = new FrostedGlassPanel(new BorderLayout(), 16);
+        chrome.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        chrome.add(header, BorderLayout.NORTH);
+        chrome.add(sp, BorderLayout.CENTER);
+        chrome.add(footer, BorderLayout.SOUTH);
+        add(chrome, BorderLayout.CENTER);
 
         setPreferredSize(new Dimension(200, 0));
         setBorder(BorderFactory.createEmptyBorder(6,6,6,6));
