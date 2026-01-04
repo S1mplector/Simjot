@@ -119,7 +119,7 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
     private final java.util.Map<File, PreviewSnapshot> previewCache = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
-    private SwingWorker<PreviewSnapshot, Void> previewWorker;
+    private SwingWorker<Void, PreviewSnapshot> previewLoader;
 
     // Debounced search and background metadata loader
     private final javax.swing.Timer searchDebounce = new javax.swing.Timer(100, e -> update());
@@ -201,12 +201,7 @@ public class NotebookEntriesPanel extends JPanel {
     private volatile boolean disposed = false;
     private int hoverIndex = -1;
     private File hoverFile = null;
-    private File previewTarget = null;
     private static final int PREVIEW_MAX_CHARS = 260;
-    private static final String PREVIEW_PLACEHOLDER = "Hover an entry to preview.";
-    private final FrostedGlassPanel previewPanel = new FrostedGlassPanel(new BorderLayout(8, 8), 16);
-    private final JLabel previewTitle = new JLabel("Preview");
-    private final JTextArea previewText = new JTextArea();
 
     private static class FileMeta {
         final File file; final int wc; final String title; final int mood;
@@ -232,11 +227,13 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private static class PreviewSnapshot {
+        final File file;
         final long lastModified;
         final long length;
         final String title;
         final String snippet;
-        PreviewSnapshot(long lastModified, long length, String title, String snippet) {
+        PreviewSnapshot(File file, long lastModified, long length, String title, String snippet) {
+            this.file = file;
             this.lastModified = lastModified;
             this.length = length;
             this.title = title == null ? "" : title;
@@ -260,6 +257,7 @@ public class NotebookEntriesPanel extends JPanel {
     private static class EntryCardRenderer extends JPanel implements ListCellRenderer<EntryRow> {
         private final JLabel title = new JLabel();
         private final JLabel meta = new JLabel();
+        private final JTextArea snippet = new JTextArea();
         private final Color cardBg = new Color(252, 253, 255);
         private final Color cardBorder = new Color(190, 200, 214);
         private final Color metaColor = new Color(105, 110, 120);
@@ -328,14 +326,25 @@ public class NotebookEntriesPanel extends JPanel {
         EntryCardRenderer() {
             setOpaque(false);
             setLayout(new BorderLayout(10, 0));
-            JPanel content = new JPanel(new BorderLayout());
+            JPanel content = new JPanel();
+            content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.Y_AXIS));
             content.setOpaque(false);
             title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
             title.setForeground(new Color(0x2B, 0x2B, 0x2B));
             meta.setFont(meta.getFont().deriveFont(12f));
             meta.setForeground(metaColor);
-            content.add(title, BorderLayout.NORTH);
-            content.add(meta, BorderLayout.SOUTH);
+            snippet.setFont(meta.getFont().deriveFont(Font.PLAIN, 12f));
+            snippet.setForeground(new Color(90, 95, 110));
+            snippet.setLineWrap(true);
+            snippet.setWrapStyleWord(true);
+            snippet.setEditable(false);
+            snippet.setOpaque(false);
+            snippet.setFocusable(false);
+            snippet.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+            snippet.setRows(2);
+            content.add(title);
+            content.add(meta);
+            content.add(snippet);
             add(content, BorderLayout.CENTER);
             // Extra left padding so text never collides with the left accent bar
             setBorder(BorderFactory.createEmptyBorder(8, 22, 8, 12));
@@ -353,6 +362,7 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,Integer> moods = (Map<File,Integer>) list.getClientProperty("moods");
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
+            @SuppressWarnings("unchecked") Map<File, PreviewSnapshot> previews = (Map<File, PreviewSnapshot>) list.getClientProperty("previews");
             File file = value != null ? value.file : null;
             String fallback = file != null ? file.getName() : "";
             int dotIdx = fallback.lastIndexOf('.');
@@ -383,8 +393,11 @@ public class NotebookEntriesPanel extends JPanel {
             SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
             String size = file != null ? NotebookEntriesPanel.humanReadableSize(file.length()) : "-";
             meta.setText(String.format("%s  •  %s  •  Created %s  •  Last edited %s", size, wc+" words", df.format(created), df.format(modified)));
+            PreviewSnapshot snap = (file != null && previews != null) ? previews.get(file) : null;
+            String previewText = snap != null ? snap.snippet : "";
+            snippet.setText(previewText == null ? "" : previewText);
             this.selected = isSelected;
-            setPreferredSize(new Dimension(1, 84));
+            setPreferredSize(new Dimension(1, 108));
             return this;
         }
 
@@ -692,6 +705,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("moods", moodValues);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
+        list.putClientProperty("previews", previewCache);
         list.putClientProperty("hoverIndex", -1);
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(-1);
@@ -738,36 +752,14 @@ public class NotebookEntriesPanel extends JPanel {
             hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 12));
             hbar.setOpaque(false);
         } catch (Throwable ignored) {}
-
-        previewPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        previewPanel.setPreferredSize(new Dimension(320, 0));
-        previewPanel.setOpaque(false);
-        previewTitle.setFont(AeroTheme.defaultBoldFont(14f));
-        previewTitle.setForeground(new Color(45, 50, 60));
-        previewText.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-        previewText.setForeground(new Color(70, 75, 85));
-        previewText.setLineWrap(true);
-        previewText.setWrapStyleWord(true);
-        previewText.setEditable(false);
-        previewText.setOpaque(false);
-        previewText.setFocusable(false);
-        previewText.setBorder(BorderFactory.createEmptyBorder(6, 2, 6, 2));
-        previewText.setText(PREVIEW_PLACEHOLDER);
-        JPanel previewInner = new JPanel(new BorderLayout(6, 6));
-        previewInner.setOpaque(false);
-        previewInner.add(previewTitle, BorderLayout.NORTH);
-        previewInner.add(previewText, BorderLayout.CENTER);
-        previewPanel.add(previewInner, BorderLayout.CENTER);
-
-        JPanel center = new JPanel(new BorderLayout());
-        center.setOpaque(false);
-        center.add(listScroll, BorderLayout.CENTER);
-        center.add(previewPanel, BorderLayout.EAST);
-        add(center, BorderLayout.CENTER);
+        add(listScroll, BorderLayout.CENTER);
         // Prioritize metadata for visible items on scroll/resize
         try {
             listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
-                if (!e.getValueIsAdjusting()) ensureMetaForVisibleRange();
+                if (!e.getValueIsAdjusting()) {
+                    ensureMetaForVisibleRange();
+                    ensurePreviewForVisibleRange();
+                }
             });
         } catch (Throwable t) {
             logWarn("Failed to attach scroll listener", t);
@@ -781,7 +773,10 @@ public class NotebookEntriesPanel extends JPanel {
         loadFiles();
         update();
         // After initial layout, compute meta for visible items first
-        SwingUtilities.invokeLater(this::ensureMetaForVisibleRange);
+        SwingUtilities.invokeLater(() -> {
+            ensureMetaForVisibleRange();
+            ensurePreviewForVisibleRange();
+        });
     }
 
     private void loadFiles(){
@@ -984,8 +979,9 @@ public class NotebookEntriesPanel extends JPanel {
             bar.setValue(Math.min(scrollVal, Math.max(0, bar.getMaximum() - bar.getVisibleAmount())));
         } catch (Throwable ignored) {}
 
-        // After resort/filter, make sure visible items are prioritized for metadata
+        // After resort/filter, make sure visible items are prioritized
         ensureMetaForVisibleRange();
+        ensurePreviewForVisibleRange();
     }
 
     // Returns set of files that were inserted or moved
@@ -1279,11 +1275,11 @@ public class NotebookEntriesPanel extends JPanel {
         } catch (Throwable ignored) {}
         metaLoader = null;
         try {
-            if (previewWorker != null && !previewWorker.isDone()) {
-                previewWorker.cancel(true);
+            if (previewLoader != null && !previewLoader.isDone()) {
+                previewLoader.cancel(true);
             }
         } catch (Throwable ignored) {}
-        previewWorker = null;
+        previewLoader = null;
         
         // Clear all cached data to free memory
         synchronized (metaQueued) { metaQueued.clear(); }
@@ -1306,7 +1302,10 @@ public class NotebookEntriesPanel extends JPanel {
         if (disposed) return;
         startWatching();
         refresh();
-        SwingUtilities.invokeLater(this::ensureMetaForVisibleRange);
+        SwingUtilities.invokeLater(() -> {
+            ensureMetaForVisibleRange();
+            ensurePreviewForVisibleRange();
+        });
     }
 
     @Override public void removeNotify(){
@@ -1394,7 +1393,6 @@ public class NotebookEntriesPanel extends JPanel {
             metaLoader.cancel(true);
         }
         java.util.LinkedHashSet<File> order = new java.util.LinkedHashSet<>(preferredFirst);
-        for (File f : allFiles) order.add(f);
         metaLoader = new SwingWorker<>() {
             @Override protected Void doInBackground() {
                 for (File f : order) {
@@ -1531,7 +1529,6 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("hoverIndex", hoverIndex);
         updateSelectionSweepState();
         list.repaint();
-        updatePreviewForFile(row.file);
     }
 
     private void clearHoverIndex() {
@@ -1543,49 +1540,64 @@ public class NotebookEntriesPanel extends JPanel {
         list.repaint();
     }
 
-    private void updatePreviewForFile(File file) {
-        if (file == null) return;
-        previewTarget = file;
-        PreviewSnapshot cached = previewCache.get(file);
-        if (cached != null && cached.isFresh(file)) {
-            applyPreview(cached);
-            return;
-        }
-        if (previewWorker != null && !previewWorker.isDone()) {
-            previewWorker.cancel(true);
-        }
-        previewTitle.setText("Loading preview...");
-        previewText.setText("");
-        previewWorker = new SwingWorker<>() {
-            @Override protected PreviewSnapshot doInBackground() {
-                return buildPreviewSnapshot(file);
-            }
-            @Override protected void done() {
-                if (isCancelled()) return;
-                PreviewSnapshot snap = null;
-                try { snap = get(); } catch (Exception ignored) {}
-                if (snap == null) return;
-                previewCache.put(file, snap);
-                if (Objects.equals(previewTarget, file)) {
-                    applyPreview(snap);
+    private void ensurePreviewForVisibleRange() {
+        if (disposed) return;
+        try {
+            int first = list.getFirstVisibleIndex();
+            int last = list.getLastVisibleIndex();
+            if (first < 0 || last < 0 || last < first) return;
+            java.util.List<File> visible = new java.util.ArrayList<>();
+            for (int i = first; i <= last && i < model.size(); i++) {
+                EntryRow row = model.get(i);
+                if (row != null && !row.isHeader() && row.file != null) {
+                    PreviewSnapshot snap = previewCache.get(row.file);
+                    if (snap == null || !snap.isFresh(row.file)) {
+                        visible.add(row.file);
+                    }
                 }
             }
-        };
-        previewWorker.execute();
+            if (!visible.isEmpty()) {
+                startPreviewLoader(visible);
+            }
+        } catch (Throwable ignored) {}
     }
 
-    private void applyPreview(PreviewSnapshot snap) {
-        String t = snap.title == null || snap.title.isBlank() ? "Untitled" : snap.title;
-        previewTitle.setText(t);
-        String body = snap.snippet == null || snap.snippet.isBlank() ? "No preview available." : snap.snippet;
-        previewText.setText(body);
+    private void startPreviewLoader(java.util.List<File> preferredFirst) {
+        if (disposed) return;
+        if (preferredFirst == null) preferredFirst = java.util.Collections.emptyList();
+        if (previewLoader != null && !previewLoader.isDone()) {
+            previewLoader.cancel(true);
+        }
+        java.util.LinkedHashSet<File> order = new java.util.LinkedHashSet<>(preferredFirst);
+        for (File f : allFiles) order.add(f);
+        previewLoader = new SwingWorker<>() {
+            @Override protected Void doInBackground() {
+                for (File f : order) {
+                    if (isCancelled()) break;
+                    PreviewSnapshot snap = previewCache.get(f);
+                    if (snap != null && snap.isFresh(f)) continue;
+                    PreviewSnapshot computed = buildPreviewSnapshot(f);
+                    if (computed != null) publish(computed);
+                    if (isCancelled()) break;
+                }
+                return null;
+            }
+            @Override protected void process(java.util.List<PreviewSnapshot> chunks) {
+                for (PreviewSnapshot snap : chunks) {
+                    if (snap == null || snap.file == null) continue;
+                    previewCache.put(snap.file, snap);
+                }
+                list.repaint();
+            }
+        };
+        previewLoader.execute();
     }
 
     private PreviewSnapshot buildPreviewSnapshot(File f) {
         if (f == null) return null;
         String title = titles.getOrDefault(f, f.getName());
         if (EncryptionManager.isEncrypted(f)) {
-            return new PreviewSnapshot(f.lastModified(), f.length(), title, "Encrypted entry.");
+            return new PreviewSnapshot(f, f.lastModified(), f.length(), title, "Encrypted entry.");
         }
         String snippet = "";
         try {
@@ -1594,7 +1606,7 @@ public class NotebookEntriesPanel extends JPanel {
         } catch (IOException ignored) {
             snippet = "";
         }
-        return new PreviewSnapshot(f.lastModified(), f.length(), title, snippet);
+        return new PreviewSnapshot(f, f.lastModified(), f.length(), title, snippet);
     }
 
     private static String buildPreviewSnippet(byte[] raw, String name) throws IOException {
