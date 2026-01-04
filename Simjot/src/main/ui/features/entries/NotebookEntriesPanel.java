@@ -87,6 +87,7 @@ import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroTheme;
 
@@ -661,6 +662,17 @@ public class NotebookEntriesPanel extends JPanel {
             updateSelectionSweepState();
         });
         listScroll = new JScrollPane(list);
+        try {
+            JScrollBar vbar = listScroll.getVerticalScrollBar();
+            vbar.setUI(new ModernScrollBarUI());
+            vbar.setPreferredSize(new Dimension(12, Integer.MAX_VALUE));
+            vbar.setOpaque(false);
+            vbar.setUnitIncrement(16);
+            JScrollBar hbar = listScroll.getHorizontalScrollBar();
+            hbar.setUI(new ModernScrollBarUI());
+            hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 12));
+            hbar.setOpaque(false);
+        } catch (Throwable ignored) {}
         add(listScroll,BorderLayout.CENTER);
         // Prioritize metadata for visible items on scroll/resize
         try {
