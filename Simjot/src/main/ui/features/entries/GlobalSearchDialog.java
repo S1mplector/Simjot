@@ -14,8 +14,13 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Frame;
 import java.awt.GridLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -59,18 +64,22 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.checkbox.AeroCheckBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.fields.ModernTextField;
+import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Global search across all notebooks with snippets and filters.
  */
 public class GlobalSearchDialog extends JDialog {
     private final JournalApp app;
-    private final ModernTextField queryField;
-    private final ModernTextField tagField;
-    private final ModernTextField fromDateField;
-    private final ModernTextField toDateField;
+    private final AeroSearchField queryField;
+    private final AeroSearchField tagField;
+    private final AeroSearchField fromDateField;
+    private final AeroSearchField toDateField;
     private final JSpinner moodMin;
     private final JSpinner moodMax;
     private final JCheckBox fuzzyCheck;
@@ -84,51 +93,58 @@ public class GlobalSearchDialog extends JDialog {
         super(owner, "Search", false);
         this.app = app;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setPreferredSize(new Dimension(820, 520));
+        setPreferredSize(new Dimension(840, 540));
 
-        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(12, 12), 16);
-        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(14, 14), 18);
+        root.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
-        JPanel filters = new JPanel(new BorderLayout(10, 10));
-        filters.setOpaque(false);
-        JPanel topRow = new JPanel(new BorderLayout(8, 8));
-        topRow.setOpaque(false);
-        queryField = new ModernTextField(30);
+        FrostedGlassPanel filters = new FrostedGlassPanel(new BorderLayout(10, 10), 14);
+        filters.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+
+        FrostedGlassPanel topRow = new FrostedGlassPanel(new BorderLayout(10, 0), 12);
+        topRow.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        queryField = new AeroSearchField(30);
         queryField.setPlaceholder("Search across notebooks...");
+        queryField.setPreferredSize(new Dimension(520, 36));
         topRow.add(queryField, BorderLayout.CENTER);
         IconMenuButton searchBtn = new IconMenuButton("Search", "search");
         searchBtn.setToolTipText("Search notebooks");
         searchBtn.addActionListener(e -> runSearch());
         topRow.add(searchBtn, BorderLayout.EAST);
 
-        JPanel secondRow = new JPanel(new GridLayout(2, 1, 6, 6));
+        JPanel secondRow = new JPanel(new GridLayout(2, 1, 8, 8));
         secondRow.setOpaque(false);
         JPanel rowA = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         rowA.setOpaque(false);
-        rowA.add(new JLabel("Tags:"));
-        tagField = new ModernTextField(18);
+        rowA.add(makeLabel("Tags:"));
+        tagField = new AeroSearchField(18);
         tagField.setPlaceholder("tag1, tag2");
         rowA.add(tagField);
-        rowA.add(new JLabel("Date:"));
-        fromDateField = new ModernTextField(10);
+        rowA.add(makeLabel("Date:"));
+        fromDateField = new AeroSearchField(10);
         fromDateField.setPlaceholder("from yyyy-mm-dd");
-        toDateField = new ModernTextField(10);
+        toDateField = new AeroSearchField(10);
         toDateField.setPlaceholder("to yyyy-mm-dd");
         rowA.add(fromDateField);
-        rowA.add(new JLabel("to"));
+        rowA.add(makeLabel("to"));
         rowA.add(toDateField);
 
         JPanel rowB = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         rowB.setOpaque(false);
-        rowB.add(new JLabel("Mood:"));
+        rowB.add(makeLabel("Mood:"));
         moodMin = new JSpinner(new SpinnerNumberModel(0, 0, 100, 1));
         moodMax = new JSpinner(new SpinnerNumberModel(100, 0, 100, 1));
-        moodMin.setPreferredSize(new Dimension(60, 26));
-        moodMax.setPreferredSize(new Dimension(60, 26));
+        moodMin.setUI(new ModernSpinnerUI());
+        moodMax.setUI(new ModernSpinnerUI());
+        moodMin.setPreferredSize(new Dimension(64, 28));
+        moodMax.setPreferredSize(new Dimension(64, 28));
         rowB.add(moodMin);
-        rowB.add(new JLabel("to"));
+        rowB.add(makeLabel("to"));
         rowB.add(moodMax);
         fuzzyCheck = new JCheckBox("Fuzzy");
+        fuzzyCheck.setUI(new AeroCheckBoxUI());
+        fuzzyCheck.setOpaque(false);
+        fuzzyCheck.setFont(AeroTheme.defaultFont());
         rowB.add(fuzzyCheck);
 
         secondRow.add(rowA);
@@ -139,11 +155,19 @@ public class GlobalSearchDialog extends JDialog {
         root.add(filters, BorderLayout.NORTH);
 
         list.setCellRenderer(new SearchResultRenderer());
+        list.setOpaque(false);
         JScrollPane scroll = new JScrollPane(list);
-        root.add(scroll, BorderLayout.CENTER);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        FrostedGlassPanel resultsCard = new FrostedGlassPanel(new BorderLayout(), 16);
+        resultsCard.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        resultsCard.add(scroll, BorderLayout.CENTER);
+        root.add(resultsCard, BorderLayout.CENTER);
 
         statusLabel = new JLabel("Type to search.");
-        statusLabel.setForeground(new Color(90, 90, 90));
+        statusLabel.setForeground(new Color(80, 90, 105));
+        statusLabel.setFont(AeroTheme.defaultFont());
 
         debounce = new Timer(250, e -> runSearch());
         debounce.setRepeats(false);
@@ -175,8 +199,8 @@ public class GlobalSearchDialog extends JDialog {
         btnRow.setOpaque(false);
         btnRow.add(openBtn);
         btnRow.add(closeBtn);
-        JPanel bottomBar = new JPanel(new BorderLayout());
-        bottomBar.setOpaque(false);
+        FrostedGlassPanel bottomBar = new FrostedGlassPanel(new BorderLayout(8, 0), 12);
+        bottomBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         bottomBar.add(statusLabel, BorderLayout.WEST);
         bottomBar.add(btnRow, BorderLayout.EAST);
         root.add(bottomBar, BorderLayout.SOUTH);
@@ -490,15 +514,17 @@ public class GlobalSearchDialog extends JDialog {
     private static class SearchResultRenderer extends JPanel implements ListCellRenderer<SearchResult> {
         private final JLabel titleLine = new JLabel();
         private final JLabel meta = new JLabel();
+        private boolean selected;
 
         SearchResultRenderer() {
             setLayout(new BorderLayout(4, 2));
-            titleLine.setFont(titleLine.getFont().deriveFont(Font.PLAIN, 14f));
-            meta.setFont(meta.getFont().deriveFont(Font.PLAIN, 11f));
-            meta.setForeground(new Color(110, 110, 110));
+            setOpaque(false);
+            titleLine.setFont(AeroTheme.defaultBoldFont(14f));
+            meta.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+            meta.setForeground(new Color(95, 105, 120));
             add(titleLine, BorderLayout.CENTER);
             add(meta, BorderLayout.SOUTH);
-            setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+            setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
         }
 
         @Override
@@ -521,14 +547,29 @@ public class GlobalSearchDialog extends JDialog {
                 if (!tagText.isEmpty()) sb.append("  •  ").append(tagText);
                 meta.setText(sb.toString());
             }
-            if (isSelected) {
-                setBackground(new Color(225, 235, 250));
-                setOpaque(true);
-            } else {
-                setBackground(Color.WHITE);
-                setOpaque(true);
-            }
+            this.selected = isSelected;
             return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = 12;
+            java.awt.Rectangle r = new java.awt.Rectangle(0, 0, w, h);
+            Color top = selected ? new Color(235, 245, 255) : new Color(252, 253, 255);
+            Color bottom = selected ? new Color(217, 232, 248) : new Color(232, 239, 246);
+            AeroPainters.paintVerticalGradient(g2, r, top, bottom, arc);
+            AeroPainters.paintGlassOverlay(g2, r, arc);
+            if (selected) {
+                AeroPainters.paintOuterGlow(g2, r, arc, new Color(120, 170, 255), 4, 90);
+            }
+            g2.setColor(selected ? new Color(120, 170, 255, 140) : new Color(185, 195, 210));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
         }
         
         private static String escapeHtml(String s) {
@@ -633,5 +674,73 @@ public class GlobalSearchDialog extends JDialog {
             tags.add(m.group(1).toLowerCase(Locale.ROOT));
         }
         return tags;
+    }
+
+    private static JLabel makeLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(AeroTheme.defaultBoldFont(12f));
+        label.setForeground(new Color(55, 60, 70));
+        return label;
+    }
+
+    private static final class AeroSearchField extends JTextField {
+        private String placeholder;
+
+        AeroSearchField(int columns) {
+            super(columns);
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+            setFont(AeroTheme.defaultFont());
+            setForeground(AeroTheme.TEXT_PRIMARY);
+            setCaretColor(AeroTheme.AERO_BLUE_DARK);
+        }
+
+        void setPlaceholder(String placeholder) {
+            this.placeholder = placeholder;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            if (Theme.isPlainWhite()) {
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, w, h, 10, 10);
+            } else {
+                GradientPaint gp = new GradientPaint(0, 0, new Color(252, 252, 252), 0, h, new Color(233, 236, 242));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, w, h, 10, 10);
+                g2.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 170), 0, h / 2f, new Color(255, 255, 255, 0)));
+                g2.fillRoundRect(1, 1, w - 2, h / 2, 9, 9);
+            }
+            super.paintComponent(g2);
+
+            if ((getText() == null || getText().isEmpty()) && !isFocusOwner() && placeholder != null) {
+                g2.setFont(getFont());
+                g2.setColor(new Color(130, 130, 130));
+                FontMetrics fm = g2.getFontMetrics();
+                int textY = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(placeholder, 12, textY);
+            }
+            g2.dispose();
+        }
+
+        @Override
+        protected void paintBorder(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            g2.setColor(new Color(190, 190, 190));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
+            if (!Theme.isPlainWhite() && isFocusOwner()) {
+                g2.setColor(new Color(AeroTheme.AERO_BLUE.getRed(), AeroTheme.AERO_BLUE.getGreen(), AeroTheme.AERO_BLUE.getBlue(), 120));
+                g2.drawRoundRect(1, 1, w - 3, h - 3, 8, 8);
+            }
+            g2.dispose();
+        }
     }
 }

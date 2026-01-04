@@ -73,7 +73,7 @@ public class WordClock extends JPanel {
         g2.drawRoundRect(10, 10, cardW, cardH, 12, 12);
 
         // Draw text lines
-        g2.setFont(new Font("Zapfino", Font.ITALIC, 16));
+        g2.setFont(resolveWordFont(16f));
         FontMetrics fm = g2.getFontMetrics();
         int lineHeight = fm.getHeight() + 4;
         int startY = cy - (lines.length * lineHeight) / 2 + fm.getAscent();
@@ -119,5 +119,14 @@ public class WordClock extends JPanel {
     public void removeNotify() {
         super.removeNotify();
         timer.stop();
+    }
+
+    private static Font resolveWordFont(float size) {
+        String family = "Zapfino";
+        Font f = new Font(family, Font.PLAIN, Math.round(size));
+        if (!family.equalsIgnoreCase(f.getFamily())) {
+            f = new Font("Serif", Font.ITALIC, Math.round(size));
+        }
+        return f;
     }
 }
