@@ -73,7 +73,7 @@ public class WordClock extends JPanel {
         g2.drawRoundRect(10, 10, cardW, cardH, 12, 12);
 
         // Draw text lines
-        g2.setFont(new Font("Serif", Font.ITALIC, 16));
+        g2.setFont(new Font("Zapfino", Font.ITALIC, 16));
         FontMetrics fm = g2.getFontMetrics();
         int lineHeight = fm.getHeight() + 4;
         int startY = cy - (lines.length * lineHeight) / 2 + fm.getAscent();
