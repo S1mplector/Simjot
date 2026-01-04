@@ -31,7 +31,11 @@ import java.awt.image.BufferedImage;
 import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -68,6 +72,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
@@ -75,11 +80,14 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.rtf.RTFEditorKit;
 
 import main.core.security.EncryptionManager;
 import main.core.security.crypto.EncryptedMetadata;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.FileIO;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarMenuIconButton;
@@ -109,7 +117,9 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
     private final java.util.Map<File,Integer> moodValues = new java.util.HashMap<>();
     private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
+    private final java.util.Map<File, PreviewSnapshot> previewCache = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
+    private SwingWorker<PreviewSnapshot, Void> previewWorker;
 
     // Debounced search and background metadata loader
     private final javax.swing.Timer searchDebounce = new javax.swing.Timer(100, e -> update());
@@ -189,6 +199,14 @@ public class NotebookEntriesPanel extends JPanel {
     private Thread watchThread;
     private volatile boolean watchRunning;
     private volatile boolean disposed = false;
+    private int hoverIndex = -1;
+    private File hoverFile = null;
+    private File previewTarget = null;
+    private static final int PREVIEW_MAX_CHARS = 260;
+    private static final String PREVIEW_PLACEHOLDER = "Hover an entry to preview.";
+    private final FrostedGlassPanel previewPanel = new FrostedGlassPanel(new BorderLayout(8, 8), 16);
+    private final JLabel previewTitle = new JLabel("Preview");
+    private final JTextArea previewText = new JTextArea();
 
     private static class FileMeta {
         final File file; final int wc; final String title; final int mood;
@@ -207,6 +225,22 @@ public class NotebookEntriesPanel extends JPanel {
             this.wordCount = wordCount;
             this.title = title;
             this.mood = mood;
+        }
+        boolean isFresh(File f) {
+            return f != null && f.lastModified() == lastModified && f.length() == length;
+        }
+    }
+
+    private static class PreviewSnapshot {
+        final long lastModified;
+        final long length;
+        final String title;
+        final String snippet;
+        PreviewSnapshot(long lastModified, long length, String title, String snippet) {
+            this.lastModified = lastModified;
+            this.length = length;
+            this.title = title == null ? "" : title;
+            this.snippet = snippet == null ? "" : snippet;
         }
         boolean isFresh(File f) {
             return f != null && f.lastModified() == lastModified && f.length() == length;
@@ -237,6 +271,7 @@ public class NotebookEntriesPanel extends JPanel {
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
         private int moodValue = -1;
         private float selectionSweepPhase = 0f;
+        private boolean hovered = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
 
         // Background image cache (scaled+blurred per size)
@@ -335,6 +370,9 @@ public class NotebookEntriesPanel extends JPanel {
             } else {
                 selectionSweepPhase = 0f;
             }
+            Object hoverObj = list.getClientProperty("hoverIndex");
+            int hoverIdx = hoverObj instanceof Integer ? (Integer) hoverObj : -1;
+            hovered = (hoverIdx == index);
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
             Date created = file != null ? resolveCreatedDate(file) : new Date();
@@ -355,6 +393,9 @@ public class NotebookEntriesPanel extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
+            boolean hoverActive = hovered;
+            boolean selectedOnly = selected && !hoverActive;
+
             // Apply delete animation (fade + slide + shrink)
             if (deleteProgress > 0f) {
                 float visibility = main.infrastructure.ffi.NativeAccess.disappearValue(deleteProgress);
@@ -373,8 +414,8 @@ public class NotebookEntriesPanel extends JPanel {
             g2.fillRoundRect(6, 5, w - 8, h - 8, arc, arc);
 
             // Base glass gradient
-            Color top = selected ? new Color(241, 248, 255) : cardBg;
-            Color bottom = selected ? new Color(228, 236, 248) : new Color(235, 240, 248);
+            Color top = hoverActive ? new Color(241, 248, 255) : (selectedOnly ? new Color(246, 249, 253) : cardBg);
+            Color bottom = hoverActive ? new Color(228, 236, 248) : (selectedOnly ? new Color(235, 240, 246) : new Color(235, 240, 248));
             g2.setPaint(new GradientPaint(0, 3, top, 0, h - 3, bottom));
             g2.fill(shape);
 
@@ -404,7 +445,7 @@ public class NotebookEntriesPanel extends JPanel {
             g2.setClip(oldClip);
 
             // Selected sweep highlight (subtle Aero-like sheen)
-            if (selected && deleteProgress <= 0.01f) {
+            if (hoverActive && deleteProgress <= 0.01f) {
                 int bandW = Math.max(80, Math.round(w * 0.35f));
                 float startX = (selectionSweepPhase * 1.4f - 0.2f) * w;
                 Shape sweepClip = g2.getClip();
@@ -434,11 +475,17 @@ public class NotebookEntriesPanel extends JPanel {
             g2.fillRoundRect(6, 9, 6, h - 18, 6, 6);
 
             // Borders
-            if (selected) {
+            if (hoverActive) {
                 g2.setColor(new Color(120, 170, 255, 90));
                 g2.drawRoundRect(3, 2, w - 6, h - 4, arc + 2, arc + 2);
             }
-            g2.setColor(selected ? selectedBorder : cardBorder);
+            if (hoverActive) {
+                g2.setColor(selectedBorder);
+            } else if (selectedOnly) {
+                g2.setColor(new Color(140, 160, 190, 120));
+            } else {
+                g2.setColor(cardBorder);
+            }
             g2.drawRoundRect(4, 3, w - 8, h - 6, arc, arc);
             g2.setColor(new Color(255, 255, 255, 140));
             g2.drawRoundRect(5, 4, w - 10, h - 8, arc - 1, arc - 1);
@@ -645,14 +692,23 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("moods", moodValues);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
+        list.putClientProperty("hoverIndex", -1);
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(-1);
         list.setCellRenderer(new EntryCardRenderer());
-        list.addMouseListener(new MouseAdapter(){
+        MouseAdapter hoverListener = new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e){
                 if(e.getClickCount()==2){ openSelected(); }
             }
-        });
+            @Override public void mouseExited(MouseEvent e) {
+                clearHoverIndex();
+            }
+            @Override public void mouseMoved(MouseEvent e) {
+                updateHoverFromPoint(e.getPoint());
+            }
+        };
+        list.addMouseListener(hoverListener);
+        list.addMouseMotionListener(hoverListener);
         list.addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;
             int idx = list.getSelectedIndex();
@@ -682,7 +738,32 @@ public class NotebookEntriesPanel extends JPanel {
             hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 12));
             hbar.setOpaque(false);
         } catch (Throwable ignored) {}
-        add(listScroll,BorderLayout.CENTER);
+
+        previewPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        previewPanel.setPreferredSize(new Dimension(320, 0));
+        previewPanel.setOpaque(false);
+        previewTitle.setFont(AeroTheme.defaultBoldFont(14f));
+        previewTitle.setForeground(new Color(45, 50, 60));
+        previewText.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        previewText.setForeground(new Color(70, 75, 85));
+        previewText.setLineWrap(true);
+        previewText.setWrapStyleWord(true);
+        previewText.setEditable(false);
+        previewText.setOpaque(false);
+        previewText.setFocusable(false);
+        previewText.setBorder(BorderFactory.createEmptyBorder(6, 2, 6, 2));
+        previewText.setText(PREVIEW_PLACEHOLDER);
+        JPanel previewInner = new JPanel(new BorderLayout(6, 6));
+        previewInner.setOpaque(false);
+        previewInner.add(previewTitle, BorderLayout.NORTH);
+        previewInner.add(previewText, BorderLayout.CENTER);
+        previewPanel.add(previewInner, BorderLayout.CENTER);
+
+        JPanel center = new JPanel(new BorderLayout());
+        center.setOpaque(false);
+        center.add(listScroll, BorderLayout.CENTER);
+        center.add(previewPanel, BorderLayout.EAST);
+        add(center, BorderLayout.CENTER);
         // Prioritize metadata for visible items on scroll/resize
         try {
             listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
@@ -779,6 +860,7 @@ public class NotebookEntriesPanel extends JPanel {
             metaComputed.retainAll(current);
             synchronized (metaQueued) { metaQueued.retainAll(current); }
             metaCache.keySet().retainAll(current);
+            previewCache.keySet().retainAll(current);
 
             // Seed provisional values for new files
             java.util.Map<File, MetaSnapshot> refreshedCache = new java.util.HashMap<>();
@@ -814,6 +896,7 @@ public class NotebookEntriesPanel extends JPanel {
             metaComputed.clear();
             metaQueued.clear();
             metaCache.clear();
+            previewCache.clear();
         }
     }
 
@@ -1195,6 +1278,12 @@ public class NotebookEntriesPanel extends JPanel {
             }
         } catch (Throwable ignored) {}
         metaLoader = null;
+        try {
+            if (previewWorker != null && !previewWorker.isDone()) {
+                previewWorker.cancel(true);
+            }
+        } catch (Throwable ignored) {}
+        previewWorker = null;
         
         // Clear all cached data to free memory
         synchronized (metaQueued) { metaQueued.clear(); }
@@ -1207,6 +1296,7 @@ public class NotebookEntriesPanel extends JPanel {
         deleteAnimProgress.clear();
         pendingDeleteFile = null;
         model.clear();
+        previewCache.clear();
     }
     
 
@@ -1409,8 +1499,7 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private void updateSelectionSweepState() {
-        EntryRow row = list.getSelectedValue();
-        boolean active = row != null && !row.isHeader();
+        boolean active = hoverIndex >= 0;
         if (active) {
             if (!selectionSweepTimer.isRunning()) selectionSweepTimer.start();
         } else {
@@ -1418,6 +1507,183 @@ public class NotebookEntriesPanel extends JPanel {
             selectionSweepPhase[0] = 0f;
             list.repaint();
         }
+    }
+
+    private void updateHoverFromPoint(java.awt.Point p) {
+        int idx = list.locationToIndex(p);
+        if (idx < 0 || idx >= model.size()) {
+            clearHoverIndex();
+            return;
+        }
+        java.awt.Rectangle bounds = list.getCellBounds(idx, idx);
+        if (bounds == null || !bounds.contains(p)) {
+            clearHoverIndex();
+            return;
+        }
+        EntryRow row = model.get(idx);
+        if (row == null || row.isHeader() || row.file == null) {
+            clearHoverIndex();
+            return;
+        }
+        if (idx == hoverIndex && Objects.equals(row.file, hoverFile)) return;
+        hoverIndex = idx;
+        hoverFile = row.file;
+        list.putClientProperty("hoverIndex", hoverIndex);
+        updateSelectionSweepState();
+        list.repaint();
+        updatePreviewForFile(row.file);
+    }
+
+    private void clearHoverIndex() {
+        if (hoverIndex < 0) return;
+        hoverIndex = -1;
+        hoverFile = null;
+        list.putClientProperty("hoverIndex", -1);
+        updateSelectionSweepState();
+        list.repaint();
+    }
+
+    private void updatePreviewForFile(File file) {
+        if (file == null) return;
+        previewTarget = file;
+        PreviewSnapshot cached = previewCache.get(file);
+        if (cached != null && cached.isFresh(file)) {
+            applyPreview(cached);
+            return;
+        }
+        if (previewWorker != null && !previewWorker.isDone()) {
+            previewWorker.cancel(true);
+        }
+        previewTitle.setText("Loading preview...");
+        previewText.setText("");
+        previewWorker = new SwingWorker<>() {
+            @Override protected PreviewSnapshot doInBackground() {
+                return buildPreviewSnapshot(file);
+            }
+            @Override protected void done() {
+                if (isCancelled()) return;
+                PreviewSnapshot snap = null;
+                try { snap = get(); } catch (Exception ignored) {}
+                if (snap == null) return;
+                previewCache.put(file, snap);
+                if (Objects.equals(previewTarget, file)) {
+                    applyPreview(snap);
+                }
+            }
+        };
+        previewWorker.execute();
+    }
+
+    private void applyPreview(PreviewSnapshot snap) {
+        String t = snap.title == null || snap.title.isBlank() ? "Untitled" : snap.title;
+        previewTitle.setText(t);
+        String body = snap.snippet == null || snap.snippet.isBlank() ? "No preview available." : snap.snippet;
+        previewText.setText(body);
+    }
+
+    private PreviewSnapshot buildPreviewSnapshot(File f) {
+        if (f == null) return null;
+        String title = titles.getOrDefault(f, f.getName());
+        if (EncryptionManager.isEncrypted(f)) {
+            return new PreviewSnapshot(f.lastModified(), f.length(), title, "Encrypted entry.");
+        }
+        String snippet = "";
+        try {
+            byte[] raw = FileIO.readAllBytes(f.toPath());
+            snippet = buildPreviewSnippet(raw, f.getName());
+        } catch (IOException ignored) {
+            snippet = "";
+        }
+        return new PreviewSnapshot(f.lastModified(), f.length(), title, snippet);
+    }
+
+    private static String buildPreviewSnippet(byte[] raw, String name) throws IOException {
+        if (raw == null || raw.length == 0) return "";
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8))) {
+            String first = br.readLine();
+            if (first == null) return "";
+            EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
+            if (meta != null) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append('\n');
+                }
+            } else {
+                // Skip title line (and optional blank line)
+                String line = br.readLine();
+                if (line != null && !line.isBlank()) {
+                    sb.append(line).append('\n');
+                }
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append('\n');
+                }
+            }
+        }
+        String body = stripImageManifest(sb.toString());
+        String plain = rtfToPlain(body);
+        plain = stripGuidedMarkers(plain);
+        plain = stripImageTokens(plain);
+        String collapsed = collapseSpaces(plain);
+        return trimSnippet(collapsed, PREVIEW_MAX_CHARS);
+    }
+
+    private static String stripImageManifest(String body) {
+        if (body == null) return "";
+        String trimmed = body.stripLeading();
+        if (trimmed.startsWith("IMGMAP:")) {
+            int nl = trimmed.indexOf('\n');
+            if (nl >= 0) return trimmed.substring(nl + 1).stripLeading();
+            return "";
+        }
+        return body;
+    }
+
+    private static String rtfToPlain(String text) {
+        if (text == null) return "";
+        String trimmed = text.stripLeading();
+        if (!trimmed.startsWith("{\\rtf")) return text;
+        try {
+            RTFEditorKit kit = new RTFEditorKit();
+            StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
+            kit.read(new ByteArrayInputStream(trimmed.getBytes(StandardCharsets.UTF_8)), doc, 0);
+            return doc.getText(0, doc.getLength());
+        } catch (Exception e) {
+            return text;
+        }
+    }
+
+    private static String stripGuidedMarkers(String text) {
+        if (text == null || text.isBlank()) return "";
+        StringBuilder out = new StringBuilder(text.length());
+        try (BufferedReader br = new BufferedReader(new StringReader(text))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("[GUIDED_MODE:")) continue;
+                if (trimmed.startsWith("[Q") && trimmed.endsWith("]")) continue;
+                out.append(line).append('\n');
+            }
+        } catch (IOException ignored) {}
+        return out.toString();
+    }
+
+    private static String stripImageTokens(String text) {
+        if (text == null || text.isBlank()) return "";
+        return text.replaceAll("\\[\\[IMG\\|[^\\]]+\\]\\]", " ");
+    }
+
+    private static String collapseSpaces(String text) {
+        if (text == null || text.isEmpty()) return "";
+        String nativeCollapsed = NativeAccess.patternCollapseSpaces(text);
+        if (nativeCollapsed != null) return nativeCollapsed;
+        return text.replaceAll("\\s+", " ").trim();
+    }
+
+    private static String trimSnippet(String text, int max) {
+        if (text == null || text.isBlank()) return "";
+        if (text.length() <= max) return text;
+        return text.substring(0, max - 3).trim() + "...";
     }
 
     private int findNextFileIndex(int start) {
