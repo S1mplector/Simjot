@@ -1699,7 +1699,7 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private TokenizedDocument buildTokenizedDocument(StyledDocument src) {
-        DefaultStyledDocument out = new DefaultStyledDocument(src.getStyleContext());
+        DefaultStyledDocument out = new DefaultStyledDocument();
         StringBuilder manifest = new StringBuilder(128);
 
         try {
