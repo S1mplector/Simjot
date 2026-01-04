@@ -606,7 +606,7 @@ public class NotebookEntriesPanel extends JPanel {
         backBtn.setMinimumSize(bigButtonSize);
         backBtn.setMaximumSize(new Dimension(96, 80));
 
-        ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("", "new");
+        ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("", "new_entry");
         newBtn.addActionListener(e->createNew());
         ToolbarMenuIconButton deleteBtn = new ToolbarMenuIconButton("", "delete");
         deleteBtn.addActionListener(e->deleteSelected());

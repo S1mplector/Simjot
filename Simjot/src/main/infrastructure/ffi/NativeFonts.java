@@ -580,6 +580,10 @@ public final class NativeFonts implements AutoCloseable {
         }
     }
 
+    public boolean hasStrokePointAccess() {
+        return strokeSmoothHandle != null && strokeGetPointCountHandle != null && strokeGetPointsHandle != null;
+    }
+
     public int strokeGetPointCount(MemorySegment stroke) {
         try {
             return (int) strokeGetPointCountHandle.invokeExact(stroke);

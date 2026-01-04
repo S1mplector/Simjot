@@ -42,7 +42,8 @@ public final class NativeStrokeSupport {
     }
 
     public static boolean isAvailable() {
-        return nf() != null;
+        NativeFonts fonts = nf();
+        return fonts != null && fonts.hasStrokePointAccess();
     }
 
     public static boolean smoothStroke(CustomStroke stroke, int iterations, float tension,
@@ -52,7 +53,7 @@ public final class NativeStrokeSupport {
         if (points.size() < 2) return false;
 
         NativeFonts fonts = nf();
-        if (fonts == null) return false;
+        if (fonts == null || !fonts.hasStrokePointAccess()) return false;
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativeStroke = fonts.strokeCreate(Math.max(16, points.size()));
