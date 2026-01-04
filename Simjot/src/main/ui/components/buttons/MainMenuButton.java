@@ -36,8 +36,8 @@ import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
-import main.ui.theme.aero.AeroTheme;
 import main.ui.theme.aero.AeroPainters;
+import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
 
 /**
@@ -64,7 +64,7 @@ public class MainMenuButton extends JButton {
         setFont(getFont().deriveFont(Font.BOLD, 18f));
         setForeground(AeroTheme.TEXT_PRIMARY);
         // Size calculated to fit icon + text without clipping
-        int baseHeight = 60;
+        int baseHeight = 68;
         int textWidth = getFontMetrics(getFont()).stringWidth(text) + 1;
         int minWidth = Math.max(260, 16 * 3 + textWidth + baseHeight); // padding + icon + text
         Dimension pref = new Dimension(minWidth, baseHeight);
@@ -143,7 +143,7 @@ public class MainMenuButton extends JButton {
 
         // Draw icon + text
         int padding = 18;
-        int iconSize = Math.max(24, Math.min(h - padding * 2, 30));
+        int iconSize = Math.max(28, Math.min(h - padding * 2, 34));
         int iconX = padding;
         int iconY = (h - iconSize) / 2;
 
