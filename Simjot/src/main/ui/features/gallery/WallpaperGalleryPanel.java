@@ -379,7 +379,9 @@ private JPanel buttonPanel;
             "img/background/summer.png",
             "img/background/fall.jpg",
             "img/background/winter.png",
-            "img/background/b&w2.png"
+            "img/background/b&w2.png",
+            "img/background/aero1.png",
+            "img/background/aero2.png"
         };
         for (String wallpaperPath : builtInWallpapers) {
             try {
@@ -431,7 +433,9 @@ private JPanel buttonPanel;
             "img/background/spring.png",
             "img/background/summer.png", 
             "img/background/fall.jpg",
-            "img/background/winter.png"
+            "img/background/winter.png",
+            "img/background/aero1.png",
+            "img/background/aero2.png"
         };
         
         for (String wallpaperPath : sampleWallpapers) {

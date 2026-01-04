@@ -48,6 +48,8 @@ public class MainMenuButton extends JButton {
     private final String iconId;
     private boolean hoverTarget = false;
     private float hoverT = 0f;
+    private float hoverV = 0f;
+    private long hoverLastNs = 0L;
     private Timer hoverTimer;
 
     public MainMenuButton(String text, String iconId){
@@ -87,6 +89,7 @@ public class MainMenuButton extends JButton {
 
         float t = hoverT;
         if (pressed) t = Math.min(1f, t + 0.25f);
+        float te = smoothStep(t);
 
         Rectangle r = new Rectangle(0, 0, w, h);
         Color accent = resolveAccent();
@@ -105,14 +108,14 @@ public class MainMenuButton extends JButton {
             g2.setColor(mix(new Color(245, 246, 250), new Color(232, 238, 246), t));
             g2.fill(new RoundRectangle2D.Float(0, 0, w, h, radius, radius));
         } else {
-            if (t > 0.01f) {
-                Color glow = withAlpha(accent, Math.round(90 * t));
-                AeroPainters.paintOuterGlow(g2, r, radius, glow, 8, Math.round(60 + 60 * t));
+            if (te > 0.01f) {
+                Color glow = withAlpha(accent, Math.round(90 * te));
+                AeroPainters.paintOuterGlow(g2, r, radius, glow, 8, Math.round(60 + 60 * te));
             }
             AeroPainters.paintVerticalGradient(g2, r, top, bottom, radius);
             AeroPainters.paintGlassOverlay(g2, r, radius);
-            if (t > 0.01f) {
-                g2.setComposite(AlphaComposite.SrcOver.derive(0.08f + 0.22f * t));
+            if (te > 0.01f) {
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.08f + 0.22f * te));
                 AeroPainters.paintVerticalGradient(
                         g2,
                         new Rectangle(2, 2, Math.max(1, w - 4), Math.max(1, h / 2)),
@@ -125,17 +128,17 @@ public class MainMenuButton extends JButton {
                         new Point(w / 2, h),
                         Math.max(w, h),
                         new float[]{0f, 1f},
-                        new Color[]{withAlpha(accent, Math.round(110 * t)), withAlpha(accent, 0)}
+                        new Color[]{withAlpha(accent, Math.round(110 * te)), withAlpha(accent, 0)}
                 );
                 g2.setPaint(wash);
                 g2.fill(new RoundRectangle2D.Float(1, 1, w - 2f, h - 2f, radius - 2f, radius - 2f));
             }
-            AeroPainters.paintInnerStroke(g2, r, radius, new Color(255, 255, 255, Math.round(70 + 70 * t)));
+            AeroPainters.paintInnerStroke(g2, r, radius, new Color(255, 255, 255, Math.round(70 + 70 * te)));
         }
 
         Color baseBorder = new Color(190, 195, 205);
         Color accentBorder = withAlpha(accent, 160);
-        g2.setColor(mix(baseBorder, accentBorder, t * 0.7f));
+        g2.setColor(mix(baseBorder, accentBorder, te * 0.7f));
         g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, radius, radius));
 
         // Draw icon + text
@@ -178,11 +181,14 @@ public class MainMenuButton extends JButton {
         hoverTarget = hover;
         if (isHoverAnimationDisabled()) {
             hoverT = hover ? 1f : 0f;
+            hoverV = 0f;
+            hoverLastNs = 0L;
             stopHoverTimer();
             repaint();
             return;
         }
         if (hoverTimer == null) {
+            hoverLastNs = 0L;
             hoverTimer = new Timer(AppPerf.getAnimationDelay(), e -> animateHover());
             hoverTimer.start();
         }
@@ -190,14 +196,25 @@ public class MainMenuButton extends JButton {
 
     private void animateHover() {
         float target = hoverTarget ? 1f : 0f;
-        float step = Math.max(0.04f, Math.min(0.2f, AppPerf.getAnimationDelay() / 200f));
-        if (hoverT < target) {
-            hoverT = Math.min(target, hoverT + step);
-        } else if (hoverT > target) {
-            hoverT = Math.max(target, hoverT - step);
-        }
-        if (Math.abs(hoverT - target) < 0.001f) {
+        long now = System.nanoTime();
+        if (hoverLastNs == 0L) hoverLastNs = now;
+        float dt = (now - hoverLastNs) / 1_000_000_000f;
+        hoverLastNs = now;
+        dt = Math.max(0f, Math.min(0.05f, dt));
+
+        float smoothTime = 0.16f;
+        float omega = 2f / smoothTime;
+        float x = omega * dt;
+        float exp = 1f / (1f + x + 0.48f * x * x + 0.235f * x * x * x);
+        float change = hoverT - target;
+        float temp = (hoverV + omega * change) * dt;
+        hoverV = (hoverV - omega * temp) * exp;
+        hoverT = target + (change + temp) * exp;
+        hoverT = clamp01(hoverT);
+
+        if (Math.abs(hoverT - target) < 0.0008f && Math.abs(hoverV) < 0.0008f) {
             hoverT = target;
+            hoverV = 0f;
             stopHoverTimer();
         }
         repaint();
@@ -239,6 +256,15 @@ public class MainMenuButton extends JButton {
     private static Color withAlpha(Color c, int alpha) {
         int a = Math.max(0, Math.min(255, alpha));
         return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
+    }
+
+    private static float clamp01(float v) {
+        return Math.max(0f, Math.min(1f, v));
+    }
+
+    private static float smoothStep(float t) {
+        float clamped = clamp01(t);
+        return clamped * clamped * (3f - 2f * clamped);
     }
 
     private static Color darken(Color c, float amount) {

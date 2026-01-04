@@ -115,9 +115,11 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/theme/aero/AeroTheme.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/app/JournalApp.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/service/LastSaveTracker.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/font/NativeFontSupport.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/NotebookEntriesPanel.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/export/PoemExporter.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/drawing/DrawingPanel.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/ffi/NativeTablet.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/settings/GeneralSettingsPage.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/GlobalSearchDialog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/confirmation/CustomConfirmDialog.java
@@ -201,6 +203,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/io/IoLog.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/ffi/NativeFonts.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/dialog/utils/ModernColorPickerDialog.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/input/TabletInputSupport.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/drawing/InkOverlay.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/clocks/BinaryClock.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/entries/JournalTemplateManager.java
@@ -253,6 +256,7 @@
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/core/poetry/VocabularyAnalyzer.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/widgets/IdeaStickyWidget.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/font/FontPreviewPanel.java
+/Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/infrastructure/font/FontImporter.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/drawing/Stroke.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/features/widgets/QuickMoodWidget.java
 /Users/ilgazmehmetoglu/Desktop/Files/Projects/Simjot/Simjot/src/main/ui/components/scrollbar/AeroScrollBarUI.java

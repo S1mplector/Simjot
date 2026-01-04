@@ -41,7 +41,6 @@ import java.util.regex.Pattern;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
-import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -64,7 +63,6 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
-import main.ui.components.checkbox.AeroCheckBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.theme.Theme;
@@ -82,7 +80,6 @@ public class GlobalSearchDialog extends JDialog {
     private final AeroSearchField toDateField;
     private final JSpinner moodMin;
     private final JSpinner moodMax;
-    private final JCheckBox fuzzyCheck;
     private final JLabel statusLabel;
     private final DefaultListModel<SearchResult> model = new DefaultListModel<>();
     private final JList<SearchResult> list = new JList<>(model);
@@ -93,26 +90,26 @@ public class GlobalSearchDialog extends JDialog {
         super(owner, "Search", false);
         this.app = app;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setPreferredSize(new Dimension(840, 540));
+        setPreferredSize(new Dimension(840, 520));
 
-        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(14, 14), 18);
-        root.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(12, 12), 18);
+        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         FrostedGlassPanel filters = new FrostedGlassPanel(new BorderLayout(10, 10), 14);
-        filters.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+        filters.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
 
         FrostedGlassPanel topRow = new FrostedGlassPanel(new BorderLayout(10, 0), 12);
-        topRow.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        topRow.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         queryField = new AeroSearchField(30);
         queryField.setPlaceholder("Search across notebooks...");
-        queryField.setPreferredSize(new Dimension(520, 36));
+        queryField.setPreferredSize(new Dimension(520, 32));
         topRow.add(queryField, BorderLayout.CENTER);
         IconMenuButton searchBtn = new IconMenuButton("Search", "search");
         searchBtn.setToolTipText("Search notebooks");
         searchBtn.addActionListener(e -> runSearch());
         topRow.add(searchBtn, BorderLayout.EAST);
 
-        JPanel secondRow = new JPanel(new GridLayout(2, 1, 8, 8));
+        JPanel secondRow = new JPanel(new GridLayout(2, 1, 6, 6));
         secondRow.setOpaque(false);
         JPanel rowA = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         rowA.setOpaque(false);
@@ -136,16 +133,11 @@ public class GlobalSearchDialog extends JDialog {
         moodMax = new JSpinner(new SpinnerNumberModel(100, 0, 100, 1));
         moodMin.setUI(new ModernSpinnerUI());
         moodMax.setUI(new ModernSpinnerUI());
-        moodMin.setPreferredSize(new Dimension(64, 28));
-        moodMax.setPreferredSize(new Dimension(64, 28));
+        moodMin.setPreferredSize(new Dimension(64, 26));
+        moodMax.setPreferredSize(new Dimension(64, 26));
         rowB.add(moodMin);
         rowB.add(makeLabel("to"));
         rowB.add(moodMax);
-        fuzzyCheck = new JCheckBox("Fuzzy");
-        fuzzyCheck.setUI(new AeroCheckBoxUI());
-        fuzzyCheck.setOpaque(false);
-        fuzzyCheck.setFont(AeroTheme.defaultFont());
-        rowB.add(fuzzyCheck);
 
         secondRow.add(rowA);
         secondRow.add(rowB);
@@ -177,7 +169,6 @@ public class GlobalSearchDialog extends JDialog {
         attachDebounce(toDateField);
         moodMin.addChangeListener(e -> debounce.restart());
         moodMax.addChangeListener(e -> debounce.restart());
-        fuzzyCheck.addActionListener(e -> debounce.restart());
 
         list.addListSelectionListener(e -> {
             int idx = list.getSelectedIndex();
@@ -189,11 +180,11 @@ public class GlobalSearchDialog extends JDialog {
             }
         });
 
-        IconMenuButton openBtn = new IconMenuButton("Open", "load");
+        IconMenuButton openBtn = new IconMenuButton("Open", "analyze");
         openBtn.setToolTipText("Open selected entry");
         openBtn.addActionListener(e -> openSelected());
-        IconMenuButton closeBtn = new IconMenuButton("Close", "close");
-        closeBtn.setToolTipText("Close search");
+        IconMenuButton closeBtn = new IconMenuButton("Cancel", "exit");
+        closeBtn.setToolTipText("Cancel search");
         closeBtn.addActionListener(e -> dispose());
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 18, 0));
         btnRow.setOpaque(false);
@@ -283,8 +274,7 @@ public class GlobalSearchDialog extends JDialog {
         LocalDate toDate = parseDate(toDateField.getText());
         int minMood = (Integer) moodMin.getValue();
         int maxMood = (Integer) moodMax.getValue();
-        boolean fuzzy = fuzzyCheck.isSelected();
-        return new SearchQuery(q, tagText, fromDate, toDate, minMood, maxMood, fuzzy);
+        return new SearchQuery(q, tagText, fromDate, toDate, minMood, maxMood, false);
     }
 
     private static LocalDate parseDate(String raw) {
