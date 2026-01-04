@@ -291,7 +291,9 @@ private JPanel buttonPanel;
                     "img/background/fall.jpg",
                     "img/background/winter.png",
                     "img/background/b&w.png",
-                    "img/background/b&w2.png"
+                    "img/background/b&w2.png",
+                    "img/background/aero1.png",
+                    "img/background/aero2.png"
                 };
                 for (String res : builtIn) {
                     try {
