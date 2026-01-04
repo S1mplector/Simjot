@@ -715,9 +715,6 @@ public class NotebookEntriesPanel extends JPanel {
         backBtn.setToolTipText("Back to Notebooks");
         backBtn.addActionListener(e->app.switchCard(JournalApp.NOTEBOOK_MANAGER));
         Dimension bigButtonSize = new Dimension(80, 80);
-        backBtn.setPreferredSize(bigButtonSize);
-        backBtn.setMinimumSize(bigButtonSize);
-        backBtn.setMaximumSize(new Dimension(96, 80));
 
         ToolbarMenuIconButton newBtn = new ToolbarMenuIconButton("", "new_entry");
         newBtn.addActionListener(e->createNew());
