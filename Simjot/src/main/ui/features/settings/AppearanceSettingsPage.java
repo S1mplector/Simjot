@@ -32,7 +32,6 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.JSlider;
 
 import main.core.service.SettingsStore;
 import main.ui.components.buttons.IconMenuButton;
@@ -60,6 +59,7 @@ import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.slider.MoodSlider;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.TodayCalendarPanel;
@@ -70,7 +70,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<AccentOption> accentBox;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
-    private final JSlider glassOpacitySlider;
+    private final MoodSlider glassOpacitySlider;
     private final JLabel glassOpacityValueLabel;
     // Clock and Calendar style selection
     private String selectedClockStyle;
@@ -148,9 +148,9 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         JPanel glassSliderPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 5, 0));
         glassSliderPanel.setOpaque(false);
         float savedGlassOpacity = store.getEditorGlassOpacity();
-        glassOpacitySlider = new JSlider(0, 100, (int)(savedGlassOpacity * 100));
-        glassOpacitySlider.setPreferredSize(new Dimension(150, 20));
-        glassOpacitySlider.setOpaque(false);
+        glassOpacitySlider = new MoodSlider();
+        glassOpacitySlider.setValue((int)(savedGlassOpacity * 100));
+        glassOpacitySlider.setHoverFadeEnabled(true);
         glassOpacityValueLabel = new JLabel(String.format("%d%%", (int)(savedGlassOpacity * 100)));
         glassOpacityValueLabel.setPreferredSize(new Dimension(40, 20));
         glassOpacitySlider.addChangeListener(e -> {
