@@ -116,10 +116,9 @@ public class NotebookManagerPanel extends JPanel {
         ToolbarMenuIconButton organizeBtn = new ToolbarMenuIconButton("", "settings");
         organizeBtn.setToolTipText("Organize Clusters");
         organizeBtn.addActionListener(e -> {
-            ModernClusterOrganizer organizer = new ModernClusterOrganizer(
-                (Frame) SwingUtilities.getWindowAncestor(this));
-            organizer.setOnChangeCallback(this::refresh);
-            organizer.setVisible(true);
+            SimpleClusterOrganizer.show(
+                (Frame) SwingUtilities.getWindowAncestor(this),
+                this::refresh);
         });
         rightButtons.add(organizeBtn);
 

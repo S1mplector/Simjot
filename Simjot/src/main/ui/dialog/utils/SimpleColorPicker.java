@@ -37,6 +37,9 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
+import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.containers.FrostedGlassPanel;
+
 /**
  * A simple, minimalist color picker dialog.
  * Provides a clean color palette with brightness variations and recent colors.
@@ -79,6 +82,9 @@ public class SimpleColorPicker extends JDialog {
         this.initialColor = initial != null ? initial : Color.BLACK;
         this.selectedColor = this.initialColor;
         
+        setUndecorated(true);
+        setBackground(new Color(0, 0, 0, 0));
+        
         initUI();
         pack();
         setLocationRelativeTo(parent);
@@ -86,9 +92,15 @@ public class SimpleColorPicker extends JDialog {
     }
     
     private void initUI() {
-        JPanel content = new JPanel(new BorderLayout(12, 12));
-        content.setBorder(new EmptyBorder(16, 16, 16, 16));
-        content.setBackground(new Color(250, 250, 250));
+        FrostedGlassPanel content = new FrostedGlassPanel(new BorderLayout(12, 12), 18);
+        content.setBorder(new EmptyBorder(20, 20, 16, 20));
+        
+        // Title
+        JLabel titleLabel = new JLabel("Pick Color");
+        titleLabel.setFont(titleLabel.getFont().deriveFont(java.awt.Font.BOLD, 16f));
+        titleLabel.setForeground(new Color(50, 55, 65));
+        titleLabel.setBorder(new EmptyBorder(0, 0, 12, 0));
+        content.add(titleLabel, BorderLayout.NORTH);
         
         // Main palette area
         JPanel paletteArea = new JPanel(new BorderLayout(12, 0));
@@ -173,13 +185,15 @@ public class SimpleColorPicker extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttonPanel.setOpaque(false);
         
-        JButton cancelBtn = new JButton("Cancel");
+        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
+        cancelBtn.setPreferredSize(new Dimension(100, 36));
         cancelBtn.addActionListener(e -> {
             confirmed = false;
             dispose();
         });
         
-        JButton okBtn = new JButton("OK");
+        IconMenuButton okBtn = new IconMenuButton("OK", "check");
+        okBtn.setPreferredSize(new Dimension(80, 36));
         okBtn.addActionListener(e -> {
             confirmed = true;
             addToRecent(selectedColor);
@@ -191,22 +205,21 @@ public class SimpleColorPicker extends JDialog {
         
         JPanel bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.setOpaque(false);
-        bottomPanel.setBorder(new EmptyBorder(12, 0, 0, 0));
+        bottomPanel.setBorder(new EmptyBorder(16, 0, 0, 0));
         bottomPanel.add(buttonPanel, BorderLayout.EAST);
         
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setOpaque(false);
-        mainPanel.add(content, BorderLayout.CENTER);
-        mainPanel.add(bottomPanel, BorderLayout.SOUTH);
+        // Combine grayscale and buttons in south area
+        JPanel southArea = new JPanel(new BorderLayout(0, 8));
+        southArea.setOpaque(false);
+        southArea.add(grayscaleRow, BorderLayout.NORTH);
+        southArea.add(bottomPanel, BorderLayout.SOUTH);
+        content.add(southArea, BorderLayout.SOUTH);
         
-        setContentPane(mainPanel);
-        getContentPane().setBackground(new Color(250, 250, 250));
+        setContentPane(content);
         
         // ESC to cancel
         getRootPane().registerKeyboardAction(e -> { confirmed = false; dispose(); },
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
-        // Enter to confirm
-        getRootPane().setDefaultButton(okBtn);
     }
     
     private JPanel createColorGrid() {
