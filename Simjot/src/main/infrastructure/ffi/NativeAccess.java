@@ -1118,6 +1118,132 @@ public final class NativeAccess {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // BATCH SEARCH API - Global entry search optimization
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    public static boolean searchBatchReady() {
+        NativeLibrary lib = library();
+        return lib != null && lib.hasSearchBatchSupport();
+    }
+
+    /**
+     * Perform batch search across multiple directories.
+     * @param query Search query
+     * @param directories List of directory paths to search
+     * @param extensions File extensions to include (e.g., ".note,.txt")
+     * @param maxResults Maximum results to return
+     * @return List of search results, or null if native not available
+     */
+    public static List<BatchSearchResult> searchBatch(String query, List<String> directories, 
+                                                       String extensions, int maxResults) {
+        NativeLibrary lib = library();
+        if (lib == null || !lib.hasSearchBatchSupport()) return null;
+        if (query == null || query.isEmpty() || directories == null || directories.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        try {
+            // Build newline-separated directory list
+            StringBuilder dirBuilder = new StringBuilder();
+            for (String dir : directories) {
+                if (dir != null && !dir.isEmpty()) {
+                    if (dirBuilder.length() > 0) dirBuilder.append('\n');
+                    dirBuilder.append(dir);
+                }
+            }
+            
+            byte[] resultBytes = lib.searchBatch(query, dirBuilder.toString(), extensions, maxResults);
+            if (resultBytes == null) return null;
+            
+            return parseBatchSearchResults(resultBytes);
+        } catch (Throwable t) {
+            IoLog.warn("native-search-batch", "Native batch search failed.", t);
+            return null;
+        }
+    }
+
+    private static List<BatchSearchResult> parseBatchSearchResults(byte[] data) {
+        if (data == null || data.length < 4) return Collections.emptyList();
+        
+        java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.nativeOrder());
+        int count = buf.getInt();
+        if (count <= 0) return Collections.emptyList();
+        
+        List<BatchSearchResult> results = new ArrayList<>(count);
+        
+        for (int i = 0; i < count && buf.remaining() > 0; i++) {
+            try {
+                // Read path
+                int pathLen = buf.getInt();
+                if (pathLen <= 0 || pathLen > buf.remaining()) break;
+                byte[] pathBytes = new byte[pathLen];
+                buf.get(pathBytes);
+                String path = new String(pathBytes, StandardCharsets.UTF_8);
+                
+                // Read title
+                int titleLen = buf.getInt();
+                if (titleLen < 0 || titleLen > buf.remaining()) break;
+                byte[] titleBytes = new byte[titleLen];
+                buf.get(titleBytes);
+                String title = new String(titleBytes, StandardCharsets.UTF_8);
+                
+                // Read snippet
+                int snippetLen = buf.getInt();
+                if (snippetLen < 0 || snippetLen > buf.remaining()) break;
+                byte[] snippetBytes = new byte[snippetLen];
+                buf.get(snippetBytes);
+                String snippet = new String(snippetBytes, StandardCharsets.UTF_8);
+                
+                // Read mood, savedAt, matchCount
+                int mood = buf.getInt();
+                long savedAt = buf.getLong();
+                int matchCount = buf.getInt();
+                
+                // Read tags
+                int tagCount = buf.getInt();
+                List<String> tags = new ArrayList<>(tagCount);
+                for (int t = 0; t < tagCount && buf.remaining() >= 4; t++) {
+                    int tagLen = buf.getInt();
+                    if (tagLen <= 0 || tagLen > buf.remaining()) break;
+                    byte[] tagBytes = new byte[tagLen];
+                    buf.get(tagBytes);
+                    tags.add(new String(tagBytes, StandardCharsets.UTF_8));
+                }
+                
+                results.add(new BatchSearchResult(path, title, snippet, mood, savedAt, matchCount, tags));
+            } catch (Exception e) {
+                break; // Stop on parsing error
+            }
+        }
+        
+        return results;
+    }
+
+    /**
+     * Result from native batch search.
+     */
+    public static final class BatchSearchResult {
+        public final String filePath;
+        public final String title;
+        public final String snippet;
+        public final int mood;
+        public final long savedAt;
+        public final int matchCount;
+        public final List<String> tags;
+
+        public BatchSearchResult(String filePath, String title, String snippet, 
+                                  int mood, long savedAt, int matchCount, List<String> tags) {
+            this.filePath = filePath;
+            this.title = title;
+            this.snippet = snippet;
+            this.mood = mood;
+            this.savedAt = savedAt;
+            this.matchCount = matchCount;
+            this.tags = tags != null ? tags : Collections.emptyList();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // DATE/TIME API
     // ═══════════════════════════════════════════════════════════════════════════
 

@@ -18,7 +18,7 @@
  * using the Panama FFM API. 
  * 
  * Furthermore, I advise you to use this class with caution, as it is not a wrapper for the native library,
- * but a bridge between Java and the native C library, and is not yet production-ready.
+ * but a bridge between Java and the native C library, and is not yet production-ready.s
  * 
  * @author S1mplector
  */
@@ -141,6 +141,8 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle searchAcBuildHandle;
     private final MethodHandle searchAcFindHandle;
     private final MethodHandle searchAcFreeHandle;
+    private final MethodHandle searchBatchHandle;
+    private final MethodHandle searchBatchBufferSizeHandle;
     
     // Base64/encoding handles
     private final MethodHandle base64EncodeHandle;
@@ -726,6 +728,11 @@ public final class NativeLibrary implements AutoCloseable {
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.searchAcFreeHandle = optionalHandle("simjot_search_ac_free",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        this.searchBatchHandle = optionalHandle("simjot_search_batch",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.searchBatchBufferSizeHandle = optionalHandle("simjot_search_batch_buffer_size",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
         
         // Base64/encoding handles
         this.base64EncodeHandle = optionalHandle("simjot_base64_encode",
@@ -2400,6 +2407,51 @@ public final class NativeLibrary implements AutoCloseable {
         try {
             searchAcFreeHandle.invokeExact(handle);
         } catch (Throwable ignored) {}
+    }
+
+    public boolean hasSearchBatchSupport() {
+        return searchBatchHandle != null;
+    }
+
+    public int searchBatchBufferSize(int maxResults) {
+        if (searchBatchBufferSizeHandle == null) return maxResults * 8192;
+        try {
+            return (int) searchBatchBufferSizeHandle.invokeExact(maxResults);
+        } catch (Throwable t) {
+            return maxResults * 8192;
+        }
+    }
+
+    public byte[] searchBatch(String query, String dirs, String extensions, int maxResults) {
+        if (searchBatchHandle == null || query == null || dirs == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            byte[] queryBytes = query.getBytes(StandardCharsets.UTF_8);
+            byte[] dirsBytes = dirs.getBytes(StandardCharsets.UTF_8);
+            byte[] extBytes = extensions != null ? extensions.getBytes(StandardCharsets.UTF_8) : new byte[0];
+            
+            MemorySegment querySeg = tempArena.allocate(queryBytes.length + 1);
+            querySeg.asByteBuffer().put(queryBytes);
+            querySeg.set(ValueLayout.JAVA_BYTE, queryBytes.length, (byte) 0);
+            
+            MemorySegment dirsSeg = tempArena.allocate(dirsBytes.length + 1);
+            dirsSeg.asByteBuffer().put(dirsBytes);
+            dirsSeg.set(ValueLayout.JAVA_BYTE, dirsBytes.length, (byte) 0);
+            
+            MemorySegment extSeg = tempArena.allocate(extBytes.length + 1);
+            if (extBytes.length > 0) extSeg.asByteBuffer().put(extBytes);
+            extSeg.set(ValueLayout.JAVA_BYTE, extBytes.length, (byte) 0);
+            
+            int bufferSize = searchBatchBufferSize(maxResults);
+            MemorySegment outBuf = tempArena.allocate(bufferSize);
+            
+            int count = (int) searchBatchHandle.invokeExact(querySeg, dirsSeg, extSeg, maxResults, outBuf, bufferSize);
+            if (count < 0) return null;
+            
+            // Return the raw bytes - caller will parse
+            return outBuf.asSlice(0, bufferSize).toArray(ValueLayout.JAVA_BYTE);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

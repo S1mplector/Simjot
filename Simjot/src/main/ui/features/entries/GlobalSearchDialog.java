@@ -15,11 +15,11 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Frame;
-import java.awt.GridLayout;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -55,9 +55,9 @@ import javax.swing.Timer;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.rtf.RTFEditorKit;
 
-import main.core.service.NotebookStore;
 import main.core.security.EncryptionManager;
 import main.core.security.crypto.CryptoException;
+import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
@@ -225,13 +225,39 @@ public class GlobalSearchDialog extends JDialog {
         worker = new SwingWorker<>() {
             @Override protected Void doInBackground() {
                 List<NotebookInfo> notebooks = new NotebookStore().list();
+                
+                // Try native batch search first (much faster for text search)
+                if (!query.q.isEmpty() && NativeAccess.searchBatchReady()) {
+                    List<NativeAccess.BatchSearchResult> nativeResults = runNativeBatchSearch(query, notebooks);
+                    if (nativeResults != null && !nativeResults.isEmpty()) {
+                        for (NativeAccess.BatchSearchResult nr : nativeResults) {
+                            if (isCancelled()) break;
+                            SearchResult res = convertNativeResult(nr, notebooks, query);
+                            if (res != null) publish(res);
+                        }
+                        // If we have results from native, we're done unless there are encrypted files
+                        // Fall through to Java search for encrypted files only
+                    }
+                }
+                
+                // Fall back to Java search for encrypted files or if native unavailable
                 AtomicBoolean skipEncrypted = new AtomicBoolean(false);
+                Set<String> nativeFoundPaths = new HashSet<>();
+                for (int i = 0; i < model.size(); i++) {
+                    nativeFoundPaths.add(model.get(i).file.getAbsolutePath());
+                }
+                
                 for (NotebookInfo nb : notebooks) {
                     if (isCancelled()) break;
                     File[] files = listEntryFiles(nb);
                     if (files == null) continue;
                     for (File f : files) {
                         if (isCancelled()) break;
+                        // Skip files already found by native search
+                        if (nativeFoundPaths.contains(f.getAbsolutePath())) continue;
+                        // Only process encrypted files in Java fallback if native was used
+                        if (!nativeFoundPaths.isEmpty() && !EncryptionManager.isEncrypted(f)) continue;
+                        
                         EntryData data = readEntryData(f, GlobalSearchDialog.this, skipEncrypted);
                         if (data == null) continue;
                         if (!query.matches(data)) continue;
@@ -256,6 +282,57 @@ public class GlobalSearchDialog extends JDialog {
             }
         };
         worker.execute();
+    }
+
+    private List<NativeAccess.BatchSearchResult> runNativeBatchSearch(SearchQuery query, List<NotebookInfo> notebooks) {
+        List<String> dirs = new ArrayList<>();
+        for (NotebookInfo nb : notebooks) {
+            if (nb.getFolder() != null && nb.getFolder().exists()) {
+                dirs.add(nb.getFolder().getAbsolutePath());
+            }
+        }
+        if (dirs.isEmpty()) return null;
+        
+        return NativeAccess.searchBatch(query.q, dirs, ".note,.txt,.ntk,.poem,.rtf", 500);
+    }
+
+    private SearchResult convertNativeResult(NativeAccess.BatchSearchResult nr, List<NotebookInfo> notebooks, SearchQuery query) {
+        if (nr == null || nr.filePath == null) return null;
+        
+        File file = new File(nr.filePath);
+        if (!file.exists()) return null;
+        
+        // Find the matching notebook
+        NotebookInfo matchedNb = null;
+        String filePath = file.getAbsolutePath();
+        for (NotebookInfo nb : notebooks) {
+            if (nb.getFolder() != null && filePath.startsWith(nb.getFolder().getAbsolutePath())) {
+                matchedNb = nb;
+                break;
+            }
+        }
+        if (matchedNb == null) return null;
+        
+        // Convert to EntryData for additional filtering
+        EntryData data = new EntryData();
+        data.title = nr.title;
+        data.text = nr.snippet; // Use snippet for matching; full text not available
+        data.savedAt = nr.savedAt > 0 ? nr.savedAt : file.lastModified();
+        data.mood = nr.mood;
+        data.tags = new HashSet<>(nr.tags);
+        data.queryForSnippet = query.q;
+        
+        // Apply additional filters (date, mood, tags)
+        LocalDate date = Instant.ofEpochMilli(data.savedAt).atZone(ZoneId.systemDefault()).toLocalDate();
+        if (query.from != null && date.isBefore(query.from)) return null;
+        if (query.to != null && date.isAfter(query.to)) return null;
+        if (!query.tags.isEmpty() && !data.tags.containsAll(query.tags)) return null;
+        if (query.moodMin > 0 || query.moodMax < 100) {
+            if (data.mood < 0) return null;
+            if (data.mood < query.moodMin || data.mood > query.moodMax) return null;
+        }
+        
+        return new SearchResult(matchedNb, file, data, nr.snippet);
     }
 
     private void openSelected() {
@@ -421,6 +498,16 @@ public class GlobalSearchDialog extends JDialog {
             this.file = file;
             this.title = data.title == null || data.title.isBlank() ? file.getName() : data.title;
             this.snippet = buildSnippet(data.text, data.queryForSnippet);
+            this.savedAt = data.savedAt;
+            this.mood = data.mood;
+            this.tags = data.tags;
+        }
+
+        SearchResult(NotebookInfo nb, File file, EntryData data, String nativeSnippet) {
+            this.notebook = nb;
+            this.file = file;
+            this.title = data.title == null || data.title.isBlank() ? file.getName() : data.title;
+            this.snippet = nativeSnippet != null && !nativeSnippet.isEmpty() ? nativeSnippet : buildSnippet(data.text, data.queryForSnippet);
             this.savedAt = data.savedAt;
             this.mood = data.mood;
             this.tags = data.tags;

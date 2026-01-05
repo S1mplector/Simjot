@@ -813,6 +813,30 @@ void simjot_search_ac_free(void* ac_handle);
 int32_t simjot_search_fuzzy(const char* text, int64_t text_len, const char* pattern, int32_t pattern_len, int32_t max_distance, int64_t* out_positions, int32_t* out_distances, int32_t max_results);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * BATCH SEARCH - Global entry search optimization
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Batch search across multiple directories for entry files.
+ * @param query Search query string
+ * @param dirs Newline-separated list of directory paths
+ * @param extensions Comma-separated extensions (e.g., ".note,.txt")
+ * @param max_results Maximum number of results
+ * @param output Output buffer for binary results
+ * @param output_len Size of output buffer
+ * @return Number of results found, or -1 on error
+ */
+int32_t simjot_search_batch(const char* query, const char* dirs, const char* extensions,
+                             int32_t max_results, uint8_t* output, int32_t output_len);
+
+/**
+ * Get recommended buffer size for batch search.
+ * @param max_results Maximum number of results
+ * @return Recommended buffer size in bytes
+ */
+int32_t simjot_search_batch_buffer_size(int32_t max_results);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * MEMORY POOL ALLOCATORS
  * ═══════════════════════════════════════════════════════════════════════════ */
 
