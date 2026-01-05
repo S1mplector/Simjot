@@ -61,16 +61,16 @@ public class MainMenuButton extends JButton {
         setBorderPainted(false);
         setContentAreaFilled(false);
         setOpaque(false);
-        setFont(getFont().deriveFont(Font.BOLD, 18f));
+        setFont(getFont().deriveFont(Font.BOLD, 19f));
         setForeground(AeroTheme.TEXT_PRIMARY);
         // Size calculated to fit icon + text without clipping
-        int baseHeight = 68;
+        int baseHeight = 76;
         int textWidth = getFontMetrics(getFont()).stringWidth(text) + 1;
         int minWidth = Math.max(260, 16 * 3 + textWidth + baseHeight); // padding + icon + text
         Dimension pref = new Dimension(minWidth, baseHeight);
         setPreferredSize(pref);
         setMinimumSize(pref);
-        setMaximumSize(new Dimension(minWidth, baseHeight + 6)); // allow slight vertical growth for layout
+        setMaximumSize(new Dimension(minWidth, baseHeight + 8)); // allow slight vertical growth for layout
         // Hover listeners for simple state toggle (no animation)
         addMouseListener(new MouseAdapter(){
             @Override public void mouseEntered(MouseEvent e){ setHoverTarget(true); }
@@ -97,15 +97,15 @@ public class MainMenuButton extends JButton {
         Color baseBottom = new Color(232, 236, 242, 220);
         Color hoverTop = new Color(255, 255, 255, 245);
         Color hoverBottom = new Color(220, 232, 248, 235);
-        Color top = mix(baseTop, hoverTop, t);
-        Color bottom = mix(baseBottom, hoverBottom, t);
+        Color top = mix(baseTop, hoverTop, te);
+        Color bottom = mix(baseBottom, hoverBottom, te);
         if (pressed) {
             top = darken(top, 0.08f);
             bottom = darken(bottom, 0.12f);
         }
 
         if (Theme.isPlainWhite()) {
-            g2.setColor(mix(new Color(245, 246, 250), new Color(232, 238, 246), t));
+            g2.setColor(mix(new Color(245, 246, 250), new Color(232, 238, 246), te));
             g2.fill(new RoundRectangle2D.Float(0, 0, w, h, radius, radius));
         } else {
             if (te > 0.01f) {
@@ -142,8 +142,8 @@ public class MainMenuButton extends JButton {
         g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, radius, radius));
 
         // Draw icon + text
-        int padding = 18;
-        int iconSize = Math.max(28, Math.min(h - padding * 2, 34));
+        int padding = 20;
+        int iconSize = Math.max(30, Math.min(h - padding * 2, 38));
         int iconX = padding;
         int iconY = (h - iconSize) / 2;
 
@@ -202,7 +202,8 @@ public class MainMenuButton extends JButton {
         hoverLastNs = now;
         dt = Math.max(0f, Math.min(0.05f, dt));
 
-        float smoothTime = 0.16f;
+        // Asymmetric timing: faster fade-in, gentler fade-out
+        float smoothTime = hoverTarget ? 0.18f : 0.32f;
         float omega = 2f / smoothTime;
         float x = omega * dt;
         float exp = 1f / (1f + x + 0.48f * x * x + 0.235f * x * x * x);
