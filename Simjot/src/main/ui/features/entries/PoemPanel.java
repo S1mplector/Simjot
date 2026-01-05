@@ -40,7 +40,6 @@ import java.util.Random;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
@@ -48,7 +47,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -80,7 +78,6 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
@@ -1316,8 +1313,12 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (poemTitleUndoManager != null) poemTitleUndoManager.markSavePoint();
             } catch (Throwable ignored) {}
 
-            // Suppress success popups; rely on status indicator only
             updateSaveIndicatorFromCurrentFile();
+            
+            // Toast notification for manual saves only
+            if (!isAutosaving) {
+                main.ui.components.toast.ToastOverlay.success("Poem saved");
+            }
             
             // Don't clear fields - keep content like NewEntryPanel does
             // This allows continuous editing of the same poem
@@ -1325,6 +1326,7 @@ public class PoemPanel extends AbstractEditorPanel {
             ex.printStackTrace();
             new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving poem.", true).showDialog();
             if (saveIndicator != null) saveIndicator.setError("Error saving");
+            main.ui.components.toast.ToastOverlay.error("Failed to save poem");
         }
     }
 

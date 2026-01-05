@@ -1587,14 +1587,18 @@ public class EntryPanel extends AbstractEditorPanel {
                 SettingsStore.get().save();
             } catch (Throwable ignored) {}
 
-            // Suppress success popups; rely on status indicator only
-
             // Update status to Saved · time
             updateSaveIndicatorFromCurrentFile();
+            
+            // Toast notification for manual saves only
+            if (!isAutosaving) {
+                main.ui.components.toast.ToastOverlay.success("Entry saved manually.");
+            }
         } catch (IOException ex) {
             ex.printStackTrace();
             SwingUtilities.invokeLater(() -> new CustomMessageDialog((Frame) SwingUtilities.getWindowAncestor(this), "Error", "Error saving entry.", true).showDialog());
             if (saveIndicator != null) saveIndicator.setError("Error saving");
+            main.ui.components.toast.ToastOverlay.error("Failed to save entry");
         }
     }
 

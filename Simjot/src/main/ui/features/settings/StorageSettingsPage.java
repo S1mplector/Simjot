@@ -254,9 +254,9 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
                     boolean ok = false;
                     try { ok = get(); } catch (Throwable ignored) {}
                     if (ok) {
-                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Backup", "Backup completed.", false); } catch (Throwable ignored) {}
+                        main.ui.components.toast.ToastOverlay.success("Backup completed");
                     } else {
-                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Backup", "Backup failed or was canceled.", true); } catch (Throwable ignored) {}
+                        main.ui.components.toast.ToastOverlay.error("Backup failed");
                     }
                 }
             }.execute();
@@ -587,9 +587,9 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
                         if (isEncryptedFile && rememberPassword && restorePassword != null) {
                             EncryptionManager.cacheSessionPassword(restorePassword);
                         }
-                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Restore", "Restore completed.", false); } catch (Throwable ignored) {}
+                        main.ui.components.toast.ToastOverlay.success("Restore completed");
                     } else {
-                        try { main.ui.dialog.message.CustomMessageDialog.display(StorageSettingsPage.this, "Restore", "Restore failed: " + err.getMessage(), true); } catch (Throwable ignored) {}
+                        main.ui.components.toast.ToastOverlay.error("Restore failed");
                     }
                     if (restorePassword != null) Arrays.fill(restorePassword, '\0');
                 }

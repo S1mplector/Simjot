@@ -852,9 +852,11 @@ public class NotebookManagerPanel extends JPanel {
             if(name!=null && !name.isEmpty()){
                 try {
                     store.create(name, type, "notebook", description, -1); // Use system accent color
+                    main.ui.components.toast.ToastOverlay.success("Notebook created");
                     refresh();
                 } catch (IllegalArgumentException ex) {
                     CustomConfirmDialog.confirm(this, "Could not create notebook", ex.getMessage());
+                    main.ui.components.toast.ToastOverlay.error("Failed to create notebook");
                 }
             }
         }

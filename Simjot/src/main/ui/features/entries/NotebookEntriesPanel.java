@@ -1119,6 +1119,9 @@ public class NotebookEntriesPanel extends JPanel {
         }
         if(!deleted){
             JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'. The file may be in use.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
+            main.ui.components.toast.ToastOverlay.error("Failed to delete entry");
+        } else {
+            main.ui.components.toast.ToastOverlay.success("Entry deleted");
         }
         // Use immediate refresh for instant UI update after deletion
         refreshImmediate();
@@ -1129,6 +1132,7 @@ public class NotebookEntriesPanel extends JPanel {
         if(!ok) return;
         // Access store to delete
         new main.core.service.NotebookStore().delete(nb);
+        main.ui.components.toast.ToastOverlay.success("Notebook deleted");
         // refresh manager panel
         app.refreshNotebookManager();
         app.switchCard(JournalApp.NOTEBOOK_MANAGER);
