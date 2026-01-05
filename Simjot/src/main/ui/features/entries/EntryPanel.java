@@ -1955,7 +1955,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     @Override
     public String fileExtension() {
-        return ".jrnl";
+        return ".note";
     }
 
     @Override
