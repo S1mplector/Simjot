@@ -1842,6 +1842,76 @@ float simjot_tablet_apply_pressure_curve(float pressure, float gamma);
 float simjot_tablet_apply_pressure_bezier(float pressure, float p1, float p2);
 float simjot_tablet_smooth_pressure(float current, float previous, float smoothing);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * NOTETAKING UTILITIES API
+ * 
+ * High-performance utilities for notetaking: stroke smoothing, text formatting,
+ * color manipulation, and math symbol handling.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Stroke smoothing - Catmull-Rom splines */
+int32_t simjot_stroke_smooth_catmull(
+    const float* input_x, const float* input_y, const float* input_pressure,
+    int32_t input_count,
+    float* output_x, float* output_y, float* output_pressure,
+    int32_t output_capacity,
+    int32_t smoothing_factor
+);
+
+/* Stroke smoothing - Bezier curves */
+int32_t simjot_stroke_smooth_bezier(
+    const float* input_x, const float* input_y, const float* input_pressure,
+    int32_t input_count,
+    float* output_x, float* output_y, float* output_pressure,
+    int32_t output_capacity,
+    int32_t smoothing_factor
+);
+
+/* Stroke smoothing - Moving average */
+int32_t simjot_stroke_smooth_average(
+    const float* input_x, const float* input_y, const float* input_pressure,
+    int32_t input_count,
+    float* output_x, float* output_y, float* output_pressure,
+    int32_t window_size
+);
+
+/* Stroke simplification - Douglas-Peucker algorithm */
+int32_t simjot_nt_stroke_simplify(
+    const float* input_x, const float* input_y,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    float epsilon
+);
+
+/* Pressure processing */
+int32_t simjot_pressure_smooth(const float* input, int32_t count, float* output, float alpha);
+float simjot_pressure_to_width(float pressure, float min_width, float max_width, float curve);
+
+/* Color utilities */
+int32_t simjot_color_blend(int32_t color1, int32_t color2, float t);
+int32_t simjot_color_highlight(int32_t base_color, float intensity);
+int32_t simjot_color_brightness(int32_t color, float factor);
+int32_t simjot_hsl_to_rgb(float h, float s, float l, int32_t alpha);
+
+/* Math formatting */
+int32_t simjot_math_format_simple(const char* input, char* output, int32_t output_len);
+int32_t simjot_math_greek_letter(const char* name, char* output, int32_t output_len);
+int32_t simjot_math_operator(const char* name, char* output, int32_t output_len);
+
+/* Stroke geometry (array-based, for notetaking) */
+int32_t simjot_nt_stroke_bounds(
+    const float* x, const float* y, int32_t count,
+    float* out_min_x, float* out_min_y, float* out_max_x, float* out_max_y
+);
+float simjot_nt_stroke_length(const float* x, const float* y, int32_t count);
+int32_t simjot_nt_stroke_outline(
+    const float* x, const float* y, const float* width,
+    int32_t count,
+    float* left_x, float* left_y,
+    float* right_x, float* right_y
+);
+
 #ifdef __cplusplus
 }
 #endif

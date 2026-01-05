@@ -185,6 +185,24 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle mathLerpHandle;
     private final MethodHandle mathClampHandle;
     
+    // Notetaking utilities handles
+    private final MethodHandle strokeSmoothCatmullHandle;
+    private final MethodHandle strokeSmoothBezierHandle;
+    private final MethodHandle strokeSmoothAverageHandle;
+    private final MethodHandle strokeSimplifyHandle;
+    private final MethodHandle pressureSmoothHandle;
+    private final MethodHandle pressureToWidthHandle;
+    private final MethodHandle colorBlendHandle;
+    private final MethodHandle colorHighlightHandle;
+    private final MethodHandle colorBrightnessHandle;
+    private final MethodHandle hslToRgbHandle;
+    private final MethodHandle mathFormatSimpleHandle;
+    private final MethodHandle mathGreekLetterHandle;
+    private final MethodHandle mathOperatorHandle;
+    private final MethodHandle strokeBoundsHandle;
+    private final MethodHandle strokeLengthHandle;
+    private final MethodHandle strokeOutlineHandle;
+    
     // Concurrent/task handles
     private final MethodHandle taskCreateHandle;
     private final MethodHandle taskPendingCountHandle;
@@ -806,6 +824,48 @@ public final class NativeLibrary implements AutoCloseable {
             FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
         this.mathClampHandle = optionalHandle("simjot_math_clamp",
             FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+        
+        // Notetaking utilities handles
+        this.strokeSmoothCatmullHandle = optionalHandle("simjot_stroke_smooth_catmull",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.strokeSmoothBezierHandle = optionalHandle("simjot_stroke_smooth_bezier",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        this.strokeSmoothAverageHandle = optionalHandle("simjot_stroke_smooth_average",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.strokeSimplifyHandle = optionalHandle("simjot_nt_stroke_simplify",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+        this.pressureSmoothHandle = optionalHandle("simjot_pressure_smooth",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT));
+        this.pressureToWidthHandle = optionalHandle("simjot_pressure_to_width",
+            FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+        this.colorBlendHandle = optionalHandle("simjot_color_blend",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+        this.colorHighlightHandle = optionalHandle("simjot_color_highlight",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+        this.colorBrightnessHandle = optionalHandle("simjot_color_brightness",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT));
+        this.hslToRgbHandle = optionalHandle("simjot_hsl_to_rgb",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT));
+        this.mathFormatSimpleHandle = optionalHandle("simjot_math_format_simple",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathGreekLetterHandle = optionalHandle("simjot_math_greek_letter",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.mathOperatorHandle = optionalHandle("simjot_math_operator",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.strokeBoundsHandle = optionalHandle("simjot_nt_stroke_bounds",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.strokeLengthHandle = optionalHandle("simjot_nt_stroke_length",
+            FunctionDescriptor.of(ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        this.strokeOutlineHandle = optionalHandle("simjot_nt_stroke_outline",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         
         // Concurrent/task handles
         this.taskCreateHandle = optionalHandle("simjot_task_create",

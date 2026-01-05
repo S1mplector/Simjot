@@ -870,11 +870,12 @@ public class NotebookManagerPanel extends JPanel {
         private boolean accepted=false;
         private final TitleDividerField nameField = new TitleDividerField(24);
         private NotebookInfo.Type selectedType = NotebookInfo.Type.POETRY;
-        private TypeCard poetryCard, journalCard;
+        private TypeCard poetryCard, journalCard, notetakingCard;
 
         // Type-specific colors
         private static final Color POETRY_COLOR = new Color(147, 112, 219);
         private static final Color JOURNAL_COLOR = new Color(100, 149, 237);
+        private static final Color NOTETAKING_COLOR = new Color(60, 179, 113);
 
         CreateNotebookDialog(Frame parent){
             super(parent, "Create Notebook", true);
@@ -969,12 +970,21 @@ public class NotebookManagerPanel extends JPanel {
                 JOURNAL_COLOR,
                 NotebookInfo.Type.JOURNAL
             );
+            notetakingCard = new TypeCard(
+                "Notetaking",
+                "For notes, sketches, and handwriting",
+                NOTETAKING_COLOR,
+                NotebookInfo.Type.NOTETAKING
+            );
 
             gc.gridx = 0;
             typeCards.add(poetryCard, gc);
             gc.gridx = 1;
-            gc.insets = new Insets(0, 8, 0, 0);
+            gc.insets = new Insets(0, 6, 0, 6);
             typeCards.add(journalCard, gc);
+            gc.gridx = 2;
+            gc.insets = new Insets(0, 0, 0, 0);
+            typeCards.add(notetakingCard, gc);
 
             typeCards.setAlignmentX(Component.LEFT_ALIGNMENT);
             typeCards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
@@ -1062,6 +1072,7 @@ public class NotebookManagerPanel extends JPanel {
             selectedType = type;
             poetryCard.setSelected(type == NotebookInfo.Type.POETRY);
             journalCard.setSelected(type == NotebookInfo.Type.JOURNAL);
+            notetakingCard.setSelected(type == NotebookInfo.Type.NOTETAKING);
         }
 
         boolean isAccepted(){ return accepted; }

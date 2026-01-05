@@ -8,22 +8,66 @@
 
 package main.ui.features.entries;
 
-import main.ui.app.JournalApp;
-import main.ui.components.editor.ImagePasteManager;
-import main.ui.components.editor.RichTextStyler;
-import main.ui.dialog.file.SimjotFileChooser;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.Path2D;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
-import javax.swing.*;
+import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JColorChooser;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JRadioButtonMenuItem;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JViewport;
+import javax.swing.JWindow;
+import javax.swing.KeyStroke;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.geom.Path2D;
-import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
+
+import main.ui.app.JournalApp;
+import main.ui.components.editor.ImagePasteManager;
+import main.ui.components.editor.RichTextStyler;
+import main.ui.dialog.file.SimjotFileChooser;
 
 /**
  * Notetaking editor: extends the standard EntryPanel with
@@ -92,53 +136,38 @@ public class NotetakingPanel extends EntryPanel {
     // Install Draw toggle + tool chooser into the right toolbar
     @Override
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) {
-        // Layer visibility toggle (brush icon) — does NOT capture input
-        main.ui.components.buttons.ToolbarIconButton layerBtn = new main.ui.components.buttons.ToolbarIconButton("brush");
-        layerBtn.setToolTipText("Show/Hide drawing overlay (right-click: choose tool)");
-        layerBtn.addActionListener(e -> {
-            overlayVisible = !overlayVisible;
-            if (drawingOverlay != null) drawingOverlay.setOverlayVisible(overlayVisible);
-            layerBtn.setIconOpacity(overlayVisible ? 1f : 0.45f);
-        });
-        // Bind tool chooser to the brush (paint mode) button
-        layerBtn.addMouseListener(new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) {
-                if (e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3) {
-                    ButtonModel m = layerBtn.getModel();
-                    m.setArmed(false); m.setPressed(false);
-                    maybeShowDrawMenu(e, layerBtn);
-                }
-            }
-            @Override public void mouseReleased(MouseEvent e) {
-                if (e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3) {
-                    ButtonModel m = layerBtn.getModel();
-                    m.setArmed(false); m.setPressed(false);
-                    maybeShowDrawMenu(e, layerBtn);
-                }
-            }
-        });
-        rightToolbar.add(layerBtn);
-        layerBtn.setIconOpacity(overlayVisible ? 1f : 0.45f);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-
-        // Text mode selector (mutually exclusive with Paint mode)
-        textModeBtn = new main.ui.components.buttons.ToolbarIconButton("notebook");
-        textModeBtn.setToolTipText("Text mode (click to type)");
-        try { textModeBtn.setRolloverEnabled(false); } catch (Throwable ignored) {}
+        // Text mode selector
+        textModeBtn = new main.ui.components.buttons.ToolbarIconButton("select_text");
+        textModeBtn.setToolTipText("Text mode");
         textModeBtn.addActionListener(e -> selectTextMode());
         rightToolbar.add(textModeBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(Box.createHorizontalStrut(4));
 
-        // Paint mode selector (mutually exclusive with Text mode)
-        paintModeBtn = new main.ui.components.buttons.ToolbarIconButton("write");
-        paintModeBtn.setToolTipText("Paint mode (click to draw)");
-        try { paintModeBtn.setRolloverEnabled(false); } catch (Throwable ignored) {}
-        paintModeBtn.addActionListener(e -> selectPaintMode());
+        // Paint mode selector (Pen)
+        paintModeBtn = new main.ui.components.buttons.ToolbarIconButton("pen_tool");
+        paintModeBtn.setToolTipText("Pen tool");
+        paintModeBtn.addActionListener(e -> { currentDrawTool = DrawTool.PEN; selectPaintMode(); updatePickersForCurrentTool(); });
         rightToolbar.add(paintModeBtn);
+        rightToolbar.add(Box.createHorizontalStrut(4));
+
+        // Highlighter tool
+        main.ui.components.buttons.ToolbarIconButton highlighterBtn = new main.ui.components.buttons.ToolbarIconButton("highlighter_tool");
+        highlighterBtn.setToolTipText("Highlighter");
+        highlighterBtn.addActionListener(e -> { currentDrawTool = DrawTool.HIGHLIGHT; selectPaintMode(); updatePickersForCurrentTool(); });
+        rightToolbar.add(highlighterBtn);
+        rightToolbar.add(Box.createHorizontalStrut(4));
+
+        // Eraser tool
+        main.ui.components.buttons.ToolbarIconButton eraserBtn = new main.ui.components.buttons.ToolbarIconButton("eraser_tool");
+        eraserBtn.setToolTipText("Eraser");
+        eraserBtn.addActionListener(e -> { currentDrawTool = DrawTool.ERASER; selectPaintMode(); updatePickersForCurrentTool(); });
+        rightToolbar.add(eraserBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
+        // Stroke width spinner
         strokeSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 64, 1));
         try { strokeSpinner.setUI(new main.ui.components.spinner.ModernSpinnerUI()); } catch (Throwable ignored) {}
+        strokeSpinner.setPreferredSize(new Dimension(52, 24));
         strokeSpinner.addChangeListener(e -> {
             int v = (int) strokeSpinner.getValue();
             if (currentDrawTool == DrawTool.PEN) penThickness = v;
@@ -149,24 +178,17 @@ public class NotetakingPanel extends EntryPanel {
         rightToolbar.add(strokeSpinner);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
+        // Color button
         colorBtn = new JButton();
         colorBtn.setPreferredSize(new Dimension(24, 24));
         colorBtn.setFocusPainted(false);
         colorBtn.setOpaque(true);
         colorBtn.setContentAreaFilled(true);
-        colorBtn.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,60)));
-        colorBtn.addActionListener(e -> {
-            ensureColorWindow();
-            JPanel content = buildColorPopupContent();
-            colorWindow.setContentPane(content);
-            colorWindow.pack();
-            showColorWindowNear(colorBtn);
-        });
+        colorBtn.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,80), 1));
+        colorBtn.addActionListener(e -> showSimpleColorPicker());
         rightToolbar.add(colorBtn);
-        // NOTE: Math and Export toolbar buttons are temporarily disabled while we test these features.
 
         updatePickersForCurrentTool();
-        // Initialize in Text mode by default (capture off, overlay visibility governed by brush button)
         setEditingMode(EditingMode.TEXT);
     }
 
@@ -199,65 +221,24 @@ public class NotetakingPanel extends EntryPanel {
 
     private enum EditingMode { TEXT, PAINT }
 
-    private void ensureColorWindow() {
-        if (colorWindow != null) return;
-        Window owner = SwingUtilities.getWindowAncestor(this);
-        colorWindow = new JWindow(owner);
-        colorWindow.setAlwaysOnTop(true);
-        colorWindow.setBackground(Color.WHITE);
-        colorWindow.setFocusableWindowState(true);
-        // Dismiss on outside click or ESC
-        Toolkit.getDefaultToolkit().addAWTEventListener(ev -> {
-            if (!(ev instanceof MouseEvent me) || me.getID() != MouseEvent.MOUSE_PRESSED) return;
-            if (!colorWindow.isVisible()) return;
-            Component src = me.getComponent();
-            if (src == null) { colorWindow.setVisible(false); return; }
-            SwingUtilities.invokeLater(() -> {
-                if (colorWindow.isVisible() && !SwingUtilities.isDescendingFrom(src, colorWindow)) {
-                    colorWindow.setVisible(false);
-                }
-            });
-        }, AWTEvent.MOUSE_EVENT_MASK);
-        colorWindow.getRootPane().registerKeyboardAction(e -> colorWindow.setVisible(false),
-                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
-    }
-
-    private void showColorWindowNear(JComponent invoker){
-        if (colorWindow == null) return;
-        // Compute desired position (below invoker), then clamp to usable screen
-        Point p = invoker.getLocationOnScreen();
-        Dimension pref = colorWindow.getPreferredSize();
-        Rectangle screen = getUsableScreenBounds(invoker);
-        int x = p.x;
-        int y = p.y + invoker.getHeight() + 6; // prefer below
-        // If bottom overflows, try above
-        if (y + pref.height > screen.y + screen.height) {
-            int above = p.y - pref.height - 6;
-            y = Math.max(screen.y, above);
+    private void showSimpleColorPicker() {
+        if (currentDrawTool == DrawTool.ERASER) return;
+        
+        Color currentColor = (currentDrawTool == DrawTool.HIGHLIGHT) ? highlightColor : penColor;
+        Color picked = JColorChooser.showDialog(this, "Pick Color", 
+            new Color(currentColor.getRed(), currentColor.getGreen(), currentColor.getBlue()));
+        
+        if (picked != null) {
+            if (currentDrawTool == DrawTool.HIGHLIGHT) {
+                highlightColor = new Color(picked.getRed(), picked.getGreen(), picked.getBlue(), highlightColor.getAlpha());
+            } else {
+                penColor = new Color(picked.getRed(), picked.getGreen(), picked.getBlue(), 255);
+            }
+            updatePickersForCurrentTool();
         }
-        // Clamp horizontally
-        if (x + pref.width > screen.x + screen.width) x = (screen.x + screen.width) - pref.width;
-        if (x < screen.x) x = screen.x;
-        // Final safety clamp for vertical
-        if (y + pref.height > screen.y + screen.height) y = (screen.y + screen.height) - pref.height;
-        if (y < screen.y) y = screen.y;
-        colorWindow.setLocation(x, y);
-        colorWindow.setVisible(true);
-    }
-
-    private static Rectangle getUsableScreenBounds(Component c){
-        GraphicsConfiguration gc = c.getGraphicsConfiguration();
-        if (gc == null) gc = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-        Rectangle b = gc.getBounds();
-        Insets in = Toolkit.getDefaultToolkit().getScreenInsets(gc);
-        return new Rectangle(b.x + in.left,
-                             b.y + in.top,
-                             b.width - in.left - in.right,
-                             b.height - in.top - in.bottom);
     }
 
     private JPanel buildColorPopupContent() {
-        // Determine starting color (ignore alpha for preview)
         Color base = (currentDrawTool == DrawTool.PEN ? penColor : highlightColor);
         Color baseOpaque = new Color(base.getRed(), base.getGreen(), base.getBlue());
 
@@ -268,7 +249,6 @@ public class NotetakingPanel extends EntryPanel {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setPreferredSize(new Dimension(240, currentDrawTool==DrawTool.HIGHLIGHT ? 180 : 150));
 
-        // Row: header + preview
         JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0)); header.setOpaque(false);
         JLabel modeLbl = new JLabel(currentDrawTool == DrawTool.PEN ? "Pen" : "Highlighter");
         JPanel preview = new JPanel();
@@ -280,7 +260,6 @@ public class NotetakingPanel extends EntryPanel {
         panel.add(header);
         panel.add(Box.createVerticalStrut(6));
 
-        // Row: Recent
         JPanel recentRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); recentRow.setOpaque(false);
         recentRow.add(new JLabel("Recent:"));
         JPanel recentBox = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0)); recentBox.setOpaque(false);
@@ -289,7 +268,6 @@ public class NotetakingPanel extends EntryPanel {
         panel.add(recentRow);
         panel.add(Box.createVerticalStrut(6));
 
-        // Palette grid (2x8), no labels
         JPanel paletteRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); paletteRow.setOpaque(false);
         JPanel grid = new JPanel(new GridLayout(2, 8, 6, 6)); grid.setOpaque(false);
         Color[] palette = new Color[]{
