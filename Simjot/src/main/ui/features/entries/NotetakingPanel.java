@@ -79,6 +79,8 @@ public class NotetakingPanel extends EntryPanel {
     private boolean overlayVisible = true;  // paint overlay visibility
     private DrawTool currentDrawTool = DrawTool.PEN;
     private final List<DrawStroke> drawStrokes = new ArrayList<>(); // persisted per-note
+    private final List<UndoAction> undoStack = new ArrayList<>(); // for undo/redo
+    private final List<UndoAction> redoStack = new ArrayList<>();
     private JWindow colorWindow;
     private JPopupMenu drawToolMenu;
     private Color penColor = new Color(20,20,20,255);
@@ -686,6 +688,43 @@ public class NotetakingPanel extends EntryPanel {
         DrawStroke(DrawTool tool, Color color, int thickness) { this(tool,color,thickness,new ArrayList<>()); }
         DrawStroke(DrawTool tool, Color color, int thickness, List<Point> pts) { this.tool=tool; this.color=color; this.thickness=thickness; this.points=pts; }
     }
+    
+    // Undo action wrapper for stroke operations
+    private sealed interface UndoAction permits AddStrokeAction, EraseStrokesAction {}
+    private record AddStrokeAction(DrawStroke stroke) implements UndoAction {}
+    private record EraseStrokesAction(List<DrawStroke> erased) implements UndoAction {}
+    
+    private void performUndo() {
+        if (undoStack.isEmpty()) return;
+        UndoAction action = undoStack.remove(undoStack.size() - 1);
+        switch (action) {
+            case AddStrokeAction a -> {
+                drawStrokes.remove(a.stroke());
+                redoStack.add(action);
+            }
+            case EraseStrokesAction a -> {
+                drawStrokes.addAll(a.erased());
+                redoStack.add(action);
+            }
+        }
+        if (drawingOverlay != null) drawingOverlay.repaint();
+    }
+    
+    private void performRedo() {
+        if (redoStack.isEmpty()) return;
+        UndoAction action = redoStack.remove(redoStack.size() - 1);
+        switch (action) {
+            case AddStrokeAction a -> {
+                drawStrokes.add(a.stroke());
+                undoStack.add(action);
+            }
+            case EraseStrokesAction a -> {
+                drawStrokes.removeAll(a.erased());
+                undoStack.add(action);
+            }
+        }
+        if (drawingOverlay != null) drawingOverlay.repaint();
+    }
 
     private class DrawingOverlay extends JComponent {
         private final JScrollPane host;
@@ -703,9 +742,11 @@ public class NotetakingPanel extends EntryPanel {
                     if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
+                    redoStack.clear(); // New stroke clears redo history
                     current = makeStroke();
                     current.points.add(p);
                     drawStrokes.add(current);
+                    undoStack.add(new AddStrokeAction(current));
                     repaint();
                 }
                 @Override public void mouseDragged(MouseEvent e) {
@@ -721,6 +762,13 @@ public class NotetakingPanel extends EntryPanel {
             addMouseListener(ma);
             addMouseMotionListener(ma);
             vp.addChangeListener(e -> repaint());
+            
+            // Keyboard shortcuts for undo/redo
+            int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+            getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta), "undoStroke");
+            getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoStroke");
+            getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) performUndo(); }});
+            getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) performRedo(); }});
             // Keep size in sync with content view
             view.addComponentListener(new ComponentAdapter(){
                 @Override public void componentResized(ComponentEvent e) { revalidate(); repaint(); }
@@ -750,16 +798,24 @@ public class NotetakingPanel extends EntryPanel {
         private void eraseAt(Point p) {
             int r = eraserRadius;
             int r2 = r * r;
-            boolean removed = false;
+            List<DrawStroke> erased = new ArrayList<>();
             java.util.Iterator<DrawStroke> it = drawStrokes.iterator();
             while (it.hasNext()) {
                 DrawStroke s = it.next();
                 List<Point> pts = s.points;
                 for (int i = 1; i < pts.size(); i++) {
-                    if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) { it.remove(); removed = true; break; }
+                    if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) { 
+                        it.remove(); 
+                        erased.add(s); 
+                        break; 
+                    }
                 }
             }
-            if (removed) repaint();
+            if (!erased.isEmpty()) {
+                redoStack.clear();
+                undoStack.add(new EraseStrokesAction(erased));
+                repaint();
+            }
         }
         private int distPointToSegmentSq(Point p, Point a, Point b) {
             int vx = b.x - a.x, vy = b.y - a.y;

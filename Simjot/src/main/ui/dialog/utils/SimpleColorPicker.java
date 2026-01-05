@@ -92,14 +92,14 @@ public class SimpleColorPicker extends JDialog {
     }
     
     private void initUI() {
-        FrostedGlassPanel content = new FrostedGlassPanel(new BorderLayout(12, 12), 18);
-        content.setBorder(new EmptyBorder(20, 20, 16, 20));
+        FrostedGlassPanel content = new FrostedGlassPanel(new BorderLayout(16, 16), 18);
+        content.setBorder(new EmptyBorder(24, 24, 24, 24));
         
         // Title
         JLabel titleLabel = new JLabel("Pick Color");
         titleLabel.setFont(titleLabel.getFont().deriveFont(java.awt.Font.BOLD, 16f));
         titleLabel.setForeground(new Color(50, 55, 65));
-        titleLabel.setBorder(new EmptyBorder(0, 0, 12, 0));
+        titleLabel.setBorder(new EmptyBorder(0, 0, 8, 0));
         content.add(titleLabel, BorderLayout.NORTH);
         
         // Main palette area
@@ -185,15 +185,15 @@ public class SimpleColorPicker extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttonPanel.setOpaque(false);
         
-        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "close");
-        cancelBtn.setPreferredSize(new Dimension(100, 36));
+        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
+        cancelBtn.setPreferredSize(new Dimension(110, 40));
         cancelBtn.addActionListener(e -> {
             confirmed = false;
             dispose();
         });
         
-        IconMenuButton okBtn = new IconMenuButton("OK", "check");
-        okBtn.setPreferredSize(new Dimension(80, 36));
+        IconMenuButton okBtn = new IconMenuButton("OK", "save");
+        okBtn.setPreferredSize(new Dimension(90, 40));
         okBtn.addActionListener(e -> {
             confirmed = true;
             addToRecent(selectedColor);
@@ -205,11 +205,11 @@ public class SimpleColorPicker extends JDialog {
         
         JPanel bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.setOpaque(false);
-        bottomPanel.setBorder(new EmptyBorder(16, 0, 0, 0));
+        bottomPanel.setBorder(new EmptyBorder(20, 0, 0, 0));
         bottomPanel.add(buttonPanel, BorderLayout.EAST);
         
         // Combine grayscale and buttons in south area
-        JPanel southArea = new JPanel(new BorderLayout(0, 8));
+        JPanel southArea = new JPanel(new BorderLayout(0, 12));
         southArea.setOpaque(false);
         southArea.add(grayscaleRow, BorderLayout.NORTH);
         southArea.add(bottomPanel, BorderLayout.SOUTH);
