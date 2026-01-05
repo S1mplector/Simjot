@@ -37,7 +37,7 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
-import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
 
 /**
@@ -185,15 +185,15 @@ public class SimpleColorPicker extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttonPanel.setOpaque(false);
         
-        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
-        cancelBtn.setPreferredSize(new Dimension(110, 40));
+        RoundedButton cancelBtn = new RoundedButton("Cancel");
+        cancelBtn.setPreferredSize(new Dimension(90, 34));
         cancelBtn.addActionListener(e -> {
             confirmed = false;
             dispose();
         });
         
-        IconMenuButton okBtn = new IconMenuButton("OK", "save");
-        okBtn.setPreferredSize(new Dimension(90, 40));
+        RoundedButton okBtn = new RoundedButton("OK");
+        okBtn.setPreferredSize(new Dimension(70, 34));
         okBtn.addActionListener(e -> {
             confirmed = true;
             addToRecent(selectedColor);
