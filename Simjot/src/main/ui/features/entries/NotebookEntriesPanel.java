@@ -337,6 +337,7 @@ public class NotebookEntriesPanel extends JPanel {
             
             title.setFont(new Font("Snell Roundhand", Font.BOLD, 18));
             title.setForeground(new Color(0x2B, 0x2B, 0x2B));
+            title.setHorizontalAlignment(JLabel.LEFT);
             
             // Wrap title in left-aligned flow panel to prevent BoxLayout stretch
             JPanel titleWrapper = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
@@ -1772,7 +1773,17 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private static long entrySortTimestamp(File file) {
-        return file != null ? file.lastModified() : System.currentTimeMillis();
+        if (file == null) return System.currentTimeMillis();
+        // Use creation date from filename (yyyyMMdd_HHmmss) so entries stay at their original date
+        try {
+            String nm = file.getName();
+            String base = nm.contains(".") ? nm.substring(0, nm.lastIndexOf('.')) : nm;
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            return fmt.parse(base).getTime();
+        } catch (Exception ignored) {
+            // Fallback to last modified if filename doesn't match expected format
+            return file.lastModified();
+        }
     }
 
     private static Date resolveCreatedDate(File file) {

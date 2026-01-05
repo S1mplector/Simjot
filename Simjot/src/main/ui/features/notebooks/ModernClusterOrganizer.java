@@ -11,7 +11,6 @@ package main.ui.features.notebooks;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -61,9 +60,9 @@ import javax.swing.border.EmptyBorder;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
+import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.RoundedPanel;
-import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroPainters;
@@ -103,7 +102,29 @@ public class ModernClusterOrganizer extends JDialog {
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
         
-        FrostedGlassPanel main = new FrostedGlassPanel(new BorderLayout(0, 0), 20);
+        // Flat frosted glass panel (no gradient)
+        JPanel main = new JPanel(new BorderLayout(0, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight();
+                int arc = 20;
+                RoundRectangle2D shape = new RoundRectangle2D.Float(0, 0, w, h, arc, arc);
+                // Flat semi-transparent fill
+                g2.setColor(new Color(245, 245, 245, 230));
+                g2.fill(shape);
+                // Inner highlight
+                g2.setColor(new Color(255, 255, 255, 90));
+                g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, arc - 2, arc - 2));
+                // Outer border
+                g2.setColor(new Color(0, 0, 0, 35));
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, arc, arc));
+                g2.dispose();
+            }
+        };
+        main.setOpaque(false);
         main.setBorder(new EmptyBorder(0, 0, 0, 0));
         
         // ═══════════════════════════════════════════════════════════════════
@@ -208,12 +229,7 @@ public class ModernClusterOrganizer extends JDialog {
         titlePanel.add(Box.createVerticalStrut(4));
         titlePanel.add(subtitle);
         
-        // Close button
-        JButton closeBtn = createIconButton("✕", "Close");
-        closeBtn.addActionListener(e -> dispose());
-        
         header.add(titlePanel, BorderLayout.CENTER);
-        header.add(closeBtn, BorderLayout.EAST);
         
         return header;
     }
@@ -227,24 +243,13 @@ public class ModernClusterOrganizer extends JDialog {
         hint.setFont(AeroTheme.defaultFont().deriveFont(11f));
         hint.setForeground(TEXT_MUTED);
         
-        RoundedButton doneBtn = new RoundedButton("Done");
-        doneBtn.setPreferredSize(new Dimension(100, 38));
+        IconMenuButton doneBtn = new IconMenuButton("Done", "saveandexit");
         doneBtn.addActionListener(e -> dispose());
         
         footer.add(hint, BorderLayout.WEST);
         footer.add(doneBtn, BorderLayout.EAST);
         
         return footer;
-    }
-    
-    private JButton createIconButton(String icon, String tooltip) {
-        RoundedButton btn = new RoundedButton(icon);
-        btn.setFont(AeroTheme.defaultBoldFont(14f));
-        btn.setForeground(TEXT_SECONDARY);
-        btn.setPreferredSize(new Dimension(34, 34));
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setToolTipText(tooltip);
-        return btn;
     }
     
     private void debouncedRefresh() {

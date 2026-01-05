@@ -8,9 +8,18 @@
 
 package main.ui.components.scrollbar;
 
-import java.awt.*;
+import java.awt.Adjustable;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
-import javax.swing.*;
+
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.SwingConstants;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 
 /**
@@ -23,7 +32,7 @@ import javax.swing.plaf.basic.BasicScrollBarUI;
 
 public class ModernScrollBarUI extends BasicScrollBarUI {
     private static final int ARC = 10;
-    private static final int THICKNESS = 14;
+    private static final int THICKNESS = 18;
 
     @Override
     protected void configureScrollBarColors() {
@@ -56,10 +65,9 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
         if (thumbBounds == null || thumbBounds.isEmpty()) return;
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        boolean vertical = scrollbar == null || scrollbar.getOrientation() == Adjustable.VERTICAL;
         float enabledScale = scrollbar != null && scrollbar.isEnabled() ? 1f : 0.6f;
 
-        int pad = 1;
+        int pad = 2;
         int x = thumbBounds.x + pad;
         int y = thumbBounds.y + pad;
         int w = Math.max(1, thumbBounds.width - pad * 2);
@@ -68,34 +76,17 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
 
         RoundRectangle2D shape = new RoundRectangle2D.Float(x, y, w, h, arc, arc);
 
-        Color top = scaleAlpha(new Color(246, 246, 248, 220), enabledScale);
-        Color bottom = scaleAlpha(new Color(204, 210, 218, 210), enabledScale);
-        GradientPaint base = vertical
-            ? new GradientPaint(0, y, top, 0, y + h, bottom)
-            : new GradientPaint(x, 0, top, x + w, 0, bottom);
-        g2.setPaint(base);
+        // Flat frosted glass fill - no gradient
+        g2.setColor(scaleAlpha(new Color(245, 245, 245, 200), enabledScale));
         g2.fill(shape);
 
-        GradientPaint sheen = vertical
-            ? new GradientPaint(0, y, scaleAlpha(new Color(255, 255, 255, 160), enabledScale),
-                                0, y + h * 0.55f, scaleAlpha(new Color(255, 255, 255, 40), enabledScale))
-            : new GradientPaint(x, 0, scaleAlpha(new Color(255, 255, 255, 160), enabledScale),
-                                x + w * 0.55f, 0, scaleAlpha(new Color(255, 255, 255, 40), enabledScale));
-        g2.setPaint(sheen);
-        g2.fill(shape);
-
-        GradientPaint shadow = vertical
-            ? new GradientPaint(0, y + h * 0.45f, scaleAlpha(new Color(0, 0, 0, 10), enabledScale),
-                                0, y + h, scaleAlpha(new Color(0, 0, 0, 32), enabledScale))
-            : new GradientPaint(x + w * 0.45f, 0, scaleAlpha(new Color(0, 0, 0, 10), enabledScale),
-                                x + w, 0, scaleAlpha(new Color(0, 0, 0, 32), enabledScale));
-        g2.setPaint(shadow);
-        g2.fill(shape);
-
+        // Inner white highlight stroke
         int innerArc = Math.max(arc - 2, 2);
-        g2.setColor(scaleAlpha(new Color(255, 255, 255, 120), enabledScale));
-        g2.draw(new RoundRectangle2D.Float(x + 1f, y + 1f, w - 2f, h - 2f, innerArc, innerArc));
-        g2.setColor(scaleAlpha(new Color(150, 156, 164, 170), enabledScale));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), enabledScale));
+        g2.draw(new RoundRectangle2D.Float(x + 1.5f, y + 1.5f, w - 3f, h - 3f, innerArc, innerArc));
+
+        // Outer dark outline stroke
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, 35), enabledScale));
         g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, arc, arc));
         g2.dispose();
     }
@@ -104,7 +95,6 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
         if (trackBounds == null || trackBounds.isEmpty()) return;
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        boolean vertical = scrollbar == null || scrollbar.getOrientation() == Adjustable.VERTICAL;
         float enabledScale = scrollbar != null && scrollbar.isEnabled() ? 1f : 0.7f;
 
         int pad = 2;
@@ -116,25 +106,16 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
 
         RoundRectangle2D shape = new RoundRectangle2D.Float(x, y, w, h, arc, arc);
 
-        Color top = scaleAlpha(new Color(250, 250, 250, 160), enabledScale);
-        Color bottom = scaleAlpha(new Color(228, 231, 235, 140), enabledScale);
-        GradientPaint base = vertical
-            ? new GradientPaint(0, y, top, 0, y + h, bottom)
-            : new GradientPaint(x, 0, top, x + w, 0, bottom);
-        g2.setPaint(base);
+        // Flat frosted glass fill - no gradient
+        g2.setColor(scaleAlpha(new Color(250, 250, 250, 140), enabledScale));
         g2.fill(shape);
 
-        GradientPaint sheen = vertical
-            ? new GradientPaint(0, y, scaleAlpha(new Color(255, 255, 255, 110), enabledScale),
-                                0, y + h * 0.55f, scaleAlpha(new Color(255, 255, 255, 35), enabledScale))
-            : new GradientPaint(x, 0, scaleAlpha(new Color(255, 255, 255, 110), enabledScale),
-                                x + w * 0.55f, 0, scaleAlpha(new Color(255, 255, 255, 35), enabledScale));
-        g2.setPaint(sheen);
-        g2.fill(shape);
-
+        // Inner white highlight stroke
         int innerArc = Math.max(arc - 2, 2);
         g2.setColor(scaleAlpha(new Color(255, 255, 255, 85), enabledScale));
-        g2.draw(new RoundRectangle2D.Float(x + 1f, y + 1f, w - 2f, h - 2f, innerArc, innerArc));
+        g2.draw(new RoundRectangle2D.Float(x + 1.5f, y + 1.5f, w - 3f, h - 3f, innerArc, innerArc));
+
+        // Outer dark outline stroke
         g2.setColor(scaleAlpha(new Color(0, 0, 0, 22), enabledScale));
         g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, arc, arc));
         g2.dispose();
@@ -166,15 +147,12 @@ public class ModernScrollBarUI extends BasicScrollBarUI {
             RoundRectangle2D shape = new RoundRectangle2D.Float(1, 1, w - 2, h - 2, arc, arc);
             int innerArc = Math.max(arc - 2, 2);
 
-            GradientPaint base = new GradientPaint(
-                0, 0, scaleAlpha(new Color(255, 255, 255, 160), enabledScale),
-                0, h, scaleAlpha(new Color(230, 233, 236, 120), enabledScale)
-            );
-            g2.setPaint(base);
+            // Flat frosted glass fill
+            g2.setColor(scaleAlpha(new Color(245, 245, 245, 180), enabledScale));
             g2.fill(shape);
-            g2.setColor(scaleAlpha(new Color(255, 255, 255, 100), enabledScale));
+            g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), enabledScale));
             g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, innerArc, innerArc));
-            g2.setColor(scaleAlpha(new Color(0, 0, 0, 30), enabledScale));
+            g2.setColor(scaleAlpha(new Color(0, 0, 0, 35), enabledScale));
             g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, arc, arc));
 
             g2.setColor(scaleAlpha(new Color(110, 114, 120, 200), enabledScale));
