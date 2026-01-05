@@ -8,6 +8,7 @@
 
 package main.ui.components.slider;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GradientPaint;
@@ -15,9 +16,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LinearGradientPaint;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 import javax.swing.JComponent;
 import javax.swing.JSlider;
+import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicSliderUI;
 
 /**
@@ -26,6 +30,13 @@ import javax.swing.plaf.basic.BasicSliderUI;
  * circular knob.
  */
 public class MoodSlider extends JSlider {
+    private float gradientAlpha = 1f;
+    private boolean hovered = false;
+    private boolean hoverFadeEnabled = false;
+    private Timer fadeTimer;
+    private static final float FADE_STEP = 0.08f;
+    private static final int FADE_DELAY = 16; // ~60fps
+
     public MoodSlider() {
         super(0, 100, 50);
         setOpaque(false);
@@ -35,6 +46,57 @@ public class MoodSlider extends JSlider {
         setDoubleBuffered(true);
         // Install custom UI
         setUI(new MoodSliderUI(this));
+    }
+
+    /**
+     * Enable or disable the hover fade animation for the gradient.
+     * When enabled, the gradient is hidden by default and fades in on hover.
+     */
+    public void setHoverFadeEnabled(boolean enabled) {
+        if (this.hoverFadeEnabled == enabled) return;
+        this.hoverFadeEnabled = enabled;
+        if (enabled) {
+            gradientAlpha = 0f;
+            setupHoverAnimation();
+        } else {
+            gradientAlpha = 1f;
+            if (fadeTimer != null) fadeTimer.stop();
+        }
+        repaint();
+    }
+
+    private void setupHoverAnimation() {
+        if (fadeTimer != null) return; // already set up
+        fadeTimer = new Timer(FADE_DELAY, e -> {
+            if (hovered && gradientAlpha < 1f) {
+                gradientAlpha = Math.min(1f, gradientAlpha + FADE_STEP);
+                repaint();
+            } else if (!hovered && gradientAlpha > 0f) {
+                gradientAlpha = Math.max(0f, gradientAlpha - FADE_STEP);
+                repaint();
+            } else {
+                fadeTimer.stop();
+            }
+        });
+
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (!hoverFadeEnabled) return;
+                hovered = true;
+                if (!fadeTimer.isRunning()) fadeTimer.start();
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (!hoverFadeEnabled) return;
+                hovered = false;
+                if (!fadeTimer.isRunning()) fadeTimer.start();
+            }
+        });
+    }
+
+    float getGradientAlpha() {
+        return gradientAlpha;
     }
 
     /**
@@ -86,17 +148,22 @@ public class MoodSlider extends JSlider {
             g2.setColor(new Color(0, 0, 0, 35));
             g2.drawRoundRect(trackLeft, plateTop, trackWidth, plateH, plateH, plateH);
 
-            // Build gradient: blue (0) → grey (50) → orange (100)
-            LinearGradientPaint paint = new LinearGradientPaint(
-                    trackLeft, 0, trackLeft + trackWidth, 0,
-                    new float[] { 0f, 0.5f, 1f },
-                    new Color[] {
-                            new Color(0, 122, 204),       // cool blue
-                            new Color(200, 200, 200),      // neutral grey
-                            new Color(255, 120, 50)        // warm orange
-                    });
-            g2.setPaint(paint);
-            g2.fillRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
+            // Build gradient: blue (0) → grey (50) → orange (100) with fade animation
+            float alpha = ((MoodSlider) slider).getGradientAlpha();
+            if (alpha > 0f) {
+                LinearGradientPaint paint = new LinearGradientPaint(
+                        trackLeft, 0, trackLeft + trackWidth, 0,
+                        new float[] { 0f, 0.5f, 1f },
+                        new Color[] {
+                                new Color(0, 122, 204),       // cool blue
+                                new Color(200, 200, 200),      // neutral grey
+                                new Color(255, 120, 50)        // warm orange
+                        });
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                g2.setPaint(paint);
+                g2.fillRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
+                g2.setComposite(AlphaComposite.SrcOver); // reset
+            }
             g2.setColor(new Color(255, 255, 255, 120));
             g2.drawRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
             g2.dispose();

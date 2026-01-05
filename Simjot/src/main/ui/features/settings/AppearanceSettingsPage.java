@@ -124,7 +124,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         disableMainMenuAnimationsChk.setUI(new ModernCheckBoxUI());
         disableMainMenuAnimationsChk.setBackground(new Color(0, 0, 0, 0));
 
-        backgroundOptionsBtn = new IconMenuButton("Set BG", "backgroundoptions");
+        backgroundOptionsBtn = new IconMenuButton("", "backgroundoptions");
         backgroundOptionsBtn.setToolTipText("Background Options");
         backgroundOptionsBtn.addActionListener(e -> openBackgroundOptions());
 

@@ -565,6 +565,7 @@ public class EntryPanel extends AbstractEditorPanel {
             JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
             moodRow.setOpaque(false);
             moodSlider = new MoodSlider();
+            moodSlider.setHoverFadeEnabled(true);
             moodRow.add(moodSlider);
             moodSlider.addChangeListener(e -> {
                 try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
