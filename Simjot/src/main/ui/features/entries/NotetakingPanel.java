@@ -194,10 +194,17 @@ public class NotetakingPanel extends EntryPanel {
 
     private void selectTextMode() {
         setEditingMode(EditingMode.TEXT);
+        main.ui.components.toast.ToastOverlay.info("Text mode");
     }
 
     private void selectPaintMode() {
         setEditingMode(EditingMode.PAINT);
+        String toolName = switch (currentDrawTool) {
+            case PEN -> "Pen";
+            case HIGHLIGHT -> "Highlighter";
+            case ERASER -> "Eraser";
+        };
+        main.ui.components.toast.ToastOverlay.info(toolName + " mode");
     }
 
     private void setEditingMode(EditingMode mode) {
