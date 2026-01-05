@@ -105,6 +105,102 @@ xcrun stapler staple dist/Simjot-1.0.0.pkg
 
 ---
 
+## Windows Portable Executable (.exe)
+
+### Quick Start
+
+**PowerShell (recommended):**
+```powershell
+cd packaging
+.\build-windows-exe.ps1
+```
+
+**Command Prompt:**
+```cmd
+cd packaging
+build-windows-exe.bat
+```
+
+This creates a portable executable distribution in `dist/Simjot-X.X.X-portable/`.
+
+### Requirements
+
+- **Java 17+** JDK with `jpackage` and `jlink`
+- **Maven** (`mvn`)
+- **WiX Toolset 3.x** (optional, for MSI installer)
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-Clean` / `--clean` | Clean build directories before starting |
+| `-Msi` / `--msi` | Also create an MSI installer |
+| `-Zip` / `--zip` | Also create a portable ZIP archive |
+| `-Help` / `--help` | Show help |
+
+### Examples
+
+```powershell
+# Basic build - portable executable only
+.\build-windows-exe.ps1
+
+# Full build with ZIP and MSI
+.\build-windows-exe.ps1 -Clean -Zip -Msi
+
+# Command Prompt equivalent
+build-windows-exe.bat --clean --zip --msi
+```
+
+### What It Does
+
+1. **Builds** the shaded JAR with Maven
+2. **Creates** an optimized Java runtime with `jlink` (smaller than full JRE)
+3. **Packages** as a native Windows application with `jpackage`
+4. **Bundles** the native library (`simjot_native.dll`) if available
+5. **(Optional)** Creates a portable ZIP archive
+6. **(Optional)** Creates an MSI installer
+
+### Output Files
+
+After running the script:
+
+```
+dist/
+├── Simjot-1.0.0-portable/           # Portable app (just extract and run)
+│   ├── Simjot.exe                   # Main executable
+│   ├── app/                         # Application files
+│   │   └── simjot_native.dll        # Native library
+│   └── runtime/                     # Bundled JRE
+├── Simjot-1.0.0-windows-portable.zip  # ZIP (if --zip used)
+└── Simjot-1.0.0.msi                   # MSI (if --msi used)
+```
+
+### Building the Native Library on Windows
+
+To include native optimizations:
+
+```cmd
+cd src\main\native
+cmake -B build
+cmake --build build --config Release
+```
+
+The build script will automatically bundle `simjot_native.dll` if found.
+
+### MSI Installer Notes
+
+The MSI installer requires **WiX Toolset 3.x**:
+- Download from: https://wixtoolset.org/releases/
+- Install and ensure `candle.exe` and `light.exe` are in PATH
+
+The MSI installer provides:
+- Start menu shortcut
+- Desktop shortcut (optional)
+- Add/Remove Programs entry
+- Custom install directory selection
+
+---
+
 ## Linux Installer (.deb)
 
 ### Quick Start
