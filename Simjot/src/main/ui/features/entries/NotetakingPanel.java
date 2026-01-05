@@ -44,7 +44,6 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
@@ -58,7 +57,6 @@ import javax.swing.JWindow;
 import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -204,18 +202,19 @@ public class NotetakingPanel extends EntryPanel {
         this.editingMode = mode;
         boolean paint = (mode == EditingMode.PAINT);
         drawingEnabled = paint;
-        if (drawingOverlay != null) drawingOverlay.setCaptureEnabled(paint);
+        if (drawingOverlay != null) {
+            drawingOverlay.setOverlayVisible(true); // Always keep overlay visible to show strokes
+            drawingOverlay.setCaptureEnabled(paint);
+        }
         if (textModeBtn != null) {
             boolean textActive = !paint;
             textModeBtn.setSelected(textActive);
             textModeBtn.setIconOpacity(textActive ? 1f : 0.45f);
-            textModeBtn.setForeground(textActive ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
         }
         if (paintModeBtn != null) {
             boolean paintActive = paint;
             paintModeBtn.setSelected(paintActive);
             paintModeBtn.setIconOpacity(paintActive ? 1f : 0.45f);
-            paintModeBtn.setForeground(paintActive ? new Color(0,120,215) : UIManager.getColor("Button.foreground"));
         }
     }
 
@@ -225,7 +224,7 @@ public class NotetakingPanel extends EntryPanel {
         if (currentDrawTool == DrawTool.ERASER) return;
         
         Color currentColor = (currentDrawTool == DrawTool.HIGHLIGHT) ? highlightColor : penColor;
-        Color picked = JColorChooser.showDialog(this, "Pick Color", 
+        Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(this, "Pick Color", 
             new Color(currentColor.getRed(), currentColor.getGreen(), currentColor.getBlue()));
         
         if (picked != null) {
@@ -734,6 +733,8 @@ public class NotetakingPanel extends EntryPanel {
         void setCaptureEnabled(boolean on) {
             this.capture = on;
             setCursor(on ? Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR) : Cursor.getDefaultCursor());
+            revalidate();
+            repaint();
         }
         @Override public boolean contains(int x, int y) {
             // When not capturing, pretend we are not under the mouse so the text editor receives events
