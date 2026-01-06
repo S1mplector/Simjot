@@ -93,6 +93,9 @@ public class NotetakingPanel extends EntryPanel {
     private JLayeredPane overlayStack;
     private main.ui.components.buttons.ToolbarIconButton textModeBtn;
     private main.ui.components.buttons.ToolbarIconButton paintModeBtn;
+    private main.ui.components.buttons.ToolbarIconButton highlighterBtn;
+    private main.ui.components.buttons.ToolbarIconButton eraserBtn;
+    private main.ui.components.buttons.ToolbarIconButton lassoBtn;
     private main.ui.components.buttons.TextColorButton textColorBtn;
     private Color currentTextColor = Color.BLACK;
     private EditingMode editingMode = EditingMode.TEXT;
@@ -160,21 +163,21 @@ public class NotetakingPanel extends EntryPanel {
         rightToolbar.add(Box.createHorizontalStrut(4));
 
         // Highlighter tool
-        main.ui.components.buttons.ToolbarIconButton highlighterBtn = new main.ui.components.buttons.ToolbarIconButton("highlighter_tool");
+        highlighterBtn = new main.ui.components.buttons.ToolbarIconButton("highlighter_tool");
         highlighterBtn.setToolTipText("Highlighter");
         highlighterBtn.addActionListener(e -> { currentDrawTool = DrawTool.HIGHLIGHT; selectPaintMode(); updatePickersForCurrentTool(); });
         rightToolbar.add(highlighterBtn);
         rightToolbar.add(Box.createHorizontalStrut(4));
 
         // Eraser tool
-        main.ui.components.buttons.ToolbarIconButton eraserBtn = new main.ui.components.buttons.ToolbarIconButton("eraser_tool");
+        eraserBtn = new main.ui.components.buttons.ToolbarIconButton("eraser_tool");
         eraserBtn.setToolTipText("Eraser");
         eraserBtn.addActionListener(e -> { currentDrawTool = DrawTool.ERASER; selectPaintMode(); updatePickersForCurrentTool(); });
         rightToolbar.add(eraserBtn);
         rightToolbar.add(Box.createHorizontalStrut(4));
 
         // Lasso selection tool
-        main.ui.components.buttons.ToolbarIconButton lassoBtn = new main.ui.components.buttons.ToolbarIconButton("lasso_tool");
+        lassoBtn = new main.ui.components.buttons.ToolbarIconButton("lasso_tool");
         lassoBtn.setToolTipText("Lasso Select (move strokes)");
         lassoBtn.addActionListener(e -> { currentDrawTool = DrawTool.LASSO; selectPaintMode(); updatePickersForCurrentTool(); });
         rightToolbar.add(lassoBtn);
@@ -618,6 +621,26 @@ public class NotetakingPanel extends EntryPanel {
     // --- Export helpers and tool UI sync ---
     private void updatePickersForCurrentTool() {
         if (strokeSpinner == null || colorBtn == null) return;
+        
+        // Update tool button selection states
+        if (paintModeBtn != null) {
+            paintModeBtn.setSelected(currentDrawTool == DrawTool.PEN);
+            paintModeBtn.setIconOpacity(currentDrawTool == DrawTool.PEN ? 1f : 0.6f);
+        }
+        if (highlighterBtn != null) {
+            highlighterBtn.setSelected(currentDrawTool == DrawTool.HIGHLIGHT);
+            highlighterBtn.setIconOpacity(currentDrawTool == DrawTool.HIGHLIGHT ? 1f : 0.6f);
+        }
+        if (eraserBtn != null) {
+            eraserBtn.setSelected(currentDrawTool == DrawTool.ERASER);
+            eraserBtn.setIconOpacity(currentDrawTool == DrawTool.ERASER ? 1f : 0.6f);
+        }
+        if (lassoBtn != null) {
+            lassoBtn.setSelected(currentDrawTool == DrawTool.LASSO);
+            lassoBtn.setIconOpacity(currentDrawTool == DrawTool.LASSO ? 1f : 0.6f);
+        }
+        
+        // Update spinner and color button for current tool
         if (currentDrawTool == DrawTool.PEN) {
             strokeSpinner.setValue(penThickness);
             strokeSpinner.setEnabled(true);
@@ -1122,6 +1145,8 @@ public class NotetakingPanel extends EntryPanel {
                 redoStack.clear();
                 undoStack.add(new EraseStrokesAction(erased));
                 checkOptimizerThreshold();
+                strokeBufferDirty = true;
+                highlightBufferDirty = true;
                 repaint();
             }
         }
@@ -1476,8 +1501,11 @@ public class NotetakingPanel extends EntryPanel {
                         }
                         g2.dispose();
                     }
-                    strokeBufferDirty = false;
                 }
+                strokeBufferDirty = false;
+            }
+            // Always draw the pen buffer if it exists
+            if (penStrokeBuffer != null) {
                 g.drawImage(penStrokeBuffer, 0, 0, null);
             }
             
@@ -1527,8 +1555,8 @@ public class NotetakingPanel extends EntryPanel {
                         bufG.setComposite(java.awt.AlphaComposite.SrcOver);
                     }
                     bufG.dispose();
-                    highlightBufferDirty = false;
                 }
+                highlightBufferDirty = false;
             }
             if (highlightStrokeBuffer != null) {
                 g.drawImage(highlightStrokeBuffer, 0, 0, null);
