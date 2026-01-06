@@ -549,7 +549,9 @@ public class EntryPanel extends AbstractEditorPanel {
                     SettingsStore.get().save();
                 },
                 this::applyLineSpacing,
-                rightToolbar
+                rightToolbar,
+                () -> main.ui.components.editor.RichTextStyler.toggleBulletList(contentArea),
+                () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(contentArea)
         );
         // Bind the shared title field to our reference used elsewhere
         titleField = sharedToolbar.getTitleField();

@@ -132,4 +132,187 @@ public final class RichTextStyler {
 
     // Holds the current typing attributes.
     public record StyleState(boolean bold, boolean italic, boolean underline, boolean strike) {}
+
+    // --- Text color methods ---
+    
+    /**
+     * Set the foreground color for new text being typed.
+     */
+    public static void setTypingColor(JTextPane pane, Color color) {
+        setTypingAttribute(pane, a -> StyleConstants.setForeground(a, color));
+    }
+    
+    /**
+     * Apply foreground color to selected text.
+     */
+    public static void setSelectionColor(JTextPane pane, Color color) {
+        try {
+            int start = pane.getSelectionStart();
+            int end = pane.getSelectionEnd();
+            if (start == end) return;
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setForeground(attrs, color);
+            pane.getStyledDocument().setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Apply color to selection if present, otherwise set typing color.
+     */
+    public static void applyColor(JTextPane pane, Color color) {
+        if (hasSelection(pane)) {
+            setSelectionColor(pane, color);
+        } else {
+            setTypingColor(pane, color);
+        }
+    }
+    
+    /**
+     * Get the current typing color.
+     */
+    public static Color getTypingColor(JTextPane pane) {
+        try {
+            AttributeSet as = ((StyledEditorKit) pane.getEditorKit()).getInputAttributes();
+            Color c = StyleConstants.getForeground(as);
+            return c != null ? c : Color.BLACK;
+        } catch (Throwable t) {
+            return Color.BLACK;
+        }
+    }
+
+    // --- List formatting methods ---
+    
+    /**
+     * Toggle bullet points on selected lines or current line.
+     * @return true if bullets were added, false if removed
+     */
+    public static boolean toggleBulletList(JTextPane pane) {
+        try {
+            StyledDocument doc = pane.getStyledDocument();
+            int start = pane.getSelectionStart();
+            int end = pane.getSelectionEnd();
+            
+            int lineStart = getLineStart(doc, start);
+            int lineEnd = getLineEnd(doc, end);
+            
+            String text = doc.getText(lineStart, lineEnd - lineStart);
+            String[] lines = text.split("\n", -1);
+            
+            // Check if all non-empty lines already have bullets
+            boolean allBulleted = true;
+            for (String line : lines) {
+                if (!line.trim().isEmpty() && !line.startsWith("• ")) {
+                    allBulleted = false;
+                    break;
+                }
+            }
+            
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i];
+                if (i > 0) result.append("\n");
+                
+                if (line.trim().isEmpty()) {
+                    result.append(line);
+                } else if (allBulleted) {
+                    // Remove bullets
+                    if (line.startsWith("• ")) {
+                        result.append(line.substring(2));
+                    } else {
+                        result.append(line);
+                    }
+                } else {
+                    // Add bullets
+                    if (!line.startsWith("• ")) {
+                        result.append("• ").append(line);
+                    } else {
+                        result.append(line);
+                    }
+                }
+            }
+            
+            doc.remove(lineStart, lineEnd - lineStart);
+            doc.insertString(lineStart, result.toString(), null);
+            
+            return !allBulleted;
+        } catch (BadLocationException e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Toggle numbered list on selected lines or current line.
+     * @return true if numbers were added, false if removed
+     */
+    public static boolean toggleNumberedList(JTextPane pane) {
+        try {
+            StyledDocument doc = pane.getStyledDocument();
+            int start = pane.getSelectionStart();
+            int end = pane.getSelectionEnd();
+            
+            int lineStart = getLineStart(doc, start);
+            int lineEnd = getLineEnd(doc, end);
+            
+            String text = doc.getText(lineStart, lineEnd - lineStart);
+            String[] lines = text.split("\n", -1);
+            
+            // Check if all non-empty lines already have numbers
+            boolean allNumbered = true;
+            for (String line : lines) {
+                if (!line.trim().isEmpty() && !isNumberedLine(line)) {
+                    allNumbered = false;
+                    break;
+                }
+            }
+            
+            StringBuilder result = new StringBuilder();
+            int num = 1;
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i];
+                if (i > 0) result.append("\n");
+                
+                if (line.trim().isEmpty()) {
+                    result.append(line);
+                } else if (allNumbered) {
+                    // Remove numbers
+                    result.append(stripNumberPrefix(line));
+                } else {
+                    // Add numbers
+                    if (!isNumberedLine(line)) {
+                        result.append(num++).append(". ").append(line);
+                    } else {
+                        result.append(line);
+                        num++;
+                    }
+                }
+            }
+            
+            doc.remove(lineStart, lineEnd - lineStart);
+            doc.insertString(lineStart, result.toString(), null);
+            
+            return !allNumbered;
+        } catch (BadLocationException e) {
+            return false;
+        }
+    }
+    
+    private static boolean isNumberedLine(String line) {
+        return line.matches("^\\d+\\.\\s.*") || line.matches("^\\d+\\.\\s*$");
+    }
+    
+    private static String stripNumberPrefix(String line) {
+        return line.replaceFirst("^\\d+\\.\\s*", "");
+    }
+    
+    private static int getLineStart(StyledDocument doc, int pos) throws BadLocationException {
+        String text = doc.getText(0, pos);
+        int lastNewline = text.lastIndexOf('\n');
+        return lastNewline + 1;
+    }
+    
+    private static int getLineEnd(StyledDocument doc, int pos) throws BadLocationException {
+        String text = doc.getText(0, doc.getLength());
+        int nextNewline = text.indexOf('\n', pos);
+        return nextNewline == -1 ? doc.getLength() : nextNewline;
+    }
 }

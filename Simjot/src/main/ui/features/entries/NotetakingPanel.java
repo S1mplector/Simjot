@@ -93,6 +93,8 @@ public class NotetakingPanel extends EntryPanel {
     private JLayeredPane overlayStack;
     private main.ui.components.buttons.ToolbarIconButton textModeBtn;
     private main.ui.components.buttons.ToolbarIconButton paintModeBtn;
+    private main.ui.components.buttons.TextColorButton textColorBtn;
+    private Color currentTextColor = Color.BLACK;
     private EditingMode editingMode = EditingMode.TEXT;
     private final java.util.Deque<Color> recentColors = new java.util.ArrayDeque<>();
 
@@ -136,6 +138,13 @@ public class NotetakingPanel extends EntryPanel {
     // Install Draw toggle + tool chooser into the right toolbar
     @Override
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) {
+        // Text color button (Bradley Hand "A" colored by current text color)
+        textColorBtn = new main.ui.components.buttons.TextColorButton();
+        textColorBtn.setTextColor(currentTextColor);
+        textColorBtn.addActionListener(e -> showTextColorPicker());
+        rightToolbar.add(textColorBtn);
+        rightToolbar.add(Box.createHorizontalStrut(8));
+        
         // Text mode selector
         textModeBtn = new main.ui.components.buttons.ToolbarIconButton("select_text");
         textModeBtn.setToolTipText("Text mode");
@@ -243,6 +252,18 @@ public class NotetakingPanel extends EntryPanel {
                 penColor = new Color(picked.getRed(), picked.getGreen(), picked.getBlue(), 255);
             }
             updatePickersForCurrentTool();
+        }
+    }
+    
+    private void showTextColorPicker() {
+        Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(this, "Text Color", currentTextColor);
+        if (picked != null) {
+            currentTextColor = picked;
+            if (textColorBtn != null) {
+                textColorBtn.setTextColor(currentTextColor);
+            }
+            // Apply color to selection or set typing color
+            RichTextStyler.applyColor(contentArea, currentTextColor);
         }
     }
 

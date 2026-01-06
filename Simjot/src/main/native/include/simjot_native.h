@@ -65,6 +65,13 @@ int32_t simjot_text_levenshtein(const char* a, const char* b);
 int32_t simjot_text_damerau_levenshtein(const char* a, const char* b);
 int32_t simjot_text_similarity(const char* a, const char* b);
 
+/* List formatting utilities */
+int32_t simjot_list_is_bulleted(const char* line);
+int32_t simjot_list_get_number(const char* line);
+int32_t simjot_list_add_bullets(const char* input, char* output, int32_t output_len, const char* bullet_char);
+int32_t simjot_list_add_numbers(const char* input, char* output, int32_t output_len, int32_t start_num);
+int32_t simjot_list_strip_prefix(const char* input, char* output, int32_t output_len);
+
 /* Compression utilities */
 int32_t simjot_compress(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len, int32_t level);
 int32_t simjot_decompress(const uint8_t* input, int32_t input_len, uint8_t* output, int32_t output_len);

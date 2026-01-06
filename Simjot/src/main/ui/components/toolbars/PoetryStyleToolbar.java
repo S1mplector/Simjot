@@ -23,7 +23,9 @@ import javax.swing.JPanel;
 
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
+import main.ui.components.buttons.BulletListButton;
 import main.ui.components.buttons.HandStyleToggleButton;
+import main.ui.components.buttons.NumberedListButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.TitleDividerField;
@@ -47,6 +49,8 @@ public class PoetryStyleToolbar extends JPanel {
     private HandStyleToggleButton italicBtn;
     private HandStyleToggleButton underlineBtn;
     private HandStyleToggleButton strikeBtn;
+    private BulletListButton bulletBtn;
+    private NumberedListButton numberedBtn;
 
     public PoetryStyleToolbar(
             JournalApp app,
@@ -60,7 +64,9 @@ public class PoetryStyleToolbar extends JPanel {
             Consumer<String> onFontFamily,
             Consumer<Integer> onFontSize,
             Consumer<String> onLineSpacing,
-            JComponent rightToolbarControls
+            JComponent rightToolbarControls,
+            Runnable onBulletList,
+            Runnable onNumberedList
     ) {
         super(new BorderLayout(0, 5));
         setOpaque(false);
@@ -104,7 +110,15 @@ public class PoetryStyleToolbar extends JPanel {
         strikeBtn = new HandStyleToggleButton("S");
         strikeBtn.setToolTipText("Strikethrough");
         strikeBtn.addActionListener(e -> { if (onStrike != null) onStrike.accept(strikeBtn.isSelected()); });
-        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn}) {
+        // Bullet list button
+        bulletBtn = new BulletListButton();
+        bulletBtn.addActionListener(e -> { if (onBulletList != null) onBulletList.run(); });
+        
+        // Numbered list button
+        numberedBtn = new NumberedListButton();
+        numberedBtn.addActionListener(e -> { if (onNumberedList != null) onNumberedList.run(); });
+        
+        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn}) {
             alignCenter(btn);
         }
         row.add(Box.createHorizontalStrut(12));
@@ -115,6 +129,10 @@ public class PoetryStyleToolbar extends JPanel {
         row.add(underlineBtn);
         row.add(Box.createHorizontalStrut(6));
         row.add(strikeBtn);
+        row.add(Box.createHorizontalStrut(10));
+        row.add(bulletBtn);
+        row.add(Box.createHorizontalStrut(6));
+        row.add(numberedBtn);
 
         row.add(Box.createHorizontalGlue());
 
@@ -136,6 +154,14 @@ public class PoetryStyleToolbar extends JPanel {
         if (italicBtn != null) italicBtn.setSelected(italic);
         if (underlineBtn != null) underlineBtn.setSelected(underline);
         if (strikeBtn != null) strikeBtn.setSelected(strike);
+    }
+    
+    public void setBulletListSelected(boolean selected) {
+        if (bulletBtn != null) bulletBtn.setSelected(selected);
+    }
+    
+    public void setNumberedListSelected(boolean selected) {
+        if (numberedBtn != null) numberedBtn.setSelected(selected);
     }
 
     private static void alignCenter(Component c) {

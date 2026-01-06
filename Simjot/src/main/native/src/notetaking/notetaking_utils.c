@@ -876,3 +876,258 @@ int32_t simjot_nt_stroke_outline(
     
     return count;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LIST FORMATTING UTILITIES
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Check if a line starts with a bullet point
+ * @param line The line to check (null-terminated)
+ * @return 1 if the line starts with a bullet, 0 otherwise
+ */
+int32_t simjot_list_is_bulleted(const char* line) {
+    if (!line) return 0;
+    
+    /* Skip leading whitespace */
+    while (*line == ' ' || *line == '\t') line++;
+    
+    /* Check for common bullet characters: •, -, *, ● */
+    if (*line == '-' || *line == '*') {
+        return (line[1] == ' ' || line[1] == '\t') ? 1 : 0;
+    }
+    
+    /* Check for Unicode bullet • (UTF-8: 0xE2 0x80 0xA2) */
+    if ((unsigned char)line[0] == 0xE2 && 
+        (unsigned char)line[1] == 0x80 && 
+        (unsigned char)line[2] == 0xA2) {
+        return 1;
+    }
+    
+    /* Check for Unicode bullet ● (UTF-8: 0xE2 0x97 0x8F) */
+    if ((unsigned char)line[0] == 0xE2 && 
+        (unsigned char)line[1] == 0x97 && 
+        (unsigned char)line[2] == 0x8F) {
+        return 1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Check if a line starts with a number (numbered list)
+ * @param line The line to check (null-terminated)
+ * @return The number if found (1-999), 0 if not a numbered line
+ */
+int32_t simjot_list_get_number(const char* line) {
+    if (!line) return 0;
+    
+    /* Skip leading whitespace */
+    while (*line == ' ' || *line == '\t') line++;
+    
+    /* Parse number */
+    int32_t num = 0;
+    int digits = 0;
+    while (*line >= '0' && *line <= '9' && digits < 3) {
+        num = num * 10 + (*line - '0');
+        line++;
+        digits++;
+    }
+    
+    if (digits == 0) return 0;
+    
+    /* Check for period or parenthesis followed by space */
+    if ((*line == '.' || *line == ')') && 
+        (line[1] == ' ' || line[1] == '\t' || line[1] == '\0')) {
+        return num;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Add bullet points to text lines
+ * @param input Input text (newline-separated lines)
+ * @param output Output buffer
+ * @param output_len Size of output buffer
+ * @param bullet_char The bullet character to use (UTF-8 encoded)
+ * @return Number of bytes written, or -1 on error
+ */
+int32_t simjot_list_add_bullets(const char* input, char* output, int32_t output_len, const char* bullet_char) {
+    if (!input || !output || output_len < 1) return -1;
+    
+    const char* default_bullet = "\xE2\x80\xA2 "; /* • followed by space */
+    const char* bullet = (bullet_char && bullet_char[0]) ? bullet_char : default_bullet;
+    int32_t bullet_len = 0;
+    while (bullet[bullet_len]) bullet_len++;
+    
+    int32_t out_pos = 0;
+    int32_t line_start = 1;
+    
+    while (*input && out_pos < output_len - 1) {
+        if (line_start) {
+            /* Skip empty lines */
+            int is_empty = (*input == '\n' || *input == '\0');
+            const char* check = input;
+            while (*check == ' ' || *check == '\t') check++;
+            if (*check == '\n' || *check == '\0') is_empty = 1;
+            
+            if (!is_empty && !simjot_list_is_bulleted(input)) {
+                /* Add bullet */
+                for (int i = 0; i < bullet_len && out_pos < output_len - 1; i++) {
+                    output[out_pos++] = bullet[i];
+                }
+            }
+            line_start = 0;
+        }
+        
+        if (*input == '\n') {
+            line_start = 1;
+        }
+        
+        if (out_pos < output_len - 1) {
+            output[out_pos++] = *input++;
+        } else {
+            break;
+        }
+    }
+    
+    output[out_pos] = '\0';
+    return out_pos;
+}
+
+/**
+ * @brief Add numbers to text lines
+ * @param input Input text (newline-separated lines)
+ * @param output Output buffer
+ * @param output_len Size of output buffer
+ * @param start_num Starting number (typically 1)
+ * @return Number of bytes written, or -1 on error
+ */
+int32_t simjot_list_add_numbers(const char* input, char* output, int32_t output_len, int32_t start_num) {
+    if (!input || !output || output_len < 1) return -1;
+    if (start_num < 1) start_num = 1;
+    
+    int32_t out_pos = 0;
+    int32_t current_num = start_num;
+    int32_t line_start = 1;
+    
+    while (*input && out_pos < output_len - 1) {
+        if (line_start) {
+            /* Skip empty lines */
+            int is_empty = (*input == '\n' || *input == '\0');
+            const char* check = input;
+            while (*check == ' ' || *check == '\t') check++;
+            if (*check == '\n' || *check == '\0') is_empty = 1;
+            
+            if (!is_empty && simjot_list_get_number(input) == 0) {
+                /* Add number */
+                char num_buf[16];
+                int num_len = 0;
+                int32_t n = current_num++;
+                
+                /* Convert number to string */
+                if (n == 0) {
+                    num_buf[num_len++] = '0';
+                } else {
+                    char temp[16];
+                    int temp_len = 0;
+                    while (n > 0) {
+                        temp[temp_len++] = '0' + (n % 10);
+                        n /= 10;
+                    }
+                    while (temp_len > 0) {
+                        num_buf[num_len++] = temp[--temp_len];
+                    }
+                }
+                num_buf[num_len++] = '.';
+                num_buf[num_len++] = ' ';
+                num_buf[num_len] = '\0';
+                
+                for (int i = 0; i < num_len && out_pos < output_len - 1; i++) {
+                    output[out_pos++] = num_buf[i];
+                }
+            }
+            line_start = 0;
+        }
+        
+        if (*input == '\n') {
+            line_start = 1;
+        }
+        
+        if (out_pos < output_len - 1) {
+            output[out_pos++] = *input++;
+        } else {
+            break;
+        }
+    }
+    
+    output[out_pos] = '\0';
+    return out_pos;
+}
+
+/**
+ * @brief Strip list prefixes (bullets or numbers) from text
+ * @param input Input text (newline-separated lines)
+ * @param output Output buffer
+ * @param output_len Size of output buffer
+ * @return Number of bytes written, or -1 on error
+ */
+int32_t simjot_list_strip_prefix(const char* input, char* output, int32_t output_len) {
+    if (!input || !output || output_len < 1) return -1;
+    
+    int32_t out_pos = 0;
+    int32_t line_start = 1;
+    
+    while (*input && out_pos < output_len - 1) {
+        if (line_start) {
+            /* Skip leading whitespace but remember position */
+            const char* line_begin = input;
+            while (*input == ' ' || *input == '\t') input++;
+            
+            /* Check and skip bullet */
+            if (simjot_list_is_bulleted(input)) {
+                /* Skip bullet character */
+                if (*input == '-' || *input == '*') {
+                    input++;
+                } else if ((unsigned char)*input == 0xE2) {
+                    input += 3; /* Skip UTF-8 bullet */
+                }
+                /* Skip trailing space */
+                if (*input == ' ' || *input == '\t') input++;
+            }
+            /* Check and skip number */
+            else if (simjot_list_get_number(input) > 0) {
+                /* Skip digits */
+                while (*input >= '0' && *input <= '9') input++;
+                /* Skip period/paren */
+                if (*input == '.' || *input == ')') input++;
+                /* Skip space */
+                if (*input == ' ' || *input == '\t') input++;
+            }
+            /* If no list prefix found, restore leading whitespace */
+            else {
+                while (line_begin < input) {
+                    if (out_pos < output_len - 1) {
+                        output[out_pos++] = *line_begin++;
+                    }
+                }
+            }
+            
+            line_start = 0;
+        }
+        
+        if (*input == '\n') {
+            line_start = 1;
+        }
+        
+        if (*input && out_pos < output_len - 1) {
+            output[out_pos++] = *input++;
+        } else if (*input) {
+            break;
+        }
+    }
+    
+    output[out_pos] = '\0';
+    return out_pos;
+}
