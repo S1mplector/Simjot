@@ -1111,25 +1111,44 @@ public class NotetakingPanel extends EntryPanel {
             int r = eraserRadius;
             int r2 = r * r;
             List<DrawStroke> erased = new ArrayList<>();
+            float px = p.x, py = p.y;
             
-            // Use optimizer for fast spatial query when available
-            List<DrawStroke> candidates = queryStrokesNearPoint(p, r + 50);
-            
-            for (DrawStroke s : candidates) {
-                if (!drawStrokes.contains(s)) continue; // Already removed
-                List<Point> pts = s.points;
+            // Check all strokes directly
+            for (DrawStroke s : new ArrayList<>(drawStrokes)) {
                 boolean shouldErase = false;
                 
-                if (pts.size() == 1) {
-                    // Single point (dot) - check distance to that point
-                    Point pt = pts.get(0);
-                    int dx = p.x - pt.x, dy = p.y - pt.y;
-                    shouldErase = (dx * dx + dy * dy <= r2);
+                // For pen strokes, check floatPoints (what's actually rendered)
+                // For highlighter, check integer points
+                if (s.tool == DrawTool.PEN && !s.floatPoints.isEmpty()) {
+                    List<float[]> fpts = s.floatPoints;
+                    if (fpts.size() == 1) {
+                        float[] pt = fpts.get(0);
+                        float dx = px - pt[0], dy = py - pt[1];
+                        shouldErase = (dx * dx + dy * dy <= r2);
+                    } else {
+                        for (int i = 1; i < fpts.size(); i++) {
+                            float[] a = fpts.get(i - 1);
+                            float[] b = fpts.get(i);
+                            if (distPointToSegmentSqF(px, py, a[0], a[1], b[0], b[1]) <= r2) {
+                                shouldErase = true;
+                                break;
+                            }
+                        }
+                    }
                 } else {
-                    for (int i = 1; i < pts.size(); i++) {
-                        if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) { 
-                            shouldErase = true;
-                            break; 
+                    // Highlighter or fallback - use integer points
+                    List<Point> pts = s.points;
+                    if (pts.isEmpty()) continue;
+                    if (pts.size() == 1) {
+                        Point pt = pts.get(0);
+                        int dx = p.x - pt.x, dy = p.y - pt.y;
+                        shouldErase = (dx * dx + dy * dy <= r2);
+                    } else {
+                        for (int i = 1; i < pts.size(); i++) {
+                            if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) {
+                                shouldErase = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1149,6 +1168,20 @@ public class NotetakingPanel extends EntryPanel {
                 highlightBufferDirty = true;
                 repaint();
             }
+        }
+        
+        // Float version of point-to-segment distance
+        private float distPointToSegmentSqF(float px, float py, float ax, float ay, float bx, float by) {
+            float vx = bx - ax, vy = by - ay;
+            float wx = px - ax, wy = py - ay;
+            float c1 = vx * wx + vy * wy;
+            if (c1 <= 0) return (px - ax) * (px - ax) + (py - ay) * (py - ay);
+            float c2 = vx * vx + vy * vy;
+            if (c2 <= c1) return (px - bx) * (px - bx) + (py - by) * (py - by);
+            float t = c1 / c2;
+            float projx = ax + t * vx, projy = ay + t * vy;
+            float dx = px - projx, dy = py - projy;
+            return dx * dx + dy * dy;
         }
         private int distPointToSegmentSq(Point p, Point a, Point b) {
             int vx = b.x - a.x, vy = b.y - a.y;
@@ -1501,6 +1534,9 @@ public class NotetakingPanel extends EntryPanel {
                         }
                         g2.dispose();
                     }
+                } else {
+                    // No pen strokes - clear the buffer so erased strokes don't persist
+                    penStrokeBuffer = null;
                 }
                 strokeBufferDirty = false;
             }
@@ -1517,7 +1553,10 @@ public class NotetakingPanel extends EntryPanel {
                     if (s.tool == DrawTool.HIGHLIGHT) { hasHighlighters = true; break; }
                 }
                 
-                if (hasHighlighters) {
+                if (!hasHighlighters) {
+                    // No highlighter strokes - clear the buffer so erased strokes don't persist
+                    highlightStrokeBuffer = null;
+                } else if (hasHighlighters) {
                     if (highlightStrokeBuffer == null || highlightStrokeBuffer.getWidth() != w || highlightStrokeBuffer.getHeight() != h) {
                         highlightStrokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
                     }
