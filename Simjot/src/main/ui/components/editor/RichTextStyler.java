@@ -8,8 +8,11 @@
 
 package main.ui.components.editor;
 
+import java.awt.Color;
+
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
