@@ -171,6 +171,13 @@ public class NotetakingPanel extends EntryPanel {
         eraserBtn.setToolTipText("Eraser");
         eraserBtn.addActionListener(e -> { currentDrawTool = DrawTool.ERASER; selectPaintMode(); updatePickersForCurrentTool(); });
         rightToolbar.add(eraserBtn);
+        rightToolbar.add(Box.createHorizontalStrut(4));
+
+        // Lasso selection tool
+        main.ui.components.buttons.ToolbarIconButton lassoBtn = new main.ui.components.buttons.ToolbarIconButton("lasso_tool");
+        lassoBtn.setToolTipText("Lasso Select (move strokes)");
+        lassoBtn.addActionListener(e -> { currentDrawTool = DrawTool.LASSO; selectPaintMode(); updatePickersForCurrentTool(); });
+        rightToolbar.add(lassoBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
         // Stroke width spinner
@@ -613,14 +620,21 @@ public class NotetakingPanel extends EntryPanel {
         if (strokeSpinner == null || colorBtn == null) return;
         if (currentDrawTool == DrawTool.PEN) {
             strokeSpinner.setValue(penThickness);
+            strokeSpinner.setEnabled(true);
             colorBtn.setBackground(new Color(penColor.getRed(), penColor.getGreen(), penColor.getBlue()));
             colorBtn.setEnabled(true);
         } else if (currentDrawTool == DrawTool.HIGHLIGHT) {
             strokeSpinner.setValue(highlightThickness);
+            strokeSpinner.setEnabled(true);
             colorBtn.setBackground(new Color(highlightColor.getRed(), highlightColor.getGreen(), highlightColor.getBlue()));
             colorBtn.setEnabled(true);
-        } else {
+        } else if (currentDrawTool == DrawTool.ERASER) {
             strokeSpinner.setValue(eraserRadius);
+            strokeSpinner.setEnabled(true);
+            colorBtn.setEnabled(false);
+        } else if (currentDrawTool == DrawTool.LASSO) {
+            // Lasso tool doesn't use stroke width or color
+            strokeSpinner.setEnabled(false);
             colorBtn.setEnabled(false);
         }
         colorBtn.repaint();
@@ -721,6 +735,12 @@ public class NotetakingPanel extends EntryPanel {
         final List<Point> points; // Legacy integer points for persistence
         final List<float[]> floatPoints; // [x, y, timestamp] for native engine
         
+        // Cached arrays for performance (invalidated on point add)
+        private float[] cachedXs;
+        private float[] cachedYs;
+        private float[] cachedThicknesses;
+        private boolean cacheValid = false;
+        
         DrawStroke(DrawTool tool, Color color, int thickness) {
             this(tool, color, thickness, new ArrayList<>());
         }
@@ -740,18 +760,45 @@ public class NotetakingPanel extends EntryPanel {
         void addPoint(float x, float y, long timestamp) {
             points.add(new Point(Math.round(x), Math.round(y)));
             floatPoints.add(new float[]{x, y, timestamp});
+            cacheValid = false; // Invalidate cache
+        }
+        
+        void invalidateCache() {
+            cacheValid = false;
         }
         
         float[] getPointsX() {
-            float[] xs = new float[floatPoints.size()];
-            for (int i = 0; i < floatPoints.size(); i++) xs[i] = floatPoints.get(i)[0];
-            return xs;
+            if (!cacheValid || cachedXs == null || cachedXs.length != floatPoints.size()) {
+                rebuildCache();
+            }
+            return cachedXs;
         }
         
         float[] getPointsY() {
-            float[] ys = new float[floatPoints.size()];
-            for (int i = 0; i < floatPoints.size(); i++) ys[i] = floatPoints.get(i)[1];
-            return ys;
+            if (!cacheValid || cachedYs == null || cachedYs.length != floatPoints.size()) {
+                rebuildCache();
+            }
+            return cachedYs;
+        }
+        
+        float[] getCachedThicknesses() {
+            return cachedThicknesses;
+        }
+        
+        void setCachedThicknesses(float[] thicknesses) {
+            this.cachedThicknesses = thicknesses;
+        }
+        
+        private void rebuildCache() {
+            int n = floatPoints.size();
+            cachedXs = new float[n];
+            cachedYs = new float[n];
+            for (int i = 0; i < n; i++) {
+                float[] p = floatPoints.get(i);
+                cachedXs[i] = p[0];
+                cachedYs[i] = p[1];
+            }
+            cacheValid = true;
         }
         
         long[] getTimestamps() {
@@ -810,8 +857,14 @@ public class NotetakingPanel extends EntryPanel {
         private main.infrastructure.ffi.NativeDrawing nativeDrawing;
         private long nativeStrokeManager = 0;
         private int currentNativeStrokeIdx = -1;
-        private java.awt.image.BufferedImage strokeBuffer;
+        
+        // Stroke buffer caching for performance
+        private java.awt.image.BufferedImage penStrokeBuffer;
+        private java.awt.image.BufferedImage highlightStrokeBuffer;
         private boolean strokeBufferDirty = true;
+        private boolean highlightBufferDirty = true;
+        private int lastBufferWidth = 0, lastBufferHeight = 0;
+        private float lastOffsetX = 0, lastOffsetY = 0;
         
         // Optimizer for large stroke collections (quadtree spatial index)
         private long optimizerHandle = 0;
@@ -881,6 +934,7 @@ public class NotetakingPanel extends EntryPanel {
                     drawStrokes.add(current);
                     undoStack.add(new AddStrokeAction(current));
                     strokeBufferDirty = true;
+                    highlightBufferDirty = true;
                     repaintDirty(p, p, current.thickness);
                 }
                 
@@ -898,6 +952,7 @@ public class NotetakingPanel extends EntryPanel {
                         current.points.add(raw);
                         lastPoint = raw;
                         strokeBufferDirty = true;
+                        highlightBufferDirty = true;
                         repaintDirty(prev, raw, current.thickness);
                         return;
                     }
@@ -925,6 +980,7 @@ public class NotetakingPanel extends EntryPanel {
                     lastRawY = rawY;
                     lastTimestamp = now;
                     strokeBufferDirty = true;
+                    highlightBufferDirty = true;
                     repaintDirty(prev, lastPoint, current.thickness);
                 }
                 
@@ -948,6 +1004,7 @@ public class NotetakingPanel extends EntryPanel {
                     current = null;
                     lastPoint = null;
                     strokeBufferDirty = true;
+                    highlightBufferDirty = true;
                     // Check if we should enable/disable optimizer
                     checkOptimizerThreshold();
                     repaint();
@@ -955,16 +1012,16 @@ public class NotetakingPanel extends EntryPanel {
             };
             addMouseListener(ma);
             addMouseMotionListener(ma);
-            vp.addChangeListener(e -> { strokeBufferDirty = true; repaint(); });
+            vp.addChangeListener(e -> { strokeBufferDirty = true; highlightBufferDirty = true; repaint(); });
             
             // Keyboard shortcuts for undo/redo
             int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
             getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta), "undoStroke");
             getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoStroke");
-            getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performUndo(); strokeBufferDirty = true; } }});
-            getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performRedo(); strokeBufferDirty = true; } }});
+            getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performUndo(); strokeBufferDirty = true; highlightBufferDirty = true; } }});
+            getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performRedo(); strokeBufferDirty = true; highlightBufferDirty = true; } }});
             view.addComponentListener(new ComponentAdapter(){
-                @Override public void componentResized(ComponentEvent e) { strokeBufferDirty = true; revalidate(); repaint(); }
+                @Override public void componentResized(ComponentEvent e) { strokeBufferDirty = true; highlightBufferDirty = true; revalidate(); repaint(); }
             });
         }
         
@@ -1203,6 +1260,7 @@ public class NotetakingPanel extends EntryPanel {
                 moveSelectedStrokes(dx, dy);
                 dragStart = p;
                 strokeBufferDirty = true;
+                highlightBufferDirty = true;
                 repaint();
             } else {
                 // Continue drawing lasso path
@@ -1326,6 +1384,30 @@ public class NotetakingPanel extends EntryPanel {
             lassoPath.clear();
         }
         
+        // Get stroke bounding box clipped to viewport
+        private java.awt.Rectangle getStrokeBounds(DrawStroke s, int offsetX, int offsetY, int viewW, int viewH) {
+            if (s.points.isEmpty()) return new java.awt.Rectangle(0, 0, 0, 0);
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+            for (Point p : s.points) {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            }
+            int pad = (int)(s.thickness / 2) + 2;
+            minX -= pad; minY -= pad;
+            maxX += pad; maxY += pad;
+            // Convert to screen coords and clip to viewport
+            int sx = minX - offsetX, sy = minY - offsetY;
+            int sw = maxX - minX, sh = maxY - minY;
+            if (sx < 0) { sw += sx; sx = 0; }
+            if (sy < 0) { sh += sy; sy = 0; }
+            if (sx + sw > viewW) sw = viewW - sx;
+            if (sy + sh > viewH) sh = viewH - sy;
+            return new java.awt.Rectangle(sx, sy, Math.max(1, sw), Math.max(1, sh));
+        }
+        
         @Override public Dimension getPreferredSize() { return view.getPreferredSize(); }
         
         @Override protected void paintComponent(Graphics g) {
@@ -1337,74 +1419,119 @@ public class NotetakingPanel extends EntryPanel {
             float offsetX = vpPos.x;
             float offsetY = vpPos.y;
             
-            // Separate pen strokes (use native engine) from highlighter strokes (simple Java)
-            List<DrawStroke> penStrokes = new ArrayList<>();
-            List<DrawStroke> highlightStrokes = new ArrayList<>();
-            for (DrawStroke s : drawStrokes) {
-                if (s.tool == DrawTool.HIGHLIGHT) highlightStrokes.add(s);
-                else penStrokes.add(s);
+            // Check if viewport changed (requires full redraw)
+            boolean viewportChanged = (offsetX != lastOffsetX || offsetY != lastOffsetY);
+            if (viewportChanged) {
+                strokeBufferDirty = true;
+                highlightBufferDirty = true;
+                lastOffsetX = offsetX;
+                lastOffsetY = offsetY;
             }
             
-            // Render pen strokes with native engine (variable thickness)
-            if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable() && !penStrokes.isEmpty()) {
-                if (strokeBuffer == null || strokeBuffer.getWidth() != w || strokeBuffer.getHeight() != h) {
-                    strokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                    strokeBufferDirty = true;
+            // Check if buffer size changed
+            boolean sizeChanged = (w != lastBufferWidth || h != lastBufferHeight);
+            if (sizeChanged) {
+                penStrokeBuffer = null;
+                highlightStrokeBuffer = null;
+                strokeBufferDirty = true;
+                highlightBufferDirty = true;
+                lastBufferWidth = w;
+                lastBufferHeight = h;
+            }
+            
+            // Render pen strokes with caching
+            if (strokeBufferDirty || penStrokeBuffer == null) {
+                // Check if any pen strokes exist
+                boolean hasPenStrokes = false;
+                for (DrawStroke s : drawStrokes) {
+                    if (s.tool == DrawTool.PEN) { hasPenStrokes = true; break; }
                 }
                 
-                if (strokeBufferDirty) {
-                    int[] pixels = ((java.awt.image.DataBufferInt) strokeBuffer.getRaster().getDataBuffer()).getData();
+                if (hasPenStrokes) {
+                    if (penStrokeBuffer == null || penStrokeBuffer.getWidth() != w || penStrokeBuffer.getHeight() != h) {
+                        penStrokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    }
+                    
+                    int[] pixels = ((java.awt.image.DataBufferInt) penStrokeBuffer.getRaster().getDataBuffer()).getData();
                     java.util.Arrays.fill(pixels, 0);
                     
-                    for (DrawStroke s : penStrokes) {
-                        if (s.floatPoints.isEmpty()) continue;
-                        float[] xs = s.getPointsX();
-                        float[] ys = s.getPointsY();
-                        float[] thicknesses = computeThicknesses(s);
-                        nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
+                    if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                        for (DrawStroke s : drawStrokes) {
+                            if (s.tool != DrawTool.PEN || s.floatPoints.isEmpty()) continue;
+                            float[] xs = s.getPointsX();
+                            float[] ys = s.getPointsY();
+                            float[] thicknesses = getOrComputeThicknesses(s);
+                            nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
+                        }
+                    } else {
+                        // Java fallback with Path2D for better performance
+                        Graphics2D g2 = penStrokeBuffer.createGraphics();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.translate(-offsetX, -offsetY);
+                        for (DrawStroke s : drawStrokes) {
+                            if (s.tool != DrawTool.PEN) continue;
+                            g2.setColor(s.color);
+                            g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                            drawStrokePath(g2, s.floatPoints);
+                        }
+                        g2.dispose();
                     }
                     strokeBufferDirty = false;
                 }
-                g.drawImage(strokeBuffer, 0, 0, null);
-            } else if (!penStrokes.isEmpty()) {
-                // Java fallback for pen strokes
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.translate(-offsetX, -offsetY);
-                for (DrawStroke s : penStrokes) {
-                    g2.setColor(s.color);
-                    g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    drawStrokeFast(g2, s.floatPoints);
-                }
-                g2.dispose();
+                g.drawImage(penStrokeBuffer, 0, 0, null);
             }
             
-            // Render highlighter strokes with consistent opacity (no stacking)
-            // Each stroke is rendered to a temp buffer at full opacity, then composited with alpha
-            if (!highlightStrokes.isEmpty()) {
-                for (DrawStroke s : highlightStrokes) {
-                    if (s.points.isEmpty()) continue;
-                    
-                    // Extract alpha from color, render stroke at full opacity
-                    int alpha = s.color.getAlpha();
-                    Color opaqueColor = new Color(s.color.getRed(), s.color.getGreen(), s.color.getBlue(), 255);
-                    
-                    // Create temp buffer for this stroke
-                    java.awt.image.BufferedImage tempBuf = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                    Graphics2D g2 = tempBuf.createGraphics();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.translate(-offsetX, -offsetY);
-                    g2.setColor(opaqueColor);
-                    g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    drawStrokeSimple(g2, s.points);
-                    g2.dispose();
-                    
-                    // Composite with original alpha
-                    Graphics2D gMain = (Graphics2D) g.create();
-                    gMain.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha / 255f));
-                    gMain.drawImage(tempBuf, 0, 0, null);
-                    gMain.dispose();
+            // Render highlighter strokes with caching
+            if (highlightBufferDirty || highlightStrokeBuffer == null) {
+                // Check if any highlighter strokes exist
+                boolean hasHighlighters = false;
+                for (DrawStroke s : drawStrokes) {
+                    if (s.tool == DrawTool.HIGHLIGHT) { hasHighlighters = true; break; }
                 }
+                
+                if (hasHighlighters) {
+                    if (highlightStrokeBuffer == null || highlightStrokeBuffer.getWidth() != w || highlightStrokeBuffer.getHeight() != h) {
+                        highlightStrokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    }
+                    
+                    Graphics2D bufG = highlightStrokeBuffer.createGraphics();
+                    bufG.setComposite(java.awt.AlphaComposite.Clear);
+                    bufG.fillRect(0, 0, w, h);
+                    bufG.setComposite(java.awt.AlphaComposite.SrcOver);
+                    bufG.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    bufG.translate(-offsetX, -offsetY);
+                    
+                    // Render each highlighter stroke with proper alpha compositing
+                    for (DrawStroke s : drawStrokes) {
+                        if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
+                        int alpha = s.color.getAlpha();
+                        Color opaqueColor = new Color(s.color.getRed(), s.color.getGreen(), s.color.getBlue(), 255);
+                        
+                        // Use a small clip-bounded buffer for this stroke only
+                        java.awt.Rectangle bounds = getStrokeBounds(s, (int)offsetX, (int)offsetY, w, h);
+                        if (bounds.width <= 0 || bounds.height <= 0) continue;
+                        
+                        java.awt.image.BufferedImage strokeBuf = new java.awt.image.BufferedImage(
+                            bounds.width, bounds.height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                        Graphics2D sg = strokeBuf.createGraphics();
+                        sg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        sg.translate(-bounds.x - offsetX, -bounds.y - offsetY);
+                        sg.setColor(opaqueColor);
+                        sg.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                        drawPointsPath(sg, s.points);
+                        sg.dispose();
+                        
+                        // Composite to main highlighter buffer with alpha
+                        bufG.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha / 255f));
+                        bufG.drawImage(strokeBuf, bounds.x + (int)offsetX, bounds.y + (int)offsetY, null);
+                        bufG.setComposite(java.awt.AlphaComposite.SrcOver);
+                    }
+                    bufG.dispose();
+                    highlightBufferDirty = false;
+                }
+            }
+            if (highlightStrokeBuffer != null) {
+                g.drawImage(highlightStrokeBuffer, 0, 0, null);
             }
             
             // Draw eraser cursor overlay (in screen coords, after stroke drawing)
@@ -1469,14 +1596,20 @@ public class NotetakingPanel extends EntryPanel {
             }
         }
         
-        // Compute velocity-based thickness for each point (pressure simulation)
-        private float[] computeThicknesses(DrawStroke s) {
+        // Get or compute cached thicknesses for a stroke
+        private float[] getOrComputeThicknesses(DrawStroke s) {
+            float[] cached = s.getCachedThicknesses();
+            if (cached != null && cached.length == s.floatPoints.size()) {
+                return cached;
+            }
+            // Compute and cache
             int n = s.floatPoints.size();
             float[] thicknesses = new float[n];
             float baseT = s.thickness;
             
             if (n < 2) {
                 java.util.Arrays.fill(thicknesses, baseT);
+                s.setCachedThicknesses(thicknesses);
                 return thicknesses;
             }
             
@@ -1497,19 +1630,20 @@ public class NotetakingPanel extends EntryPanel {
                 smoothVelocity = 0.3f * velocity + 0.7f * smoothVelocity;
                 
                 // Map velocity to thickness (slower = thicker, faster = thinner)
-                float normalized = smoothVelocity / 0.8f; // reference velocity
+                float normalized = smoothVelocity / 0.8f;
                 float pressure = (float) Math.exp(-normalized * 1.5);
                 pressure = Math.max(0.2f, Math.min(1f, pressure));
                 
-                float factor = 0.4f + pressure * 0.8f; // 0.4 to 1.2 multiplier
+                float factor = 0.4f + pressure * 0.8f;
                 thicknesses[i] = baseT * factor;
             }
             
+            s.setCachedThicknesses(thicknesses);
             return thicknesses;
         }
         
-        // Fast stroke drawing using float points - Java fallback
-        private void drawStrokeFast(Graphics2D g2, List<float[]> floatPoints) {
+        // Fast stroke drawing using Path2D (much faster than individual drawLine calls)
+        private void drawStrokePath(Graphics2D g2, List<float[]> floatPoints) {
             int n = floatPoints.size();
             if (n == 0) return;
             if (n == 1) {
@@ -1517,16 +1651,18 @@ public class NotetakingPanel extends EntryPanel {
                 g2.fillOval((int)(p[0] - 1), (int)(p[1] - 1), 3, 3);
                 return;
             }
-            // Use drawLine for each segment
-            for (int i = 0; i < n - 1; i++) {
-                float[] p0 = floatPoints.get(i);
-                float[] p1 = floatPoints.get(i + 1);
-                g2.drawLine((int)p0[0], (int)p0[1], (int)p1[0], (int)p1[1]);
+            java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
+            float[] first = floatPoints.get(0);
+            path.moveTo(first[0], first[1]);
+            for (int i = 1; i < n; i++) {
+                float[] p = floatPoints.get(i);
+                path.lineTo(p[0], p[1]);
             }
+            g2.draw(path);
         }
         
-        // Simple stroke drawing using integer Point - for highlighter
-        private void drawStrokeSimple(Graphics2D g2, List<Point> points) {
+        // Path2D drawing for integer Point list (highlighter)
+        private void drawPointsPath(Graphics2D g2, List<Point> points) {
             int n = points.size();
             if (n == 0) return;
             if (n == 1) {
@@ -1534,11 +1670,14 @@ public class NotetakingPanel extends EntryPanel {
                 g2.fillOval(p.x - 1, p.y - 1, 3, 3);
                 return;
             }
-            for (int i = 0; i < n - 1; i++) {
-                Point p0 = points.get(i);
-                Point p1 = points.get(i + 1);
-                g2.drawLine(p0.x, p0.y, p1.x, p1.y);
+            java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
+            Point first = points.get(0);
+            path.moveTo(first.x, first.y);
+            for (int i = 1; i < n; i++) {
+                Point p = points.get(i);
+                path.lineTo(p.x, p.y);
             }
+            g2.draw(path);
         }
     }
 }

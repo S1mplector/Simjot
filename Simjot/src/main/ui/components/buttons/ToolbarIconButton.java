@@ -371,6 +371,141 @@ public class ToolbarIconButton extends JButton {
                 }
                 break; }
             
+            case "lasso_tool": {
+                // Lasso selection tool - dashed loop with cursor
+                int size = Math.min(w, h) - 14;
+                int x = cx - size/2, y = cy - size/2;
+                
+                // Draw lasso loop (dashed ellipse)
+                g2.setColor(new Color(70, 130, 180)); // Steel blue
+                g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                    0, new float[]{4, 3}, 0));
+                
+                // Irregular lasso shape (not a perfect ellipse)
+                java.awt.geom.Path2D lasso = new java.awt.geom.Path2D.Float();
+                lasso.moveTo(x + size*0.2, y + size*0.3);
+                lasso.curveTo(x + size*0.1, y + size*0.6, x + size*0.2, y + size*0.9, x + size*0.5, y + size*0.85);
+                lasso.curveTo(x + size*0.8, y + size*0.8, x + size*0.95, y + size*0.5, x + size*0.8, y + size*0.25);
+                lasso.curveTo(x + size*0.6, y + size*0.05, x + size*0.3, y + size*0.1, x + size*0.2, y + size*0.3);
+                g2.draw(lasso);
+                
+                // Small cursor/handle at the end
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.setColor(new Color(50, 100, 150));
+                int hx = x + (int)(size*0.2), hy = y + (int)(size*0.3);
+                g2.fillOval(hx - 3, hy - 3, 6, 6);
+                g2.setColor(new Color(70, 130, 180));
+                g2.drawOval(hx - 3, hy - 3, 6, 6);
+                
+                // Inner fill hint (very subtle)
+                g2.setColor(new Color(70, 130, 180, 25));
+                g2.fill(lasso);
+                break; }
+            
+            case "pen_tool": {
+                // Pen/pencil icon for drawing
+                AffineTransform old = g2.getTransform();
+                g2.translate(cx, cy);
+                g2.rotate(-Math.PI/4);
+                
+                // Pen body
+                LinearGradientPaint body = new LinearGradientPaint(-12, -3, -12, 3,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(80, 80, 80), new Color(50, 50, 50), new Color(30, 30, 30)});
+                g2.setPaint(body);
+                g2.fillRoundRect(-12, -3, 16, 6, 2, 2);
+                
+                // Pen tip
+                int[] px = { -12, -16, -12 };
+                int[] py = { -3, 0, 3 };
+                g2.setColor(new Color(180, 180, 180));
+                g2.fillPolygon(px, py, 3);
+                g2.setColor(new Color(30, 30, 30));
+                g2.fillOval(-17, -1, 3, 2);
+                
+                // Grip section
+                g2.setColor(new Color(100, 100, 100));
+                g2.fillRect(4, -3, 4, 6);
+                
+                // Outline
+                g2.setColor(new Color(60, 60, 60));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(-12, -3, 16, 6, 2, 2);
+                g2.drawPolygon(px, py, 3);
+                
+                g2.setTransform(old);
+                break; }
+            
+            case "highlighter_tool": {
+                // Highlighter marker icon
+                AffineTransform old = g2.getTransform();
+                g2.translate(cx, cy);
+                g2.rotate(-Math.PI/4);
+                
+                // Marker body (yellow)
+                LinearGradientPaint body = new LinearGradientPaint(-10, -4, -10, 4,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(255, 240, 100), new Color(255, 220, 50), new Color(240, 200, 30)});
+                g2.setPaint(body);
+                g2.fillRoundRect(-10, -4, 18, 8, 3, 3);
+                
+                // Chisel tip
+                g2.setColor(new Color(255, 235, 59, 200));
+                g2.fillRect(-14, -3, 4, 6);
+                
+                // Cap
+                g2.setColor(new Color(80, 80, 80));
+                g2.fillRoundRect(8, -4, 6, 8, 2, 2);
+                
+                // Outline
+                g2.setColor(new Color(180, 160, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(-10, -4, 18, 8, 3, 3);
+                
+                g2.setTransform(old);
+                break; }
+            
+            case "eraser_tool": {
+                // Eraser icon
+                AffineTransform old = g2.getTransform();
+                g2.translate(cx, cy);
+                g2.rotate(-Math.PI/6);
+                
+                // Eraser body (pink)
+                LinearGradientPaint body = new LinearGradientPaint(-8, -5, -8, 5,
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(255, 180, 180), new Color(255, 140, 140), new Color(240, 120, 120)});
+                g2.setPaint(body);
+                g2.fillRoundRect(-8, -5, 16, 10, 3, 3);
+                
+                // Metal band
+                g2.setColor(new Color(180, 180, 190));
+                g2.fillRect(8, -5, 4, 10);
+                
+                // Blue holder
+                g2.setColor(new Color(100, 140, 180));
+                g2.fillRoundRect(12, -5, 6, 10, 2, 2);
+                
+                // Outline
+                g2.setColor(new Color(180, 100, 100));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(-8, -5, 16, 10, 3, 3);
+                
+                g2.setTransform(old);
+                break; }
+            
+            case "select_text": {
+                // Text cursor / I-beam
+                g2.setColor(new Color(60, 60, 60));
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                // Vertical bar
+                g2.drawLine(cx, cy - 10, cx, cy + 10);
+                // Top serif
+                g2.drawLine(cx - 5, cy - 10, cx + 5, cy - 10);
+                // Bottom serif
+                g2.drawLine(cx - 5, cy + 10, cx + 5, cy + 10);
+                break; }
+            
             default:
                 g2.setColor(Color.DARK_GRAY);
                 g2.drawLine(cx-5,cy-5,cx+5,cy+5);
