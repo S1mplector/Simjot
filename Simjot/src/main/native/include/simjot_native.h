@@ -2044,6 +2044,25 @@ void simjot_points_int_to_float(const int32_t* src_x, const int32_t* src_y, int3
 void simjot_buffer_clear_rect(uint32_t* pixels, int32_t width, int32_t height,
                                int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * REAL-TIME STROKE SMOOTHING - Lightweight filters for live input
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Smooth single point using EMA - call per incoming point */
+void simjot_smooth_point_ema(float new_x, float new_y,
+                              float prev_x, float prev_y,
+                              float* out_x, float* out_y,
+                              float alpha);
+
+/* Smooth entire stroke in-place using bidirectional EMA */
+int32_t simjot_smooth_stroke_ema(float* points_x, float* points_y,
+                                  int32_t count, float alpha);
+
+/* Smooth stroke with velocity-adaptive alpha */
+int32_t simjot_smooth_stroke_adaptive(float* points_x, float* points_y,
+                                       int32_t count, float base_alpha,
+                                       float velocity_scale);
+
 #ifdef __cplusplus
 }
 #endif

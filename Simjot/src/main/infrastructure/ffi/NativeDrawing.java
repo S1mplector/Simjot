@@ -44,6 +44,9 @@ public final class NativeDrawing {
     private final MethodHandle strokeSimplifyRdpHandle;
     private final MethodHandle pointsIntToFloatHandle;
     private final MethodHandle bufferClearRectHandle;
+    private final MethodHandle smoothPointEmaHandle;
+    private final MethodHandle smoothStrokeEmaHandle;
+    private final MethodHandle smoothStrokeAdaptiveHandle;
     
     public NativeDrawing(SymbolLookup lookup) {
         this.arena = Arena.ofShared();
@@ -130,6 +133,27 @@ public final class NativeDrawing {
             ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
             ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
             ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_smooth_point_ema
+        smoothPointEmaHandle = downcall("simjot_smooth_point_ema", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+            ValueLayout.JAVA_FLOAT
+        ));
+        
+        // simjot_smooth_stroke_ema
+        smoothStrokeEmaHandle = downcall("simjot_smooth_stroke_ema", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        // simjot_smooth_stroke_adaptive
+        smoothStrokeAdaptiveHandle = downcall("simjot_smooth_stroke_adaptive", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
         ));
     }
     
@@ -432,6 +456,102 @@ public final class NativeDrawing {
     
     private static void copyBackIntArray(MemorySegment seg, int[] arr) {
         for (int i = 0; i < arr.length; i++) arr[i] = seg.getAtIndex(ValueLayout.JAVA_INT, i);
+    }
+    
+    private static void copyBackFloatArray(MemorySegment seg, float[] arr) {
+        for (int i = 0; i < arr.length; i++) arr[i] = seg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+    }
+    
+    /**
+     * Smooth a single point using EMA - call per incoming point.
+     * 
+     * @param newX, newY   New raw input point
+     * @param prevX, prevY Previous smoothed point
+     * @param alpha        Smoothing factor (0.5-0.8 for stylus)
+     * @return float[2] = {smoothedX, smoothedY}
+     */
+    public float[] smoothPointEma(float newX, float newY, float prevX, float prevY, float alpha) {
+        if (smoothPointEmaHandle == null) {
+            // Fallback to Java implementation
+            float smoothX = alpha * newX + (1f - alpha) * prevX;
+            float smoothY = alpha * newY + (1f - alpha) * prevY;
+            return new float[] { smoothX, smoothY };
+        }
+        
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment outXSeg = local.allocate(ValueLayout.JAVA_FLOAT);
+            MemorySegment outYSeg = local.allocate(ValueLayout.JAVA_FLOAT);
+            
+            smoothPointEmaHandle.invokeExact(newX, newY, prevX, prevY, outXSeg, outYSeg, alpha);
+            
+            return new float[] {
+                outXSeg.get(ValueLayout.JAVA_FLOAT, 0),
+                outYSeg.get(ValueLayout.JAVA_FLOAT, 0)
+            };
+        } catch (Throwable t) {
+            // Fallback
+            float smoothX = alpha * newX + (1f - alpha) * prevX;
+            float smoothY = alpha * newY + (1f - alpha) * prevY;
+            return new float[] { smoothX, smoothY };
+        }
+    }
+    
+    /**
+     * Smooth entire stroke in-place using bidirectional EMA.
+     * 
+     * @param pointsX, pointsY Point arrays (modified in-place)
+     * @param alpha            Smoothing factor (0.3-0.7 recommended)
+     * @return true on success
+     */
+    public boolean smoothStrokeEma(float[] pointsX, float[] pointsY, float alpha) {
+        if (smoothStrokeEmaHandle == null || pointsX.length < 2) return false;
+        
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment xSeg = allocateFloatArray(local, pointsX);
+            MemorySegment ySeg = allocateFloatArray(local, pointsY);
+            
+            int result = (int) smoothStrokeEmaHandle.invokeExact(xSeg, ySeg, pointsX.length, alpha);
+            
+            if (result != 0) {
+                copyBackFloatArray(xSeg, pointsX);
+                copyBackFloatArray(ySeg, pointsY);
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Smooth stroke with velocity-adaptive alpha.
+     * Faster movements = less smoothing, slower = more smoothing.
+     * 
+     * @param pointsX, pointsY  Point arrays (modified in-place)
+     * @param baseAlpha         Base smoothing (0.3-0.6 recommended)
+     * @param velocityScale     Velocity influence (0.01-0.05 recommended)
+     * @return true on success
+     */
+    public boolean smoothStrokeAdaptive(float[] pointsX, float[] pointsY, 
+                                         float baseAlpha, float velocityScale) {
+        if (smoothStrokeAdaptiveHandle == null || pointsX.length < 2) return false;
+        
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment xSeg = allocateFloatArray(local, pointsX);
+            MemorySegment ySeg = allocateFloatArray(local, pointsY);
+            
+            int result = (int) smoothStrokeAdaptiveHandle.invokeExact(
+                xSeg, ySeg, pointsX.length, baseAlpha, velocityScale);
+            
+            if (result != 0) {
+                copyBackFloatArray(xSeg, pointsX);
+                copyBackFloatArray(ySeg, pointsY);
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
     }
     
     /**

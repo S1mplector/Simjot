@@ -762,6 +762,10 @@ public class NotetakingPanel extends EntryPanel {
         private Point lastPoint; // For incremental drawing
         private Point mousePos; // Current mouse position (screen coords) for eraser cursor
         
+        // Lightweight EMA smoothing state
+        private float smoothX, smoothY;
+        private static final float SMOOTH_ALPHA = 0.65f; // 0.5-0.8 range, higher = less smooth
+        
         DrawingOverlay(JScrollPane host, JComponent view) {
             this.vp = host.getViewport();
             this.view = view;
@@ -773,6 +777,9 @@ public class NotetakingPanel extends EntryPanel {
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
                     redoStack.clear();
                     current = makeStroke();
+                    // Initialize smoothing state with first point
+                    smoothX = p.x;
+                    smoothY = p.y;
                     current.points.add(p);
                     lastPoint = p;
                     drawStrokes.add(current);
@@ -782,9 +789,21 @@ public class NotetakingPanel extends EntryPanel {
                 @Override public void mouseDragged(MouseEvent e) {
                     if (!capture) return;
                     updateEraserCursor(e.getPoint());
-                    Point p = toDoc(e.getPoint());
-                    if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
+                    Point raw = toDoc(e.getPoint());
+                    if (currentDrawTool == DrawTool.ERASER) { eraseAt(raw); return; }
                     if (current == null) return;
+                    
+                    Point p;
+                    if (currentDrawTool == DrawTool.PEN) {
+                        // Apply lightweight EMA smoothing (pen only, not highlighter)
+                        smoothX = SMOOTH_ALPHA * raw.x + (1f - SMOOTH_ALPHA) * smoothX;
+                        smoothY = SMOOTH_ALPHA * raw.y + (1f - SMOOTH_ALPHA) * smoothY;
+                        p = new Point(Math.round(smoothX), Math.round(smoothY));
+                    } else {
+                        // No smoothing for highlighter - avoids opacity stacking
+                        p = raw;
+                    }
+                    
                     Point prev = lastPoint;
                     current.points.add(p);
                     lastPoint = p;

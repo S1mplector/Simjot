@@ -893,4 +893,96 @@ void simjot_buffer_clear_rect(uint32_t* pixels, int32_t width, int32_t height,
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * REAL-TIME STROKE SMOOTHING - Lightweight EMA filter for live input
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Smooth a single incoming point using exponential moving average.
+ * This is designed to be called per-point as input arrives.
+ * 
+ * @param new_x, new_y    - The new raw input point
+ * @param prev_x, prev_y  - The previous smoothed point (output from last call)
+ * @param out_x, out_y    - Output smoothed point
+ * @param alpha           - Smoothing factor (0.0-1.0). Higher = less smoothing, more responsive.
+ *                          Recommended: 0.5-0.8 for stylus input
+ */
+void simjot_smooth_point_ema(float new_x, float new_y,
+                              float prev_x, float prev_y,
+                              float* out_x, float* out_y,
+                              float alpha) {
+    if (!out_x || !out_y) return;
+    // EMA: smoothed = alpha * new + (1 - alpha) * prev
+    *out_x = alpha * new_x + (1.0f - alpha) * prev_x;
+    *out_y = alpha * new_y + (1.0f - alpha) * prev_y;
+}
+
+/**
+ * Smooth an entire stroke in-place using a single-pass EMA filter.
+ * Very fast O(n) algorithm suitable for real-time use.
+ * 
+ * @param points_x, points_y - Point arrays (modified in-place)
+ * @param count              - Number of points
+ * @param alpha              - Smoothing factor (0.3-0.7 recommended)
+ * @return 1 on success, 0 on error
+ */
+int32_t simjot_smooth_stroke_ema(float* points_x, float* points_y,
+                                  int32_t count, float alpha) {
+    if (!points_x || !points_y || count < 2) return 0;
+    if (alpha <= 0.0f) alpha = 0.5f;
+    if (alpha > 1.0f) alpha = 1.0f;
+    
+    // Forward pass - smooth from start to end
+    for (int32_t i = 1; i < count; i++) {
+        points_x[i] = alpha * points_x[i] + (1.0f - alpha) * points_x[i-1];
+        points_y[i] = alpha * points_y[i] + (1.0f - alpha) * points_y[i-1];
+    }
+    
+    // Optional: backward pass for bidirectional smoothing (reduces lag)
+    // This creates a zero-phase filter effect
+    for (int32_t i = count - 2; i >= 0; i--) {
+        points_x[i] = alpha * points_x[i] + (1.0f - alpha) * points_x[i+1];
+        points_y[i] = alpha * points_y[i] + (1.0f - alpha) * points_y[i+1];
+    }
+    
+    return 1;
+}
+
+/**
+ * Smooth stroke with adaptive alpha based on segment velocity.
+ * Faster movements get less smoothing (more responsive), 
+ * slower movements get more smoothing (steadier lines).
+ * 
+ * @param points_x, points_y - Point arrays (modified in-place)
+ * @param count              - Number of points  
+ * @param base_alpha         - Base smoothing factor (0.3-0.6 recommended)
+ * @param velocity_scale     - How much velocity affects alpha (0.01-0.05 recommended)
+ * @return 1 on success, 0 on error
+ */
+int32_t simjot_smooth_stroke_adaptive(float* points_x, float* points_y,
+                                       int32_t count, float base_alpha,
+                                       float velocity_scale) {
+    if (!points_x || !points_y || count < 2) return 0;
+    if (base_alpha <= 0.0f) base_alpha = 0.4f;
+    if (base_alpha > 1.0f) base_alpha = 1.0f;
+    if (velocity_scale <= 0.0f) velocity_scale = 0.02f;
+    
+    for (int32_t i = 1; i < count; i++) {
+        // Calculate velocity (distance from previous point)
+        float dx = points_x[i] - points_x[i-1];
+        float dy = points_y[i] - points_y[i-1];
+        float velocity = sqrtf(dx * dx + dy * dy);
+        
+        // Adaptive alpha: faster = higher alpha (less smoothing)
+        float alpha = base_alpha + velocity * velocity_scale;
+        if (alpha > 0.95f) alpha = 0.95f;
+        
+        // Apply EMA
+        points_x[i] = alpha * points_x[i] + (1.0f - alpha) * points_x[i-1];
+        points_y[i] = alpha * points_y[i] + (1.0f - alpha) * points_y[i-1];
+    }
+    
+    return 1;
+}
+
 } /* extern "C" */
