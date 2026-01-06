@@ -8,7 +8,6 @@
 
 package main.ui.components.toast;
 
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
@@ -153,12 +152,20 @@ public final class ToastOverlay {
         void showAnimated(Runnable onComplete) {
             this.onComplete = onComplete;
             this.slidingIn = true;
-            this.progress = 0f;
-            this.opacity = 0f;
+            this.progress = 1f;
+            this.opacity = 1f;
             this.dismissed = false;
             
+            // Instant show - no animation
+            setLocation(getX(), targetY);
             setVisible(true);
-            startAnimation();
+            
+            // Hold for display duration, then dismiss
+            Timer holdTimer = new Timer((int) DISPLAY_DURATION_MS, ev -> {
+                if (!dismissed) dismissInstant();
+            });
+            holdTimer.setRepeats(false);
+            holdTimer.start();
         }
         
         void dismissQuick() {
@@ -166,6 +173,15 @@ public final class ToastOverlay {
             dismissed = true;
             if (animationTimer != null) animationTimer.stop();
             dispose();
+            if (onComplete != null) onComplete.run();
+        }
+        
+        void dismissInstant() {
+            if (dismissed) return;
+            dismissed = true;
+            if (animationTimer != null) animationTimer.stop();
+            dispose();
+            if (onComplete != null) onComplete.run();
         }
         
         private void startAnimation() {
@@ -260,10 +276,7 @@ public final class ToastOverlay {
                 float alpha = Math.max(0f, Math.min(1f, opacity));
                 RoundRectangle2D shape = new RoundRectangle2D.Float(0, 0, w, h, ARC, ARC);
                 
-                // Apply overall opacity
-                if (alpha < 1f) {
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                }
+                // No opacity animation - always fully visible
                 
                 // Soft shadow
                 g2.setColor(new Color(0, 0, 0, 30));

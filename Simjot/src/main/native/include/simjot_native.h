@@ -1978,6 +1978,72 @@ int32_t simjot_stroke_one_euro_batch(
     float min_cutoff, float beta
 );
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * NATIVE STROKE RENDERING - Direct pixel buffer rendering for maximum performance
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Render a single stroke to an ARGB pixel buffer with anti-aliasing */
+int32_t simjot_draw_stroke(uint32_t* pixels, int32_t width, int32_t height,
+                            const float* points_x, const float* points_y,
+                            int32_t point_count, float thickness, uint32_t argb_color,
+                            float offset_x, float offset_y);
+
+/* Render multiple strokes in batch (more efficient than individual calls) */
+int32_t simjot_draw_strokes_batch(uint32_t* pixels, int32_t width, int32_t height,
+                                   const float* all_points_x, const float* all_points_y,
+                                   const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                   const float* thicknesses, const uint32_t* colors,
+                                   int32_t stroke_count,
+                                   float offset_x, float offset_y);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ERASER HIT TESTING - Fast point-to-segment distance for stroke erasure
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Check if eraser hits any stroke, returns first hit stroke index or -1 */
+int32_t simjot_eraser_hit_test(float px, float py, float radius_sq,
+                                const float* all_points_x, const float* all_points_y,
+                                const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                int32_t stroke_count);
+
+/* Batch hit test - returns bitmask of hit strokes (up to 64) */
+int64_t simjot_eraser_hit_test_batch(float px, float py, float radius_sq,
+                                      const float* all_points_x, const float* all_points_y,
+                                      const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                      int32_t stroke_count);
+
+/* Hit test for unlimited strokes - writes hit indices to array */
+int32_t simjot_eraser_hit_test_array(float px, float py, float radius_sq,
+                                      const float* all_points_x, const float* all_points_y,
+                                      const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                      int32_t stroke_count,
+                                      int32_t* hit_indices, int32_t hit_capacity);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * STROKE GEOMETRY UTILITIES
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Calculate bounding box of a stroke */
+int32_t simjot_stroke_calc_bounds(const float* points_x, const float* points_y, int32_t count,
+                                   float* out_min_x, float* out_min_y,
+                                   float* out_max_x, float* out_max_y);
+
+/* Calculate total arc length of a stroke */
+float simjot_stroke_calc_length(const float* points_x, const float* points_y, int32_t count);
+
+/* Simplify stroke using Ramer-Douglas-Peucker algorithm */
+int32_t simjot_stroke_simplify_rdp(const float* in_x, const float* in_y, int32_t in_count,
+                                    float* out_x, float* out_y, int32_t out_capacity,
+                                    float epsilon);
+
+/* Convert int point arrays to float */
+void simjot_points_int_to_float(const int32_t* src_x, const int32_t* src_y, int32_t count,
+                                 float* dst_x, float* dst_y);
+
+/* Clear rectangular region of pixel buffer */
+void simjot_buffer_clear_rect(uint32_t* pixels, int32_t width, int32_t height,
+                               int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
+
 #ifdef __cplusplus
 }
 #endif

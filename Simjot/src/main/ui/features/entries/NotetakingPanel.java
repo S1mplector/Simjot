@@ -755,17 +755,13 @@ public class NotetakingPanel extends EntryPanel {
     }
 
     private class DrawingOverlay extends JComponent {
-        private final JScrollPane host;
         private final JViewport vp;
         private final JComponent view;
         private boolean capture = false; // whether to intercept mouse events
         private DrawStroke current;
-        private Point lastPoint; // For interpolation
-        private static final int MIN_POINT_DISTANCE = 2; // Minimum distance between points
-        private static final int MAX_POINT_DISTANCE = 8; // Max distance before interpolation
+        private Point lastPoint; // For incremental drawing
         
         DrawingOverlay(JScrollPane host, JComponent view) {
-            this.host = host;
             this.vp = host.getViewport();
             this.view = view;
             setOpaque(false);
@@ -774,45 +770,25 @@ public class NotetakingPanel extends EntryPanel {
                     if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
-                    redoStack.clear(); // New stroke clears redo history
+                    redoStack.clear();
                     current = makeStroke();
                     current.points.add(p);
                     lastPoint = p;
                     drawStrokes.add(current);
                     undoStack.add(new AddStrokeAction(current));
-                    repaint();
+                    repaintDirty(p, p, current.thickness);
                 }
                 @Override public void mouseDragged(MouseEvent e) {
                     if (!capture) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
-                    if (current == null || lastPoint == null) return;
-                    
-                    // Calculate distance from last point
-                    double dist = lastPoint.distance(p);
-                    
-                    // Skip if too close (reduces jitter)
-                    if (dist < MIN_POINT_DISTANCE) return;
-                    
-                    // Interpolate if points are far apart (fills gaps from fast movement)
-                    if (dist > MAX_POINT_DISTANCE) {
-                        int steps = (int) Math.ceil(dist / MAX_POINT_DISTANCE);
-                        for (int i = 1; i <= steps; i++) {
-                            double t = (double) i / steps;
-                            int ix = (int) Math.round(lastPoint.x + t * (p.x - lastPoint.x));
-                            int iy = (int) Math.round(lastPoint.y + t * (p.y - lastPoint.y));
-                            current.points.add(new Point(ix, iy));
-                        }
-                    } else {
-                        current.points.add(p);
-                    }
+                    if (current == null) return;
+                    Point prev = lastPoint;
+                    current.points.add(p);
                     lastPoint = p;
-                    repaint();
+                    repaintDirty(prev, p, current.thickness);
                 }
                 @Override public void mouseReleased(MouseEvent e) {
-                    if (current != null && current.points.size() >= 3) {
-                        smoothStroke(current);
-                    }
                     current = null;
                     lastPoint = null;
                     repaint();
@@ -828,11 +804,21 @@ public class NotetakingPanel extends EntryPanel {
             getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoStroke");
             getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) performUndo(); }});
             getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) performRedo(); }});
-            // Keep size in sync with content view
             view.addComponentListener(new ComponentAdapter(){
                 @Override public void componentResized(ComponentEvent e) { revalidate(); repaint(); }
             });
         }
+        
+        private void repaintDirty(Point p1, Point p2, int thickness) {
+            Point vpPos = vp.getViewPosition();
+            int pad = thickness + 4;
+            int x1 = Math.min(p1.x, p2.x) - vpPos.x - pad;
+            int y1 = Math.min(p1.y, p2.y) - vpPos.y - pad;
+            int x2 = Math.max(p1.x, p2.x) - vpPos.x + pad;
+            int y2 = Math.max(p1.y, p2.y) - vpPos.y + pad;
+            repaint(x1, y1, x2 - x1, y2 - y1);
+        }
+        
         void setOverlayVisible(boolean on) {
             setVisible(on);
             repaint();
@@ -889,69 +875,38 @@ public class NotetakingPanel extends EntryPanel {
             return (int) Math.round(dx * dx + dy * dy);
         }
         
-        /**
-         * Apply a light Chaikin pass to soften corners without over-smoothing.
-         * Only run once to preserve the original handwriting character.
-         */
-        private void smoothStroke(DrawStroke stroke) {
-            if (stroke.points.size() < 4) return;
-            
-            List<Point> pts = stroke.points;
-            List<Point> smoothed = new ArrayList<>(pts.size() * 2);
-            
-            // Keep first point
-            smoothed.add(pts.get(0));
-            
-            for (int i = 0; i < pts.size() - 1; i++) {
-                Point p0 = pts.get(i);
-                Point p1 = pts.get(i + 1);
-                
-                // Gentle Chaikin weights to keep shape (70/30 instead of 75/25)
-                int q0x = (int) Math.round(p0.x * 0.7 + p1.x * 0.3);
-                int q0y = (int) Math.round(p0.y * 0.7 + p1.y * 0.3);
-                int q1x = (int) Math.round(p0.x * 0.3 + p1.x * 0.7);
-                int q1y = (int) Math.round(p0.y * 0.3 + p1.y * 0.7);
-                
-                smoothed.add(new Point(q0x, q0y));
-                smoothed.add(new Point(q1x, q1y));
-            }
-            
-            // Keep last point
-            smoothed.add(pts.get(pts.size() - 1));
-            
-            stroke.points.clear();
-            stroke.points.addAll(smoothed);
-        }
-        
         @Override public Dimension getPreferredSize() { return view.getPreferredSize(); }
+        
         @Override protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            Point vpPos = vp.getViewPosition();
-            g2.translate(-vpPos.x, -vpPos.y);
+            g2.translate(-vp.getViewPosition().x, -vp.getViewPosition().y);
+            
+            // Draw all strokes
             for (DrawStroke s : drawStrokes) {
                 g2.setColor(s.color);
                 g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                drawPolyline(g2, s.points);
+                drawStrokeFast(g2, s.points);
             }
+            
             g2.dispose();
         }
         
-        /**
-         * Draw the stroke as a simple polyline (after optional smoothing).
-         */
-        private void drawPolyline(Graphics2D g2, List<Point> points) {
-            if (points.isEmpty()) return;
-            
-            Path2D path = new Path2D.Float();
-            path.moveTo(points.get(0).x, points.get(0).y);
-            for (int i = 1; i < points.size(); i++) {
-                Point p = points.get(i);
-                path.lineTo(p.x, p.y);
+        // Fast stroke drawing using drawLine() - avoids Path2D allocation
+        private void drawStrokeFast(Graphics2D g2, List<Point> points) {
+            int n = points.size();
+            if (n == 0) return;
+            if (n == 1) {
+                Point p = points.get(0);
+                g2.fillOval(p.x - 1, p.y - 1, 3, 3);
+                return;
             }
-            g2.draw(path);
+            // Use drawLine for each segment - faster than Path2D
+            for (int i = 0; i < n - 1; i++) {
+                Point p0 = points.get(i);
+                Point p1 = points.get(i + 1);
+                g2.drawLine(p0.x, p0.y, p1.x, p1.y);
+            }
         }
     }
 }

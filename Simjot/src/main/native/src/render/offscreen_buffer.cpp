@@ -407,4 +407,490 @@ int32_t simjot_buffer_get_size(int64_t handle, int32_t* out_width, int32_t* out_
     return 1;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * STROKE RENDERING - High-performance anti-aliased line drawing
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// Wu's anti-aliased line algorithm helper
+static inline void plot_aa_pixel(uint32_t* pixels, int32_t width, int32_t height,
+                                  int32_t x, int32_t y, uint32_t color, float brightness) {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    if (brightness <= 0.0f) return;
+    
+    uint32_t alpha = (color >> 24) & 0xFF;
+    uint32_t new_alpha = (uint32_t)(alpha * brightness);
+    if (new_alpha == 0) return;
+    
+    uint32_t src = (new_alpha << 24) | (color & 0x00FFFFFF);
+    uint32_t dst = pixels[y * width + x];
+    pixels[y * width + x] = alpha_blend(src, dst);
+}
+
+// Fast integer part
+static inline int32_t ipart(float x) { return (int32_t)x; }
+static inline float fpart(float x) { return x - (float)ipart(x); }
+static inline float rfpart(float x) { return 1.0f - fpart(x); }
+
+// Draw anti-aliased line segment with thickness using Wu's algorithm
+static void draw_thick_line_aa(uint32_t* pixels, int32_t width, int32_t height,
+                                float x0, float y0, float x1, float y1,
+                                float thickness, uint32_t color) {
+    float dx = x1 - x0;
+    float dy = y1 - y0;
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.001f) {
+        // Single point
+        int32_t px = (int32_t)(x0 + 0.5f);
+        int32_t py = (int32_t)(y0 + 0.5f);
+        int32_t r = (int32_t)(thickness * 0.5f + 0.5f);
+        for (int32_t oy = -r; oy <= r; oy++) {
+            for (int32_t ox = -r; ox <= r; ox++) {
+                if (ox*ox + oy*oy <= r*r) {
+                    plot_aa_pixel(pixels, width, height, px + ox, py + oy, color, 1.0f);
+                }
+            }
+        }
+        return;
+    }
+    
+    // Normalize direction
+    float nx = -dy / len;
+    float ny = dx / len;
+    float half_t = thickness * 0.5f;
+    
+    // For thin lines, use Wu's algorithm directly
+    if (thickness <= 2.0f) {
+        bool steep = fabsf(dy) > fabsf(dx);
+        if (steep) {
+            float tmp = x0; x0 = y0; y0 = tmp;
+            tmp = x1; x1 = y1; y1 = tmp;
+        }
+        if (x0 > x1) {
+            float tmp = x0; x0 = x1; x1 = tmp;
+            tmp = y0; y0 = y1; y1 = tmp;
+        }
+        
+        dx = x1 - x0;
+        dy = y1 - y0;
+        float gradient = (dx == 0.0f) ? 1.0f : dy / dx;
+        
+        // First endpoint
+        int32_t xend = (int32_t)(x0 + 0.5f);
+        float yend = y0 + gradient * (xend - x0);
+        float xgap = rfpart(x0 + 0.5f);
+        int32_t xpxl1 = xend;
+        int32_t ypxl1 = ipart(yend);
+        
+        if (steep) {
+            plot_aa_pixel(pixels, width, height, ypxl1, xpxl1, color, rfpart(yend) * xgap);
+            plot_aa_pixel(pixels, width, height, ypxl1 + 1, xpxl1, color, fpart(yend) * xgap);
+        } else {
+            plot_aa_pixel(pixels, width, height, xpxl1, ypxl1, color, rfpart(yend) * xgap);
+            plot_aa_pixel(pixels, width, height, xpxl1, ypxl1 + 1, color, fpart(yend) * xgap);
+        }
+        float intery = yend + gradient;
+        
+        // Second endpoint
+        xend = (int32_t)(x1 + 0.5f);
+        yend = y1 + gradient * (xend - x1);
+        xgap = fpart(x1 + 0.5f);
+        int32_t xpxl2 = xend;
+        int32_t ypxl2 = ipart(yend);
+        
+        if (steep) {
+            plot_aa_pixel(pixels, width, height, ypxl2, xpxl2, color, rfpart(yend) * xgap);
+            plot_aa_pixel(pixels, width, height, ypxl2 + 1, xpxl2, color, fpart(yend) * xgap);
+        } else {
+            plot_aa_pixel(pixels, width, height, xpxl2, ypxl2, color, rfpart(yend) * xgap);
+            plot_aa_pixel(pixels, width, height, xpxl2, ypxl2 + 1, color, fpart(yend) * xgap);
+        }
+        
+        // Main loop
+        for (int32_t x = xpxl1 + 1; x < xpxl2; x++) {
+            if (steep) {
+                plot_aa_pixel(pixels, width, height, ipart(intery), x, color, rfpart(intery));
+                plot_aa_pixel(pixels, width, height, ipart(intery) + 1, x, color, fpart(intery));
+            } else {
+                plot_aa_pixel(pixels, width, height, x, ipart(intery), color, rfpart(intery));
+                plot_aa_pixel(pixels, width, height, x, ipart(intery) + 1, color, fpart(intery));
+            }
+            intery += gradient;
+        }
+    } else {
+        // For thick lines, draw filled polygon (quad)
+        float p0x = x0 + nx * half_t, p0y = y0 + ny * half_t;
+        float p1x = x0 - nx * half_t, p1y = y0 - ny * half_t;
+        float p2x = x1 - nx * half_t, p2y = y1 - ny * half_t;
+        float p3x = x1 + nx * half_t, p3y = y1 + ny * half_t;
+        
+        // Bounding box
+        float minX = fminf(fminf(p0x, p1x), fminf(p2x, p3x));
+        float maxX = fmaxf(fmaxf(p0x, p1x), fmaxf(p2x, p3x));
+        float minY = fminf(fminf(p0y, p1y), fminf(p2y, p3y));
+        float maxY = fmaxf(fmaxf(p0y, p1y), fmaxf(p2y, p3y));
+        
+        int32_t x_start = (int32_t)fmaxf(0.0f, minX - 1.0f);
+        int32_t x_end = (int32_t)fminf((float)(width - 1), maxX + 1.0f);
+        int32_t y_start = (int32_t)fmaxf(0.0f, minY - 1.0f);
+        int32_t y_end = (int32_t)fminf((float)(height - 1), maxY + 1.0f);
+        
+        // Scanline fill with distance-based antialiasing
+        for (int32_t py = y_start; py <= y_end; py++) {
+            for (int32_t px = x_start; px <= x_end; px++) {
+                // Distance to line segment
+                float t = ((px - x0) * dx + (py - y0) * dy) / (len * len);
+                t = fmaxf(0.0f, fminf(1.0f, t));
+                float closestX = x0 + t * dx;
+                float closestY = y0 + t * dy;
+                float dist = sqrtf((px - closestX) * (px - closestX) + (py - closestY) * (py - closestY));
+                
+                if (dist <= half_t + 1.0f) {
+                    float coverage = fmaxf(0.0f, fminf(1.0f, half_t + 0.5f - dist));
+                    if (coverage > 0.0f) {
+                        plot_aa_pixel(pixels, width, height, px, py, color, coverage);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Draw round caps
+    int32_t cap_r = (int32_t)(half_t + 1.5f);
+    for (int32_t i = 0; i < 2; i++) {
+        float cx = (i == 0) ? x0 : x1;
+        float cy = (i == 0) ? y0 : y1;
+        int32_t icx = (int32_t)cx;
+        int32_t icy = (int32_t)cy;
+        
+        for (int32_t oy = -cap_r; oy <= cap_r; oy++) {
+            for (int32_t ox = -cap_r; ox <= cap_r; ox++) {
+                float dist = sqrtf((float)(ox * ox + oy * oy));
+                if (dist <= half_t + 1.0f) {
+                    float coverage = fmaxf(0.0f, fminf(1.0f, half_t + 0.5f - dist));
+                    if (coverage > 0.0f) {
+                        plot_aa_pixel(pixels, width, height, icx + ox, icy + oy, color, coverage);
+                    }
+                }
+            }
+        }
+    }
+}
+
+int32_t simjot_draw_stroke(uint32_t* pixels, int32_t width, int32_t height,
+                            const float* points_x, const float* points_y,
+                            int32_t point_count, float thickness, uint32_t argb_color,
+                            float offset_x, float offset_y) {
+    if (!pixels || !points_x || !points_y || point_count < 1) return 0;
+    if (width <= 0 || height <= 0) return 0;
+    
+    if (point_count == 1) {
+        // Single point - draw dot
+        float x = points_x[0] - offset_x;
+        float y = points_y[0] - offset_y;
+        draw_thick_line_aa(pixels, width, height, x, y, x, y, thickness, argb_color);
+        return 1;
+    }
+    
+    // Draw line segments
+    for (int32_t i = 0; i < point_count - 1; i++) {
+        float x0 = points_x[i] - offset_x;
+        float y0 = points_y[i] - offset_y;
+        float x1 = points_x[i + 1] - offset_x;
+        float y1 = points_y[i + 1] - offset_y;
+        
+        draw_thick_line_aa(pixels, width, height, x0, y0, x1, y1, thickness, argb_color);
+    }
+    
+    return 1;
+}
+
+int32_t simjot_draw_strokes_batch(uint32_t* pixels, int32_t width, int32_t height,
+                                   const float* all_points_x, const float* all_points_y,
+                                   const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                   const float* thicknesses, const uint32_t* colors,
+                                   int32_t stroke_count,
+                                   float offset_x, float offset_y) {
+    if (!pixels || !all_points_x || !all_points_y) return 0;
+    if (!stroke_starts || !stroke_lengths || !thicknesses || !colors) return 0;
+    if (stroke_count < 1 || width <= 0 || height <= 0) return 0;
+    
+    for (int32_t s = 0; s < stroke_count; s++) {
+        int32_t start = stroke_starts[s];
+        int32_t len = stroke_lengths[s];
+        if (len < 1) continue;
+        
+        simjot_draw_stroke(pixels, width, height,
+                           all_points_x + start, all_points_y + start,
+                           len, thicknesses[s], colors[s],
+                           offset_x, offset_y);
+    }
+    
+    return 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ERASER HIT TESTING - Fast point-to-segment distance for all strokes
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// Distance squared from point to line segment
+static inline float dist_point_to_segment_sq(float px, float py,
+                                              float ax, float ay, float bx, float by) {
+    float vx = bx - ax, vy = by - ay;
+    float wx = px - ax, wy = py - ay;
+    float c1 = vx * wx + vy * wy;
+    if (c1 <= 0.0f) {
+        return (px - ax) * (px - ax) + (py - ay) * (py - ay);
+    }
+    float c2 = vx * vx + vy * vy;
+    if (c2 <= c1) {
+        return (px - bx) * (px - bx) + (py - by) * (py - by);
+    }
+    float t = c1 / c2;
+    float projx = ax + t * vx;
+    float projy = ay + t * vy;
+    float dx = px - projx, dy = py - projy;
+    return dx * dx + dy * dy;
+}
+
+// Check if eraser at (px, py) with radius hits any stroke segment
+// Returns index of first hit stroke, or -1 if no hit
+int32_t simjot_eraser_hit_test(float px, float py, float radius_sq,
+                                const float* all_points_x, const float* all_points_y,
+                                const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                int32_t stroke_count) {
+    if (!all_points_x || !all_points_y || !stroke_starts || !stroke_lengths) return -1;
+    
+    for (int32_t s = 0; s < stroke_count; s++) {
+        int32_t start = stroke_starts[s];
+        int32_t len = stroke_lengths[s];
+        if (len < 2) continue;
+        
+        const float* xs = all_points_x + start;
+        const float* ys = all_points_y + start;
+        
+        for (int32_t i = 0; i < len - 1; i++) {
+            float dist_sq = dist_point_to_segment_sq(px, py, xs[i], ys[i], xs[i+1], ys[i+1]);
+            if (dist_sq <= radius_sq) {
+                return s; // Hit!
+            }
+        }
+    }
+    
+    return -1; // No hit
+}
+
+// Batch hit test - returns bitmask of which strokes were hit (up to 64 strokes)
+// For more than 64 strokes, use simjot_eraser_hit_test_array
+int64_t simjot_eraser_hit_test_batch(float px, float py, float radius_sq,
+                                      const float* all_points_x, const float* all_points_y,
+                                      const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                      int32_t stroke_count) {
+    if (!all_points_x || !all_points_y || !stroke_starts || !stroke_lengths) return 0;
+    
+    int64_t hit_mask = 0;
+    int32_t max_strokes = (stroke_count < 64) ? stroke_count : 64;
+    
+    for (int32_t s = 0; s < max_strokes; s++) {
+        int32_t start = stroke_starts[s];
+        int32_t len = stroke_lengths[s];
+        if (len < 2) continue;
+        
+        const float* xs = all_points_x + start;
+        const float* ys = all_points_y + start;
+        
+        for (int32_t i = 0; i < len - 1; i++) {
+            float dist_sq = dist_point_to_segment_sq(px, py, xs[i], ys[i], xs[i+1], ys[i+1]);
+            if (dist_sq <= radius_sq) {
+                hit_mask |= (1LL << s);
+                break; // Move to next stroke
+            }
+        }
+    }
+    
+    return hit_mask;
+}
+
+// Hit test for unlimited strokes - writes results to output array
+int32_t simjot_eraser_hit_test_array(float px, float py, float radius_sq,
+                                      const float* all_points_x, const float* all_points_y,
+                                      const int32_t* stroke_starts, const int32_t* stroke_lengths,
+                                      int32_t stroke_count,
+                                      int32_t* hit_indices, int32_t hit_capacity) {
+    if (!all_points_x || !all_points_y || !stroke_starts || !stroke_lengths) return 0;
+    if (!hit_indices || hit_capacity < 1) return 0;
+    
+    int32_t hit_count = 0;
+    
+    for (int32_t s = 0; s < stroke_count && hit_count < hit_capacity; s++) {
+        int32_t start = stroke_starts[s];
+        int32_t len = stroke_lengths[s];
+        if (len < 2) continue;
+        
+        const float* xs = all_points_x + start;
+        const float* ys = all_points_y + start;
+        
+        for (int32_t i = 0; i < len - 1; i++) {
+            float dist_sq = dist_point_to_segment_sq(px, py, xs[i], ys[i], xs[i+1], ys[i+1]);
+            if (dist_sq <= radius_sq) {
+                hit_indices[hit_count++] = s;
+                break;
+            }
+        }
+    }
+    
+    return hit_count;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * STROKE BOUNDS - Fast bounding box calculation
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+int32_t simjot_stroke_calc_bounds(const float* points_x, const float* points_y, int32_t count,
+                                   float* out_min_x, float* out_min_y,
+                                   float* out_max_x, float* out_max_y) {
+    if (!points_x || !points_y || count < 1) return 0;
+    
+    float minX = points_x[0], maxX = points_x[0];
+    float minY = points_y[0], maxY = points_y[0];
+    
+    for (int32_t i = 1; i < count; i++) {
+        float x = points_x[i], y = points_y[i];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+    
+    if (out_min_x) *out_min_x = minX;
+    if (out_min_y) *out_min_y = minY;
+    if (out_max_x) *out_max_x = maxX;
+    if (out_max_y) *out_max_y = maxY;
+    
+    return 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * POINT ARRAY UTILITIES - Fast operations on point arrays
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// Convert int array to float array (for Java int[] -> native float*)
+void simjot_points_int_to_float(const int32_t* src_x, const int32_t* src_y, int32_t count,
+                                 float* dst_x, float* dst_y) {
+    if (!src_x || !src_y || !dst_x || !dst_y) return;
+    for (int32_t i = 0; i < count; i++) {
+        dst_x[i] = (float)src_x[i];
+        dst_y[i] = (float)src_y[i];
+    }
+}
+
+// Calculate total stroke length
+float simjot_stroke_calc_length(const float* points_x, const float* points_y, int32_t count) {
+    if (!points_x || !points_y || count < 2) return 0.0f;
+    
+    float total = 0.0f;
+    for (int32_t i = 0; i < count - 1; i++) {
+        float dx = points_x[i+1] - points_x[i];
+        float dy = points_y[i+1] - points_y[i];
+        total += sqrtf(dx * dx + dy * dy);
+    }
+    return total;
+}
+
+// Simplify stroke using Ramer-Douglas-Peucker algorithm
+static void rdp_simplify(const float* xs, const float* ys, int32_t start, int32_t end,
+                          float epsilon_sq, uint8_t* keep) {
+    if (end <= start + 1) return;
+    
+    float dx = xs[end] - xs[start];
+    float dy = ys[end] - ys[start];
+    float len_sq = dx * dx + dy * dy;
+    
+    float max_dist_sq = 0.0f;
+    int32_t max_idx = start;
+    
+    for (int32_t i = start + 1; i < end; i++) {
+        float dist_sq;
+        if (len_sq < 0.0001f) {
+            // Start and end are same point
+            float px = xs[i] - xs[start];
+            float py = ys[i] - ys[start];
+            dist_sq = px * px + py * py;
+        } else {
+            float t = ((xs[i] - xs[start]) * dx + (ys[i] - ys[start]) * dy) / len_sq;
+            t = fmaxf(0.0f, fminf(1.0f, t));
+            float projx = xs[start] + t * dx;
+            float projy = ys[start] + t * dy;
+            float px = xs[i] - projx;
+            float py = ys[i] - projy;
+            dist_sq = px * px + py * py;
+        }
+        
+        if (dist_sq > max_dist_sq) {
+            max_dist_sq = dist_sq;
+            max_idx = i;
+        }
+    }
+    
+    if (max_dist_sq > epsilon_sq) {
+        keep[max_idx] = 1;
+        rdp_simplify(xs, ys, start, max_idx, epsilon_sq, keep);
+        rdp_simplify(xs, ys, max_idx, end, epsilon_sq, keep);
+    }
+}
+
+int32_t simjot_stroke_simplify_rdp(const float* in_x, const float* in_y, int32_t in_count,
+                                    float* out_x, float* out_y, int32_t out_capacity,
+                                    float epsilon) {
+    if (!in_x || !in_y || !out_x || !out_y || in_count < 2 || out_capacity < 2) {
+        return 0;
+    }
+    
+    // Allocate keep array
+    uint8_t* keep = (uint8_t*)calloc(in_count, 1);
+    if (!keep) return 0;
+    
+    keep[0] = 1;
+    keep[in_count - 1] = 1;
+    
+    float epsilon_sq = epsilon * epsilon;
+    rdp_simplify(in_x, in_y, 0, in_count - 1, epsilon_sq, keep);
+    
+    // Copy kept points
+    int32_t out_count = 0;
+    for (int32_t i = 0; i < in_count && out_count < out_capacity; i++) {
+        if (keep[i]) {
+            out_x[out_count] = in_x[i];
+            out_y[out_count] = in_y[i];
+            out_count++;
+        }
+    }
+    
+    free(keep);
+    return out_count;
+}
+
+// Clear a rectangular region of a pixel buffer
+void simjot_buffer_clear_rect(uint32_t* pixels, int32_t width, int32_t height,
+                               int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
+    if (!pixels || width <= 0 || height <= 0) return;
+    
+    // Clip to bounds
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > width) w = width - x;
+    if (y + h > height) h = height - y;
+    if (w <= 0 || h <= 0) return;
+    
+    for (int32_t py = y; py < y + h; py++) {
+        uint32_t* row = pixels + py * width + x;
+        if (color == 0) {
+            memset(row, 0, w * sizeof(uint32_t));
+        } else {
+            for (int32_t px = 0; px < w; px++) {
+                row[px] = color;
+            }
+        }
+    }
+}
+
 } /* extern "C" */
