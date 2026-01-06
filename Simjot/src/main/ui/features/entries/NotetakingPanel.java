@@ -760,6 +760,7 @@ public class NotetakingPanel extends EntryPanel {
         private boolean capture = false; // whether to intercept mouse events
         private DrawStroke current;
         private Point lastPoint; // For incremental drawing
+        private Point mousePos; // Current mouse position (screen coords) for eraser cursor
         
         DrawingOverlay(JScrollPane host, JComponent view) {
             this.vp = host.getViewport();
@@ -780,6 +781,7 @@ public class NotetakingPanel extends EntryPanel {
                 }
                 @Override public void mouseDragged(MouseEvent e) {
                     if (!capture) return;
+                    updateEraserCursor(e.getPoint());
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
                     if (current == null) return;
@@ -787,6 +789,9 @@ public class NotetakingPanel extends EntryPanel {
                     current.points.add(p);
                     lastPoint = p;
                     repaintDirty(prev, p, current.thickness);
+                }
+                @Override public void mouseMoved(MouseEvent e) {
+                    updateEraserCursor(e.getPoint());
                 }
                 @Override public void mouseReleased(MouseEvent e) {
                     current = null;
@@ -817,6 +822,16 @@ public class NotetakingPanel extends EntryPanel {
             int x2 = Math.max(p1.x, p2.x) - vpPos.x + pad;
             int y2 = Math.max(p1.y, p2.y) - vpPos.y + pad;
             repaint(x1, y1, x2 - x1, y2 - y1);
+        }
+        
+        private void updateEraserCursor(Point screenPos) {
+            if (currentDrawTool != DrawTool.ERASER) return;
+            Point oldPos = mousePos;
+            mousePos = screenPos;
+            // Repaint old and new cursor areas
+            int r = eraserRadius + 2;
+            if (oldPos != null) repaint(oldPos.x - r, oldPos.y - r, r * 2, r * 2);
+            repaint(screenPos.x - r, screenPos.y - r, r * 2, r * 2);
         }
         
         void setOverlayVisible(boolean on) {
@@ -890,6 +905,17 @@ public class NotetakingPanel extends EntryPanel {
             }
             
             g2.dispose();
+            
+            // Draw eraser cursor overlay (in screen coords, after stroke drawing)
+            if (capture && currentDrawTool == DrawTool.ERASER && mousePos != null) {
+                Graphics2D eg = (Graphics2D) g.create();
+                eg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int r = eraserRadius;
+                eg.setColor(new Color(100, 100, 100, 150));
+                eg.setStroke(new BasicStroke(1.5f));
+                eg.drawOval(mousePos.x - r, mousePos.y - r, r * 2, r * 2);
+                eg.dispose();
+            }
         }
         
         // Fast stroke drawing using drawLine() - avoids Path2D allocation
