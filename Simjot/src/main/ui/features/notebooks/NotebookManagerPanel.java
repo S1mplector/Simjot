@@ -83,6 +83,7 @@ import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
@@ -132,6 +133,17 @@ public class NotebookManagerPanel extends JPanel {
         JScrollPane scroll = new JScrollPane(gallery);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getVerticalScrollBar().setUnitIncrement(16);
+        
+        // Apply custom scrollbar UI
+        try {
+            scroll.getVerticalScrollBar().setUI(new ModernScrollBarUI());
+            scroll.getVerticalScrollBar().setPreferredSize(new Dimension(12, Integer.MAX_VALUE));
+            scroll.getVerticalScrollBar().setOpaque(false);
+            scroll.getHorizontalScrollBar().setUI(new ModernScrollBarUI());
+            scroll.getHorizontalScrollBar().setPreferredSize(new Dimension(Integer.MAX_VALUE, 12));
+            scroll.getHorizontalScrollBar().setOpaque(false);
+        } catch (Throwable ignored) {}
+        
         add(scroll,BorderLayout.CENTER);
 
         refresh();

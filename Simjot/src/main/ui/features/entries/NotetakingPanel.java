@@ -1428,6 +1428,7 @@ public class NotetakingPanel extends EntryPanel {
                     fp[0] += dx;
                     fp[1] += dy;
                 }
+                s.invalidateCache();
                 // Sync with optimizer
                 moveStrokeInOptimizer(s, dx, dy);
             }

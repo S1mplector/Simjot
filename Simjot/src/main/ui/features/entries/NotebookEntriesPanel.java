@@ -193,6 +193,15 @@ public class NotebookEntriesPanel extends JPanel {
             list.repaint();
         } catch (Throwable ignored) {}
     });
+    
+    private final float[] dashedBorderPhase = new float[]{0f};
+    private final javax.swing.Timer dashedBorderTimer = new javax.swing.Timer(50, e -> {
+        try {
+            dashedBorderPhase[0] += 0.8f; // Speed of conveyor belt movement
+            if (dashedBorderPhase[0] > 10f) dashedBorderPhase[0] -= 10f; // Reset after full cycle
+            list.repaint();
+        } catch (Throwable ignored) {}
+    });
 
     // Folder watch
     private WatchService watchService;
@@ -272,6 +281,7 @@ public class NotebookEntriesPanel extends JPanel {
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
         private int moodValue = -1;
         private float selectionSweepPhase = 0f;
+        private float dashedBorderPhase = 0f; // Current animated phase for dashed border
         private boolean hovered = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
 
@@ -429,6 +439,8 @@ public class NotebookEntriesPanel extends JPanel {
             } else {
                 selectionSweepPhase = 0f;
             }
+            Object dashedPhaseObj = list.getClientProperty("dashedBorderPhase");
+            dashedBorderPhase = dashedPhaseObj instanceof float[] dashedArr && dashedArr.length > 0 ? dashedArr[0] : 0f;
             Object hoverObj = list.getClientProperty("hoverIndex");
             int hoverIdx = hoverObj instanceof Integer ? (Integer) hoverObj : -1;
             hovered = (hoverIdx == index);
@@ -556,6 +568,19 @@ public class NotebookEntriesPanel extends JPanel {
             g2.drawRoundRect(4, 3, w - 8, h - 6, arc, arc);
             g2.setColor(new Color(255, 255, 255, 140));
             g2.drawRoundRect(5, 4, w - 10, h - 8, arc - 1, arc - 1);
+            
+            // Draw dashed border overlay for selected state (when not hovered)
+            if (selected && !hoverActive && deleteProgress <= 0.01f) {
+                // Create animated dashed stroke for selection indicator
+                float[] dashPattern = {6.0f, 4.0f}; // Dash length 6, gap 4
+                java.awt.BasicStroke dashedStroke = new java.awt.BasicStroke(2.0f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND, 0.0f, dashPattern, dashedBorderPhase);
+                g2.setStroke(dashedStroke);
+                g2.setColor(new Color(88, 133, 255, 180)); // Accent color with good visibility
+                g2.drawRoundRect(2, 1, w - 4, h - 2, arc + 3, arc + 3);
+                
+                // Reset stroke for any subsequent drawing
+                g2.setStroke(new java.awt.BasicStroke(1.0f));
+            }
             g2.dispose();
             super.paintComponent(g);
         }
@@ -756,6 +781,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("moods", moodValues);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
+        list.putClientProperty("dashedBorderPhase", dashedBorderPhase);
         list.putClientProperty("previews", previewCache);
         list.putClientProperty("hoverIndex", -1);
         list.setBackground(new Color(247, 247, 249));
@@ -790,6 +816,7 @@ public class NotebookEntriesPanel extends JPanel {
                 }
             }
             updateSelectionSweepState();
+            updateDashedBorderState();
         });
         listScroll = new JScrollPane(list);
         try {
@@ -1323,6 +1350,7 @@ public class NotebookEntriesPanel extends JPanel {
         try { reorderAnimTimer.stop(); } catch (Throwable ignored) {}
         try { deleteAnimTimer.stop(); } catch (Throwable ignored) {}
         try { selectionSweepTimer.stop(); } catch (Throwable ignored) {}
+        try { dashedBorderTimer.stop(); } catch (Throwable ignored) {}
         try {
             if (metaLoader != null && !metaLoader.isDone()) {
                 metaLoader.cancel(true);
@@ -1558,6 +1586,17 @@ public class NotebookEntriesPanel extends JPanel {
         } else {
             if (selectionSweepTimer.isRunning()) selectionSweepTimer.stop();
             selectionSweepPhase[0] = 0f;
+            list.repaint();
+        }
+    }
+    
+    private void updateDashedBorderState() {
+        boolean hasSelection = list.getSelectedIndex() >= 0;
+        if (hasSelection) {
+            if (!dashedBorderTimer.isRunning()) dashedBorderTimer.start();
+        } else {
+            if (dashedBorderTimer.isRunning()) dashedBorderTimer.stop();
+            dashedBorderPhase[0] = 0f;
             list.repaint();
         }
     }
