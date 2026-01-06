@@ -125,11 +125,13 @@ public class ToolbarIconButton extends JButton {
         }
 
         // Draw icon via centralized renderer; fallback to vector
-        boolean painted=false;
+        // Force vector icons for drawing tools (pen, highlighter, eraser, lasso)
+        boolean useVectorOnly = isVectorOnlyIcon(id);
+        boolean painted = false;
         int size = Math.min(getWidth(), getHeight()) - 8;
         int ix = (getWidth()-size)/2;
         int iy = (getHeight()-size)/2;
-        if (resourcePath != null) {
+        if (!useVectorOnly && resourcePath != null) {
             Composite old = g2.getComposite();
             if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
             painted = ImageIconRenderer.draw(g2, resourcePath, ix, iy, size, this, true);
@@ -155,6 +157,14 @@ public class ToolbarIconButton extends JButton {
         }
 
         g2.dispose();
+    }
+
+    // Check if this icon should always use vector rendering (drawing tools)
+    private static boolean isVectorOnlyIcon(String iconId) {
+        return switch (iconId) {
+            case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text" -> true;
+            default -> false;
+        };
     }
 
     private void drawVector(Graphics2D g2){
