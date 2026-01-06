@@ -20,7 +20,7 @@ import java.util.List;
  * Loads curated quotes from resources with native-accelerated I/O when possible.
  */
 public final class QuoteLibrary {
-    private static final String QUOTES_RESOURCE = "quotes /quotes.json";
+    private static final String QUOTES_RESOURCE = "quotes/quotes.json";
     private static final List<String> FALLBACK = List.of("Take a deep breath. You are enough.");
     private static volatile List<String> cachedQuotes;
 

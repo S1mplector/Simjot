@@ -215,11 +215,10 @@ public final class NativeFontSupport {
     private static MemorySegment unpackFont(NativeFonts fonts, CustomFont font) {
         byte[] data = CustomFontStorage.saveToBytes(font);
         if (data == null || data.length == 0) return MemorySegment.NULL;
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment buffer = arena.allocate(data.length);
-            MemorySegment.copy(data, 0, buffer, ValueLayout.JAVA_BYTE, 0, data.length);
-            return fonts.fontUnpack(buffer, data.length);
-        }
+        Arena arena = Arena.ofAuto();
+        MemorySegment buffer = arena.allocate(data.length);
+        MemorySegment.copy(data, 0, buffer, ValueLayout.JAVA_BYTE, 0, data.length);
+        return fonts.fontUnpack(buffer, data.length);
     }
 
     private static final class FontHandle {
