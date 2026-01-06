@@ -212,6 +212,7 @@ public class NotetakingPanel extends EntryPanel {
             case PEN -> "Pen";
             case HIGHLIGHT -> "Highlighter";
             case ERASER -> "Eraser";
+            case LASSO -> "Lasso Select";
         };
         main.ui.components.toast.ToastOverlay.info(toolName + " mode");
     }
@@ -710,7 +711,7 @@ public class NotetakingPanel extends EntryPanel {
     }
 
     // --- Drawing model & overlay ---
-    private enum DrawTool { PEN, HIGHLIGHT, ERASER }
+    private enum DrawTool { PEN, HIGHLIGHT, ERASER, LASSO }
     
     // Enhanced stroke with float precision and timestamps for velocity-based rendering
     private static class DrawStroke {
@@ -812,12 +813,25 @@ public class NotetakingPanel extends EntryPanel {
         private java.awt.image.BufferedImage strokeBuffer;
         private boolean strokeBufferDirty = true;
         
+        // Optimizer for large stroke collections (quadtree spatial index)
+        private long optimizerHandle = 0;
+        private java.util.Map<DrawStroke, Integer> strokeToOptId = new java.util.HashMap<>();
+        private static final int OPTIMIZER_THRESHOLD = 100; // Enable when stroke count exceeds this
+        private boolean useOptimizer = false;
+        
         // Float-precision smoothing state (keeps sub-pixel precision)
         private float smoothX, smoothY;
         private float lastRawX, lastRawY;
         private long lastTimestamp;
         private static final float SMOOTH_ALPHA = 0.6f; // Responsive but smooth
         private static final float MIN_DISTANCE_SQ = 4.0f; // 2px minimum distance
+        
+        // Lasso selection state
+        private List<Point> lassoPath = new ArrayList<>();
+        private java.util.Set<DrawStroke> selectedStrokes = new java.util.HashSet<>();
+        private java.awt.Rectangle selectionBounds = null;
+        private boolean isDraggingSelection = false;
+        private Point dragStart = null;
         
         DrawingOverlay(JScrollPane host, JComponent view) {
             this.vp = host.getViewport();
@@ -839,6 +853,12 @@ public class NotetakingPanel extends EntryPanel {
                     if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
+                    
+                    // Lasso tool handling
+                    if (currentDrawTool == DrawTool.LASSO) {
+                        handleLassoPress(p);
+                        return;
+                    }
                     
                     long now = System.currentTimeMillis();
                     redoStack.clear();
@@ -869,6 +889,7 @@ public class NotetakingPanel extends EntryPanel {
                     updateEraserCursor(e.getPoint());
                     Point raw = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(raw); return; }
+                    if (currentDrawTool == DrawTool.LASSO) { handleLassoDrag(raw); return; }
                     if (current == null) return;
                     
                     if (currentDrawTool == DrawTool.HIGHLIGHT) {
@@ -912,13 +933,23 @@ public class NotetakingPanel extends EntryPanel {
                 }
                 
                 @Override public void mouseReleased(MouseEvent e) {
+                    if (currentDrawTool == DrawTool.LASSO) {
+                        handleLassoRelease();
+                        return;
+                    }
                     if (current != null && current.floatPoints.size() >= 3 && currentDrawTool == DrawTool.PEN) {
                         // Apply Chaikin smoothing on stroke completion for extra polish
                         applyFinalSmoothing(current);
                     }
+                    // Add completed stroke to optimizer if active
+                    if (current != null && useOptimizer) {
+                        addStrokeToOptimizer(current);
+                    }
                     current = null;
                     lastPoint = null;
                     strokeBufferDirty = true;
+                    // Check if we should enable/disable optimizer
+                    checkOptimizerThreshold();
                     repaint();
                 }
             };
@@ -1000,31 +1031,40 @@ public class NotetakingPanel extends EntryPanel {
             int r = eraserRadius;
             int r2 = r * r;
             List<DrawStroke> erased = new ArrayList<>();
-            java.util.Iterator<DrawStroke> it = drawStrokes.iterator();
-            while (it.hasNext()) {
-                DrawStroke s = it.next();
+            
+            // Use optimizer for fast spatial query when available
+            List<DrawStroke> candidates = queryStrokesNearPoint(p, r + 50);
+            
+            for (DrawStroke s : candidates) {
+                if (!drawStrokes.contains(s)) continue; // Already removed
                 List<Point> pts = s.points;
+                boolean shouldErase = false;
+                
                 if (pts.size() == 1) {
                     // Single point (dot) - check distance to that point
                     Point pt = pts.get(0);
                     int dx = p.x - pt.x, dy = p.y - pt.y;
-                    if (dx * dx + dy * dy <= r2) {
-                        it.remove();
-                        erased.add(s);
+                    shouldErase = (dx * dx + dy * dy <= r2);
+                } else {
+                    for (int i = 1; i < pts.size(); i++) {
+                        if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) { 
+                            shouldErase = true;
+                            break; 
+                        }
                     }
-                    continue;
                 }
-                for (int i = 1; i < pts.size(); i++) {
-                    if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) { 
-                        it.remove(); 
-                        erased.add(s); 
-                        break; 
-                    }
+                
+                if (shouldErase) {
+                    drawStrokes.remove(s);
+                    removeStrokeFromOptimizer(s);
+                    erased.add(s);
                 }
             }
+            
             if (!erased.isEmpty()) {
                 redoStack.clear();
                 undoStack.add(new EraseStrokesAction(erased));
+                checkOptimizerThreshold();
                 repaint();
             }
         }
@@ -1039,6 +1079,251 @@ public class NotetakingPanel extends EntryPanel {
             double projx = a.x + t * vx, projy = a.y + t * vy;
             double dx = p.x - projx, dy = p.y - projy;
             return (int) Math.round(dx * dx + dy * dy);
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // OPTIMIZER MANAGEMENT (for large stroke collections)
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        private void checkOptimizerThreshold() {
+            if (nativeDrawing == null || !nativeDrawing.isOptimizerAvailable()) return;
+            
+            int count = drawStrokes.size();
+            if (!useOptimizer && count > OPTIMIZER_THRESHOLD) {
+                // Enable optimizer - migrate all strokes
+                enableOptimizer();
+            } else if (useOptimizer && count < OPTIMIZER_THRESHOLD / 2) {
+                // Disable optimizer when stroke count drops significantly
+                disableOptimizer();
+            }
+        }
+        
+        private void enableOptimizer() {
+            if (optimizerHandle != 0) return;
+            optimizerHandle = nativeDrawing.optimizerCreate(8192, 8192);
+            if (optimizerHandle == 0) return;
+            
+            // Add all existing strokes to optimizer
+            for (DrawStroke s : drawStrokes) {
+                addStrokeToOptimizer(s);
+            }
+            useOptimizer = true;
+        }
+        
+        private void disableOptimizer() {
+            if (optimizerHandle == 0) return;
+            nativeDrawing.optimizerDestroy(optimizerHandle);
+            optimizerHandle = 0;
+            strokeToOptId.clear();
+            useOptimizer = false;
+        }
+        
+        private void addStrokeToOptimizer(DrawStroke s) {
+            if (optimizerHandle == 0 || nativeDrawing == null) return;
+            float[] xs, ys;
+            if (s.tool == DrawTool.HIGHLIGHT) {
+                xs = new float[s.points.size()];
+                ys = new float[s.points.size()];
+                for (int i = 0; i < s.points.size(); i++) {
+                    xs[i] = s.points.get(i).x;
+                    ys[i] = s.points.get(i).y;
+                }
+            } else {
+                xs = s.getPointsX();
+                ys = s.getPointsY();
+            }
+            int optId = nativeDrawing.optimizerAddStroke(optimizerHandle, xs, ys, null,
+                                                          s.color.getRGB(), s.thickness);
+            if (optId >= 0) {
+                strokeToOptId.put(s, optId);
+            }
+        }
+        
+        private void removeStrokeFromOptimizer(DrawStroke s) {
+            if (optimizerHandle == 0 || nativeDrawing == null) return;
+            Integer optId = strokeToOptId.remove(s);
+            if (optId != null) {
+                nativeDrawing.optimizerRemoveStroke(optimizerHandle, optId);
+            }
+        }
+        
+        private void moveStrokeInOptimizer(DrawStroke s, int dx, int dy) {
+            if (optimizerHandle == 0 || nativeDrawing == null) return;
+            Integer optId = strokeToOptId.get(s);
+            if (optId != null) {
+                nativeDrawing.optimizerMoveStroke(optimizerHandle, optId, dx, dy);
+            }
+        }
+        
+        // Fast eraser hit test using optimizer's spatial index
+        private List<DrawStroke> queryStrokesNearPoint(Point p, int radius) {
+            List<DrawStroke> result = new ArrayList<>();
+            if (useOptimizer && optimizerHandle != 0 && nativeDrawing != null) {
+                int[] nearbyIds = nativeDrawing.optimizerQueryPoint(optimizerHandle, p.x, p.y, radius);
+                // Map optimizer IDs back to DrawStroke objects
+                for (int optId : nearbyIds) {
+                    for (java.util.Map.Entry<DrawStroke, Integer> e : strokeToOptId.entrySet()) {
+                        if (e.getValue() == optId) {
+                            result.add(e.getKey());
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // Fallback: return all strokes (original behavior)
+                result.addAll(drawStrokes);
+            }
+            return result;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // LASSO SELECTION
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        private void handleLassoPress(Point p) {
+            // Check if clicking inside existing selection to drag
+            if (selectionBounds != null && selectionBounds.contains(p)) {
+                isDraggingSelection = true;
+                dragStart = p;
+            } else {
+                // Start new lasso path
+                clearSelection();
+                lassoPath.clear();
+                lassoPath.add(p);
+                isDraggingSelection = false;
+            }
+            repaint();
+        }
+        
+        private void handleLassoDrag(Point p) {
+            if (isDraggingSelection && dragStart != null) {
+                // Move selected strokes
+                int dx = p.x - dragStart.x;
+                int dy = p.y - dragStart.y;
+                moveSelectedStrokes(dx, dy);
+                dragStart = p;
+                strokeBufferDirty = true;
+                repaint();
+            } else {
+                // Continue drawing lasso path
+                lassoPath.add(p);
+                repaint();
+            }
+        }
+        
+        private void handleLassoRelease() {
+            if (isDraggingSelection) {
+                isDraggingSelection = false;
+                dragStart = null;
+            } else if (lassoPath.size() >= 3) {
+                // Complete lasso and select strokes
+                selectStrokesInLasso();
+                lassoPath.clear();
+            }
+            repaint();
+        }
+        
+        private void selectStrokesInLasso() {
+            selectedStrokes.clear();
+            float[] lassoX = new float[lassoPath.size()];
+            float[] lassoY = new float[lassoPath.size()];
+            for (int i = 0; i < lassoPath.size(); i++) {
+                lassoX[i] = lassoPath.get(i).x;
+                lassoY[i] = lassoPath.get(i).y;
+            }
+            
+            for (DrawStroke s : drawStrokes) {
+                float[] strokeX, strokeY;
+                if (s.tool == DrawTool.HIGHLIGHT) {
+                    strokeX = new float[s.points.size()];
+                    strokeY = new float[s.points.size()];
+                    for (int i = 0; i < s.points.size(); i++) {
+                        strokeX[i] = s.points.get(i).x;
+                        strokeY[i] = s.points.get(i).y;
+                    }
+                } else {
+                    strokeX = s.getPointsX();
+                    strokeY = s.getPointsY();
+                }
+                
+                // Use native lasso test if available, else Java fallback
+                boolean selected = false;
+                if (nativeDrawing != null && nativeDrawing.isLassoAvailable()) {
+                    selected = nativeDrawing.lassoTestStroke(strokeX, strokeY, lassoX, lassoY, 0);
+                } else {
+                    selected = javaLassoTestStroke(strokeX, strokeY, lassoX, lassoY);
+                }
+                
+                if (selected) selectedStrokes.add(s);
+            }
+            
+            updateSelectionBounds();
+        }
+        
+        private boolean javaLassoTestStroke(float[] strokeX, float[] strokeY, float[] lassoX, float[] lassoY) {
+            // Java fallback: check if any point is inside the lasso polygon
+            for (int i = 0; i < strokeX.length; i++) {
+                if (pointInPolygon(strokeX[i], strokeY[i], lassoX, lassoY)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        private boolean pointInPolygon(float px, float py, float[] polyX, float[] polyY) {
+            int n = polyX.length;
+            if (n < 3) return false;
+            boolean inside = false;
+            for (int i = 0, j = n - 1; i < n; j = i++) {
+                if (((polyY[i] > py) != (polyY[j] > py)) &&
+                    (px < (polyX[j] - polyX[i]) * (py - polyY[i]) / (polyY[j] - polyY[i]) + polyX[i])) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+        
+        private void updateSelectionBounds() {
+            if (selectedStrokes.isEmpty()) {
+                selectionBounds = null;
+                return;
+            }
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+            for (DrawStroke s : selectedStrokes) {
+                for (Point p : s.points) {
+                    if (p.x < minX) minX = p.x;
+                    if (p.y < minY) minY = p.y;
+                    if (p.x > maxX) maxX = p.x;
+                    if (p.y > maxY) maxY = p.y;
+                }
+            }
+            int pad = 8;
+            selectionBounds = new java.awt.Rectangle(minX - pad, minY - pad, maxX - minX + 2*pad, maxY - minY + 2*pad);
+        }
+        
+        private void moveSelectedStrokes(int dx, int dy) {
+            for (DrawStroke s : selectedStrokes) {
+                for (Point p : s.points) {
+                    p.x += dx;
+                    p.y += dy;
+                }
+                for (float[] fp : s.floatPoints) {
+                    fp[0] += dx;
+                    fp[1] += dy;
+                }
+                // Sync with optimizer
+                moveStrokeInOptimizer(s, dx, dy);
+            }
+            if (selectionBounds != null) {
+                selectionBounds.translate(dx, dy);
+            }
+        }
+        
+        private void clearSelection() {
+            selectedStrokes.clear();
+            selectionBounds = null;
+            lassoPath.clear();
         }
         
         @Override public Dimension getPreferredSize() { return view.getPreferredSize(); }
@@ -1131,6 +1416,56 @@ public class NotetakingPanel extends EntryPanel {
                 eg.setStroke(new BasicStroke(1.5f));
                 eg.drawOval(mousePos.x - r, mousePos.y - r, r * 2, r * 2);
                 eg.dispose();
+            }
+            
+            // Draw lasso selection overlay
+            if (currentDrawTool == DrawTool.LASSO) {
+                Graphics2D lg = (Graphics2D) g.create();
+                lg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                lg.translate(-offsetX, -offsetY);
+                
+                // Draw lasso path while drawing
+                if (!lassoPath.isEmpty()) {
+                    lg.setColor(new Color(70, 130, 180, 200)); // Steel blue
+                    lg.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                        0, new float[]{6, 4}, 0)); // Dashed line
+                    java.awt.geom.Path2D path = new java.awt.geom.Path2D.Float();
+                    path.moveTo(lassoPath.get(0).x, lassoPath.get(0).y);
+                    for (int i = 1; i < lassoPath.size(); i++) {
+                        path.lineTo(lassoPath.get(i).x, lassoPath.get(i).y);
+                    }
+                    if (lassoPath.size() > 2) {
+                        path.closePath();
+                        lg.setColor(new Color(70, 130, 180, 30)); // Fill with light blue
+                        lg.fill(path);
+                        lg.setColor(new Color(70, 130, 180, 200));
+                    }
+                    lg.draw(path);
+                }
+                
+                // Draw selection bounds
+                if (selectionBounds != null) {
+                    lg.setColor(new Color(70, 130, 180, 50));
+                    lg.fill(selectionBounds);
+                    lg.setColor(new Color(70, 130, 180, 200));
+                    lg.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                        0, new float[]{8, 4}, 0));
+                    lg.draw(selectionBounds);
+                    
+                    // Draw corner handles
+                    int hs = 6; // handle size
+                    lg.setColor(new Color(70, 130, 180));
+                    lg.setStroke(new BasicStroke(1.5f));
+                    int[] hx = {selectionBounds.x, selectionBounds.x + selectionBounds.width};
+                    int[] hy = {selectionBounds.y, selectionBounds.y + selectionBounds.height};
+                    for (int x : hx) {
+                        for (int y : hy) {
+                            lg.fillRect(x - hs/2, y - hs/2, hs, hs);
+                        }
+                    }
+                }
+                
+                lg.dispose();
             }
         }
         

@@ -2116,6 +2116,87 @@ int32_t simjot_draw_distance_sample(
     float* out_x, float* out_y, int32_t out_capacity,
     float min_distance);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LASSO SELECTOR - Selection and movement of strokes
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Point-in-polygon test (ray casting) */
+int32_t simjot_lasso_point_in_polygon(float px, float py,
+                                       const float* poly_x, const float* poly_y, int32_t poly_count);
+
+/* Test if stroke intersects lasso. mode: 0=any, 1=all, 2=centroid */
+int32_t simjot_lasso_test_stroke(const float* stroke_x, const float* stroke_y, int32_t stroke_count,
+                                  const float* lasso_x, const float* lasso_y, int32_t lasso_count,
+                                  int32_t mode);
+
+/* Batch test multiple strokes against lasso */
+int32_t simjot_lasso_test_strokes_batch(const float* all_x, const float* all_y,
+                                         const int32_t* stroke_starts, const int32_t* stroke_counts,
+                                         int32_t num_strokes,
+                                         const float* lasso_x, const float* lasso_y, int32_t lasso_count,
+                                         int32_t mode, int32_t* results);
+
+/* Compute bounding box: bounds[0]=minX, [1]=minY, [2]=maxX, [3]=maxY */
+int32_t simjot_lasso_compute_bounds(const float* x, const float* y, int32_t count, float* bounds);
+
+/* Compute bounds of selected strokes */
+int32_t simjot_lasso_compute_selection_bounds(const float* all_x, const float* all_y,
+                                               const int32_t* stroke_starts, const int32_t* stroke_counts,
+                                               const int32_t* selected, int32_t num_strokes,
+                                               float* bounds);
+
+/* Translate points by delta */
+int32_t simjot_lasso_translate_points(float* x, float* y, int32_t count, float dx, float dy);
+
+/* Simplify lasso polygon (Douglas-Peucker) */
+int32_t simjot_lasso_simplify(const float* in_x, const float* in_y, int32_t in_count,
+                               float* out_x, float* out_y, int32_t out_capacity,
+                               float epsilon);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * STROKE OPTIMIZER - Quadtree spatial index, dirty-region tracking, batching
+ * For efficient handling of large stroke collections
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Create/destroy optimizer */
+int64_t simjot_optimizer_create(float worldWidth, float worldHeight);
+void simjot_optimizer_destroy(int64_t handle);
+
+/* Stroke management */
+int32_t simjot_optimizer_add_stroke(int64_t handle,
+                                     const float* x, const float* y, int32_t count,
+                                     const float* thicknesses, uint32_t color, float baseThickness);
+void simjot_optimizer_remove_stroke(int64_t handle, int32_t strokeId);
+void simjot_optimizer_move_stroke(int64_t handle, int32_t strokeId, float dx, float dy);
+
+/* Spatial queries */
+int32_t simjot_optimizer_query_visible(int64_t handle,
+                                        float viewX, float viewY, float viewW, float viewH,
+                                        int32_t* outIds, int32_t capacity);
+int32_t simjot_optimizer_query_point(int64_t handle,
+                                      float x, float y, float radius,
+                                      int32_t* outIds, int32_t capacity);
+
+/* Stroke data access */
+int32_t simjot_optimizer_get_stroke(int64_t handle, int32_t strokeId,
+                                     float* outX, float* outY, float* outThick,
+                                     int32_t capacity, uint32_t* outColor);
+int32_t simjot_optimizer_get_stroke_bounds(int64_t handle, int32_t strokeId, float* bounds);
+int32_t simjot_optimizer_stroke_count(int64_t handle);
+
+/* LOD and dirty tracking */
+void simjot_optimizer_set_zoom(int64_t handle, float zoom);
+int32_t simjot_optimizer_needs_repaint(int64_t handle,
+                                        float viewX, float viewY, float viewW, float viewH);
+void simjot_optimizer_clear_dirty(int64_t handle);
+void simjot_optimizer_mark_full_repaint(int64_t handle);
+void simjot_optimizer_rebuild(int64_t handle);
+
+/* Optimized rendering */
+int32_t simjot_optimizer_render_visible(int64_t handle,
+                                         uint32_t* pixels, int32_t width, int32_t height,
+                                         float viewX, float viewY, float viewW, float viewH);
+
 #ifdef __cplusplus
 }
 #endif

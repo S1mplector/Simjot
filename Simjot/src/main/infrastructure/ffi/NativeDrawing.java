@@ -65,6 +65,25 @@ public final class NativeDrawing {
     private final MethodHandle strokeRenderVariableHandle;
     private final MethodHandle strokeDistanceSampleHandle;
     
+    // Lasso selector
+    private final MethodHandle lassoPointInPolygonHandle;
+    private final MethodHandle lassoTestStrokeHandle;
+    private final MethodHandle lassoComputeBoundsHandle;
+    private final MethodHandle lassoTranslatePointsHandle;
+    
+    // Stroke optimizer (quadtree spatial index, dirty tracking)
+    private final MethodHandle optimizerCreateHandle;
+    private final MethodHandle optimizerDestroyHandle;
+    private final MethodHandle optimizerAddStrokeHandle;
+    private final MethodHandle optimizerRemoveStrokeHandle;
+    private final MethodHandle optimizerMoveStrokeHandle;
+    private final MethodHandle optimizerQueryVisibleHandle;
+    private final MethodHandle optimizerQueryPointHandle;
+    private final MethodHandle optimizerStrokeCountHandle;
+    private final MethodHandle optimizerNeedsRepaintHandle;
+    private final MethodHandle optimizerClearDirtyHandle;
+    private final MethodHandle optimizerRenderVisibleHandle;
+    
     public NativeDrawing(SymbolLookup lookup) {
         this.arena = Arena.ofShared();
         this.lookup = lookup;
@@ -279,6 +298,97 @@ public final class NativeDrawing {
             ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
             ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
             ValueLayout.JAVA_FLOAT
+        ));
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // LASSO SELECTOR
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        // simjot_lasso_point_in_polygon
+        lassoPointInPolygonHandle = downcall("simjot_lasso_point_in_polygon", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_lasso_test_stroke
+        lassoTestStrokeHandle = downcall("simjot_lasso_test_stroke", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_lasso_compute_bounds
+        lassoComputeBoundsHandle = downcall("simjot_lasso_compute_bounds", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS
+        ));
+        
+        // simjot_lasso_translate_points
+        lassoTranslatePointsHandle = downcall("simjot_lasso_translate_points", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // STROKE OPTIMIZER (quadtree, dirty tracking, batching)
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        optimizerCreateHandle = downcall("simjot_optimizer_create", FunctionDescriptor.of(
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        optimizerDestroyHandle = downcall("simjot_optimizer_destroy", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_LONG
+        ));
+        
+        optimizerAddStrokeHandle = downcall("simjot_optimizer_add_stroke", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        optimizerRemoveStrokeHandle = downcall("simjot_optimizer_remove_stroke", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT
+        ));
+        
+        optimizerMoveStrokeHandle = downcall("simjot_optimizer_move_stroke", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        optimizerQueryVisibleHandle = downcall("simjot_optimizer_query_visible", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.ADDRESS, ValueLayout.JAVA_INT
+        ));
+        
+        optimizerQueryPointHandle = downcall("simjot_optimizer_query_point", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.ADDRESS, ValueLayout.JAVA_INT
+        ));
+        
+        optimizerStrokeCountHandle = downcall("simjot_optimizer_stroke_count", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG
+        ));
+        
+        optimizerNeedsRepaintHandle = downcall("simjot_optimizer_needs_repaint", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        optimizerClearDirtyHandle = downcall("simjot_optimizer_clear_dirty", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_LONG
+        ));
+        
+        optimizerRenderVisibleHandle = downcall("simjot_optimizer_render_visible", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
         ));
     }
     
@@ -919,6 +1029,279 @@ public final class NativeDrawing {
             return new float[][] { outX, outY };
         } catch (Throwable t) {
             return null;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LASSO SELECTOR API
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if lasso functions are available.
+     */
+    public boolean isLassoAvailable() {
+        return lassoTestStrokeHandle != null && lassoComputeBoundsHandle != null;
+    }
+    
+    /**
+     * Test if a point is inside a lasso polygon.
+     */
+    public boolean lassoPointInPolygon(float px, float py, float[] polyX, float[] polyY) {
+        if (lassoPointInPolygonHandle == null || polyX.length < 3) return false;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment polyXSeg = allocateFloatArray(local, polyX);
+            MemorySegment polyYSeg = allocateFloatArray(local, polyY);
+            int result = (int) lassoPointInPolygonHandle.invokeExact(
+                px, py, polyXSeg, polyYSeg, polyX.length
+            );
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Test if a stroke intersects with a lasso polygon.
+     * @param mode 0=any point, 1=all points, 2=centroid
+     */
+    public boolean lassoTestStroke(float[] strokeX, float[] strokeY,
+                                    float[] lassoX, float[] lassoY, int mode) {
+        if (lassoTestStrokeHandle == null || strokeX.length < 1 || lassoX.length < 3) return false;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment strokeXSeg = allocateFloatArray(local, strokeX);
+            MemorySegment strokeYSeg = allocateFloatArray(local, strokeY);
+            MemorySegment lassoXSeg = allocateFloatArray(local, lassoX);
+            MemorySegment lassoYSeg = allocateFloatArray(local, lassoY);
+            int result = (int) lassoTestStrokeHandle.invokeExact(
+                strokeXSeg, strokeYSeg, strokeX.length,
+                lassoXSeg, lassoYSeg, lassoX.length,
+                mode
+            );
+            return result != 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Compute bounding box of points.
+     * @return float[4] = {minX, minY, maxX, maxY} or null
+     */
+    public float[] lassoComputeBounds(float[] x, float[] y) {
+        if (lassoComputeBoundsHandle == null || x.length < 1) return null;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment xSeg = allocateFloatArray(local, x);
+            MemorySegment ySeg = allocateFloatArray(local, y);
+            MemorySegment boundsSeg = local.allocate(ValueLayout.JAVA_FLOAT, 4);
+            int result = (int) lassoComputeBoundsHandle.invokeExact(xSeg, ySeg, x.length, boundsSeg);
+            if (result == 0) return null;
+            float[] bounds = new float[4];
+            for (int i = 0; i < 4; i++) {
+                bounds[i] = boundsSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+            }
+            return bounds;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    /**
+     * Translate points by delta. Modifies arrays in-place.
+     */
+    public boolean lassoTranslatePoints(float[] x, float[] y, float dx, float dy) {
+        if (lassoTranslatePointsHandle == null || x.length < 1) return false;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment xSeg = allocateFloatArray(local, x);
+            MemorySegment ySeg = allocateFloatArray(local, y);
+            int result = (int) lassoTranslatePointsHandle.invokeExact(xSeg, ySeg, x.length, dx, dy);
+            if (result == 0) return false;
+            // Copy back modified values
+            for (int i = 0; i < x.length; i++) {
+                x[i] = xSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                y[i] = ySeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STROKE OPTIMIZER API (quadtree spatial index, dirty tracking)
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Check if optimizer functions are available.
+     */
+    public boolean isOptimizerAvailable() {
+        return optimizerCreateHandle != null && optimizerQueryVisibleHandle != null;
+    }
+    
+    /**
+     * Create a stroke optimizer for a document.
+     * @return Handle to optimizer, or 0 on failure
+     */
+    public long optimizerCreate(float worldWidth, float worldHeight) {
+        if (optimizerCreateHandle == null) return 0;
+        try {
+            return (long) optimizerCreateHandle.invokeExact(worldWidth, worldHeight);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Destroy a stroke optimizer.
+     */
+    public void optimizerDestroy(long handle) {
+        if (optimizerDestroyHandle == null || handle == 0) return;
+        try {
+            optimizerDestroyHandle.invokeExact(handle);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Add a stroke to the optimizer.
+     * @return Stroke ID, or -1 on failure
+     */
+    public int optimizerAddStroke(long handle, float[] x, float[] y, float[] thicknesses,
+                                   int color, float baseThickness) {
+        if (optimizerAddStrokeHandle == null || handle == 0 || x.length < 1) return -1;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment xSeg = allocateFloatArray(local, x);
+            MemorySegment ySeg = allocateFloatArray(local, y);
+            MemorySegment thickSeg = (thicknesses != null) ? allocateFloatArray(local, thicknesses) : MemorySegment.NULL;
+            return (int) optimizerAddStrokeHandle.invokeExact(
+                handle, xSeg, ySeg, x.length, thickSeg, color, baseThickness
+            );
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Remove a stroke from the optimizer.
+     */
+    public void optimizerRemoveStroke(long handle, int strokeId) {
+        if (optimizerRemoveStrokeHandle == null || handle == 0) return;
+        try {
+            optimizerRemoveStrokeHandle.invokeExact(handle, strokeId);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Move a stroke by delta.
+     */
+    public void optimizerMoveStroke(long handle, int strokeId, float dx, float dy) {
+        if (optimizerMoveStrokeHandle == null || handle == 0) return;
+        try {
+            optimizerMoveStrokeHandle.invokeExact(handle, strokeId, dx, dy);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Query strokes visible in a viewport.
+     * @return Array of visible stroke IDs, or empty array
+     */
+    public int[] optimizerQueryVisible(long handle, float viewX, float viewY, float viewW, float viewH) {
+        if (optimizerQueryVisibleHandle == null || handle == 0) return new int[0];
+        try (Arena local = Arena.ofConfined()) {
+            int capacity = 4096;
+            MemorySegment outSeg = local.allocate(ValueLayout.JAVA_INT, capacity);
+            int count = (int) optimizerQueryVisibleHandle.invokeExact(
+                handle, viewX, viewY, viewW, viewH, outSeg, capacity
+            );
+            if (count <= 0) return new int[0];
+            int[] result = new int[count];
+            for (int i = 0; i < count; i++) {
+                result[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return result;
+        } catch (Throwable t) {
+            return new int[0];
+        }
+    }
+    
+    /**
+     * Query strokes near a point (for hit testing).
+     * @return Array of nearby stroke IDs
+     */
+    public int[] optimizerQueryPoint(long handle, float x, float y, float radius) {
+        if (optimizerQueryPointHandle == null || handle == 0) return new int[0];
+        try (Arena local = Arena.ofConfined()) {
+            int capacity = 256;
+            MemorySegment outSeg = local.allocate(ValueLayout.JAVA_INT, capacity);
+            int count = (int) optimizerQueryPointHandle.invokeExact(
+                handle, x, y, radius, outSeg, capacity
+            );
+            if (count <= 0) return new int[0];
+            int[] result = new int[count];
+            for (int i = 0; i < count; i++) {
+                result[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return result;
+        } catch (Throwable t) {
+            return new int[0];
+        }
+    }
+    
+    /**
+     * Get total stroke count in optimizer.
+     */
+    public int optimizerStrokeCount(long handle) {
+        if (optimizerStrokeCountHandle == null || handle == 0) return 0;
+        try {
+            return (int) optimizerStrokeCountHandle.invokeExact(handle);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Check if viewport needs repaint.
+     */
+    public boolean optimizerNeedsRepaint(long handle, float viewX, float viewY, float viewW, float viewH) {
+        if (optimizerNeedsRepaintHandle == null || handle == 0) return true;
+        try {
+            return ((int) optimizerNeedsRepaintHandle.invokeExact(handle, viewX, viewY, viewW, viewH)) != 0;
+        } catch (Throwable t) {
+            return true;
+        }
+    }
+    
+    /**
+     * Clear dirty regions after repaint.
+     */
+    public void optimizerClearDirty(long handle) {
+        if (optimizerClearDirtyHandle == null || handle == 0) return;
+        try {
+            optimizerClearDirtyHandle.invokeExact(handle);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Render visible strokes to pixel buffer.
+     * @return Number of strokes rendered
+     */
+    public int optimizerRenderVisible(long handle, int[] pixels, int width, int height,
+                                       float viewX, float viewY, float viewW, float viewH) {
+        if (optimizerRenderVisibleHandle == null || handle == 0 || pixels == null) return 0;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment pixelSeg = local.allocate(ValueLayout.JAVA_INT, pixels.length);
+            // Copy pixels to native memory
+            for (int i = 0; i < pixels.length; i++) {
+                pixelSeg.setAtIndex(ValueLayout.JAVA_INT, i, pixels[i]);
+            }
+            int count = (int) optimizerRenderVisibleHandle.invokeExact(
+                handle, pixelSeg, width, height, viewX, viewY, viewW, viewH
+            );
+            // Copy back
+            for (int i = 0; i < pixels.length; i++) {
+                pixels[i] = pixelSeg.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            return count;
+        } catch (Throwable t) {
+            return 0;
         }
     }
     
