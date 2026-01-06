@@ -8,11 +8,11 @@
 
 package main.ui.components.toast;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
@@ -29,6 +29,8 @@ import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+
+import main.infrastructure.ffi.NativeAccess;
 
 /**
  * Global toast notification overlay with smooth slide-in/out animations.
@@ -54,10 +56,10 @@ public final class ToastOverlay {
     private static final int TOAST_HEIGHT = 44;
     private static final int ARC = 14;
     private static final int MARGIN_TOP = 24;
-    private static final int SLIDE_DISTANCE = TOAST_HEIGHT + MARGIN_TOP + 10;
     private static final long DISPLAY_DURATION_MS = 2200;
-    private static final long ANIMATION_DURATION_MS = 280;
-    private static final int FRAME_RATE = 120; // Higher frame rate for smoothness
+    private static final long SLIDE_IN_MS = 320;      // Slightly longer for smoothness
+    private static final long SLIDE_OUT_MS = 400;     // Even longer for graceful exit
+    private static final int FRAME_RATE = 120;        // High frame rate for smoothness
     
     private static volatile ToastWindow activeWindow;
     private static final ConcurrentLinkedQueue<ToastRequest> queue = new ConcurrentLinkedQueue<>();
@@ -117,6 +119,7 @@ public final class ToastOverlay {
         private final int targetY;
         private final int startY;
         private float progress = 0f;
+        private float opacity = 0f;
         private Timer animationTimer;
         private long animationStart;
         private boolean slidingIn = true;
@@ -151,6 +154,7 @@ public final class ToastOverlay {
             this.onComplete = onComplete;
             this.slidingIn = true;
             this.progress = 0f;
+            this.opacity = 0f;
             this.dismissed = false;
             
             setVisible(true);
@@ -170,34 +174,28 @@ public final class ToastOverlay {
             
             animationTimer = new Timer(delay, e -> {
                 long elapsed = (System.nanoTime() - animationStart) / 1_000_000;
-                float t = Math.min(1f, elapsed / (float) ANIMATION_DURATION_MS);
+                float t = Math.min(1f, elapsed / (float) SLIDE_IN_MS);
                 
-                // Smooth easing: ease-out for slide in, ease-in for slide out
-                if (slidingIn) {
-                    progress = easeOutCubic(t);
-                } else {
-                    progress = 1f - easeInCubic(t);
-                }
+                // Use native smoothstep for ultra-smooth easing
+                float eased = NativeAccess.easeSmoothstep(t);
+                progress = eased;
+                opacity = eased;
                 
-                // Update position
+                // Update position and trigger repaint for opacity
                 int y = (int) (startY + (targetY - startY) * progress);
                 setLocation(getX(), y);
+                repaint();
                 
                 if (t >= 1f) {
                     animationTimer.stop();
+                    opacity = 1f;
                     
-                    if (slidingIn) {
-                        // Hold for display duration, then slide out
-                        Timer holdTimer = new Timer((int) DISPLAY_DURATION_MS, ev -> {
-                            if (!dismissed) slideOut();
-                        });
-                        holdTimer.setRepeats(false);
-                        holdTimer.start();
-                    } else {
-                        // Animation complete
-                        dispose();
-                        if (onComplete != null) onComplete.run();
-                    }
+                    // Hold for display duration, then slide out
+                    Timer holdTimer = new Timer((int) DISPLAY_DURATION_MS, ev -> {
+                        if (!dismissed) slideOut();
+                    });
+                    holdTimer.setRepeats(false);
+                    holdTimer.start();
                 }
             });
             animationTimer.start();
@@ -211,11 +209,29 @@ public final class ToastOverlay {
             int delay = 1000 / FRAME_RATE;
             animationTimer = new Timer(delay, e -> {
                 long elapsed = (System.nanoTime() - animationStart) / 1_000_000;
-                float t = Math.min(1f, elapsed / (float) ANIMATION_DURATION_MS);
+                float t = Math.min(1f, elapsed / (float) SLIDE_OUT_MS);
                 
-                progress = 1f - easeInCubic(t);
+                // Use custom easing: slight bounce/pop before sliding up
+                // First 15% of animation: subtle downward "anticipation"
+                // Rest: smooth slide up with fade
+                float eased;
+                if (t < 0.15f) {
+                    // Anticipation: move slightly down
+                    float anticipationT = t / 0.15f;
+                    eased = 1f + 0.02f * NativeAccess.easeSmoothstep(anticipationT);
+                } else {
+                    // Main slide out
+                    float mainT = (t - 0.15f) / 0.85f;
+                    float smoothed = NativeAccess.easeSmoothstep(mainT);
+                    eased = 1.02f - 1.02f * smoothed;
+                }
+                
+                progress = Math.max(0f, eased);
+                opacity = 1f - NativeAccess.easeSmoothstep(t); // Fade out smoothly
+                
                 int y = (int) (startY + (targetY - startY) * progress);
                 setLocation(getX(), y);
+                repaint();
                 
                 if (t >= 1f) {
                     animationTimer.stop();
@@ -226,17 +242,8 @@ public final class ToastOverlay {
             animationTimer.start();
         }
         
-        // Easing functions for smooth animation
-        private static float easeOutCubic(float t) {
-            return 1f - (float) Math.pow(1 - t, 3);
-        }
-        
-        private static float easeInCubic(float t) {
-            return t * t * t;
-        }
-        
         /**
-         * Custom painted panel with frosted glass aero styling.
+         * Custom painted panel with simple white background.
          */
         private class ToastPanel extends JPanel {
             ToastPanel() {
@@ -250,35 +257,29 @@ public final class ToastOverlay {
                 g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
                 
                 int w = getWidth(), h = getHeight();
+                float alpha = Math.max(0f, Math.min(1f, opacity));
                 RoundRectangle2D shape = new RoundRectangle2D.Float(0, 0, w, h, ARC, ARC);
                 
-                // Shadow
-                g2.setColor(new Color(0, 0, 0, 35));
-                g2.fill(new RoundRectangle2D.Float(2, 3, w - 4, h - 2, ARC, ARC));
+                // Apply overall opacity
+                if (alpha < 1f) {
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                }
                 
-                // Frosted glass background
-                GradientPaint bg = new GradientPaint(0, 0, new Color(255, 255, 255, 235),
-                                                     0, h, new Color(245, 245, 245, 220));
-                g2.setPaint(bg);
-                g2.fill(shape);
+                // Soft shadow
+                g2.setColor(new Color(0, 0, 0, 30));
+                g2.fill(new RoundRectangle2D.Float(1, 2, w - 2, h - 1, ARC, ARC));
                 
-                // Glass sheen
-                GradientPaint sheen = new GradientPaint(0, 0, new Color(255, 255, 255, 120),
-                                                        0, h * 0.5f, new Color(255, 255, 255, 30));
-                g2.setPaint(sheen);
+                // Simple white background
+                g2.setColor(Color.WHITE);
                 g2.fill(shape);
                 
                 // Accent bar on left
                 g2.setColor(toastType.accent);
                 g2.fill(new RoundRectangle2D.Float(0, 0, 5, h, 3, 3));
                 
-                // Inner highlight
-                g2.setColor(new Color(255, 255, 255, 100));
-                g2.draw(new RoundRectangle2D.Float(1, 1, w - 3, h - 3, ARC - 2, ARC - 2));
-                
-                // Outer border
-                g2.setColor(new Color(0, 0, 0, 40));
-                g2.draw(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, ARC, ARC));
+                // Subtle border
+                g2.setColor(new Color(200, 200, 200));
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, ARC, ARC));
                 
                 // Icon based on type
                 int iconX = 16;

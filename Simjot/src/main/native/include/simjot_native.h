@@ -1919,6 +1919,65 @@ int32_t simjot_nt_stroke_outline(
     float* right_x, float* right_y
 );
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * REAL-TIME STROKE SMOOTHING (Optimized for iPad/tablet input)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Chaikin's corner-cutting algorithm - fast subdivision smoothing */
+int32_t simjot_stroke_chaikin(
+    const float* input_x, const float* input_y,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    int32_t iterations
+);
+
+/* Velocity-based adaptive smoothing */
+int32_t simjot_stroke_velocity_smooth(
+    const float* x, const float* y, const float* timestamps,
+    int32_t count,
+    float* smoothed_x, float* smoothed_y,
+    float velocity_threshold, float max_smooth_factor
+);
+
+/* Gap interpolation for fast strokes */
+int32_t simjot_stroke_interpolate_gaps(
+    const float* input_x, const float* input_y,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    float max_gap
+);
+
+/* Combined real-time processing pipeline (recommended for tablet input) */
+int32_t simjot_stroke_process_realtime(
+    const float* input_x, const float* input_y, const float* timestamps,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    float max_gap,
+    int32_t chaikin_iterations
+);
+
+/* Bezier control points for smooth rendering */
+int32_t simjot_stroke_bezier_control_points(
+    const float* x, const float* y,
+    int32_t count,
+    float* control_points,
+    int32_t control_capacity
+);
+
+/* One-Euro filter - low-latency adaptive smoothing for real-time input */
+int32_t simjot_stroke_one_euro_init(void** filter_out, float min_cutoff, float beta, float d_cutoff);
+int32_t simjot_stroke_one_euro_filter(void* filter, float x, float y, float t, float* out_x, float* out_y);
+void simjot_stroke_one_euro_free(void* filter);
+int32_t simjot_stroke_one_euro_batch(
+    const float* input_x, const float* input_y, const float* timestamps,
+    int32_t count,
+    float* output_x, float* output_y,
+    float min_cutoff, float beta
+);
+
 #ifdef __cplusplus
 }
 #endif

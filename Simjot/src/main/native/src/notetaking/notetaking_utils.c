@@ -756,6 +756,450 @@ int32_t simjot_math_operator(const char* name, char* output, int32_t output_len)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * REAL-TIME STROKE SMOOTHING FOR DRAWING (Optimized for iPad/tablet input)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Chaikin's corner-cutting algorithm - fast, smooth results
+ * Applies subdivision smoothing ideal for handwriting
+ * 
+ * @param input_x/y Input coordinates
+ * @param input_count Number of input points
+ * @param output_x/y Output coordinates (needs capacity for ~2x input points per iteration)
+ * @param output_capacity Max output capacity
+ * @param iterations Number of smoothing passes (1-3 recommended)
+ * @return Number of output points, or -1 on error
+ */
+int32_t simjot_stroke_chaikin(
+    const float* input_x, const float* input_y,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    int32_t iterations
+) {
+    if (!input_x || !input_y || !output_x || !output_y || input_count < 2) {
+        return -1;
+    }
+    
+    if (iterations < 1) iterations = 1;
+    if (iterations > 4) iterations = 4;
+    
+    /* Work buffers - use output as temp, allocate second buffer */
+    float* buf_x = (float*)malloc(output_capacity * sizeof(float));
+    float* buf_y = (float*)malloc(output_capacity * sizeof(float));
+    if (!buf_x || !buf_y) {
+        free(buf_x);
+        free(buf_y);
+        return -1;
+    }
+    
+    /* Copy input to first buffer */
+    const float* src_x = input_x;
+    const float* src_y = input_y;
+    int32_t count = input_count;
+    
+    for (int32_t iter = 0; iter < iterations; iter++) {
+        float* dst_x = (iter % 2 == 0) ? buf_x : output_x;
+        float* dst_y = (iter % 2 == 0) ? buf_y : output_y;
+        int32_t out_idx = 0;
+        
+        /* Keep first point */
+        dst_x[out_idx] = src_x[0];
+        dst_y[out_idx] = src_y[0];
+        out_idx++;
+        
+        /* Chaikin subdivision: Q0 = 3/4*P0 + 1/4*P1, Q1 = 1/4*P0 + 3/4*P1 */
+        for (int32_t i = 0; i < count - 1 && out_idx + 1 < output_capacity; i++) {
+            float x0 = src_x[i], y0 = src_y[i];
+            float x1 = src_x[i + 1], y1 = src_y[i + 1];
+            
+            dst_x[out_idx] = 0.75f * x0 + 0.25f * x1;
+            dst_y[out_idx] = 0.75f * y0 + 0.25f * y1;
+            out_idx++;
+            
+            dst_x[out_idx] = 0.25f * x0 + 0.75f * x1;
+            dst_y[out_idx] = 0.25f * y0 + 0.75f * y1;
+            out_idx++;
+        }
+        
+        /* Keep last point */
+        if (out_idx < output_capacity) {
+            dst_x[out_idx] = src_x[count - 1];
+            dst_y[out_idx] = src_y[count - 1];
+            out_idx++;
+        }
+        
+        src_x = dst_x;
+        src_y = dst_y;
+        count = out_idx;
+    }
+    
+    /* Copy result to output if needed */
+    if (src_x != output_x) {
+        memcpy(output_x, src_x, count * sizeof(float));
+        memcpy(output_y, src_y, count * sizeof(float));
+    }
+    
+    free(buf_x);
+    free(buf_y);
+    
+    return count;
+}
+
+/**
+ * @brief Velocity-based adaptive smoothing
+ * Smooths more in fast movements (where sampling is sparse)
+ * 
+ * @param x/y Coordinates
+ * @param timestamps Timestamps in milliseconds
+ * @param count Number of points
+ * @param smoothed_x/y Output smoothed coordinates
+ * @param velocity_threshold Velocity above which extra smoothing is applied (pixels/ms)
+ * @param max_smooth_factor Maximum smoothing weight (0.0-1.0)
+ */
+int32_t simjot_stroke_velocity_smooth(
+    const float* x, const float* y, const float* timestamps,
+    int32_t count,
+    float* smoothed_x, float* smoothed_y,
+    float velocity_threshold, float max_smooth_factor
+) {
+    if (!x || !y || !timestamps || !smoothed_x || !smoothed_y || count < 2) {
+        return -1;
+    }
+    
+    if (velocity_threshold <= 0) velocity_threshold = 0.5f;
+    if (max_smooth_factor < 0) max_smooth_factor = 0;
+    if (max_smooth_factor > 0.9f) max_smooth_factor = 0.9f;
+    
+    /* First point unchanged */
+    smoothed_x[0] = x[0];
+    smoothed_y[0] = y[0];
+    
+    for (int32_t i = 1; i < count; i++) {
+        float dt = timestamps[i] - timestamps[i - 1];
+        if (dt < 0.001f) dt = 0.001f; /* Avoid division by zero */
+        
+        float dx = x[i] - x[i - 1];
+        float dy = y[i] - y[i - 1];
+        float dist = sqrtf(dx * dx + dy * dy);
+        float velocity = dist / dt;
+        
+        /* Calculate adaptive smoothing factor based on velocity */
+        float smooth_factor = 0.0f;
+        if (velocity > velocity_threshold) {
+            /* Higher velocity = more smoothing */
+            float excess = (velocity - velocity_threshold) / velocity_threshold;
+            smooth_factor = fminf(excess * 0.3f, max_smooth_factor);
+        }
+        
+        /* Apply exponential moving average with adaptive factor */
+        smoothed_x[i] = (1.0f - smooth_factor) * x[i] + smooth_factor * smoothed_x[i - 1];
+        smoothed_y[i] = (1.0f - smooth_factor) * y[i] + smooth_factor * smoothed_y[i - 1];
+    }
+    
+    return count;
+}
+
+/**
+ * @brief Interpolate sparse points to fill gaps (for fast strokes)
+ * 
+ * @param input_x/y Input coordinates
+ * @param input_count Number of input points
+ * @param output_x/y Output with interpolated points
+ * @param output_capacity Maximum output capacity
+ * @param max_gap Maximum allowed distance between points
+ * @return Number of output points
+ */
+int32_t simjot_stroke_interpolate_gaps(
+    const float* input_x, const float* input_y,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    float max_gap
+) {
+    if (!input_x || !input_y || !output_x || !output_y || input_count < 1) {
+        return -1;
+    }
+    
+    if (max_gap <= 0) max_gap = 8.0f;
+    
+    int32_t out_idx = 0;
+    
+    /* First point */
+    output_x[out_idx] = input_x[0];
+    output_y[out_idx] = input_y[0];
+    out_idx++;
+    
+    for (int32_t i = 1; i < input_count && out_idx < output_capacity; i++) {
+        float dx = input_x[i] - input_x[i - 1];
+        float dy = input_y[i] - input_y[i - 1];
+        float dist = sqrtf(dx * dx + dy * dy);
+        
+        if (dist > max_gap) {
+            /* Interpolate intermediate points */
+            int32_t steps = (int32_t)ceilf(dist / max_gap);
+            for (int32_t s = 1; s < steps && out_idx < output_capacity; s++) {
+                float t = (float)s / (float)steps;
+                output_x[out_idx] = input_x[i - 1] + t * dx;
+                output_y[out_idx] = input_y[i - 1] + t * dy;
+                out_idx++;
+            }
+        }
+        
+        if (out_idx < output_capacity) {
+            output_x[out_idx] = input_x[i];
+            output_y[out_idx] = input_y[i];
+            out_idx++;
+        }
+    }
+    
+    return out_idx;
+}
+
+/**
+ * @brief Combined real-time stroke processing pipeline
+ * Interpolates gaps, applies velocity smoothing, then Chaikin smoothing
+ * 
+ * This is the recommended function for processing tablet/stylus input
+ */
+int32_t simjot_stroke_process_realtime(
+    const float* input_x, const float* input_y, const float* timestamps,
+    int32_t input_count,
+    float* output_x, float* output_y,
+    int32_t output_capacity,
+    float max_gap,
+    int32_t chaikin_iterations
+) {
+    if (!input_x || !input_y || !output_x || !output_y || input_count < 2) {
+        return -1;
+    }
+    
+    if (max_gap <= 0) max_gap = 8.0f;
+    if (chaikin_iterations < 0) chaikin_iterations = 2;
+    if (chaikin_iterations > 3) chaikin_iterations = 3;
+    
+    /* Allocate work buffers */
+    int32_t buf_size = input_count * 4; /* Account for interpolation expansion */
+    if (buf_size > output_capacity) buf_size = output_capacity;
+    
+    float* temp_x = (float*)malloc(buf_size * sizeof(float));
+    float* temp_y = (float*)malloc(buf_size * sizeof(float));
+    float* temp_t = NULL;
+    
+    if (!temp_x || !temp_y) {
+        free(temp_x);
+        free(temp_y);
+        return -1;
+    }
+    
+    int32_t count = input_count;
+    const float* src_x = input_x;
+    const float* src_y = input_y;
+    
+    /* Step 1: Interpolate gaps */
+    count = simjot_stroke_interpolate_gaps(src_x, src_y, count, temp_x, temp_y, buf_size, max_gap);
+    if (count < 0) {
+        free(temp_x);
+        free(temp_y);
+        return -1;
+    }
+    
+    /* Step 2: Apply velocity-based smoothing if timestamps provided */
+    if (timestamps != NULL && count >= 2) {
+        /* Generate approximate timestamps for interpolated points */
+        temp_t = (float*)malloc(count * sizeof(float));
+        if (temp_t) {
+            float total_time = timestamps[input_count - 1] - timestamps[0];
+            for (int32_t i = 0; i < count; i++) {
+                temp_t[i] = timestamps[0] + (total_time * i) / (count - 1);
+            }
+            
+            simjot_stroke_velocity_smooth(temp_x, temp_y, temp_t, count,
+                                          output_x, output_y, 0.5f, 0.5f);
+            
+            /* Copy back for next step */
+            memcpy(temp_x, output_x, count * sizeof(float));
+            memcpy(temp_y, output_y, count * sizeof(float));
+            
+            free(temp_t);
+        }
+    }
+    
+    /* Step 3: Apply Chaikin smoothing */
+    if (chaikin_iterations > 0 && count >= 3) {
+        count = simjot_stroke_chaikin(temp_x, temp_y, count, output_x, output_y,
+                                       output_capacity, chaikin_iterations);
+    } else {
+        memcpy(output_x, temp_x, count * sizeof(float));
+        memcpy(output_y, temp_y, count * sizeof(float));
+    }
+    
+    free(temp_x);
+    free(temp_y);
+    
+    return count;
+}
+
+/**
+ * @brief Compute quadratic Bezier control points for smooth curve rendering
+ * Given a series of points, computes control points for quadTo() calls
+ * 
+ * Output format: For N input points, outputs (N-1)*3 floats:
+ * [cp1_x, cp1_y, end1_x, end1_y, cp2_x, cp2_y, end2_x, end2_y, ...]
+ */
+int32_t simjot_stroke_bezier_control_points(
+    const float* x, const float* y,
+    int32_t count,
+    float* control_points,
+    int32_t control_capacity
+) {
+    if (!x || !y || !control_points || count < 3) {
+        return -1;
+    }
+    
+    int32_t needed = (count - 2) * 4; /* Each segment needs: cpX, cpY, endX, endY */
+    if (control_capacity < needed) {
+        return -1;
+    }
+    
+    int32_t out_idx = 0;
+    
+    for (int32_t i = 1; i < count - 1; i++) {
+        /* Control point is the actual point */
+        control_points[out_idx++] = x[i];
+        control_points[out_idx++] = y[i];
+        
+        /* End point is midpoint to next */
+        control_points[out_idx++] = (x[i] + x[i + 1]) * 0.5f;
+        control_points[out_idx++] = (y[i] + y[i + 1]) * 0.5f;
+    }
+    
+    return out_idx;
+}
+
+/**
+ * @brief One-Euro filter for real-time low-latency smoothing
+ * Excellent for stylus/pen input - adapts smoothing based on speed
+ */
+typedef struct {
+    float x_prev, y_prev;
+    float dx_prev, dy_prev;
+    float t_prev;
+    float min_cutoff;
+    float beta;
+    float d_cutoff;
+    int initialized;
+} OneEuroFilter;
+
+static float one_euro_alpha(float cutoff, float dt) {
+    float tau = 1.0f / (2.0f * 3.14159265f * cutoff);
+    return 1.0f / (1.0f + tau / dt);
+}
+
+int32_t simjot_stroke_one_euro_init(
+    void** filter_out,
+    float min_cutoff,
+    float beta,
+    float d_cutoff
+) {
+    if (!filter_out) return -1;
+    
+    OneEuroFilter* f = (OneEuroFilter*)calloc(1, sizeof(OneEuroFilter));
+    if (!f) return -1;
+    
+    f->min_cutoff = (min_cutoff > 0) ? min_cutoff : 1.0f;
+    f->beta = (beta >= 0) ? beta : 0.007f;
+    f->d_cutoff = (d_cutoff > 0) ? d_cutoff : 1.0f;
+    f->initialized = 0;
+    
+    *filter_out = f;
+    return 0;
+}
+
+int32_t simjot_stroke_one_euro_filter(
+    void* filter,
+    float x, float y, float t,
+    float* out_x, float* out_y
+) {
+    if (!filter || !out_x || !out_y) return -1;
+    
+    OneEuroFilter* f = (OneEuroFilter*)filter;
+    
+    if (!f->initialized) {
+        f->x_prev = x;
+        f->y_prev = y;
+        f->dx_prev = 0;
+        f->dy_prev = 0;
+        f->t_prev = t;
+        f->initialized = 1;
+        *out_x = x;
+        *out_y = y;
+        return 0;
+    }
+    
+    float dt = t - f->t_prev;
+    if (dt <= 0) dt = 0.001f;
+    
+    /* Compute derivative */
+    float dx = (x - f->x_prev) / dt;
+    float dy = (y - f->y_prev) / dt;
+    
+    /* Filter derivative */
+    float alpha_d = one_euro_alpha(f->d_cutoff, dt);
+    float dx_hat = alpha_d * dx + (1.0f - alpha_d) * f->dx_prev;
+    float dy_hat = alpha_d * dy + (1.0f - alpha_d) * f->dy_prev;
+    
+    /* Compute cutoff based on derivative magnitude (speed) */
+    float speed = sqrtf(dx_hat * dx_hat + dy_hat * dy_hat);
+    float cutoff = f->min_cutoff + f->beta * speed;
+    
+    /* Filter position */
+    float alpha = one_euro_alpha(cutoff, dt);
+    *out_x = alpha * x + (1.0f - alpha) * f->x_prev;
+    *out_y = alpha * y + (1.0f - alpha) * f->y_prev;
+    
+    /* Update state */
+    f->x_prev = *out_x;
+    f->y_prev = *out_y;
+    f->dx_prev = dx_hat;
+    f->dy_prev = dy_hat;
+    f->t_prev = t;
+    
+    return 0;
+}
+
+void simjot_stroke_one_euro_free(void* filter) {
+    free(filter);
+}
+
+/**
+ * @brief Apply One-Euro filter to entire stroke (batch processing)
+ */
+int32_t simjot_stroke_one_euro_batch(
+    const float* input_x, const float* input_y, const float* timestamps,
+    int32_t count,
+    float* output_x, float* output_y,
+    float min_cutoff, float beta
+) {
+    if (!input_x || !input_y || !timestamps || !output_x || !output_y || count < 1) {
+        return -1;
+    }
+    
+    void* filter = NULL;
+    if (simjot_stroke_one_euro_init(&filter, min_cutoff, beta, 1.0f) < 0) {
+        return -1;
+    }
+    
+    for (int32_t i = 0; i < count; i++) {
+        simjot_stroke_one_euro_filter(filter, input_x[i], input_y[i], timestamps[i],
+                                       &output_x[i], &output_y[i]);
+    }
+    
+    simjot_stroke_one_euro_free(filter);
+    return count;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * GEOMETRY HELPERS FOR DRAWING
  * ═══════════════════════════════════════════════════════════════════════════ */
 

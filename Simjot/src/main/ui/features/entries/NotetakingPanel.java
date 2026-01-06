@@ -760,6 +760,10 @@ public class NotetakingPanel extends EntryPanel {
         private final JComponent view;
         private boolean capture = false; // whether to intercept mouse events
         private DrawStroke current;
+        private Point lastPoint; // For interpolation
+        private static final int MIN_POINT_DISTANCE = 2; // Minimum distance between points
+        private static final int MAX_POINT_DISTANCE = 8; // Max distance before interpolation
+        
         DrawingOverlay(JScrollPane host, JComponent view) {
             this.host = host;
             this.vp = host.getViewport();
@@ -773,6 +777,7 @@ public class NotetakingPanel extends EntryPanel {
                     redoStack.clear(); // New stroke clears redo history
                     current = makeStroke();
                     current.points.add(p);
+                    lastPoint = p;
                     drawStrokes.add(current);
                     undoStack.add(new AddStrokeAction(current));
                     repaint();
@@ -781,11 +786,37 @@ public class NotetakingPanel extends EntryPanel {
                     if (!capture) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
-                    if (current == null) return;
-                    current.points.add(p);
+                    if (current == null || lastPoint == null) return;
+                    
+                    // Calculate distance from last point
+                    double dist = lastPoint.distance(p);
+                    
+                    // Skip if too close (reduces jitter)
+                    if (dist < MIN_POINT_DISTANCE) return;
+                    
+                    // Interpolate if points are far apart (fills gaps from fast movement)
+                    if (dist > MAX_POINT_DISTANCE) {
+                        int steps = (int) Math.ceil(dist / MAX_POINT_DISTANCE);
+                        for (int i = 1; i <= steps; i++) {
+                            double t = (double) i / steps;
+                            int ix = (int) Math.round(lastPoint.x + t * (p.x - lastPoint.x));
+                            int iy = (int) Math.round(lastPoint.y + t * (p.y - lastPoint.y));
+                            current.points.add(new Point(ix, iy));
+                        }
+                    } else {
+                        current.points.add(p);
+                    }
+                    lastPoint = p;
                     repaint();
                 }
-                @Override public void mouseReleased(MouseEvent e) { current = null; }
+                @Override public void mouseReleased(MouseEvent e) {
+                    if (current != null && current.points.size() >= 3) {
+                        smoothStroke(current);
+                    }
+                    current = null;
+                    lastPoint = null;
+                    repaint();
+                }
             };
             addMouseListener(ma);
             addMouseMotionListener(ma);
@@ -857,23 +888,70 @@ public class NotetakingPanel extends EntryPanel {
             double dx = p.x - projx, dy = p.y - projy;
             return (int) Math.round(dx * dx + dy * dy);
         }
+        
+        /**
+         * Apply a light Chaikin pass to soften corners without over-smoothing.
+         * Only run once to preserve the original handwriting character.
+         */
+        private void smoothStroke(DrawStroke stroke) {
+            if (stroke.points.size() < 4) return;
+            
+            List<Point> pts = stroke.points;
+            List<Point> smoothed = new ArrayList<>(pts.size() * 2);
+            
+            // Keep first point
+            smoothed.add(pts.get(0));
+            
+            for (int i = 0; i < pts.size() - 1; i++) {
+                Point p0 = pts.get(i);
+                Point p1 = pts.get(i + 1);
+                
+                // Gentle Chaikin weights to keep shape (70/30 instead of 75/25)
+                int q0x = (int) Math.round(p0.x * 0.7 + p1.x * 0.3);
+                int q0y = (int) Math.round(p0.y * 0.7 + p1.y * 0.3);
+                int q1x = (int) Math.round(p0.x * 0.3 + p1.x * 0.7);
+                int q1y = (int) Math.round(p0.y * 0.3 + p1.y * 0.7);
+                
+                smoothed.add(new Point(q0x, q0y));
+                smoothed.add(new Point(q1x, q1y));
+            }
+            
+            // Keep last point
+            smoothed.add(pts.get(pts.size() - 1));
+            
+            stroke.points.clear();
+            stroke.points.addAll(smoothed);
+        }
+        
         @Override public Dimension getPreferredSize() { return view.getPreferredSize(); }
         @Override protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             Point vpPos = vp.getViewPosition();
             g2.translate(-vpPos.x, -vpPos.y);
             for (DrawStroke s : drawStrokes) {
                 g2.setColor(s.color);
                 g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                Path2D path = new Path2D.Float();
-                for (int i=0;i<s.points.size();i++) {
-                    Point p = s.points.get(i);
-                    if (i==0) path.moveTo(p.x, p.y); else path.lineTo(p.x, p.y);
-                }
-                g2.draw(path);
+                drawPolyline(g2, s.points);
             }
             g2.dispose();
+        }
+        
+        /**
+         * Draw the stroke as a simple polyline (after optional smoothing).
+         */
+        private void drawPolyline(Graphics2D g2, List<Point> points) {
+            if (points.isEmpty()) return;
+            
+            Path2D path = new Path2D.Float();
+            path.moveTo(points.get(0).x, points.get(0).y);
+            for (int i = 1; i < points.size(); i++) {
+                Point p = points.get(i);
+                path.lineTo(p.x, p.y);
+            }
+            g2.draw(path);
         }
     }
 }
