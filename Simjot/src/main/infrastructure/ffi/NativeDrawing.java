@@ -33,7 +33,7 @@ public final class NativeDrawing {
     private final SymbolLookup lookup;
     private final Linker linker;
     
-    // Method handles
+    // Method handles - basic drawing
     private final MethodHandle drawStrokeHandle;
     private final MethodHandle drawStrokesBatchHandle;
     private final MethodHandle eraserHitTestHandle;
@@ -47,6 +47,23 @@ public final class NativeDrawing {
     private final MethodHandle smoothPointEmaHandle;
     private final MethodHandle smoothStrokeEmaHandle;
     private final MethodHandle smoothStrokeAdaptiveHandle;
+    
+    // Method handles - professional stroke engine
+    private final MethodHandle strokeManagerCreateHandle;
+    private final MethodHandle strokeManagerDestroyHandle;
+    private final MethodHandle strokeBeginHandle;
+    private final MethodHandle strokeAddPointHandle;
+    private final MethodHandle strokeEndHandle;
+    private final MethodHandle strokeRemoveHandle;
+    private final MethodHandle strokeCountHandle;
+    private final MethodHandle strokeClearAllHandle;
+    private final MethodHandle strokeRenderAllHandle;
+    private final MethodHandle strokeRenderOneHandle;
+    private final MethodHandle strokeInterpolateCatmullRomHandle;
+    private final MethodHandle strokeSmoothChaikinHandle;
+    private final MethodHandle strokeComputePressureHandle;
+    private final MethodHandle strokeRenderVariableHandle;
+    private final MethodHandle strokeDistanceSampleHandle;
     
     public NativeDrawing(SymbolLookup lookup) {
         this.arena = Arena.ofShared();
@@ -154,6 +171,114 @@ public final class NativeDrawing {
             ValueLayout.JAVA_INT,
             ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
             ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PROFESSIONAL STROKE ENGINE
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        // simjot_draw_manager_create
+        strokeManagerCreateHandle = downcall("simjot_draw_manager_create", FunctionDescriptor.of(
+            ValueLayout.JAVA_LONG,
+            ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_draw_manager_destroy
+        strokeManagerDestroyHandle = downcall("simjot_draw_manager_destroy", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_LONG
+        ));
+        
+        // simjot_draw_stroke_begin
+        strokeBeginHandle = downcall("simjot_draw_stroke_begin", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_LONG,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_draw_stroke_add_point
+        strokeAddPointHandle = downcall("simjot_draw_stroke_add_point", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_LONG
+        ));
+        
+        // simjot_draw_stroke_end
+        strokeEndHandle = downcall("simjot_draw_stroke_end", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_draw_stroke_remove
+        strokeRemoveHandle = downcall("simjot_draw_stroke_remove", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_draw_stroke_count
+        strokeCountHandle = downcall("simjot_draw_stroke_count", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG
+        ));
+        
+        // simjot_draw_stroke_clear_all
+        strokeClearAllHandle = downcall("simjot_draw_stroke_clear_all", FunctionDescriptor.ofVoid(
+            ValueLayout.JAVA_LONG
+        ));
+        
+        // simjot_draw_render_all
+        strokeRenderAllHandle = downcall("simjot_draw_render_all", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        // simjot_draw_render_one
+        strokeRenderOneHandle = downcall("simjot_draw_render_one", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        // simjot_draw_interpolate_catmull_rom
+        strokeInterpolateCatmullRomHandle = downcall("simjot_draw_interpolate_catmull_rom", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_draw_smooth_chaikin
+        strokeSmoothChaikinHandle = downcall("simjot_draw_smooth_chaikin", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT
+        ));
+        
+        // simjot_draw_compute_pressure
+        strokeComputePressureHandle = downcall("simjot_draw_compute_pressure", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS
+        ));
+        
+        // simjot_draw_render_variable
+        strokeRenderVariableHandle = downcall("simjot_draw_render_variable", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT
+        ));
+        
+        // simjot_draw_distance_sample
+        strokeDistanceSampleHandle = downcall("simjot_draw_distance_sample", FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_FLOAT
         ));
     }
     
@@ -551,6 +676,249 @@ public final class NativeDrawing {
             return false;
         } catch (Throwable t) {
             return false;
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PROFESSIONAL STROKE ENGINE API
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Create a stroke manager for handling multiple strokes with caching.
+     * @return Handle to the stroke manager, or 0 on error
+     */
+    public long strokeManagerCreate(int docWidth, int docHeight) {
+        if (strokeManagerCreateHandle == null) return 0;
+        try {
+            return (long) strokeManagerCreateHandle.invokeExact(docWidth, docHeight);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Destroy stroke manager and free resources.
+     */
+    public void strokeManagerDestroy(long handle) {
+        if (strokeManagerDestroyHandle == null || handle == 0) return;
+        try {
+            strokeManagerDestroyHandle.invokeExact(handle);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Begin a new stroke with given properties.
+     * @return Stroke index, or -1 on error
+     */
+    public int strokeBegin(long handle, float x, float y, long timestamp,
+                           float baseThickness, int color, boolean usePressure) {
+        if (strokeBeginHandle == null || handle == 0) return -1;
+        try {
+            return (int) strokeBeginHandle.invokeExact(handle, x, y, timestamp,
+                baseThickness, color, usePressure ? 1 : 0);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Add a point to the current stroke with real-time smoothing.
+     * @return 1 if added, 0 if skipped (too close), -1 on error
+     */
+    public int strokeAddPoint(long handle, int strokeIdx, float x, float y, long timestamp) {
+        if (strokeAddPointHandle == null || handle == 0) return -1;
+        try {
+            return (int) strokeAddPointHandle.invokeExact(handle, strokeIdx, x, y, timestamp);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    /**
+     * End the current stroke and apply final smoothing.
+     */
+    public int strokeEnd(long handle, int strokeIdx, boolean applySmoothing) {
+        if (strokeEndHandle == null || handle == 0) return -1;
+        try {
+            return (int) strokeEndHandle.invokeExact(handle, strokeIdx, applySmoothing ? 1 : 0);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Remove a stroke by index.
+     */
+    public int strokeRemove(long handle, int strokeIdx) {
+        if (strokeRemoveHandle == null || handle == 0) return -1;
+        try {
+            return (int) strokeRemoveHandle.invokeExact(handle, strokeIdx);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Get stroke count.
+     */
+    public int strokeCount(long handle) {
+        if (strokeCountHandle == null || handle == 0) return 0;
+        try {
+            return (int) strokeCountHandle.invokeExact(handle);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Clear all strokes.
+     */
+    public void strokeClearAll(long handle) {
+        if (strokeClearAllHandle == null || handle == 0) return;
+        try {
+            strokeClearAllHandle.invokeExact(handle);
+        } catch (Throwable ignored) {}
+    }
+    
+    /**
+     * Render all strokes to a pixel buffer with variable thickness.
+     */
+    public boolean strokeRenderAll(long handle, int[] pixels, int width, int height,
+                                    float offsetX, float offsetY) {
+        if (strokeRenderAllHandle == null || handle == 0 || pixels == null) return false;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment pixelsSeg = allocateIntArray(local, pixels);
+            int result = (int) strokeRenderAllHandle.invokeExact(handle, pixelsSeg,
+                width, height, offsetX, offsetY);
+            if (result != 0) {
+                copyBackIntArray(pixelsSeg, pixels);
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Render a single stroke by index.
+     */
+    public boolean strokeRenderOne(long handle, int strokeIdx, int[] pixels,
+                                    int width, int height, float offsetX, float offsetY) {
+        if (strokeRenderOneHandle == null || handle == 0 || pixels == null) return false;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment pixelsSeg = allocateIntArray(local, pixels);
+            int result = (int) strokeRenderOneHandle.invokeExact(handle, strokeIdx,
+                pixelsSeg, width, height, offsetX, offsetY);
+            if (result != 0) {
+                copyBackIntArray(pixelsSeg, pixels);
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Check if the professional stroke engine is available.
+     */
+    public boolean isStrokeEngineAvailable() {
+        return strokeManagerCreateHandle != null && strokeRenderAllHandle != null;
+    }
+    
+    /**
+     * Render stroke with variable thickness per point.
+     */
+    public boolean strokeRenderVariable(int[] pixels, int width, int height,
+                                         float[] pointsX, float[] pointsY, float[] thicknesses,
+                                         int argbColor, float offsetX, float offsetY) {
+        if (strokeRenderVariableHandle == null || pixels == null || pointsX.length == 0) return false;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment pixelsSeg = allocateIntArray(local, pixels);
+            MemorySegment xSeg = allocateFloatArray(local, pointsX);
+            MemorySegment ySeg = allocateFloatArray(local, pointsY);
+            MemorySegment tSeg = allocateFloatArray(local, thicknesses);
+            
+            int result = (int) strokeRenderVariableHandle.invokeExact(
+                pixelsSeg, width, height,
+                xSeg, ySeg, tSeg,
+                pointsX.length, argbColor,
+                offsetX, offsetY
+            );
+            
+            if (result != 0) {
+                copyBackIntArray(pixelsSeg, pixels);
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
+    /**
+     * Apply distance-based sampling to reduce jitter.
+     * @return Simplified points as float[2][n] or null
+     */
+    public float[][] strokeDistanceSample(float[] pointsX, float[] pointsY, float minDistance) {
+        if (strokeDistanceSampleHandle == null || pointsX.length < 2) return null;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment inXSeg = allocateFloatArray(local, pointsX);
+            MemorySegment inYSeg = allocateFloatArray(local, pointsY);
+            MemorySegment outXSeg = local.allocate(ValueLayout.JAVA_FLOAT, pointsX.length);
+            MemorySegment outYSeg = local.allocate(ValueLayout.JAVA_FLOAT, pointsY.length);
+            
+            int outCount = (int) strokeDistanceSampleHandle.invokeExact(
+                inXSeg, inYSeg, pointsX.length,
+                outXSeg, outYSeg, pointsX.length,
+                minDistance
+            );
+            
+            if (outCount <= 0) return null;
+            
+            float[] outX = new float[outCount];
+            float[] outY = new float[outCount];
+            for (int i = 0; i < outCount; i++) {
+                outX[i] = outXSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                outY[i] = outYSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+            }
+            return new float[][] { outX, outY };
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    /**
+     * Apply Chaikin smoothing for post-stroke polish.
+     * @return Smoothed points as float[2][n] or null
+     */
+    public float[][] strokeSmoothChaikin(float[] pointsX, float[] pointsY, int iterations) {
+        if (strokeSmoothChaikinHandle == null || pointsX.length < 3) return null;
+        int maxOutput = pointsX.length * (1 << iterations) + 2;
+        try (Arena local = Arena.ofConfined()) {
+            MemorySegment inXSeg = allocateFloatArray(local, pointsX);
+            MemorySegment inYSeg = allocateFloatArray(local, pointsY);
+            MemorySegment outXSeg = local.allocate(ValueLayout.JAVA_FLOAT, maxOutput);
+            MemorySegment outYSeg = local.allocate(ValueLayout.JAVA_FLOAT, maxOutput);
+            
+            int outCount = (int) strokeSmoothChaikinHandle.invokeExact(
+                inXSeg, inYSeg, pointsX.length,
+                outXSeg, outYSeg, maxOutput,
+                iterations
+            );
+            
+            if (outCount <= 0) return null;
+            
+            float[] outX = new float[outCount];
+            float[] outY = new float[outCount];
+            for (int i = 0; i < outCount; i++) {
+                outX[i] = outXSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                outY[i] = outYSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+            }
+            return new float[][] { outX, outY };
+        } catch (Throwable t) {
+            return null;
         }
     }
     

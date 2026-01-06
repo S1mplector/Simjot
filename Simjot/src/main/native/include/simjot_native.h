@@ -2063,6 +2063,59 @@ int32_t simjot_smooth_stroke_adaptive(float* points_x, float* points_y,
                                        int32_t count, float base_alpha,
                                        float velocity_scale);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * PROFESSIONAL STROKE ENGINE - Notability/Xournal++ quality rendering
+ * Uses simjot_draw_* prefix to avoid conflict with font studio stroke API
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Stroke Manager - handles multiple strokes with caching */
+int64_t simjot_draw_manager_create(int32_t docWidth, int32_t docHeight);
+void simjot_draw_manager_destroy(int64_t handle);
+
+/* Live stroke operations */
+int32_t simjot_draw_stroke_begin(int64_t handle, float x, float y, int64_t timestamp,
+                                  float baseThickness, uint32_t color, int32_t usePressure);
+int32_t simjot_draw_stroke_add_point(int64_t handle, int32_t strokeIdx,
+                                      float x, float y, int64_t timestamp);
+int32_t simjot_draw_stroke_end(int64_t handle, int32_t strokeIdx, int32_t applySmoothing);
+int32_t simjot_draw_stroke_remove(int64_t handle, int32_t strokeIdx);
+int32_t simjot_draw_stroke_count(int64_t handle);
+void simjot_draw_stroke_clear_all(int64_t handle);
+
+/* Stroke rendering with variable thickness */
+int32_t simjot_draw_render_all(int64_t handle, uint32_t* pixels, 
+                                int32_t width, int32_t height,
+                                float offsetX, float offsetY);
+int32_t simjot_draw_render_one(int64_t handle, int32_t strokeIdx,
+                                uint32_t* pixels, int32_t width, int32_t height,
+                                float offsetX, float offsetY);
+
+/* Standalone stroke processing */
+int32_t simjot_draw_interpolate_catmull_rom(
+    const float* in_x, const float* in_y, const float* in_pressure, int32_t in_count,
+    float* out_x, float* out_y, float* out_pressure, int32_t out_capacity,
+    int32_t subdivisions);
+
+int32_t simjot_draw_smooth_chaikin(
+    const float* in_x, const float* in_y, int32_t in_count,
+    float* out_x, float* out_y, int32_t out_capacity,
+    int32_t iterations);
+
+int32_t simjot_draw_compute_pressure(
+    const float* x, const float* y, const int64_t* timestamps, int32_t count,
+    float* pressure);
+
+int32_t simjot_draw_render_variable(
+    uint32_t* pixels, int32_t width, int32_t height,
+    const float* points_x, const float* points_y, const float* thicknesses,
+    int32_t point_count, uint32_t argb_color,
+    float offset_x, float offset_y);
+
+int32_t simjot_draw_distance_sample(
+    const float* in_x, const float* in_y, int32_t in_count,
+    float* out_x, float* out_y, int32_t out_capacity,
+    float min_distance);
+
 #ifdef __cplusplus
 }
 #endif

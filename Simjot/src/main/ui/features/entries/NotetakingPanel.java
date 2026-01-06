@@ -711,10 +711,53 @@ public class NotetakingPanel extends EntryPanel {
 
     // --- Drawing model & overlay ---
     private enum DrawTool { PEN, HIGHLIGHT, ERASER }
+    
+    // Enhanced stroke with float precision and timestamps for velocity-based rendering
     private static class DrawStroke {
-        final DrawTool tool; final Color color; final int thickness; final List<Point> points;
-        DrawStroke(DrawTool tool, Color color, int thickness) { this(tool,color,thickness,new ArrayList<>()); }
-        DrawStroke(DrawTool tool, Color color, int thickness, List<Point> pts) { this.tool=tool; this.color=color; this.thickness=thickness; this.points=pts; }
+        final DrawTool tool;
+        final Color color;
+        final int thickness;
+        final List<Point> points; // Legacy integer points for persistence
+        final List<float[]> floatPoints; // [x, y, timestamp] for native engine
+        
+        DrawStroke(DrawTool tool, Color color, int thickness) {
+            this(tool, color, thickness, new ArrayList<>());
+        }
+        
+        DrawStroke(DrawTool tool, Color color, int thickness, List<Point> pts) {
+            this.tool = tool;
+            this.color = color;
+            this.thickness = thickness;
+            this.points = pts;
+            this.floatPoints = new ArrayList<>();
+            // Convert existing points to float format
+            for (Point p : pts) {
+                floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
+            }
+        }
+        
+        void addPoint(float x, float y, long timestamp) {
+            points.add(new Point(Math.round(x), Math.round(y)));
+            floatPoints.add(new float[]{x, y, timestamp});
+        }
+        
+        float[] getPointsX() {
+            float[] xs = new float[floatPoints.size()];
+            for (int i = 0; i < floatPoints.size(); i++) xs[i] = floatPoints.get(i)[0];
+            return xs;
+        }
+        
+        float[] getPointsY() {
+            float[] ys = new float[floatPoints.size()];
+            for (int i = 0; i < floatPoints.size(); i++) ys[i] = floatPoints.get(i)[1];
+            return ys;
+        }
+        
+        long[] getTimestamps() {
+            long[] ts = new long[floatPoints.size()];
+            for (int i = 0; i < floatPoints.size(); i++) ts[i] = (long) floatPoints.get(i)[2];
+            return ts;
+        }
     }
     
     // Undo action wrapper for stroke operations
@@ -762,30 +805,61 @@ public class NotetakingPanel extends EntryPanel {
         private Point lastPoint; // For incremental drawing
         private Point mousePos; // Current mouse position (screen coords) for eraser cursor
         
-        // Lightweight EMA smoothing state
+        // Native stroke engine
+        private main.infrastructure.ffi.NativeDrawing nativeDrawing;
+        private long nativeStrokeManager = 0;
+        private int currentNativeStrokeIdx = -1;
+        private java.awt.image.BufferedImage strokeBuffer;
+        private boolean strokeBufferDirty = true;
+        
+        // Float-precision smoothing state (keeps sub-pixel precision)
         private float smoothX, smoothY;
-        private static final float SMOOTH_ALPHA = 0.65f; // 0.5-0.8 range, higher = less smooth
+        private float lastRawX, lastRawY;
+        private long lastTimestamp;
+        private static final float SMOOTH_ALPHA = 0.6f; // Responsive but smooth
+        private static final float MIN_DISTANCE_SQ = 4.0f; // 2px minimum distance
         
         DrawingOverlay(JScrollPane host, JComponent view) {
             this.vp = host.getViewport();
             this.view = view;
             setOpaque(false);
+            
+            // Initialize native stroke engine if available
+            try {
+                nativeDrawing = main.infrastructure.ffi.NativeDrawing.getInstance();
+                if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                    nativeStrokeManager = nativeDrawing.strokeManagerCreate(4096, 4096);
+                }
+            } catch (Throwable ignored) {
+                nativeDrawing = null;
+            }
+            
             MouseAdapter ma = new MouseAdapter() {
                 @Override public void mousePressed(MouseEvent e) {
                     if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
                     Point p = toDoc(e.getPoint());
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
+                    
+                    long now = System.currentTimeMillis();
                     redoStack.clear();
                     current = makeStroke();
-                    // Initialize smoothing state with first point
+                    
+                    // Initialize smoothing state with float precision
                     smoothX = p.x;
                     smoothY = p.y;
-                    current.points.add(p);
+                    lastRawX = p.x;
+                    lastRawY = p.y;
+                    lastTimestamp = now;
+                    
+                    // Add first point with timestamp
+                    current.addPoint(smoothX, smoothY, now);
                     lastPoint = p;
                     drawStrokes.add(current);
                     undoStack.add(new AddStrokeAction(current));
+                    strokeBufferDirty = true;
                     repaintDirty(p, p, current.thickness);
                 }
+                
                 @Override public void mouseDragged(MouseEvent e) {
                     if (!capture) return;
                     updateEraserCursor(e.getPoint());
@@ -793,44 +867,86 @@ public class NotetakingPanel extends EntryPanel {
                     if (currentDrawTool == DrawTool.ERASER) { eraseAt(raw); return; }
                     if (current == null) return;
                     
-                    Point p;
+                    long now = System.currentTimeMillis();
+                    float rawX = raw.x;
+                    float rawY = raw.y;
+                    
+                    // Distance-based sampling: skip points too close together
+                    float dx = rawX - lastRawX;
+                    float dy = rawY - lastRawY;
+                    if (dx * dx + dy * dy < MIN_DISTANCE_SQ) {
+                        return; // Too close, skip to reduce jitter
+                    }
+                    
+                    float finalX, finalY;
                     if (currentDrawTool == DrawTool.PEN) {
-                        // Apply lightweight EMA smoothing (pen only, not highlighter)
-                        smoothX = SMOOTH_ALPHA * raw.x + (1f - SMOOTH_ALPHA) * smoothX;
-                        smoothY = SMOOTH_ALPHA * raw.y + (1f - SMOOTH_ALPHA) * smoothY;
-                        p = new Point(Math.round(smoothX), Math.round(smoothY));
+                        // Apply EMA smoothing with float precision (no rounding during stroke)
+                        smoothX = SMOOTH_ALPHA * rawX + (1f - SMOOTH_ALPHA) * smoothX;
+                        smoothY = SMOOTH_ALPHA * rawY + (1f - SMOOTH_ALPHA) * smoothY;
+                        finalX = smoothX;
+                        finalY = smoothY;
                     } else {
                         // No smoothing for highlighter - avoids opacity stacking
-                        p = raw;
+                        finalX = rawX;
+                        finalY = rawY;
                     }
                     
                     Point prev = lastPoint;
-                    current.points.add(p);
-                    lastPoint = p;
-                    repaintDirty(prev, p, current.thickness);
+                    current.addPoint(finalX, finalY, now);
+                    lastPoint = new Point(Math.round(finalX), Math.round(finalY));
+                    lastRawX = rawX;
+                    lastRawY = rawY;
+                    lastTimestamp = now;
+                    strokeBufferDirty = true;
+                    repaintDirty(prev, lastPoint, current.thickness);
                 }
+                
                 @Override public void mouseMoved(MouseEvent e) {
                     updateEraserCursor(e.getPoint());
                 }
+                
                 @Override public void mouseReleased(MouseEvent e) {
+                    if (current != null && current.floatPoints.size() >= 3 && currentDrawTool == DrawTool.PEN) {
+                        // Apply Chaikin smoothing on stroke completion for extra polish
+                        applyFinalSmoothing(current);
+                    }
                     current = null;
                     lastPoint = null;
+                    strokeBufferDirty = true;
                     repaint();
                 }
             };
             addMouseListener(ma);
             addMouseMotionListener(ma);
-            vp.addChangeListener(e -> repaint());
+            vp.addChangeListener(e -> { strokeBufferDirty = true; repaint(); });
             
             // Keyboard shortcuts for undo/redo
             int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
             getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta), "undoStroke");
             getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoStroke");
-            getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) performUndo(); }});
-            getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) performRedo(); }});
+            getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performUndo(); strokeBufferDirty = true; } }});
+            getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performRedo(); strokeBufferDirty = true; } }});
             view.addComponentListener(new ComponentAdapter(){
-                @Override public void componentResized(ComponentEvent e) { revalidate(); repaint(); }
+                @Override public void componentResized(ComponentEvent e) { strokeBufferDirty = true; revalidate(); repaint(); }
             });
+        }
+        
+        private void applyFinalSmoothing(DrawStroke stroke) {
+            if (nativeDrawing == null || stroke.floatPoints.size() < 3) return;
+            try {
+                float[] xs = stroke.getPointsX();
+                float[] ys = stroke.getPointsY();
+                float[][] smoothed = nativeDrawing.strokeSmoothChaikin(xs, ys, 2);
+                if (smoothed != null && smoothed[0].length > 0) {
+                    // Replace points with smoothed version
+                    stroke.points.clear();
+                    stroke.floatPoints.clear();
+                    long ts = System.currentTimeMillis();
+                    for (int i = 0; i < smoothed[0].length; i++) {
+                        stroke.addPoint(smoothed[0][i], smoothed[1][i], ts);
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
         
         private void repaintDirty(Point p1, Point p2, int thickness) {
@@ -912,18 +1028,58 @@ public class NotetakingPanel extends EntryPanel {
         @Override public Dimension getPreferredSize() { return view.getPreferredSize(); }
         
         @Override protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.translate(-vp.getViewPosition().x, -vp.getViewPosition().y);
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) return;
             
-            // Draw all strokes
-            for (DrawStroke s : drawStrokes) {
-                g2.setColor(s.color);
-                g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                drawStrokeFast(g2, s.points);
+            Point vpPos = vp.getViewPosition();
+            float offsetX = vpPos.x;
+            float offsetY = vpPos.y;
+            
+            // Try native rendering first (higher quality with variable thickness)
+            if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable() && !drawStrokes.isEmpty()) {
+                // Ensure stroke buffer is the right size
+                if (strokeBuffer == null || strokeBuffer.getWidth() != w || strokeBuffer.getHeight() != h) {
+                    strokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    strokeBufferDirty = true;
+                }
+                
+                // Re-render to buffer if dirty
+                if (strokeBufferDirty) {
+                    int[] pixels = ((java.awt.image.DataBufferInt) strokeBuffer.getRaster().getDataBuffer()).getData();
+                    java.util.Arrays.fill(pixels, 0); // Clear to transparent
+                    
+                    // Render each stroke using native engine
+                    for (DrawStroke s : drawStrokes) {
+                        if (s.floatPoints.isEmpty()) continue;
+                        float[] xs = s.getPointsX();
+                        float[] ys = s.getPointsY();
+                        
+                        // Compute velocity-based thickness for each point
+                        float[] thicknesses = computeThicknesses(s);
+                        
+                        int argb = s.color.getRGB();
+                        nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, argb, offsetX, offsetY);
+                    }
+                    strokeBufferDirty = false;
+                }
+                
+                // Draw cached buffer
+                g.drawImage(strokeBuffer, 0, 0, null);
+            } else {
+                // Fallback to Java rendering
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.translate(-offsetX, -offsetY);
+                
+                for (DrawStroke s : drawStrokes) {
+                    g2.setColor(s.color);
+                    g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    drawStrokeFast(g2, s.floatPoints);
+                }
+                
+                g2.dispose();
             }
-            
-            g2.dispose();
             
             // Draw eraser cursor overlay (in screen coords, after stroke drawing)
             if (capture && currentDrawTool == DrawTool.ERASER && mousePos != null) {
@@ -937,20 +1093,59 @@ public class NotetakingPanel extends EntryPanel {
             }
         }
         
-        // Fast stroke drawing using drawLine() - avoids Path2D allocation
-        private void drawStrokeFast(Graphics2D g2, List<Point> points) {
-            int n = points.size();
+        // Compute velocity-based thickness for each point (pressure simulation)
+        private float[] computeThicknesses(DrawStroke s) {
+            int n = s.floatPoints.size();
+            float[] thicknesses = new float[n];
+            float baseT = s.thickness;
+            
+            if (n < 2) {
+                java.util.Arrays.fill(thicknesses, baseT);
+                return thicknesses;
+            }
+            
+            thicknesses[0] = baseT;
+            float smoothVelocity = 0f;
+            
+            for (int i = 1; i < n; i++) {
+                float[] prev = s.floatPoints.get(i - 1);
+                float[] curr = s.floatPoints.get(i);
+                
+                float dx = curr[0] - prev[0];
+                float dy = curr[1] - prev[1];
+                float dist = (float) Math.sqrt(dx * dx + dy * dy);
+                float dt = curr[2] - prev[2];
+                if (dt < 1) dt = 1;
+                
+                float velocity = dist / dt;
+                smoothVelocity = 0.3f * velocity + 0.7f * smoothVelocity;
+                
+                // Map velocity to thickness (slower = thicker, faster = thinner)
+                float normalized = smoothVelocity / 0.8f; // reference velocity
+                float pressure = (float) Math.exp(-normalized * 1.5);
+                pressure = Math.max(0.2f, Math.min(1f, pressure));
+                
+                float factor = 0.4f + pressure * 0.8f; // 0.4 to 1.2 multiplier
+                thicknesses[i] = baseT * factor;
+            }
+            
+            return thicknesses;
+        }
+        
+        // Fast stroke drawing using float points - Java fallback
+        private void drawStrokeFast(Graphics2D g2, List<float[]> floatPoints) {
+            int n = floatPoints.size();
             if (n == 0) return;
             if (n == 1) {
-                Point p = points.get(0);
-                g2.fillOval(p.x - 1, p.y - 1, 3, 3);
+                float[] p = floatPoints.get(0);
+                g2.fillOval((int)(p[0] - 1), (int)(p[1] - 1), 3, 3);
                 return;
             }
-            // Use drawLine for each segment - faster than Path2D
+            // Use drawLine for each segment
             for (int i = 0; i < n - 1; i++) {
-                Point p0 = points.get(i);
-                Point p1 = points.get(i + 1);
-                g2.drawLine(p0.x, p0.y, p1.x, p1.y);
+                float[] p0 = floatPoints.get(i);
+                float[] p1 = floatPoints.get(i + 1);
+                g2.drawLine((int)p0[0], (int)p0[1], (int)p1[0], (int)p1[1]);
             }
         }
     }
