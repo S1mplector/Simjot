@@ -1007,7 +1007,7 @@ public class NotetakingPanel extends EntryPanel {
                     
                     if (currentDrawTool == DrawTool.HIGHLIGHT) {
                         // Simple raw point for highlighter - no advanced processing
-                        current.points.add(p);
+                        current.addLegacyPoint(p);
                     } else {
                         // Initialize smoothing state with float precision for pen
                         smoothX = p.x;
@@ -1037,7 +1037,7 @@ public class NotetakingPanel extends EntryPanel {
                     if (currentDrawTool == DrawTool.HIGHLIGHT) {
                         // Simple raw point for highlighter - no smoothing, no sampling
                         Point prev = lastPoint;
-                        current.points.add(raw);
+                        current.addLegacyPoint(raw);
                         lastPoint = raw;
                         highlightBufferDirty = true;
                         repaintDirty(prev, raw, current.thickness);
@@ -1591,8 +1591,9 @@ public class NotetakingPanel extends EntryPanel {
             if (strokeBufferDirty || penStrokeBuffer == null) {
                 // Check if any pen strokes exist
                 boolean hasPenStrokes = false;
+                java.awt.Rectangle viewRect = new java.awt.Rectangle((int) offsetX, (int) offsetY, w, h);
                 for (DrawStroke s : drawStrokes) {
-                    if (s.tool == DrawTool.PEN) { hasPenStrokes = true; break; }
+                    if (s.tool == DrawTool.PEN && s.intersectsRect(viewRect, s.thickness + 4)) { hasPenStrokes = true; break; }
                 }
                 
                 if (hasPenStrokes) {
@@ -1606,6 +1607,7 @@ public class NotetakingPanel extends EntryPanel {
                     if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
                         for (DrawStroke s : drawStrokes) {
                             if (s.tool != DrawTool.PEN || s.floatPoints.isEmpty()) continue;
+                            if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
                             float[] xs = s.getPointsX();
                             float[] ys = s.getPointsY();
                             float[] thicknesses = getOrComputeThicknesses(s);
@@ -1618,6 +1620,7 @@ public class NotetakingPanel extends EntryPanel {
                         g2.translate(-offsetX, -offsetY);
                         for (DrawStroke s : drawStrokes) {
                             if (s.tool != DrawTool.PEN) continue;
+                            if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
                             g2.setColor(s.color);
                             g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                             drawStrokePath(g2, s.floatPoints);
@@ -1657,10 +1660,12 @@ public class NotetakingPanel extends EntryPanel {
                     bufG.setComposite(java.awt.AlphaComposite.SrcOver);
                     bufG.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     bufG.translate(-offsetX, -offsetY);
+                    java.awt.Rectangle viewRect = new java.awt.Rectangle((int) offsetX, (int) offsetY, w, h);
                     
                     // Render each highlighter stroke with proper alpha compositing
                     for (DrawStroke s : drawStrokes) {
                         if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
+                        if (!s.intersectsRect(viewRect, s.thickness + 10)) continue;
                         int alpha = s.color.getAlpha();
                         Color opaqueColor = new Color(s.color.getRed(), s.color.getGreen(), s.color.getBlue(), 255);
                         
