@@ -481,7 +481,7 @@ public class ToolbarIconButton extends JButton {
                 g2.translate(cx, cy);
                 g2.rotate(-Math.PI/6);
                 
-                // Eraser body (pink only)
+                // Eraser body
                 LinearGradientPaint body = new LinearGradientPaint(-10, -6, -10, 6,
                         new float[]{0f, 0.5f, 1f},
                         new Color[]{new Color(255, 180, 180), new Color(255, 140, 140), new Color(240, 120, 120)});

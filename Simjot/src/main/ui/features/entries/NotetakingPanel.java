@@ -757,6 +757,11 @@ public class NotetakingPanel extends EntryPanel {
         final int thickness;
         final List<Point> points; // Legacy integer points for persistence
         final List<float[]> floatPoints; // [x, y, timestamp] for native engine
+        private int minX = Integer.MAX_VALUE;
+        private int minY = Integer.MAX_VALUE;
+        private int maxX = Integer.MIN_VALUE;
+        private int maxY = Integer.MIN_VALUE;
+        private boolean boundsDirty = true;
         
         // Cached arrays for performance (invalidated on point add)
         private float[] cachedXs;
@@ -777,12 +782,17 @@ public class NotetakingPanel extends EntryPanel {
             // Convert existing points to float format
             for (Point p : pts) {
                 floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
+                updateBounds(p.x, p.y);
+            }
+            if (pts.isEmpty()) {
+                boundsDirty = true;
             }
         }
         
         void addPoint(float x, float y, long timestamp) {
             points.add(new Point(Math.round(x), Math.round(y)));
             floatPoints.add(new float[]{x, y, timestamp});
+            updateBounds(Math.round(x), Math.round(y));
             cacheValid = false; // Invalidate cache
         }
         
@@ -810,6 +820,61 @@ public class NotetakingPanel extends EntryPanel {
         
         void setCachedThicknesses(float[] thicknesses) {
             this.cachedThicknesses = thicknesses;
+        }
+        
+        private void updateBounds(int x, int y) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+            boundsDirty = false;
+        }
+        
+        void recomputeBounds() {
+            if (points.isEmpty()) {
+                minX = minY = Integer.MAX_VALUE;
+                maxX = maxY = Integer.MIN_VALUE;
+                boundsDirty = true;
+                return;
+            }
+            minX = minY = Integer.MAX_VALUE;
+            maxX = maxY = Integer.MIN_VALUE;
+            for (Point p : points) {
+                updateBounds(p.x, p.y);
+            }
+            boundsDirty = false;
+        }
+        
+        void shiftBounds(int dx, int dy) {
+            if (boundsDirty) return;
+            minX += dx;
+            maxX += dx;
+            minY += dy;
+            maxY += dy;
+        }
+        
+        private java.awt.Rectangle getBoundsWithPadding(int pad) {
+            if (boundsDirty) {
+                recomputeBounds();
+            }
+            if (minX == Integer.MAX_VALUE || minY == Integer.MAX_VALUE) {
+                return new java.awt.Rectangle();
+            }
+            int width = (maxX - minX) + pad * 2;
+            int height = (maxY - minY) + pad * 2;
+            return new java.awt.Rectangle(minX - pad, minY - pad, Math.max(1, width), Math.max(1, height));
+        }
+        
+        boolean intersectsRect(java.awt.Rectangle rect, int pad) {
+            if (points.isEmpty()) return false;
+            java.awt.Rectangle bounds = getBoundsWithPadding(pad);
+            return bounds.intersects(rect);
+        }
+
+        void addLegacyPoint(Point p) {
+            points.add(p);
+            updateBounds(p.x, p.y);
+            cacheValid = false;
         }
         
         private void rebuildCache() {
@@ -974,7 +1039,6 @@ public class NotetakingPanel extends EntryPanel {
                         Point prev = lastPoint;
                         current.points.add(raw);
                         lastPoint = raw;
-                        strokeBufferDirty = true;
                         highlightBufferDirty = true;
                         repaintDirty(prev, raw, current.thickness);
                         return;
@@ -1002,8 +1066,8 @@ public class NotetakingPanel extends EntryPanel {
                     lastRawX = rawX;
                     lastRawY = rawY;
                     lastTimestamp = now;
-                    strokeBufferDirty = true;
-                    highlightBufferDirty = true;
+                    // Incrementally render the new segment to avoid full buffer rebuilds on every drag
+                    appendPenSegment(current, prev, lastPoint);
                     repaintDirty(prev, lastPoint, current.thickness);
                 }
                 
@@ -1074,6 +1138,31 @@ public class NotetakingPanel extends EntryPanel {
             int x2 = Math.max(p1.x, p2.x) - vpPos.x + pad;
             int y2 = Math.max(p1.y, p2.y) - vpPos.y + pad;
             repaint(x1, y1, x2 - x1, y2 - y1);
+        }
+
+        /**
+         * Append a newly drawn pen segment directly to the cached pen buffer to avoid
+         * forcing a full buffer rebuild on every drag event.
+         */
+        private void appendPenSegment(DrawStroke stroke, Point p1, Point p2) {
+            if (stroke == null || stroke.tool != DrawTool.PEN) return;
+            if (strokeBufferDirty || penStrokeBuffer == null) {
+                // Will be rebuilt on next paint; avoid drawing with stale offsets
+                return;
+            }
+            try {
+                Point vpPos = vp.getViewPosition();
+                Graphics2D g2 = penStrokeBuffer.createGraphics();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.translate(-vpPos.x, -vpPos.y);
+                g2.setColor(stroke.color);
+                g2.setStroke(new BasicStroke(stroke.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(p1.x, p1.y, p2.x, p2.y);
+                g2.dispose();
+            } catch (Throwable ignored) {
+                // If anything goes wrong, fall back to a full rebuild on next paint
+                strokeBufferDirty = true;
+            }
         }
         
         private void updateEraserCursor(Point screenPos) {
