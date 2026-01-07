@@ -481,25 +481,17 @@ public class ToolbarIconButton extends JButton {
                 g2.translate(cx, cy);
                 g2.rotate(-Math.PI/6);
                 
-                // Eraser body (pink)
-                LinearGradientPaint body = new LinearGradientPaint(-8, -5, -8, 5,
+                // Eraser body (pink only)
+                LinearGradientPaint body = new LinearGradientPaint(-10, -6, -10, 6,
                         new float[]{0f, 0.5f, 1f},
                         new Color[]{new Color(255, 180, 180), new Color(255, 140, 140), new Color(240, 120, 120)});
                 g2.setPaint(body);
-                g2.fillRoundRect(-8, -5, 16, 10, 3, 3);
-                
-                // Metal band
-                g2.setColor(new Color(180, 180, 190));
-                g2.fillRect(8, -5, 4, 10);
-                
-                // Blue holder
-                g2.setColor(new Color(100, 140, 180));
-                g2.fillRoundRect(12, -5, 6, 10, 2, 2);
+                g2.fillRoundRect(-10, -6, 20, 12, 4, 4);
                 
                 // Outline
                 g2.setColor(new Color(180, 100, 100));
                 g2.setStroke(new BasicStroke(1f));
-                g2.drawRoundRect(-8, -5, 16, 10, 3, 3);
+                g2.drawRoundRect(-10, -6, 20, 12, 4, 4);
                 
                 g2.setTransform(old);
                 break; }

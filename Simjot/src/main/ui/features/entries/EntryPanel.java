@@ -504,21 +504,6 @@ public class EntryPanel extends AbstractEditorPanel {
             rightToolbar.add(clockBtn);
             rightToolbar.add(Box.createHorizontalStrut(6));
         }
-        // Restore button removed as requested.
-        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("", "fullscreen");
-        dfBtn.setToolTipText("Distraction-Free Mode");
-        dfBtn.addActionListener(e -> toggleDistractionFree());
-        rightToolbar.add(dfBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("", "backgroundoptions");
-        settingsBtn.setToolTipText("Background Settings");
-        settingsBtn.addActionListener(e -> {
-            EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
-            dialog.setVisible(true);
-            repaint();
-        });
-        rightToolbar.add(settingsBtn);
-
         // Create shared poetry-style toolbar
         NotebookInfo nbInfo = new NotebookInfo(
                 journalFolder.getName(),
@@ -553,9 +538,28 @@ public class EntryPanel extends AbstractEditorPanel {
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(contentArea),
                 () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(contentArea)
         );
+
+        // Place fullscreen and background settings at the far right (after any child-provided buttons)
+        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("", "fullscreen");
+        dfBtn.setToolTipText("Distraction-Free Mode");
+        dfBtn.addActionListener(e -> toggleDistractionFree());
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(dfBtn);
+
+        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("", "backgroundoptions");
+        settingsBtn.setToolTipText("Background Settings");
+        settingsBtn.addActionListener(e -> {
+            EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
+            dialog.setVisible(true);
+            repaint();
+        });
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(settingsBtn);
+
         // Bind the shared title field to our reference used elsewhere
         titleField = sharedToolbar.getTitleField();
         toolbarContainer = sharedToolbar.getContainer();
+        add(toolbarContainer, BorderLayout.NORTH);
 
         // Stack toolbar + mood controls (mood lives below the frosted bar)
         toolbarGroup = new JPanel();

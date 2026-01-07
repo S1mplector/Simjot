@@ -21,6 +21,8 @@ import javax.swing.JToggleButton;
 
 /**
  * Bullet list toggle button showing a simple dot.
+ * No need for an image icon as it is fully vector rendered. 
+ * Current behavior needs text to be already selected for the formatting to work. 
  * 
  * @author S1mplector
  */
