@@ -168,6 +168,8 @@ public class PoemPanel extends AbstractEditorPanel {
     private JLabel soundLabel;
     private JLabel meterLabel;
     private javax.swing.Timer analysisDebounceTimer;
+    private javax.swing.Timer analysisSplashTimer;
+    private String analysisSplashOriginalStatus;
     private UndoRedoManager poemTitleUndoManager;
     private UndoRedoManager poemContentUndoManager;
     // Poetry toolkit controls
@@ -1075,6 +1077,9 @@ public class PoemPanel extends AbstractEditorPanel {
             String soundText = "Sound: ...";
             String meterText = "Meter: ...";
             
+            // Lightweight splash: show staged analysis steps while work begins
+            showAnalysisSplash();
+
             try {
                 // Try unified native analysis first (much faster - single call instead of 4+)
                 NativeAccess.PoetryAnalysisResult result = NativeAccess.poetryAnalyzeAll(text);
@@ -1185,6 +1190,8 @@ public class PoemPanel extends AbstractEditorPanel {
             } catch (Throwable ex) {
                 System.err.println("Poetry analysis error: " + ex.getMessage());
                 ex.printStackTrace();
+            } finally {
+                stopAnalysisSplash();
             }
             
             // Update UI on EDT
@@ -1200,6 +1207,50 @@ public class PoemPanel extends AbstractEditorPanel {
                 if (meterLabel != null) meterLabel.setText(finalMeterText);
             });
         }).start();
+    }
+
+    private void showAnalysisSplash() {
+        SwingUtilities.invokeLater(() -> {
+            analysisSplashOriginalStatus = statusLabel != null ? statusLabel.getText() : null;
+            if (statusLabel != null) statusLabel.setText("Starting analysis…");
+            String[] steps = new String[] {
+                "Analyzing prosody…",
+                "Analyzing phonetics…",
+                "Analyzing vocabulary…",
+                "Analyzing themes…",
+                "Analyzing meter…",
+                "Finishing up…"
+            };
+            if (analysisSplashTimer != null && analysisSplashTimer.isRunning()) {
+                analysisSplashTimer.stop();
+            }
+            analysisSplashTimer = new javax.swing.Timer(500, new java.awt.event.ActionListener() {
+                int idx = 0;
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    if (statusLabel != null && idx < steps.length) {
+                        statusLabel.setText(steps[idx]);
+                    }
+                    idx++;
+                    if (idx >= steps.length) {
+                        analysisSplashTimer.stop();
+                    }
+                }
+            });
+            analysisSplashTimer.setRepeats(true);
+            analysisSplashTimer.start();
+        });
+    }
+
+    private void stopAnalysisSplash() {
+        SwingUtilities.invokeLater(() -> {
+            if (analysisSplashTimer != null && analysisSplashTimer.isRunning()) {
+                analysisSplashTimer.stop();
+            }
+            if (analysisSplashOriginalStatus != null && statusLabel != null) {
+                statusLabel.setText(analysisSplashOriginalStatus);
+            }
+        });
     }
 
     private void schedulePoetryAnalysis() {

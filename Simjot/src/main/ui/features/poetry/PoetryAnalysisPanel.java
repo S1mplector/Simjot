@@ -29,6 +29,7 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.Icon;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -306,14 +307,16 @@ public class PoetryAnalysisPanel extends JPanel {
         
         panel.add(createSectionPanel("Quick Statistics", stats));
         
-        // Key findings
-        JTextArea findings = new JTextArea();
+        // Key findings (formatted HTML list)
+        JEditorPane findings = new JEditorPane();
+        findings.setContentType("text/html");
+        findings.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE);
         findings.setFont(LABEL_FONT);
         findings.setEditable(false);
-        findings.setLineWrap(true);
-        findings.setWrapStyleWord(true);
+        findings.setOpaque(true);
         findings.setBackground(SECTION_BG);
-        findings.setText(generateKeyFindings());
+        findings.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        findings.setText(generateKeyFindingsHtml());
         
         panel.add(createSectionPanel("Key Findings", findings));
         panel.add(Box.createVerticalGlue());
@@ -321,43 +324,52 @@ public class PoetryAnalysisPanel extends JPanel {
         return wrapInScroll(panel);
     }
     
-    private String generateKeyFindings() {
+    private String generateKeyFindingsHtml() {
         StringBuilder sb = new StringBuilder();
+        sb.append("<html><body style='margin:0; padding:0; font-family:")
+          .append(LABEL_FONT.getFamily()).append("; font-size:12px; color:#222;'>");
+        sb.append("<ul style='margin:0 0 0 14px; padding:0;'>");
         
         // Form
-        sb.append("• Form: This poem appears to be ").append(currentAnalysis.structure.form.toLowerCase());
+        sb.append("<li><b>Form:</b> This poem appears to be ")
+          .append(escapeHtml(currentAnalysis.structure.form.toLowerCase()));
         if (currentAnalysis.structure.hasRefrain) {
             sb.append(" with a refrain");
         }
-        sb.append(".\n\n");
+        sb.append(".</li>");
         
         // Meter
-        sb.append("• Meter: The dominant meter is ").append(currentAnalysis.prosody.meterName.toLowerCase());
-        sb.append(" with ").append(String.format("%.0f%%", currentAnalysis.prosody.regularity * 100));
-        sb.append(" regularity.\n\n");
+        sb.append("<li><b>Meter:</b> The dominant meter is ")
+          .append(escapeHtml(currentAnalysis.prosody.meterName.toLowerCase()))
+          .append(" with ")
+          .append(String.format("%.0f%%", currentAnalysis.prosody.regularity * 100))
+          .append(" regularity.</li>");
         
         // Rhyme
         if (!currentAnalysis.phonetics.rhymeScheme.isEmpty()) {
-            sb.append("• Rhyme: The poem follows a ");
             String scheme = currentAnalysis.phonetics.rhymeScheme;
-            if (scheme.length() <= 8) sb.append(scheme);
-            else sb.append(scheme.substring(0, 8) + "...");
-            sb.append(" rhyme scheme.\n\n");
+            String display = scheme.length() <= 12 ? scheme : scheme.substring(0, 12) + "…";
+            sb.append("<li><b>Rhyme:</b> The poem follows a ")
+              .append(escapeHtml(display))
+              .append(" rhyme scheme.</li>");
         }
         
         // Sound devices
-        int devices = currentAnalysis.phonetics.alliterations.size() + 
-                     currentAnalysis.phonetics.assonances.size();
+        int devices = currentAnalysis.phonetics.alliterations.size() + currentAnalysis.phonetics.assonances.size();
         if (devices > 0) {
-            sb.append("• Sound Devices: Found ").append(devices);
-            sb.append(" instances of alliteration and assonance.\n\n");
+            sb.append("<li><b>Sound Devices:</b> Found ")
+              .append(devices)
+              .append(" instances of alliteration and assonance.</li>");
         }
         
         // Tone
-        sb.append("• Tone: The overall tone is ").append(currentAnalysis.sentiment.tone.toLowerCase());
-        sb.append(" with ").append(String.format("%.0f%%", currentAnalysis.sentiment.intensity * 100));
-        sb.append(" emotional intensity.");
+        sb.append("<li><b>Tone:</b> The overall tone is ")
+          .append(escapeHtml(currentAnalysis.sentiment.tone.toLowerCase()))
+          .append(" with ")
+          .append(String.format("%.0f%%", currentAnalysis.sentiment.intensity * 100))
+          .append(" emotional intensity.</li>");
         
+        sb.append("</ul></body></html>");
         return sb.toString();
     }
     

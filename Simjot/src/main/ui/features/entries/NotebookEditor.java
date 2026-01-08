@@ -9,11 +9,13 @@
 package main.ui.features.entries;
 
 import java.io.File;
+
 import javax.swing.JComponent;
 
 /**
  * Common contract for all notebook editor panels (journal, poem, notes, etc.).
- * This keeps app logic generic and ensures consistent UX hooks.
+ * 
+ * @author S1mplector
  */
 public interface NotebookEditor {
     // Current file bound to this editor (null until first save)
