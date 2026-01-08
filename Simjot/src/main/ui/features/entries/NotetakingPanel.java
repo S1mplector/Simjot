@@ -8,6 +8,7 @@
 
 package main.ui.features.entries;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -29,6 +30,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -37,6 +39,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -50,6 +54,7 @@ import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JViewport;
@@ -57,6 +62,7 @@ import javax.swing.JWindow;
 import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -91,6 +97,7 @@ public class NotetakingPanel extends EntryPanel {
     private JSpinner strokeSpinner;
     private JButton colorBtn;
     private JLayeredPane overlayStack;
+    private ScrollAssistOverlay scrollAssistOverlay;
     private main.ui.components.buttons.ToolbarIconButton textModeBtn;
     private main.ui.components.buttons.ToolbarIconButton paintModeBtn;
     private main.ui.components.buttons.ToolbarIconButton highlighterBtn;
@@ -234,6 +241,9 @@ public class NotetakingPanel extends EntryPanel {
         if (drawingOverlay != null) {
             drawingOverlay.setOverlayVisible(true); // Always keep overlay visible to show strokes
             drawingOverlay.setCaptureEnabled(paint);
+        }
+        if (scrollAssistOverlay != null) {
+            scrollAssistOverlay.setPenMode(paint);
         }
         if (textModeBtn != null) {
             boolean textActive = !paint;
@@ -460,9 +470,12 @@ public class NotetakingPanel extends EntryPanel {
         drawingOverlay = new DrawingOverlay(scrollPane, contentArea);
         overlayStack.add(scrollPane, Integer.valueOf(0));
         overlayStack.add(drawingOverlay, Integer.valueOf(100));
+        scrollAssistOverlay = new ScrollAssistOverlay(scrollPane);
+        overlayStack.add(scrollAssistOverlay, Integer.valueOf(150));
         textWrapper.add(overlayStack, BorderLayout.CENTER);
         drawingOverlay.setOverlayVisible(overlayVisible);
         drawingOverlay.setCaptureEnabled(drawingEnabled);
+        scrollAssistOverlay.setPenMode(drawingEnabled);
     }
 
     private void installAdvancedFormattingShortcuts() {
@@ -933,201 +946,462 @@ public class NotetakingPanel extends EntryPanel {
         if (drawingOverlay != null) drawingOverlay.repaint();
     }
 
-    private class DrawingOverlay extends JComponent {
-        private final JViewport vp;
-        private final JComponent view;
-        private boolean capture = false; // whether to intercept mouse events
-        private DrawStroke current;
-        private Point lastPoint; // For incremental drawing
-        private Point mousePos; // Current mouse position (screen coords) for eraser cursor
-        
-        // Native stroke engine
-        private main.infrastructure.ffi.NativeDrawing nativeDrawing;
-        private long nativeStrokeManager = 0;
-        private int currentNativeStrokeIdx = -1;
-        
-        // Stroke buffer caching for performance
-        private java.awt.image.BufferedImage penStrokeBuffer;
-        private java.awt.image.BufferedImage highlightStrokeBuffer;
-        private boolean strokeBufferDirty = true;
-        private boolean highlightBufferDirty = true;
-        private int lastBufferWidth = 0, lastBufferHeight = 0;
-        private float lastOffsetX = 0, lastOffsetY = 0;
-        
-        // Optimizer for large stroke collections (quadtree spatial index)
-        private long optimizerHandle = 0;
-        private java.util.Map<DrawStroke, Integer> strokeToOptId = new java.util.HashMap<>();
-        private static final int OPTIMIZER_THRESHOLD = 100; // Enable when stroke count exceeds this
-        private boolean useOptimizer = false;
-        
-        // Float-precision smoothing state (keeps sub-pixel precision)
-        private float smoothX, smoothY;
-        private float lastRawX, lastRawY;
-        private long lastTimestamp;
-        private static final float SMOOTH_ALPHA = 0.6f; // Responsive but smooth
-        private static final float MIN_DISTANCE_SQ = 4.0f; // 2px minimum distance
-        
-        // Lasso selection state
-        private List<Point> lassoPath = new ArrayList<>();
-        private java.util.Set<DrawStroke> selectedStrokes = new java.util.HashSet<>();
-        private java.awt.Rectangle selectionBounds = null;
-        private boolean isDraggingSelection = false;
-        private Point dragStart = null;
-        
-        DrawingOverlay(JScrollPane host, JComponent view) {
-            this.vp = host.getViewport();
-            this.view = view;
-            setOpaque(false);
-            
-            // Initialize native stroke engine if available
-            try {
-                nativeDrawing = main.infrastructure.ffi.NativeDrawing.getInstance();
-                if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
-                    nativeStrokeManager = nativeDrawing.strokeManagerCreate(4096, 4096);
-                }
-            } catch (Throwable ignored) {
-                nativeDrawing = null;
-            }
-            
-            MouseAdapter ma = new MouseAdapter() {
-                @Override public void mousePressed(MouseEvent e) {
-                    if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
-                    Point p = toDoc(e.getPoint());
-                    if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
-                    
-                    // Lasso tool handling
-                    if (currentDrawTool == DrawTool.LASSO) {
-                        handleLassoPress(p);
-                        return;
-                    }
-                    
-                    long now = System.currentTimeMillis();
-                    redoStack.clear();
-                    current = makeStroke();
-                    
-                    if (currentDrawTool == DrawTool.HIGHLIGHT) {
-                        // Simple raw point for highlighter - no advanced processing
-                        current.addLegacyPoint(p);
-                    } else {
-                        // Initialize smoothing state with float precision for pen
-                        smoothX = p.x;
-                        smoothY = p.y;
-                        lastRawX = p.x;
-                        lastRawY = p.y;
-                        lastTimestamp = now;
-                        current.addPoint(smoothX, smoothY, now);
-                    }
-                    
-                    lastPoint = p;
-                    drawStrokes.add(current);
-                    undoStack.add(new AddStrokeAction(current));
-                    strokeBufferDirty = true;
-                    highlightBufferDirty = true;
-                    repaintDirty(p, p, current.thickness);
-                }
-                
-                @Override public void mouseDragged(MouseEvent e) {
-                    if (!capture) return;
-                    updateEraserCursor(e.getPoint());
-                    Point raw = toDoc(e.getPoint());
-                    if (currentDrawTool == DrawTool.ERASER) { eraseAt(raw); return; }
-                    if (currentDrawTool == DrawTool.LASSO) { handleLassoDrag(raw); return; }
-                    if (current == null) return;
-                    
-                    if (currentDrawTool == DrawTool.HIGHLIGHT) {
-                        // Simple raw point for highlighter - no smoothing, no sampling
-                        Point prev = lastPoint;
-                        current.addLegacyPoint(raw);
-                        lastPoint = raw;
-                        highlightBufferDirty = true;
-                        repaintDirty(prev, raw, current.thickness);
-                        return;
-                    }
-                    
-                    // PEN tool: advanced processing with smoothing and distance sampling
-                    long now = System.currentTimeMillis();
-                    float rawX = raw.x;
-                    float rawY = raw.y;
-                    
-                    // Distance-based sampling: skip points too close together
-                    float dx = rawX - lastRawX;
-                    float dy = rawY - lastRawY;
-                    if (dx * dx + dy * dy < MIN_DISTANCE_SQ) {
-                        return; // Too close, skip to reduce jitter
-                    }
-                    
-                    // Apply EMA smoothing with float precision (no rounding during stroke)
-                    smoothX = SMOOTH_ALPHA * rawX + (1f - SMOOTH_ALPHA) * smoothX;
-                    smoothY = SMOOTH_ALPHA * rawY + (1f - SMOOTH_ALPHA) * smoothY;
-                    
-                    Point prev = lastPoint;
-                    current.addPoint(smoothX, smoothY, now);
-                    lastPoint = new Point(Math.round(smoothX), Math.round(smoothY));
-                    lastRawX = rawX;
-                    lastRawY = rawY;
-                    lastTimestamp = now;
-                    // Incrementally render the new segment to avoid full buffer rebuilds on every drag
-                    appendPenSegment(current, prev, lastPoint);
-                    repaintDirty(prev, lastPoint, current.thickness);
-                }
-                
-                @Override public void mouseMoved(MouseEvent e) {
-                    updateEraserCursor(e.getPoint());
-                }
-                
-                @Override public void mouseReleased(MouseEvent e) {
-                    if (currentDrawTool == DrawTool.LASSO) {
-                        handleLassoRelease();
-                        return;
-                    }
-                    if (current != null && current.floatPoints.size() >= 3 && currentDrawTool == DrawTool.PEN) {
-                        // Apply Chaikin smoothing on stroke completion for extra polish
-                        applyFinalSmoothing(current);
-                    }
-                    // Add completed stroke to optimizer if active
-                    if (current != null && useOptimizer) {
-                        addStrokeToOptimizer(current);
-                    }
-                    current = null;
-                    lastPoint = null;
-                    strokeBufferDirty = true;
-                    highlightBufferDirty = true;
-                    // Check if we should enable/disable optimizer
-                    checkOptimizerThreshold();
-                    repaint();
-                }
-            };
-            addMouseListener(ma);
-            addMouseMotionListener(ma);
-            vp.addChangeListener(e -> { strokeBufferDirty = true; highlightBufferDirty = true; repaint(); });
-            
-            // Keyboard shortcuts for undo/redo
-            int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-            getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta), "undoStroke");
-            getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoStroke");
-            getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performUndo(); strokeBufferDirty = true; highlightBufferDirty = true; } }});
-            getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performRedo(); strokeBufferDirty = true; highlightBufferDirty = true; } }});
-            view.addComponentListener(new ComponentAdapter(){
-                @Override public void componentResized(ComponentEvent e) { strokeBufferDirty = true; highlightBufferDirty = true; revalidate(); repaint(); }
-            });
+private class ScrollAssistOverlay extends JComponent {
+    private static final int HOT_ZONE_FALLBACK = 80;
+    private static final int BUTTON_SIZE = 44;
+    private static final int BUTTON_SPACING = 16;
+    private static final int BUTTON_MARGIN = 18;
+    private static final int SCROLL_STEP = 20;
+
+    private final JScrollPane host;
+    private final JScrollBar verticalBar;
+    private final java.awt.Rectangle upBounds = new java.awt.Rectangle();
+    private final java.awt.Rectangle downBounds = new java.awt.Rectangle();
+    private final Timer fadeTimer;
+    private final Timer scrollTimer;
+
+    private float alpha = 0f;
+    private float targetAlpha = 0f;
+    private boolean penMode = false;
+    private boolean hoverUp = false;
+    private boolean hoverDown = false;
+    private int scrollDirection = 0;
+    private Point lastMouse = new Point(-1, -1);
+
+    ScrollAssistOverlay(JScrollPane host) {
+        this.host = host;
+        this.verticalBar = host.getVerticalScrollBar();
+        setOpaque(false);
+
+        MouseAdapter adapter = new MouseAdapter() {
+            @Override public void mouseMoved(MouseEvent e) { handleMouseMove(e.getPoint()); }
+            @Override public void mouseEntered(MouseEvent e) { handleMouseMove(e.getPoint()); }
+            @Override public void mouseExited(MouseEvent e) { handleMouseMove(null); }
+        };
+        addMouseMotionListener(adapter);
+        addMouseListener(adapter);
+
+        fadeTimer = new Timer(30, e -> animateFade());
+        fadeTimer.start();
+        scrollTimer = new Timer(16, e -> performScroll());
+    }
+
+    void setPenMode(boolean enabled) {
+        this.penMode = enabled;
+        if (!enabled) {
+            setTargetAlpha(0f);
+            startScroll(0);
+        } else if (lastMouse != null && isInHotZone(lastMouse.x) && canScroll()) {
+            setTargetAlpha(1f);
         }
+        repaint();
+    }
+
+    private void handleMouseMove(Point p) {
+        if (p != null) {
+            lastMouse = p;
+        } else {
+            lastMouse = new Point(-1, -1);
+        }
+        boolean shouldShow = penMode && p != null && isInHotZone(p.x) && canScroll();
+        setTargetAlpha(shouldShow ? 1f : 0f);
+        updateButtonHover(p);
+    }
+
+    private void setTargetAlpha(float value) {
+        value = Math.max(0f, Math.min(1f, value));
+        if (targetAlpha != value) {
+            targetAlpha = value;
+        }
+    }
+
+    private void animateFade() {
+        float diff = targetAlpha - alpha;
+        if (Math.abs(diff) < 0.01f) {
+            alpha = targetAlpha;
+        } else {
+            alpha += diff * 0.25f;
+        }
+        if (alpha < 0.01f && targetAlpha == 0f) {
+            startScroll(0);
+        }
+        repaint();
+    }
+
+    private void updateButtonHover(Point p) {
+        updateButtonBounds();
+        boolean prevHoverUp = hoverUp;
+        boolean prevHoverDown = hoverDown;
+
+        if (penMode && alpha > 0.05f && p != null) {
+            hoverUp = upBounds.contains(p);
+            hoverDown = downBounds.contains(p);
+        } else {
+            hoverUp = false;
+            hoverDown = false;
+        }
+
+        if (hoverUp) {
+            startScroll(-1);
+        } else if (hoverDown) {
+            startScroll(1);
+        } else {
+            startScroll(0);
+        }
+
+        if (prevHoverUp != hoverUp || prevHoverDown != hoverDown) {
+            repaint();
+        }
+    }
+
+    private void startScroll(int dir) {
+        if (scrollDirection == dir) return;
+        scrollDirection = dir;
+        if (dir == 0) {
+            if (scrollTimer.isRunning()) scrollTimer.stop();
+        } else {
+            if (!scrollTimer.isRunning()) scrollTimer.start();
+        }
+    }
+
+    private void performScroll() {
+        if (scrollDirection == 0 || !penMode || !canScroll()) return;
+        if (verticalBar == null) return;
+        int min = verticalBar.getMinimum();
+        int max = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
+        int value = verticalBar.getValue();
+        int next = Math.max(min, Math.min(max, value + scrollDirection * SCROLL_STEP));
+        if (next != value) {
+            verticalBar.setValue(next);
+        }
+    }
+
+    private boolean canScroll() {
+        if (verticalBar == null) return false;
+        return verticalBar.getMaximum() - verticalBar.getMinimum() > verticalBar.getVisibleAmount();
+    }
+
+    private int getHotZoneWidth() {
+        int sbWidth = (verticalBar != null) ? verticalBar.getPreferredSize().width : 0;
+        return Math.max(HOT_ZONE_FALLBACK, sbWidth + 40);
+    }
+
+    private boolean isInHotZone(int mouseX) {
+        int w = getWidth();
+        if (w <= 0) return false;
+        return mouseX >= Math.max(0, w - getHotZoneWidth());
+    }
+
+    private void updateButtonBounds() {
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) return;
+        int btnX = w - BUTTON_SIZE - BUTTON_MARGIN;
+        int centerY = h / 2;
+        upBounds.setBounds(btnX, centerY - BUTTON_SIZE - BUTTON_SPACING / 2, BUTTON_SIZE, BUTTON_SIZE);
+        downBounds.setBounds(btnX, centerY + BUTTON_SPACING / 2, BUTTON_SIZE, BUTTON_SIZE);
+    }
+
+    @Override
+    public boolean contains(int x, int y) {
+        return penMode && isInHotZone(x) && canScroll();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        if (!penMode || alpha <= 0.01f || !canScroll()) return;
+        updateButtonBounds();
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(0.9f, alpha)));
+
+        drawButton(g2, upBounds, hoverUp, true);
+        drawButton(g2, downBounds, hoverDown, false);
+        g2.dispose();
+    }
+
+    private void drawButton(Graphics2D g2, java.awt.Rectangle bounds, boolean hover, boolean up) {
+        float hoverBoost = hover ? 0.2f : 0f;
+        Color fill = new Color(20, 20, 20, (int) (140 * alpha + hoverBoost * 255));
+        Color border = new Color(255, 255, 255, (int) (90 * alpha + hoverBoost * 120));
+        g2.setColor(fill);
+        g2.fill(new RoundRectangle2D.Float(bounds.x, bounds.y, bounds.width, bounds.height, 18, 18));
+        g2.setStroke(new BasicStroke(1.4f));
+        g2.setColor(border);
+        g2.draw(new RoundRectangle2D.Float(bounds.x + 0.5f, bounds.y + 0.5f,
+                bounds.width - 1f, bounds.height - 1f, 18, 18));
+
+        Path2D.Float arrow = new Path2D.Float();
+        int cx = bounds.x + bounds.width / 2;
+        int cy = bounds.y + bounds.height / 2;
+        int size = 10;
+        if (up) {
+            arrow.moveTo(cx, cy - size / 2f);
+            arrow.lineTo(cx - size / 1.6f, cy + size / 2f);
+            arrow.lineTo(cx + size / 1.6f, cy + size / 2f);
+        } else {
+            arrow.moveTo(cx, cy + size / 2f);
+            arrow.lineTo(cx - size / 1.6f, cy - size / 2f);
+            arrow.lineTo(cx + size / 1.6f, cy - size / 2f);
+        }
+        arrow.closePath();
+        g2.setColor(new Color(255, 255, 255, (int) (hover ? 230 : 190)));
+        g2.fill(arrow);
+    }
+}
+
+private class DrawingOverlay extends JComponent {
+    private final JViewport vp;
+    private final JComponent view;
+    private boolean capture = false; // whether to intercept mouse events
+    private DrawStroke current;
+    private Point lastPoint; // For incremental drawing
+    private Point mousePos; // Current mouse position (screen coords) for eraser cursor
+
+    // Native stroke engine
+    private main.infrastructure.ffi.NativeDrawing nativeDrawing;
+    private long nativeStrokeManager = 0;
+    private int currentNativeStrokeIdx = -1;
+    private final ExecutorService strokeWorker = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "NotetakingStrokeWorker");
+        t.setDaemon(true);
+        return t;
+    });
+
+    // Stroke buffer caching for performance
+    private java.awt.image.BufferedImage penStrokeBuffer;
+    private java.awt.image.BufferedImage highlightStrokeBuffer;
+    private boolean strokeBufferDirty = true;
+    private boolean highlightBufferDirty = true;
+    private int lastBufferWidth = 0, lastBufferHeight = 0;
+    private float lastOffsetX = 0, lastOffsetY = 0;
+
+    // Optimizer for large stroke collections (quadtree spatial index)
+    private long optimizerHandle = 0;
+    private java.util.Map<DrawStroke, Integer> strokeToOptId = new java.util.HashMap<>();
+    private static final int OPTIMIZER_THRESHOLD = 100; // Enable when stroke count exceeds this
+    private boolean useOptimizer = false;
+
+    // Float-precision smoothing state (keeps sub-pixel precision)
+    private float smoothX, smoothY;
+    private float lastRawX, lastRawY;
+    private long lastTimestamp;
+    private static final float SMOOTH_ALPHA = 0.6f; // Responsive but smooth
+    private static final float MIN_DISTANCE_BASE = 1.5f;
+    private static final float MAX_DISTANCE_BOOST = 8f;
+    private static final float DISTANCE_VELOCITY_SCALE = 6f;
+
+    // Lasso selection state
+    private List<Point> lassoPath = new ArrayList<>();
+    private java.util.Set<DrawStroke> selectedStrokes = new java.util.HashSet<>();
+    private java.awt.Rectangle selectionBounds = null;
+    private boolean isDraggingSelection = false;
+    private Point dragStart = null;
+
+    DrawingOverlay(JScrollPane host, JComponent view) {
+        this.vp = host.getViewport();
+        this.view = view;
+        setOpaque(false);
+
+        // Initialize native stroke engine if available
+        try {
+            nativeDrawing = main.infrastructure.ffi.NativeDrawing.getInstance();
+            if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                nativeStrokeManager = nativeDrawing.strokeManagerCreate(4096, 4096);
+            }
+        } catch (Throwable ignored) {
+            nativeDrawing = null;
+        }
+
+        MouseAdapter ma = new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) {
+                if (!capture || !SwingUtilities.isLeftMouseButton(e)) return;
+                Point p = toDoc(e.getPoint());
+                if (currentDrawTool == DrawTool.ERASER) { eraseAt(p); return; }
+
+                // Lasso tool handling
+                if (currentDrawTool == DrawTool.LASSO) {
+                    handleLassoPress(p);
+                    return;
+                }
+
+                long now = System.currentTimeMillis();
+                redoStack.clear();
+                current = makeStroke();
+
+                if (currentDrawTool == DrawTool.HIGHLIGHT) {
+                    current.addLegacyPoint(p);
+                } else {
+                    // Initialize smoothing state with float precision for pen
+                    smoothX = p.x;
+                    smoothY = p.y;
+                    lastRawX = p.x;
+                    lastRawY = p.y;
+                    lastTimestamp = now;
+                    current.addPoint(smoothX, smoothY, now);
+                }
+
+                lastPoint = p;
+                drawStrokes.add(current);
+                undoStack.add(new AddStrokeAction(current));
+                strokeBufferDirty = true;
+                highlightBufferDirty = true;
+                repaintDirty(p, p, current.thickness);
+            }
+
+            @Override public void mouseDragged(MouseEvent e) {
+                if (!capture) return;
+                updateEraserCursor(e.getPoint());
+                Point raw = toDoc(e.getPoint());
+                if (currentDrawTool == DrawTool.ERASER) { eraseAt(raw); return; }
+                if (currentDrawTool == DrawTool.LASSO) { handleLassoDrag(raw); return; }
+                if (current == null) return;
+
+                if (currentDrawTool == DrawTool.HIGHLIGHT) {
+                    Point prev = lastPoint;
+                    current.addLegacyPoint(raw);
+                    lastPoint = raw;
+                    highlightBufferDirty = true;
+                    repaintDirty(prev, raw, current.thickness);
+                    return;
+                }
+
+                long now = System.currentTimeMillis();
+                float rawX = raw.x;
+                float rawY = raw.y;
+
+                float dx = rawX - lastRawX;
+                float dy = rawY - lastRawY;
+                float minDist = MIN_DISTANCE_BASE;
+                if (lastTimestamp > 0) {
+                    long dt = Math.max(1, now - lastTimestamp);
+                    float velocity = (float) (Math.sqrt(dx * dx + dy * dy) / dt);
+                    minDist += Math.min(MAX_DISTANCE_BOOST, velocity * DISTANCE_VELOCITY_SCALE);
+                }
+                float minDistSq = minDist * minDist;
+                if (dx * dx + dy * dy < minDistSq) {
+                    return;
+                }
+
+                smoothX = SMOOTH_ALPHA * rawX + (1f - SMOOTH_ALPHA) * smoothX;
+                smoothY = SMOOTH_ALPHA * rawY + (1f - SMOOTH_ALPHA) * smoothY;
+
+                Point prev = lastPoint;
+                current.addPoint(smoothX, smoothY, now);
+                lastPoint = new Point(Math.round(smoothX), Math.round(smoothY));
+                lastRawX = rawX;
+                lastRawY = rawY;
+                lastTimestamp = now;
+                appendPenSegment(current, prev, lastPoint);
+                repaintDirty(prev, lastPoint, current.thickness);
+            }
+
+            @Override public void mouseMoved(MouseEvent e) {
+                updateEraserCursor(e.getPoint());
+            }
+
+            @Override public void mouseReleased(MouseEvent e) {
+                if (currentDrawTool == DrawTool.LASSO) {
+                    handleLassoRelease();
+                    return;
+                }
+                if (current != null && current.floatPoints.size() >= 3 && currentDrawTool == DrawTool.PEN) {
+                    final DrawStroke strokeToSmooth = current;
+                    strokeWorker.submit(() -> applyFinalSmoothing(strokeToSmooth));
+                }
+                if (current != null && useOptimizer) {
+                    addStrokeToOptimizer(current);
+                }
+                current = null;
+                lastPoint = null;
+                strokeBufferDirty = true;
+                highlightBufferDirty = true;
+                checkOptimizerThreshold();
+                repaint();
+            }
+        };
+        addMouseListener(ma);
+        addMouseMotionListener(ma);
+        vp.addChangeListener(e -> { strokeBufferDirty = true; highlightBufferDirty = true; repaint(); });
+
+        // Keyboard shortcuts for undo/redo
+        int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta), "undoStroke");
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "redoStroke");
+        getActionMap().put("undoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performUndo(); strokeBufferDirty = true; highlightBufferDirty = true; } }});
+        getActionMap().put("redoStroke", new AbstractAction() { @Override public void actionPerformed(java.awt.event.ActionEvent e) { if (capture) { performRedo(); strokeBufferDirty = true; highlightBufferDirty = true; } }});
+        view.addComponentListener(new ComponentAdapter(){
+            @Override public void componentResized(ComponentEvent e) { strokeBufferDirty = true; highlightBufferDirty = true; revalidate(); repaint(); }
+        });
+    }
         
         private void applyFinalSmoothing(DrawStroke stroke) {
-            if (nativeDrawing == null || stroke.floatPoints.size() < 3) return;
-            try {
-                float[] xs = stroke.getPointsX();
-                float[] ys = stroke.getPointsY();
-                float[][] smoothed = nativeDrawing.strokeSmoothChaikin(xs, ys, 2);
-                if (smoothed != null && smoothed[0].length > 0) {
-                    // Replace points with smoothed version
-                    stroke.points.clear();
-                    stroke.floatPoints.clear();
-                    long ts = System.currentTimeMillis();
-                    for (int i = 0; i < smoothed[0].length; i++) {
-                        stroke.addPoint(smoothed[0][i], smoothed[1][i], ts);
-                    }
-                }
-            } catch (Throwable ignored) {}
+            if (nativeDrawing == null || stroke == null) return;
+            float[] xs = stroke.getPointsX();
+            float[] ys = stroke.getPointsY();
+            long[] ts = stroke.getTimestamps();
+            if (xs.length < 3) return;
+            
+            float[] workingX = xs;
+            float[] workingY = ys;
+            long[] workingTs = ts;
+            
+            float[][] sampled = nativeDrawing.strokeDistanceSample(xs, ys, MIN_DISTANCE_BASE);
+            if (sampled != null && sampled[0].length >= 3 && sampled[0].length < xs.length) {
+                workingX = sampled[0];
+                workingY = sampled[1];
+                workingTs = mapSampledTimestamps(sampled[0], sampled[1], xs, ys, ts);
+            }
+            
+            float[][] smoothed = nativeDrawing.strokeSmoothChaikin(workingX, workingY, 2);
+            float[] finalX = workingX;
+            float[] finalY = workingY;
+            long[] finalTs = workingTs;
+            if (smoothed != null && smoothed[0].length >= 3) {
+                finalX = smoothed[0];
+                finalY = smoothed[1];
+                finalTs = interpolateTimestamps(finalX, finalY, workingTs[0], workingTs[workingTs.length - 1]);
+            }
+            
+            float[] finalXs = finalX;
+            float[] finalYs = finalY;
+            long[] finalTimestamps = finalTs;
+            SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, finalTimestamps));
+        }
+        
+        private long[] mapSampledTimestamps(float[] sampledX, float[] sampledY, float[] originalX, float[] originalY, long[] originalTs) {
+            long start = originalTs.length > 0 ? originalTs[0] : System.currentTimeMillis();
+            long end = originalTs.length > 0 ? originalTs[originalTs.length - 1] : start;
+            return interpolateTimestamps(sampledX, sampledY, start, end);
+        }
+        
+        private long[] interpolateTimestamps(float[] xs, float[] ys, long startTs, long endTs) {
+            int n = xs.length;
+            long[] result = new long[n];
+            if (n == 0) return result;
+            if (n == 1) {
+                result[0] = startTs;
+                return result;
+            }
+            double span = Math.max(1, endTs - startTs);
+            for (int i = 0; i < n; i++) {
+                double ratio = i / (double)(n - 1);
+                result[i] = startTs + (long)(span * ratio);
+            }
+            return result;
+        }
+        
+        private void replaceStrokePoints(DrawStroke stroke, float[] xs, float[] ys, long[] ts) {
+            stroke.points.clear();
+            stroke.floatPoints.clear();
+            for (int i = 0; i < xs.length; i++) {
+                float timestamp = (ts != null && i < ts.length) ? ts[i] : System.currentTimeMillis();
+                stroke.addPoint(xs[i], ys[i], (long) timestamp);
+            }
+            stroke.invalidateCache();
+            strokeBufferDirty = true;
+            highlightBufferDirty = true;
+            repaint();
         }
         
         private void repaintDirty(Point p1, Point p2, int thickness) {
