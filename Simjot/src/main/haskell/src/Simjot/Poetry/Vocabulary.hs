@@ -56,16 +56,18 @@ data VocabAnalysis = VocabAnalysis
   , vocabUniqueWords    :: !Int
   , vocabTypeTokenRatio :: !Double      -- ^ TTR: Type-Token Ratio
   , vocabLexicalDensity :: !Double      -- ^ Content words / total words
+  , vocabPolysyllables  :: !Int         -- ^ Count of words with 3+ syllables
+  , vocabPolysyllableRatio :: !Double   -- ^ Words with 3+ syllables
+  , vocabHapaxCount     :: !Int         -- ^ Count of words occurring once
   , vocabHapaxLegomena :: ![Text]      -- ^ Words appearing only once
   , vocabAvgWordLength :: !Double      -- ^ Average word length
-  , vocabPolysyllableRatio :: !Double  -- ^ Words with 3+ syllables
   , vocabLexicalDiversity :: !Double   -- ^ Yule's K characteristic
   , vocabColemanLiau :: !Double         -- ^ Readability index
   , vocabGunningFog :: !Double          -- ^ Readability index
   , vocabRegisterLevel :: !Text        -- ^ Formal/informal register
   , vocabSemanticFields :: ![Text]     -- ^ Dominant semantic domains
   , vocabComplexityIndex :: !Double     -- ^ Overall lexical complexity
-  , vocabWordFreqDist :: !WordFreq     -- ^ Word frequency distribution
+  , vocabWordFreqDist :: ![WordFreq]    -- ^ Word frequency distribution top list
   } deriving (Show, Eq)
 
 -- | Analyze vocabulary in text
@@ -75,31 +77,35 @@ analyzeVocabulary text = VocabAnalysis
   , vocabUniqueWords    = unique
   , vocabTypeTokenRatio = ttr
   , vocabLexicalDensity = lexDensity
-  , vocabAvgWordLength  = avgLen
   , vocabPolysyllables  = polysyl
   , vocabPolysyllableRatio = polyRatio
-  , vocabHapaxCount     = hapax
-  , vocabTopWords       = topWords
+  , vocabHapaxCount     = hapaxCount
+  , vocabHapaxLegomena = hapaxList
+  , vocabAvgWordLength  = avgLen
+  , vocabLexicalDiversity = yulesK
+  , vocabColemanLiau = cli
+  , vocabGunningFog = gfi
+  , vocabRegisterLevel = registerAnalysis words
+  , vocabSemanticFields = semanticFieldAnalysis words
+  , vocabComplexityIndex = lexicalComplexityIndex ttr lexDensity polyRatio yulesK
+  , vocabWordFreqDist = topWords
   }
   where
     words = extractWords text
     total = length words
     freqMap = buildFrequencyMap words
     unique = M.size freqMap
-    
     ttr = typeTokenRatio total unique
     lexDensity = lexicalDensity words
     avgLen = averageWordLength words
-    
     polysyl = length $ filter (\w -> countSyllables w >= 3) words
     polyRatio = if total > 0 then fromIntegral polysyl / fromIntegral total else 0
-    
-    hapax = hapaxLegomena freqMap
-    
-    topWords = take 10 $ zipWith toWordFreq [1..] $ 
-               sortBy (comparing (Down . snd)) $ M.toList freqMap
-    
-    toWordFreq rank (w, c) = WordFreq w c rank
+    hapaxList = map fst $ filter ((==1) . snd) $ M.toList freqMap
+    hapaxCount = length hapaxList
+    yulesK = lexicalDiversity freqMap
+    cli = colemanLiauIndex words
+    gfi = gunningFogIndex words
+    topWords = wordFrequencyDistribution freqMap
 
 -- | Extract words from text
 extractWords :: Text -> [Text]
@@ -148,6 +154,68 @@ lexicalDensity words
 -- | Count hapax legomena (words appearing only once)
 hapaxLegomena :: Map Text Int -> Int
 hapaxLegomena = M.size . M.filter (== 1)
+
+-- | Yule's K lexical diversity
+lexicalDiversity :: Map Text Int -> Double
+lexicalDiversity freq
+  | nTokens == 0 = 0
+  | otherwise = 10000 * (sumSquares - nTokens) / (nTokens * nTokens)
+  where
+    counts = M.elems freq
+    nTokens = fromIntegral (sum counts) :: Double
+    sumSquares = sum [ fromIntegral c * fromIntegral c | c <- counts ]
+
+-- | Word frequency distribution (top 10)
+wordFrequencyDistribution :: Map Text Int -> [WordFreq]
+wordFrequencyDistribution freqMap =
+  take 10 $ zipWith toWF [1..] sorted
+  where
+    sorted = sortBy (comparing (Down . snd)) $ M.toList freqMap
+    toWF rank (w,c) = WordFreq w c rank
+
+-- | Simple register analysis (heuristic): more polysyllables => more formal
+registerAnalysis :: [Text] -> Text
+registerAnalysis ws
+  | polyRatio > 0.25 = "formal"
+  | polyRatio > 0.15 = "neutral"
+  | otherwise = "informal"
+  where
+    total = max 1 (length ws)
+    polys = length $ filter (\w -> countSyllables w >= 3) ws
+    polyRatio = fromIntegral polys / fromIntegral total
+
+-- | Semantic field analysis (stub: most frequent stems by prefix)
+semanticFieldAnalysis :: [Text] -> [Text]
+semanticFieldAnalysis ws =
+  take 5 . map fst . sortBy (comparing (Down . snd)) . M.toList $
+    foldr (\w -> M.insertWith (+) (T.take 3 w) 1) M.empty ws
+
+-- | Lexical complexity index (blend of TTR, density, polysyllable ratio, diversity)
+lexicalComplexityIndex :: Double -> Double -> Double -> Double -> Double
+lexicalComplexityIndex ttr lexD polyK yuleK =
+  min 1.0 $ 0.35*ttr + 0.25*lexD + 0.2*polyK + 0.2*(min 1.0 (yuleK/100.0))
+
+-- | Coleman–Liau Index (approximate for poetry)
+colemanLiauIndex :: [Text] -> Double
+colemanLiauIndex ws
+  | sentences == 0 || wordsCount == 0 = 0
+  | otherwise = 0.0588 * l - 0.296 * s - 15.8
+  where
+    wordsCount = fromIntegral (length ws) :: Double
+    letters = fromIntegral (sum (map T.length ws)) :: Double
+    sentences = max 1 (wordsCount / 10) -- heuristic: ~10 words per poetic sentence
+    l = letters / wordsCount * 100
+    s = sentences / wordsCount * 100
+
+-- | Gunning Fog Index (approximate for poetry)
+gunningFogIndex :: [Text] -> Double
+gunningFogIndex ws
+  | wordsCount == 0 = 0
+  | otherwise = 0.4 * (wordsCount / sentences + 100 * complex / wordsCount)
+  where
+    wordsCount = fromIntegral (length ws) :: Double
+    sentences = max 1 (wordsCount / 10) -- heuristic
+    complex = fromIntegral (length $ filter (\w -> countSyllables w >= 3) ws) :: Double
 
 -- | Average word length
 averageWordLength :: [Text] -> Double

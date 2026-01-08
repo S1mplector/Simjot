@@ -26,6 +26,7 @@ import qualified Data.Text as T
 import Data.Char (toLower)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.List (groupBy, nub)
 
 import Simjot.Poetry.Internal (isVowel)
 
@@ -65,14 +66,35 @@ data SoundAnalysis = SoundAnalysis
   , assonanceRate    :: !Double        -- ^ Assonance frequency
   } deriving (Show, Eq)
 
--- | Analyze sound devices in a poem
-analyzeSoundDevices :: a -> SoundAnalysis
-analyzeSoundDevices poem = SoundAnalysis
-  { soundDevices  = []
-  , soundDensity  = 0.0
-  , soundDominant = []
-  , soundByType   = M.empty
-  }
+-- | Analyze sound devices in a poem (Text input)
+analyzeSoundDevices :: Text -> SoundAnalysis
+analyzeSoundDevices poem =
+  let ws = T.words $ T.toLower poem
+      allit = detectAlliteration ws
+      asson = detectAssonance ws
+      conson = detectConsonance ws
+      internal = detectInternalRhyme ws
+      rich = detectRichRhyme ws
+      para = detectPararhyme ws
+      devices = allit ++ asson ++ conson ++ internal ++ rich ++ para
+      counts = foldr (\d -> M.insertWith (+) (deviceType d) 1) M.empty devices
+      density = calculatePhoneticDensity ws
+      prosody = analyzeProsodicFeatures devices
+      totalWords = max 1 (length ws)
+      allitRate = fromIntegral (length allit) / fromIntegral totalWords
+      assonRate = fromIntegral (length asson) / fromIntegral totalWords
+      dominant = take 3 . map fst . filter ((>1) . snd) $ M.toList counts
+  in SoundAnalysis
+      { soundDevices      = devices
+      , soundDensity      = density
+      , soundDominant     = dominant
+      , soundByType       = counts
+      , phoneticComplexity = prosody
+      , prosodicHarmony   = 1 - abs (prosody - 0.5)
+      , euphonyScore      = min 1.0 (density * 0.6 + 0.4 + prosody * 0.2)
+      , alliterationRate  = allitRate
+      , assonanceRate     = assonRate
+      }
 
 -- | Detect alliteration in words
 detectAlliteration :: [Text] -> [SoundDevice]
@@ -156,3 +178,56 @@ groupByConsonant = foldr addWord M.empty
       let consonants = T.filter (not . isVowel) (T.toLower w)
       in if T.null consonants then m
          else foldr (\c -> M.insertWith (++) (T.singleton c) [w]) m (T.unpack consonants)
+
+-- | Detect internal rhyme (very lightweight heuristic: repeated ending bigrams)
+detectInternalRhyme :: [Text] -> [SoundDevice]
+detectInternalRhyme ws =
+  map toDevice $ filter hasMultiple $ M.toList grouped
+  where
+    grouped = foldr addWord M.empty ws
+    addWord w m =
+      let end = T.toLower $ T.takeEnd 2 w
+      in if T.length end < 2 then m else M.insertWith (++) end [w] m
+    hasMultiple (_, xs) = length xs >= 2
+    toDevice (sound, xs) = SoundDevice InternalRhyme 0 sound (nub xs)
+      (min 1.0 (fromIntegral (length xs) / 4.0))
+
+-- | Detect rich rhyme (matching last 3 letters)
+detectRichRhyme :: [Text] -> [SoundDevice]
+detectRichRhyme ws =
+  map toDevice $ filter hasMultiple $ M.toList grouped
+  where
+    grouped = foldr addWord M.empty ws
+    addWord w m =
+      let end = T.toLower $ T.takeEnd 3 w
+      in if T.length end < 3 then m else M.insertWith (++) end [w] m
+    hasMultiple (_, xs) = length xs >= 2
+    toDevice (sound, xs) = SoundDevice RichRhyme 0 sound (nub xs)
+      (min 1.0 (fromIntegral (length xs) / 3.0))
+
+-- | Detect pararhyme (same consonants, varying vowels)
+detectPararhyme :: [Text] -> [SoundDevice]
+detectPararhyme ws =
+  map toDevice $ filter hasMultiple $ M.toList grouped
+  where
+    grouped = foldr addWord M.empty ws
+    addWord w m =
+      let consonants = T.filter (not . isVowel) (T.toLower w)
+      in if T.length consonants < 2 then m else M.insertWith (++) consonants [w] m
+    hasMultiple (_, xs) = length xs >= 2
+    toDevice (sound, xs) = SoundDevice Pararhyme 0 sound (nub xs)
+      (min 1.0 (fromIntegral (length xs) / 4.0))
+
+-- | Phonetic density: ratio of letters that are vowels or common digraphs
+calculatePhoneticDensity :: [Text] -> Double
+calculatePhoneticDensity ws =
+  let chars = T.length (T.concat ws)
+      vowels = T.length (T.filter isVowel (T.concat ws))
+  in if chars == 0 then 0 else fromIntegral vowels / fromIntegral chars
+
+-- | Prosodic feature summary (simple blend of device strengths)
+analyzeProsodicFeatures :: [SoundDevice] -> Double
+analyzeProsodicFeatures ds =
+  let strengths = map deviceStrength ds
+      total = sum strengths
+  in if null strengths then 0 else min 1.0 (total / fromIntegral (length strengths + 2))
