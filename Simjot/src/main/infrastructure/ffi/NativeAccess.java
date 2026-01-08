@@ -124,6 +124,46 @@ public final class NativeAccess {
         }
     }
 
+    /**
+     * Unified poetry analysis that performs vocabulary, theme, sound, and meter analysis in one call.
+     * Much faster than calling individual analysis methods separately, which is what I used to do before. 
+     * 
+     * @param text The poem text to analyze
+     * @return PoetryAnalysisResult containing all metrics, or null if native analysis fails
+     */
+    public static PoetryAnalysisResult poetryAnalyzeAll(String text) {
+        NativeLibrary lib = library();
+        if (lib == null || text == null) return null;
+        try {
+            return lib.poetryAnalyzeAll(text);
+        } catch (Throwable t) {
+            IoLog.warn("native-poetry-analysis", "Native unified poetry analysis failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    /**
+     * Result container for unified poetry analysis.
+     */
+    public static class PoetryAnalysisResult {
+        public final double ttr; // Type-Token Ratio percentage
+        public final String dominantTheme;
+        public final int soundDeviceCount;
+        public final String dominantMeter;
+        public final int uniqueWords;
+        public final int totalWords;
+        
+        public PoetryAnalysisResult(double ttr, String dominantTheme, int soundDeviceCount, 
+                                  String dominantMeter, int uniqueWords, int totalWords) {
+            this.ttr = ttr;
+            this.dominantTheme = dominantTheme;
+            this.soundDeviceCount = soundDeviceCount;
+            this.dominantMeter = dominantMeter;
+            this.uniqueWords = uniqueWords;
+            this.totalWords = totalWords;
+        }
+    }
+
     public static Integer countSyllables(String word) {
         NativeLibrary lib = library();
         if (lib == null || word == null || word.isEmpty()) return null;

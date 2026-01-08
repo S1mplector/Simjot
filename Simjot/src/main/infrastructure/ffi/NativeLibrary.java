@@ -57,6 +57,7 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle pbkdf2HmacSha256Handle;
     private final MethodHandle aes256GcmEncryptHandle;
     private final MethodHandle aes256GcmDecryptHandle;
+    private final MethodHandle poetryAnalyzeAllHandle;
     private final MethodHandle perfSnapshotHandle;
     private final MethodHandle binaryHealthHandle;
     private final MethodHandle countSyllablesHandle;
@@ -491,6 +492,12 @@ public final class NativeLibrary implements AutoCloseable {
             "simjot_aes256_gcm_decrypt",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                                   ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        // PoetryAnalysisResult* simjot_poetry_analyze_all(const char* text)
+        this.poetryAnalyzeAllHandle = optionalHandle(
+            "simjot_poetry_analyze_all",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
         );
 
         this.perfSnapshotHandle = optionalHandle(
@@ -1579,6 +1586,45 @@ public final class NativeLibrary implements AutoCloseable {
             return result;
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_aes256_gcm_decrypt", t);
+        }
+    }
+
+    /**
+     * Unified poetry analysis via native call.
+     * Returns a PoetryAnalysisResult with all metrics computed in one pass.
+     */
+    public main.infrastructure.ffi.NativeAccess.PoetryAnalysisResult poetryAnalyzeAll(String text) {
+        if (poetryAnalyzeAllHandle == null || text == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment textSeg = tempArena.allocateFrom(text);
+            MemorySegment resultPtr = (MemorySegment) poetryAnalyzeAllHandle.invokeExact(textSeg);
+            if (resultPtr.address() == 0) return null;
+            
+            // Parse the result structure (assuming C struct layout)
+            // struct PoetryAnalysisResult {
+            //   double ttr;
+            //   int sound_device_count;
+            //   int unique_words;
+            //   int total_words;
+            //   char dominant_theme[64];
+            //   char dominant_meter[64];
+            // };
+            double ttr = resultPtr.get(ValueLayout.JAVA_DOUBLE, 0);
+            int soundDevices = resultPtr.get(ValueLayout.JAVA_INT, 8);
+            int uniqueWords = resultPtr.get(ValueLayout.JAVA_INT, 12);
+            int totalWords = resultPtr.get(ValueLayout.JAVA_INT, 16);
+            
+            // Read strings (null-terminated)
+            MemorySegment themeSeg = resultPtr.asSlice(20, 64);
+            MemorySegment meterSeg = resultPtr.asSlice(84, 64);
+            
+            String theme = themeSeg.getString(0);
+            String meter = meterSeg.getString(0);
+            
+            return new main.infrastructure.ffi.NativeAccess.PoetryAnalysisResult(
+                ttr, theme, soundDevices, meter, uniqueWords, totalWords);
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_poetry_analyze_all", t);
         }
     }
 
