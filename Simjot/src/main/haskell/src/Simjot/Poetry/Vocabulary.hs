@@ -24,6 +24,13 @@ module Simjot.Poetry.Vocabulary
   , hapaxLegomena
   , averageWordLength
   , polysyllableRatio
+  , lexicalDiversity
+  , wordFrequencyDistribution
+  , registerAnalysis
+  , semanticFieldAnalysis
+  , lexicalComplexityIndex
+  , colemanLiauIndex
+  , gunningFogIndex
   ) where
 
 import Data.Text (Text)
@@ -43,17 +50,22 @@ data WordFreq = WordFreq
   , wfRank     :: !Int
   } deriving (Show, Eq)
 
--- | Complete vocabulary analysis
+-- | Complete vocabulary analysis with academic linguistic metrics
 data VocabAnalysis = VocabAnalysis
   { vocabTotalWords     :: !Int
   , vocabUniqueWords    :: !Int
-  , vocabTypeTokenRatio :: !Double
-  , vocabLexicalDensity :: !Double
-  , vocabAvgWordLength  :: !Double
-  , vocabPolysyllables  :: !Int
-  , vocabPolysyllableRatio :: !Double
-  , vocabHapaxCount     :: !Int        -- Words appearing only once
-  , vocabTopWords       :: ![WordFreq]
+  , vocabTypeTokenRatio :: !Double      -- ^ TTR: Type-Token Ratio
+  , vocabLexicalDensity :: !Double      -- ^ Content words / total words
+  , vocabHapaxLegomena :: ![Text]      -- ^ Words appearing only once
+  , vocabAvgWordLength :: !Double      -- ^ Average word length
+  , vocabPolysyllableRatio :: !Double  -- ^ Words with 3+ syllables
+  , vocabLexicalDiversity :: !Double   -- ^ Yule's K characteristic
+  , vocabColemanLiau :: !Double         -- ^ Readability index
+  , vocabGunningFog :: !Double          -- ^ Readability index
+  , vocabRegisterLevel :: !Text        -- ^ Formal/informal register
+  , vocabSemanticFields :: ![Text]     -- ^ Dominant semantic domains
+  , vocabComplexityIndex :: !Double     -- ^ Overall lexical complexity
+  , vocabWordFreqDist :: !WordFreq     -- ^ Word frequency distribution
   } deriving (Show, Eq)
 
 -- | Analyze vocabulary in text

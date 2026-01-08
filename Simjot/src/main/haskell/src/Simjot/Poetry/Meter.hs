@@ -21,27 +21,38 @@ import qualified Data.Text as T
 import Data.List (maximumBy, group, sort)
 import Data.Ord (comparing)
 
--- | Types of metrical feet
+-- | Types of metrical feet with classical precision
 data FootType
-  = Iamb        -- ^ unstressed-stressed (u /)
-  | Trochee     -- ^ stressed-unstressed (/ u)
-  | Spondee     -- ^ stressed-stressed (/ /)
-  | Pyrrhic     -- ^ unstressed-unstressed (u u)
-  | Anapest     -- ^ unstressed-unstressed-stressed (u u /)
-  | Dactyl      -- ^ stressed-unstressed-unstressed (/ u u)
-  | Amphibrach  -- ^ unstressed-stressed-unstressed (u / u)
+  = Iamb        -- ^ unstressed-stressed (u /) - Classical Latin iambo
+  | Trochee     -- ^ stressed-unstressed (/ u) - Greek trochaic
+  | Spondee     -- ^ stressed-stressed (/ /) - Classical spondee
+  | Pyrrhic     -- ^ unstressed-unstressed (u u) - Greek pyrrhic
+  | Anapest     -- ^ unstressed-unstressed-stressed (u u /) - Greek anapestic
+  | Dactyl      -- ^ stressed-unstressed-unstressed (/ u u) - Greek dactylic
+  | Amphibrach  -- ^ unstressed-stressed-unstressed (u / u) - Greek amphibrach
+  | Amphimacer  -- ^ stressed-unstressed-stressed (/ u /) - Greek amphimacer
+  | Bacchius    -- ^ unstressed-stressed-stressed (u / /) - Greek bacchius
+  | Antibacchius -- ^ stressed-stressed-unstressed (/ / u) - Greek antibacchius
+  | Tribrach    -- ^ unstressed-unstressed-unstressed (u u u) - Greek tribrach
+  | Molossus    -- ^ stressed-stressed-stressed (/ / /) - Greek molossus
+  | Proceleusmatic -- ^ unstressed-stressed-unstressed-stressed (u / u u) - Rare
   deriving (Show, Eq, Ord)
 
--- | Meter types based on foot count per line
+-- | Meter types based on foot count per line with classical names
 data MeterType
-  = Monometer   -- ^ 1 foot
-  | Dimeter     -- ^ 2 feet
-  | Trimeter    -- ^ 3 feet
-  | Tetrameter  -- ^ 4 feet
-  | Pentameter  -- ^ 5 feet
-  | Hexameter   -- ^ 6 feet
-  | Heptameter  -- ^ 7 feet
-  | FreeVerse   -- ^ No consistent meter
+  = Monometer   -- ^ 1 foot - Monometer
+  | Dimeter     -- ^ 2 feet - Dimeter  
+  | Trimeter    -- ^ 3 feet - Trimeter
+  | Tetrameter  -- ^ 4 feet - Tetrameter
+  | Pentameter  -- ^ 5 feet - Pentameter (Shakespearean)
+  | Hexameter   -- ^ 6 feet - Hexameter (Classical epic)
+  | Heptameter  -- ^ 7 feet - Heptameter (Keatsian)
+  | Octameter   -- ^ 8 feet - Octameter (Rare)
+  | FreeVerse   -- ^ No consistent meter - Vers libre
+  | CommonMeter -- ^ 8.6.8.6 - Hymnal meter (Emily Dickinson)
+  | BalladMeter  -- ^ 8.6.8.6 - Ballad stanza
+  | Spenserian   -- ^ 9 lines - Spenserian stanza
+  | Sonnet       -- ^ 14 lines - Shakespearean/Petrarchan
   deriving (Show, Eq)
 
 -- | Scansion results for a single line

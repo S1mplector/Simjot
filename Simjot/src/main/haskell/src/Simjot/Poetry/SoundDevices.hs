@@ -14,6 +14,11 @@ module Simjot.Poetry.SoundDevices
   , detectAlliteration
   , detectAssonance
   , detectConsonance
+  , detectInternalRhyme
+  , detectRichRhyme
+  , detectPararhyme
+  , calculatePhoneticDensity
+  , analyzeProsodicFeatures
   ) where
 
 import Data.Text (Text)
@@ -24,13 +29,18 @@ import qualified Data.Map.Strict as M
 
 import Simjot.Poetry.Internal (isVowel)
 
--- | Types of sound devices
+-- | Types of sound devices with academic precision
 data SoundDeviceType
-  = Alliteration   -- ^ Repeated initial consonants
-  | Assonance      -- ^ Repeated vowel sounds
-  | Consonance     -- ^ Repeated consonant sounds
-  | Sibilance      -- ^ S/sh/z sounds
-  | Onomatopoeia   -- ^ Sound-imitating words
+  = Alliteration   -- ^ Repeated initial consonants (Classical rhetoric)
+  | Assonance      -- ^ Repeated vowel sounds (Provençal poetry tradition)
+  | Consonance     -- ^ Repeated consonant sounds (Modernist poetry)
+  | Sibilance      -- ^ S/sh/z sounds (Sibilant consonance)
+  | Onomatopoeia   -- ^ Sound-imitating words (Phonaesthetic devices)
+  | InternalRhyme  -- ^ Rhyme within lines (Middle English poetry)
+  | RichRhyme      -- ^ Multiple phoneme matches (French rime riche)
+  | EyeRhyme       -- ^ Visual but not phonetic matches (Modern poetry)
+  | Pararhyme      -- ^ Consonant matching with different vowels (Wilfred Owen)
+  | Dissonance     -- ^ Clashing sounds (Experimental poetry)
   deriving (Show, Eq, Ord)
 
 -- | A detected sound device
@@ -42,12 +52,17 @@ data SoundDevice = SoundDevice
   , deviceStrength :: !Double
   } deriving (Show, Eq)
 
--- | Complete sound analysis
+-- | Complete sound analysis with academic metrics
 data SoundAnalysis = SoundAnalysis
   { soundDevices     :: ![SoundDevice]
-  , soundDensity     :: !Double
-  , soundDominant    :: ![Text]
+  , soundDensity     :: !Double          -- ^ Phonetic density per line
+  , soundDominant    :: ![Text]          -- ^ Dominant sound patterns
   , soundByType      :: !(Map SoundDeviceType Int)
+  , phoneticComplexity :: !Double        -- ^ Phonetic complexity score
+  , prosodicHarmony   :: !Double        -- ^ Prosodic harmony measure
+  , euphonyScore     :: !Double        -- ^ Euphony vs dissonance balance
+  , alliterationRate :: !Double        -- ^ Alliteration frequency
+  , assonanceRate    :: !Double        -- ^ Assonance frequency
   } deriving (Show, Eq)
 
 -- | Analyze sound devices in a poem
