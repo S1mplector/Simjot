@@ -8,8 +8,11 @@
 
 package main.core.export;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -20,13 +23,16 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import javax.swing.JComponent;
+import javax.swing.JScrollPane;
 
 /**
- * Comprehensive poetry export utility supporting multiple output formats and customization options.
+ * Poetry export utility supporting multiple output formats and customization options.
  * 
  * <p>This class provides functionality to export poetry content in various formats including
  * Markdown, HTML, plain text, and PNG images. It supports customizable styling, metadata
@@ -211,51 +217,153 @@ public final class PoemExporter {
         // If a component is provided, render it; otherwise render a simple layout with title + text
         BufferedImage img;
         if (toRender != null) {
-            int w = Math.max(600, toRender.getWidth());
-            int h = Math.max(400, toRender.getHeight());
+            // Prefer rendering the full preferred size (not just the visible viewport)
+            JComponent target = toRender;
+            if (toRender instanceof JScrollPane sp && sp.getViewport() != null && sp.getViewport().getView() instanceof JComponent view) {
+                target = view;
+            }
+
+            Dimension pref = target.getPreferredSize();
+            int w = Math.max(600, pref != null ? pref.width : toRender.getWidth());
+            int h = Math.max(400, pref != null ? pref.height : toRender.getHeight());
+
+            // Layout the component at the desired size so all content is painted
+            target.setSize(w, h);
+            target.doLayout();
+
             img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = img.createGraphics();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(Color.WHITE);
             g2.fillRect(0, 0, w, h);
-            toRender.paint(g2);
+            target.paint(g2);
+            drawSimjotBadge(g2, w, h);
             g2.dispose();
         } else {
-            // Render text ourselves
-            Font titleFont = new Font("Serif", Font.BOLD, 22);
-            Font textFont = new Font("Serif", Font.PLAIN, 16);
-            int width = 1000;
-            int margin = 32;
-            int lineHeight = 22;
-            int y = margin + 10;
-            // Approximate height
-            int lines = 1 + content.split("\\R").length;
-            int height = Math.max(400, margin * 2 + 50 + lines * lineHeight);
+            // Render styled, centered text inside a frosted panel
+            Font titleFont = new Font("Serif", Font.BOLD, 26);
+            Font textFont = new Font("Serif", Font.PLAIN, 18);
+
+            int width = 1200;
+            int baseMargin = 48;
+            int panelPadding = 32;
+
+            // Wrap text to panel width
+            int panelWidth = (int) (width * 0.75);
+            int panelX = (width - panelWidth) / 2;
+
+            // Prepare metrics
+            BufferedImage tmp = new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
+            Graphics2D gTmp = tmp.createGraphics();
+            gTmp.setFont(textFont);
+            int textLineHeight = gTmp.getFontMetrics().getHeight();
+            List<String> wrapped = wrapLines(content, gTmp.getFontMetrics(), panelWidth - panelPadding*2 - (opt.lineNumbers ? 50 : 0));
+            int lines = Math.max(1, wrapped.size());
+            int titleBlock = (opt.includeTitle && title != null && !title.isBlank()) ? (titleFont.getSize() + 20) : 0;
+            int contentHeight = lines * textLineHeight;
+            int panelHeight = titleBlock + contentHeight + panelPadding*2;
+            int height = Math.max(panelHeight + baseMargin*2, 600);
+            gTmp.dispose();
+
             img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = img.createGraphics();
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g2.setColor(Color.WHITE);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Background gradient
+            Color bgTop = new Color(238, 241, 246);
+            Color bgBottom = new Color(223, 229, 238);
+            g2.setPaint(new GradientPaint(0, 0, bgTop, 0, height, bgBottom));
             g2.fillRect(0, 0, width, height);
+
+            // Frosted panel
+            int panelY = (height - panelHeight) / 2;
+            int arc = 18;
+            Color panelFill = new Color(255, 255, 255, 215);
+            Color panelStroke = new Color(210, 215, 223, 180);
+            g2.setColor(panelFill);
+            g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, arc, arc);
+            g2.setColor(panelStroke);
+            g2.setStroke(new BasicStroke(2f));
+            g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, arc, arc);
+
+            int y = panelY + panelPadding;
             if (opt.includeTitle && title != null && !title.isBlank()) {
-                g2.setColor(new Color(30,30,30));
                 g2.setFont(titleFont);
-                g2.drawString(title, margin, y);
-                y += 36;
+                g2.setColor(new Color(30, 30, 35));
+                int titleW = g2.getFontMetrics().stringWidth(title);
+                int titleX = panelX + (panelWidth - titleW) / 2;
+                g2.drawString(title, titleX, y + titleFont.getSize());
+                y += titleBlock;
             }
-            g2.setColor(new Color(40,40,40));
+
             g2.setFont(textFont);
-            for (String line : content.split("\\R", -1)) {
+            g2.setColor(new Color(40, 40, 45));
+            int textX = panelX + panelPadding + (opt.lineNumbers ? 40 : 0);
+            int lineNumX = panelX + panelPadding;
+            for (int i = 0; i < wrapped.size(); i++) {
+                String line = wrapped.get(i);
                 if (opt.lineNumbers) {
-                    g2.drawString(String.format("%3d ", y/lineHeight), margin, y);
-                    g2.drawString(line, margin + 40, y);
-                } else {
-                    g2.drawString(line, margin, y);
+                    g2.setColor(new Color(90, 90, 100, 200));
+                    g2.drawString(String.format("%3d", i + 1), lineNumX, y + textLineHeight);
+                    g2.setColor(new Color(40, 40, 45));
                 }
-                y += lineHeight;
+                g2.drawString(line, textX, y + textLineHeight);
+                y += textLineHeight;
             }
+
+            drawSimjotBadge(g2, width, height);
             g2.dispose();
         }
         javax.imageio.ImageIO.write(img, "png", outFile);
+    }
+
+    private static void drawSimjotBadge(Graphics2D g2, int w, int h) {
+        final String badge = "made with Simjot";
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        Font badgeFont = new Font("SansSerif", Font.PLAIN, 11);
+        g2.setFont(badgeFont);
+        int padding = 10;
+        var fm = g2.getFontMetrics();
+        int textW = fm.stringWidth(badge);
+        int textH = fm.getAscent();
+        int x = Math.max(padding, w - textW - padding);
+        int y = Math.max(textH + padding, h - padding);
+        g2.setColor(new Color(0, 0, 0, 40));
+        g2.fillRoundRect(x - 6, y - textH - 3, textW + 12, textH + 8, 10, 10);
+        g2.setColor(new Color(255, 255, 255, 220));
+        g2.drawString(badge, x, y);
+    }
+
+    private static List<String> wrapLines(String text, java.awt.FontMetrics fm, int maxWidth) {
+        List<String> lines = new ArrayList<>();
+        if (text == null) {
+            lines.add("");
+            return lines;
+        }
+        for (String rawLine : text.split("\\R", -1)) {
+            String[] words = rawLine.split("\\s+");
+            StringBuilder current = new StringBuilder();
+            for (String w : words) {
+                String candidate = current.isEmpty() ? w : current + " " + w;
+                if (fm.stringWidth(candidate) <= maxWidth) {
+                    current.setLength(0);
+                    current.append(candidate);
+                } else {
+                    if (current.length() > 0) lines.add(current.toString());
+                    current.setLength(0);
+                    // If single word too long, hard-break
+                    if (fm.stringWidth(w) > maxWidth) {
+                        lines.add(w);
+                    } else {
+                        current.append(w);
+                    }
+                }
+            }
+            lines.add(current.toString());
+            if (words.length == 0) lines.add("");
+        }
+        return lines;
     }
 
     /**
