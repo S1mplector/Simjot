@@ -34,6 +34,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import main.infrastructure.ffi.NativeAccess;
+
 /**
  * <h1>Simjot Cryptographic Engine</h1>
  * 
@@ -502,6 +504,13 @@ public final class SimjotCrypto {
     private SecretKey deriveKey(String password, byte[] salt, int iterations) 
             throws GeneralSecurityException {
         
+        // Try native PBKDF2 first (much faster)
+        byte[] nativeKey = NativeAccess.pbkdf2HmacSha256(password, salt, iterations, 32);
+        if (nativeKey != null) {
+            return new SecretKeySpec(nativeKey, "AES");
+        }
+        
+        // Fallback to Java implementation
         PBEKeySpec spec = new PBEKeySpec(
                 password.toCharArray(),
                 salt,

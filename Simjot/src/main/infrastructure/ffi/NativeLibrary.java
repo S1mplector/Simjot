@@ -53,6 +53,10 @@ public final class NativeLibrary implements AutoCloseable {
     private final MethodHandle sumArrayHandle;
     private final MethodHandle fibHandle;
     private final MethodHandle sha256FileHandle;
+    private final MethodHandle sha256BytesHandle;
+    private final MethodHandle pbkdf2HmacSha256Handle;
+    private final MethodHandle aes256GcmEncryptHandle;
+    private final MethodHandle aes256GcmDecryptHandle;
     private final MethodHandle perfSnapshotHandle;
     private final MethodHandle binaryHealthHandle;
     private final MethodHandle countSyllablesHandle;
@@ -455,6 +459,38 @@ public final class NativeLibrary implements AutoCloseable {
         this.sha256FileHandle = linker.downcallHandle(
             lookup.find("simjot_sha256_file").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_sha256_bytes(const uint8_t* data, size_t len, uint8_t* out32)
+        this.sha256BytesHandle = optionalHandle(
+            "simjot_sha256_bytes",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_pbkdf2_hmac_sha256(const char* password, const uint8_t* salt, size_t salt_len, 
+        //                                   uint32_t iterations, uint32_t key_len, uint8_t* out_key)
+        this.pbkdf2HmacSha256Handle = optionalHandle(
+            "simjot_pbkdf2_hmac_sha256",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, 
+                                  ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_aes256_gcm_encrypt(const uint8_t* plaintext, size_t plaintext_len,
+        //                                     const uint8_t* key, const uint8_t* iv,
+        //                                     uint8_t* ciphertext, size_t* ciphertext_len)
+        this.aes256GcmEncryptHandle = optionalHandle(
+            "simjot_aes256_gcm_encrypt",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                                  ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        // int32_t simjot_aes256_gcm_decrypt(const uint8_t* ciphertext, size_t ciphertext_len,
+        //                                     const uint8_t* key, const uint8_t* iv,
+        //                                     uint8_t* plaintext, size_t* plaintext_len)
+        this.aes256GcmDecryptHandle = optionalHandle(
+            "simjot_aes256_gcm_decrypt",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                                  ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
         );
 
         this.perfSnapshotHandle = optionalHandle(
@@ -1449,6 +1485,100 @@ public final class NativeLibrary implements AutoCloseable {
             return HexFormat.of().formatHex(bytes);
         } catch (Throwable t) {
             throw new RuntimeException("Native call failed: simjot_sha256_file", t);
+        }
+    }
+
+    /**
+     * Compute SHA-256 for byte array via native call.
+     */
+    public byte[] sha256Bytes(byte[] data) {
+        if (sha256BytesHandle == null || data == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment dataSeg = tempArena.allocate(ValueLayout.JAVA_BYTE, data.length);
+            dataSeg.asByteBuffer().put(data);
+            MemorySegment out = tempArena.allocate(32);
+            int ok = (int) sha256BytesHandle.invokeExact(dataSeg, (long)data.length, out);
+            if (ok == 0) return null;
+            byte[] result = new byte[32];
+            out.asByteBuffer().get(result);
+            return result;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_sha256_bytes", t);
+        }
+    }
+
+    /**
+     * PBKDF2-HMAC-SHA256 key derivation via native call.
+     */
+    public byte[] pbkdf2HmacSha256(String password, byte[] salt, int iterations, int keyLength) {
+        if (pbkdf2HmacSha256Handle == null || password == null || salt == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment passSeg = tempArena.allocateFrom(password);
+            MemorySegment saltSeg = tempArena.allocate(ValueLayout.JAVA_BYTE, salt.length);
+            saltSeg.asByteBuffer().put(salt);
+            MemorySegment out = tempArena.allocate(keyLength);
+            int ok = (int) pbkdf2HmacSha256Handle.invokeExact(passSeg, saltSeg, (long)salt.length, 
+                                                             iterations, keyLength, out);
+            if (ok == 0) return null;
+            byte[] result = new byte[keyLength];
+            out.asByteBuffer().get(result);
+            return result;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_pbkdf2_hmac_sha256", t);
+        }
+    }
+
+    /**
+     * AES-256-GCM encryption via native call.
+     */
+    public byte[] aes256GcmEncrypt(byte[] plaintext, byte[] key, byte[] iv) {
+        if (aes256GcmEncryptHandle == null || plaintext == null || key == null || iv == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment plainSeg = tempArena.allocate(ValueLayout.JAVA_BYTE, plaintext.length);
+            plainSeg.asByteBuffer().put(plaintext);
+            MemorySegment keySeg = tempArena.allocate(ValueLayout.JAVA_BYTE, key.length);
+            keySeg.asByteBuffer().put(key);
+            MemorySegment ivSeg = tempArena.allocate(ValueLayout.JAVA_BYTE, iv.length);
+            ivSeg.asByteBuffer().put(iv);
+            // Allocate space for ciphertext + tag (16 bytes)
+            MemorySegment out = tempArena.allocate(plaintext.length + 16);
+            MemorySegment outLen = tempArena.allocate(ValueLayout.JAVA_LONG);
+            int ok = (int) aes256GcmEncryptHandle.invokeExact(plainSeg, (long)plaintext.length, 
+                                                            keySeg, ivSeg, out, outLen);
+            if (ok == 0) return null;
+            long actualLen = outLen.get(ValueLayout.JAVA_LONG, 0);
+            byte[] result = new byte[(int)actualLen];
+            out.asByteBuffer().get(result, 0, (int)actualLen);
+            return result;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_aes256_gcm_encrypt", t);
+        }
+    }
+
+    /**
+     * AES-256-GCM decryption via native call.
+     */
+    public byte[] aes256GcmDecrypt(byte[] ciphertext, byte[] key, byte[] iv) {
+        if (aes256GcmDecryptHandle == null || ciphertext == null || key == null || iv == null) return null;
+        try (Arena tempArena = Arena.ofConfined()) {
+            MemorySegment cipherSeg = tempArena.allocate(ValueLayout.JAVA_BYTE, ciphertext.length);
+            cipherSeg.asByteBuffer().put(ciphertext);
+            MemorySegment keySeg = tempArena.allocate(ValueLayout.JAVA_BYTE, key.length);
+            keySeg.asByteBuffer().put(key);
+            MemorySegment ivSeg = tempArena.allocate(ValueLayout.JAVA_BYTE, iv.length);
+            ivSeg.asByteBuffer().put(iv);
+            // Allocate space for plaintext (ciphertext length - tag)
+            MemorySegment out = tempArena.allocate(ciphertext.length);
+            MemorySegment outLen = tempArena.allocate(ValueLayout.JAVA_LONG);
+            int ok = (int) aes256GcmDecryptHandle.invokeExact(cipherSeg, (long)ciphertext.length, 
+                                                            keySeg, ivSeg, out, outLen);
+            if (ok == 0) return null;
+            long actualLen = outLen.get(ValueLayout.JAVA_LONG, 0);
+            byte[] result = new byte[(int)actualLen];
+            out.asByteBuffer().get(result, 0, (int)actualLen);
+            return result;
+        } catch (Throwable t) {
+            throw new RuntimeException("Native call failed: simjot_aes256_gcm_decrypt", t);
         }
     }
 

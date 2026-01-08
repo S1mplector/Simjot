@@ -80,6 +80,50 @@ public final class NativeAccess {
         }
     }
 
+    public static byte[] sha256Bytes(byte[] data) {
+        NativeLibrary lib = library();
+        if (lib == null || data == null) return null;
+        try {
+            return lib.sha256Bytes(data);
+        } catch (Throwable t) {
+            IoLog.warn("native-sha256-bytes", "Native SHA-256 bytes failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static byte[] pbkdf2HmacSha256(String password, byte[] salt, int iterations, int keyLength) {
+        NativeLibrary lib = library();
+        if (lib == null || password == null || salt == null) return null;
+        try {
+            return lib.pbkdf2HmacSha256(password, salt, iterations, keyLength);
+        } catch (Throwable t) {
+            IoLog.warn("native-pbkdf2", "Native PBKDF2-HMAC-SHA256 failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static byte[] aes256GcmEncrypt(byte[] plaintext, byte[] key, byte[] iv) {
+        NativeLibrary lib = library();
+        if (lib == null || plaintext == null || key == null || iv == null) return null;
+        try {
+            return lib.aes256GcmEncrypt(plaintext, key, iv);
+        } catch (Throwable t) {
+            IoLog.warn("native-aes-encrypt", "Native AES-256-GCM encrypt failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
+    public static byte[] aes256GcmDecrypt(byte[] ciphertext, byte[] key, byte[] iv) {
+        NativeLibrary lib = library();
+        if (lib == null || ciphertext == null || key == null || iv == null) return null;
+        try {
+            return lib.aes256GcmDecrypt(ciphertext, key, iv);
+        } catch (Throwable t) {
+            IoLog.warn("native-aes-decrypt", "Native AES-256-GCM decrypt failed; falling back to Java.", t);
+            return null;
+        }
+    }
+
     public static Integer countSyllables(String word) {
         NativeLibrary lib = library();
         if (lib == null || word == null || word.isEmpty()) return null;

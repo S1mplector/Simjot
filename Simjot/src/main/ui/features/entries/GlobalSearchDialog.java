@@ -569,13 +569,35 @@ public class GlobalSearchDialog extends JDialog {
             }
             data.queryForSnippet = q;
             if (q.isEmpty()) return true;
-            String text = (data.title == null ? "" : data.title) + " " + (data.text == null ? "" : data.text);
-            if (containsAllTokens(tokens, text)) return true;
-            if (!fuzzy) return false;
-            String compact = stripSpaces(collapseSpaces(text.toLowerCase(Locale.ROOT)));
-            return fuzzyMatch(qCompact, compact);
+            
+            // Use native text utilities for faster processing
+            String combinedText = NativeAccess.textNormalize(
+                (data.title == null ? "" : data.title) + " " + (data.text == null ? "" : data.text)
+            );
+            
+            // Try native exact token matching first (fastest)
+            if (tokens.length > 0 && NativeAccess.stringContainsCi(combinedText, q)) {
+                return true;
+            }
+            
+            // Use native fuzzy matching for more flexible search
+            if (fuzzy) {
+                // Use native fuzzy match with optimized parameters
+                if (NativeAccess.textFuzzyMatch(combinedText, q)) {
+                    return true;
+                }
+                
+                // Try native fuzzy scoring as backup
+                int fuzzyScore = NativeAccess.textFuzzyScore(combinedText, q);
+                if (fuzzyScore >= q.length() * 0.7) { // 70% match threshold
+                    return true;
+                }
+            }
+            
+            return false;
         }
 
+        
         private static Set<String> parseTagsFilter(String raw) {
             Set<String> out = new HashSet<>();
             if (raw == null || raw.trim().isEmpty()) return out;
@@ -725,27 +747,41 @@ public class GlobalSearchDialog extends JDialog {
 
     private static boolean fuzzyMatch(String query, String text) {
         if (query.isEmpty()) return true;
-        if (NativeAccess.searchFuzzyMatch(text, query, Math.max(1, query.length() / 4))) return true;
-        int qi = 0;
-        for (int i = 0; i < text.length() && qi < query.length(); i++) {
-            if (text.charAt(i) == query.charAt(qi)) {
-                qi++;
-            }
+        
+        // Use native fuzzy matching with optimized distance calculation
+        int maxDistance = Math.max(1, query.length() / 4);
+        if (NativeAccess.searchFuzzyMatch(text, query, maxDistance)) return true;
+        
+        // Use native similarity scoring as secondary check
+        int similarity = NativeAccess.textSimilarity(text, query);
+        if (similarity >= 70) return true; // 70% similarity threshold
+        
+        // Use native Levenshtein distance as final fallback
+        Integer distance = NativeAccess.textLevenshtein(text, query);
+        if (distance != null) {
+            double ratio = (double) (query.length() - distance) / (double) query.length();
+            return ratio >= 0.7;
         }
-        double ratio = (double) qi / (double) query.length();
-        return ratio >= 0.7;
+        
+        return false;
     }
 
     private static Set<String> extractTags(String text) {
         Set<String> tags = new HashSet<>();
         if (text == null || text.isBlank()) return tags;
+        
+        // Use native tag extraction (much faster than regex)
         List<String> nativeTags = NativeAccess.textExtractTags(text);
-        if (nativeTags != null) {
+        if (nativeTags != null && !nativeTags.isEmpty()) {
             for (String tag : nativeTags) {
-                if (tag != null && !tag.isEmpty()) tags.add(tag);
+                if (tag != null && !tag.isEmpty()) {
+                    tags.add(tag.toLowerCase(Locale.ROOT));
+                }
             }
             return tags;
         }
+        
+        // Fallback to regex only if native fails
         Matcher m = Pattern.compile("#([A-Za-z0-9_-]+)").matcher(text);
         while (m.find()) {
             tags.add(m.group(1).toLowerCase(Locale.ROOT));
