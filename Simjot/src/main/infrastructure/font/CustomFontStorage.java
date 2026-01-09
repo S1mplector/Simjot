@@ -101,9 +101,6 @@ public final class CustomFontStorage {
             float bboxHeight = buf.getFloat();
             
             CustomGlyph glyph = font.getOrCreateGlyph(codepoint);
-            glyph.setAdvanceWidth(advanceWidth);
-            glyph.setLeftBearing(leftBearing);
-            glyph.setRightBearing(rightBearing);
             
             // Read strokes
             for (int s = 0; s < strokeCount; s++) {
@@ -125,6 +122,9 @@ public final class CustomFontStorage {
                 glyph.addStroke(stroke);
             }
             
+            glyph.setAdvanceWidth(advanceWidth);
+            glyph.setLeftBearing(leftBearing);
+            glyph.setRightBearing(rightBearing);
             glyph.setDefined(defined);
         }
         

@@ -246,6 +246,8 @@ public final class CustomFontRenderer {
         float scale = (float) size / font.getEmSize();
         float cursorX = x;
         boolean nativeAvailable = NativeFontSupport.isAvailable();
+        Float nativeAscender = nativeAvailable ? NativeFontSupport.getAscender(font, size) : null;
+        float ascender = nativeAscender != null ? nativeAscender : font.getAscender(size);
         
         for (int i = 0; i < text.length(); i++) {
             int cp = text.codePointAt(i);
@@ -261,7 +263,7 @@ public final class CustomFontRenderer {
                         bounds = glyph.getBounds();
                     }
                     int drawX = (int) (cursorX + bounds[0] * scale);
-                    int drawY = (int) (y - (bounds[1] + bounds[3]) * scale);
+                    int drawY = (int) (y - ascender + bounds[1] * scale);
                     g2.drawImage(img, drawX, drawY, null);
                 }
                 Float advance = nativeAvailable ? NativeFontSupport.getGlyphAdvance(font, cp) : null;

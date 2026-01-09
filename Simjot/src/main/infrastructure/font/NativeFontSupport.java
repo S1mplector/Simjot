@@ -202,7 +202,13 @@ public final class NativeFontSupport {
             for (int codepoint : font.getCodepoints()) {
                 MemorySegment glyph = fonts.fontGetGlyph(nativeFont, codepoint);
                 if (glyph != null && !glyph.equals(MemorySegment.NULL)) {
-                    fonts.glyphComputeMetrics(glyph, emSize);
+                    Float advance = fonts.glyphGetAdvance(glyph);
+                    float[] bounds = fonts.glyphGetBounds(glyph);
+                    boolean missingBounds = bounds == null || (bounds[2] <= 0.0f && bounds[3] <= 0.0f);
+                    boolean missingAdvance = advance == null || advance <= 0.0f;
+                    if (missingBounds && missingAdvance) {
+                        fonts.glyphComputeMetrics(glyph, emSize);
+                    }
                 }
             }
 

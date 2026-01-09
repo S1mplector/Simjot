@@ -11,7 +11,9 @@ package main.infrastructure.font;
 import java.awt.Font;
 import java.awt.Shape;
 import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphMetrics;
 import java.awt.font.GlyphVector;
+import java.awt.font.LineMetrics;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
@@ -40,6 +42,7 @@ public final class FontImporter {
     /** Native format limits - MUST match font_types.h */
     private static final int MAX_STROKES_PER_GLYPH = 60;  // Leave some headroom below 64
     private static final int MAX_POINTS_PER_STROKE = 900; // Leave some headroom below 1024
+    private static final float MIN_OUTLINE_THICKNESS_RATIO = 0.03f;
     
     /** Supported font file extensions */
     public static final String[] SUPPORTED_EXTENSIONS = { ".ttf", ".otf", ".ttc", ".dfont" };
@@ -142,6 +145,7 @@ public final class FontImporter {
         // Create the custom font with standard metrics
         CustomFont customFont = new CustomFont(fontName, "Imported");
         float emSize = customFont.getEmSize(); // 1000
+        float resolvedThickness = resolveStrokeThickness(strokeThickness, emSize);
         
         // Use default charset if not specified
         String chars = (charset != null && !charset.isEmpty()) ? charset : DEFAULT_CHARSET;
@@ -149,6 +153,18 @@ public final class FontImporter {
         // Derive a font at em-size scale for consistent conversion
         Font scaledFont = awtFont.deriveFont((float) emSize);
         FontRenderContext frc = new FontRenderContext(null, true, true);
+        LineMetrics lineMetrics = scaledFont.getLineMetrics("Hg", frc);
+        if (lineMetrics != null) {
+            float ascender = lineMetrics.getAscent();
+            float descender = lineMetrics.getDescent();
+            float lineGap = lineMetrics.getLeading();
+            if (ascender > 0.0f && descender >= 0.0f) {
+                customFont.setAscender(ascender);
+                customFont.setDescender(descender);
+                customFont.setLineGap(Math.max(0.0f, lineGap));
+            }
+        }
+        customFont.setDefaultThickness(resolvedThickness);
         
         // Convert each character
         for (int i = 0; i < chars.length(); i++) {
@@ -159,7 +175,8 @@ public final class FontImporter {
             if (!scaledFont.canDisplay(ch)) continue;
             
             try {
-                CustomGlyph glyph = convertGlyph(scaledFont, frc, codepoint, emSize, strokeThickness);
+                CustomGlyph glyph = convertGlyph(scaledFont, frc, codepoint, emSize,
+                    resolvedThickness, customFont.getAscender());
                 if (glyph != null && glyph.isDefined()) {
                     customFont.setGlyph(codepoint, glyph);
                 }
@@ -176,7 +193,8 @@ public final class FontImporter {
      * Convert a single glyph from AWT Font to CustomGlyph.
      * Enforces native format limits on strokes and points.
      */
-    private static CustomGlyph convertGlyph(Font font, FontRenderContext frc, int codepoint, float emSize, float strokeThickness) {
+    private static CustomGlyph convertGlyph(Font font, FontRenderContext frc, int codepoint, float emSize,
+                                            float strokeThickness, float ascender) {
         String str = new String(Character.toChars(codepoint));
         GlyphVector gv = font.createGlyphVector(frc, str);
         
@@ -188,20 +206,30 @@ public final class FontImporter {
         // Skip empty glyphs (like space) but create placeholder
         if (bounds.getWidth() < 0.1 && bounds.getHeight() < 0.1) {
             CustomGlyph glyph = new CustomGlyph(codepoint);
-            glyph.setAdvanceWidth((float) gv.getGlyphMetrics(0).getAdvanceX());
+            GlyphMetrics metrics = gv.getGlyphMetrics(0);
+            float advance = metrics.getAdvanceX();
+            if (advance <= 0.0f) {
+                advance = emSize * 0.3f;
+            }
+            glyph.setAdvanceWidth(advance);
             glyph.setDefined(false);
             return glyph;
         }
         
+        GlyphMetrics metrics = gv.getGlyphMetrics(0);
+        float advance = metrics.getAdvanceX();
+        float leftBearing = metrics.getLSB();
+        float rightBearing = metrics.getRSB();
+
         // Convert outline to strokes with adaptive flatness
         // Start with coarse flatness and refine if we're within limits
         float flatness = emSize / 50.0f; // Coarser initial flatness
-        List<CustomStroke> strokes = outlineToStrokes(outline, strokeThickness, emSize, flatness);
+        List<CustomStroke> strokes = outlineToStrokes(outline, strokeThickness, ascender, flatness);
         
         // If too many strokes, use even coarser flatness
         if (strokes.size() > MAX_STROKES_PER_GLYPH) {
             flatness = emSize / 20.0f;
-            strokes = outlineToStrokes(outline, strokeThickness, emSize, flatness);
+            strokes = outlineToStrokes(outline, strokeThickness, ascender, flatness);
         }
         
         // Still too many? Truncate and warn
@@ -224,13 +252,18 @@ public final class FontImporter {
             }
         }
         
-        // Set advance width from original metrics
-        float advance = (float) gv.getGlyphMetrics(0).getAdvanceX();
-        glyph.setAdvanceWidth(advance);
-        
         if (glyph.getStrokeCount() > 0) {
             glyph.setDefined(true);
-            glyph.computeMetrics(emSize);
+            glyph.computeMetrics();
+            if (Float.isFinite(leftBearing)) {
+                glyph.setLeftBearing(leftBearing);
+            }
+            if (Float.isFinite(rightBearing)) {
+                glyph.setRightBearing(rightBearing);
+            }
+            if (Float.isFinite(advance) && advance > 0.0f) {
+                glyph.setAdvanceWidth(advance);
+            }
         }
         
         return glyph;
@@ -277,7 +310,7 @@ public final class FontImporter {
      * @param emSize Em size for coordinate normalization
      * @param flatness Flatness value for path flattening (higher = fewer points)
      */
-    private static List<CustomStroke> outlineToStrokes(Shape outline, float thickness, float emSize, float flatness) {
+    private static List<CustomStroke> outlineToStrokes(Shape outline, float thickness, float ascender, float flatness) {
         List<CustomStroke> strokes = new ArrayList<>();
         
         // Flatten curves to line segments
@@ -298,14 +331,14 @@ public final class FontImporter {
                     }
                     currentStroke = new CustomStroke(thickness);
                     lastX = coords[0];
-                    lastY = flipY(coords[1], emSize);
+                    lastY = mapY(coords[1], ascender);
                     currentStroke.addPoint(lastX, lastY);
                     break;
                     
                 case PathIterator.SEG_LINETO:
                     if (currentStroke != null) {
                         lastX = coords[0];
-                        lastY = flipY(coords[1], emSize);
+                        lastY = mapY(coords[1], ascender);
                         currentStroke.addPoint(lastX, lastY);
                     }
                     break;
@@ -314,9 +347,9 @@ public final class FontImporter {
                     // Quadratic bezier - add interpolated points
                     if (currentStroke != null) {
                         float cx = coords[0];
-                        float cy = flipY(coords[1], emSize);
+                        float cy = mapY(coords[1], ascender);
                         float x = coords[2];
-                        float y = flipY(coords[3], emSize);
+                        float y = mapY(coords[3], ascender);
                         addQuadraticPoints(currentStroke, lastX, lastY, cx, cy, x, y, 8);
                         lastX = x;
                         lastY = y;
@@ -327,11 +360,11 @@ public final class FontImporter {
                     // Cubic bezier - add interpolated points
                     if (currentStroke != null) {
                         float c1x = coords[0];
-                        float c1y = flipY(coords[1], emSize);
+                        float c1y = mapY(coords[1], ascender);
                         float c2x = coords[2];
-                        float c2y = flipY(coords[3], emSize);
+                        float c2y = mapY(coords[3], ascender);
                         float x = coords[4];
-                        float y = flipY(coords[5], emSize);
+                        float y = mapY(coords[5], ascender);
                         addCubicPoints(currentStroke, lastX, lastY, c1x, c1y, c2x, c2y, x, y, 12);
                         lastX = x;
                         lastY = y;
@@ -363,10 +396,10 @@ public final class FontImporter {
     }
     
     /**
-     * Flip Y coordinate (fonts use inverted Y axis).
+     * Map font coordinates to Simjot glyph space using baseline ascender.
      */
-    private static float flipY(float y, float emSize) {
-        return emSize - y;
+    private static float mapY(float y, float ascender) {
+        return ascender + y;
     }
     
     /**
@@ -436,7 +469,8 @@ public final class FontImporter {
     public static ImportResult importFontWithResult(File fontFile, String charset, float strokeThickness) {
         List<String> warnings = new ArrayList<>();
 
-        ImportResult nativeResult = importFontNativeWithResult(fontFile, charset, strokeThickness);
+        float resolvedThickness = resolveStrokeThickness(strokeThickness, CustomFont.DEFAULT_EM_SIZE);
+        ImportResult nativeResult = importFontNativeWithResult(fontFile, charset, resolvedThickness);
         if (nativeResult != null && nativeResult.font != null) {
             return nativeResult;
         }
@@ -445,7 +479,7 @@ public final class FontImporter {
         }
 
         try {
-            CustomFont font = importFontJava(fontFile, charset, strokeThickness);
+            CustomFont font = importFontJava(fontFile, charset, resolvedThickness);
             if (font == null) {
                 warnings.add("Failed to parse font file");
                 return new ImportResult(null, warnings);
@@ -561,5 +595,11 @@ public final class FontImporter {
             case -9 -> "Buffer too small";
             default -> "Error code " + code;
         };
+    }
+
+    private static float resolveStrokeThickness(float strokeThickness, float emSize) {
+        float resolved = strokeThickness > 0.0f ? strokeThickness : CustomFont.DEFAULT_THICKNESS;
+        float minThickness = emSize * MIN_OUTLINE_THICKNESS_RATIO;
+        return Math.max(resolved, minThickness);
     }
 }

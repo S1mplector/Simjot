@@ -91,8 +91,8 @@ static std::vector<uint32_t> decode_utf8(const char* text) {
     return cps;
 }
 
-static inline float flip_y(float y, float em_size) {
-    return em_size - y;
+static inline float map_y(float y, float ascender) {
+    return ascender - y;
 }
 
 static bool points_equal(const sjf_point_t& a, const sjf_point_t& b) {
@@ -129,6 +129,7 @@ struct PathContext {
     sjf_point_t start_point{};
     sjf_point_t last_point{};
     float em_size = SJF_DEFAULT_EM_SIZE;
+    float ascender = SJF_DEFAULT_ASCENDER;
     float thickness = 2.0f;
     float flatness = 0.5f;
 };
@@ -238,7 +239,7 @@ static void path_applier(void* info, const CGPathElement* element) {
             ctx->current->color = 0xFF000000;
             sjf_point_t p{};
             p.x = element->points[0].x;
-            p.y = flip_y(element->points[0].y, ctx->em_size);
+            p.y = map_y(element->points[0].y, ctx->ascender);
             p.pressure = 1.0f;
             ctx->start_point = p;
             sjf_stroke_add_point(ctx->current, p.x, p.y, p.pressure, 0.0f);
@@ -249,7 +250,7 @@ static void path_applier(void* info, const CGPathElement* element) {
             if (!ctx->current) return;
             sjf_point_t p{};
             p.x = element->points[0].x;
-            p.y = flip_y(element->points[0].y, ctx->em_size);
+            p.y = map_y(element->points[0].y, ctx->ascender);
             p.pressure = 1.0f;
             if (ctx->current->point_count > 0) {
                 sjf_point_t last = ctx->current->points[ctx->current->point_count - 1];
@@ -264,9 +265,9 @@ static void path_applier(void* info, const CGPathElement* element) {
             float x0 = ctx->last_point.x;
             float y0 = ctx->last_point.y;
             float x1 = element->points[0].x;
-            float y1 = flip_y(element->points[0].y, ctx->em_size);
+            float y1 = map_y(element->points[0].y, ctx->ascender);
             float x2 = element->points[1].x;
-            float y2 = flip_y(element->points[1].y, ctx->em_size);
+            float y2 = map_y(element->points[1].y, ctx->ascender);
             flatten_quad_bezier(ctx, x0, y0, x1, y1, x2, y2, 0);
             ctx->last_point.x = x2;
             ctx->last_point.y = y2;
@@ -277,11 +278,11 @@ static void path_applier(void* info, const CGPathElement* element) {
             float x0 = ctx->last_point.x;
             float y0 = ctx->last_point.y;
             float x1 = element->points[0].x;
-            float y1 = flip_y(element->points[0].y, ctx->em_size);
+            float y1 = map_y(element->points[0].y, ctx->ascender);
             float x2 = element->points[1].x;
-            float y2 = flip_y(element->points[1].y, ctx->em_size);
+            float y2 = map_y(element->points[1].y, ctx->ascender);
             float x3 = element->points[2].x;
-            float y3 = flip_y(element->points[2].y, ctx->em_size);
+            float y3 = map_y(element->points[2].y, ctx->ascender);
             flatten_cubic_bezier(ctx, x0, y0, x1, y1, x2, y2, x3, y3, 0);
             ctx->last_point.x = x3;
             ctx->last_point.y = y3;
@@ -303,7 +304,8 @@ static void path_applier(void* info, const CGPathElement* element) {
     }
 }
 
-static std::vector<sjf_stroke_t*> outline_to_strokes(CGPathRef path, float em_size, float thickness, float flatness) {
+static std::vector<sjf_stroke_t*> outline_to_strokes(CGPathRef path, float em_size, float ascender,
+                                                     float thickness, float flatness) {
     std::vector<sjf_stroke_t*> strokes;
     if (!path) return strokes;
 
@@ -311,6 +313,7 @@ static std::vector<sjf_stroke_t*> outline_to_strokes(CGPathRef path, float em_si
     ctx.em_size = em_size;
     ctx.thickness = thickness;
     ctx.flatness = flatness;
+    ctx.ascender = ascender;
     CGPathApply(path, &ctx, path_applier);
     finalize_stroke(&ctx);
 
@@ -445,10 +448,11 @@ extern "C" sjf_font_t* sjf_font_import(const char* path, const char* charset_utf
             return nullptr;
         }
 
+        CGSize adv{};
+        CTFontGetAdvancesForGlyphs(ctFont, kCTFontOrientationHorizontal, &glyph, &adv, 1);
+
         CGPathRef pathRef = CTFontCreatePathForGlyph(ctFont, glyph, NULL);
         if (!pathRef) {
-            CGSize adv{};
-            CTFontGetAdvancesForGlyphs(ctFont, kCTFontOrientationHorizontal, &glyph, &adv, 1);
             outGlyph->defined = 0;
             outGlyph->metrics.advance_width = static_cast<float>(adv.width);
             outGlyph->metrics.left_bearing = 0.0f;
@@ -461,7 +465,9 @@ extern "C" sjf_font_t* sjf_font_import(const char* path, const char* charset_utf
         }
 
         float flatness = em_size / 50.0f;
-        std::vector<sjf_stroke_t*> strokes = outline_to_strokes(pathRef, em_size, font->header.default_thickness, flatness);
+        std::vector<sjf_stroke_t*> strokes = outline_to_strokes(pathRef, em_size,
+                                                                font->header.ascender,
+                                                                font->header.default_thickness, flatness);
         if (strokes.size() > SJF_MAX_STROKES) {
             for (size_t i = SJF_MAX_STROKES; i < strokes.size(); i++) {
                 sjf_stroke_free(strokes[i]);
@@ -491,6 +497,12 @@ extern "C" sjf_font_t* sjf_font_import(const char* path, const char* charset_utf
         if (outGlyph->stroke_count > 0) {
             outGlyph->defined = 1;
             sjf_glyph_compute_metrics(outGlyph, em_size);
+            if (adv.width > 0.0f) {
+                float right_edge = outGlyph->metrics.bbox_x + outGlyph->metrics.bbox_width;
+                outGlyph->metrics.advance_width = static_cast<float>(adv.width);
+                outGlyph->metrics.left_bearing = outGlyph->metrics.bbox_x;
+                outGlyph->metrics.right_bearing = static_cast<float>(adv.width) - right_edge;
+            }
             defined++;
         }
 
