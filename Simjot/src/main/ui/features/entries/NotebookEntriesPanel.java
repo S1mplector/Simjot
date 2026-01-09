@@ -85,6 +85,8 @@ import javax.swing.text.rtf.RTFEditorKit;
 
 import main.core.security.EncryptionManager;
 import main.core.security.crypto.EncryptedMetadata;
+import main.core.service.SettingsStore;
+import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
@@ -1160,11 +1162,17 @@ public class NotebookEntriesPanel extends JPanel {
     }
     
     private void performActualDelete(File f) {
-        if (f == null || !f.exists()) {
+        if (f == null) {
             refreshImmediate();
             return;
         }
+        try { app.closeEditorsForFile(f); } catch (Throwable ignored) {}
         String title = java.util.Objects.toString(titles.get(f), f.getName());
+        if (!f.exists()) {
+            cleanupDeletedEntry(f);
+            refreshImmediate();
+            return;
+        }
         // Use robust deletion with verification and retries
         boolean deleted = main.infrastructure.io.FileIO.deleteWithVerify(f.toPath());
         if(!deleted){
@@ -1175,21 +1183,112 @@ public class NotebookEntriesPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'. The file may be in use.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
             main.ui.components.toast.ToastOverlay.error("Failed to delete entry");
         } else {
+            cleanupDeletedEntry(f);
             main.ui.components.toast.ToastOverlay.success("Entry deleted");
         }
         // Use immediate refresh for instant UI update after deletion
         refreshImmediate();
     }
 
+    private void cleanupDeletedEntry(File file) {
+        cleanupEntryCaches(file);
+        cleanupEntryArtifacts(file);
+        clearLastOpenedMetadata(file);
+    }
+
+    private void cleanupEntryCaches(File file) {
+        if (file == null) return;
+        titles.remove(file);
+        wordCounts.remove(file);
+        moodValues.remove(file);
+        entryDates.remove(file);
+        entryTimestamps.remove(file);
+        metaCache.remove(file);
+        previewCache.remove(file);
+        metaComputed.remove(file);
+        synchronized (metaQueued) {
+            metaQueued.remove(file);
+        }
+        deleteAnimProgress.remove(file);
+        reorderAnimProgress.remove(file);
+    }
+
+    private void cleanupEntryArtifacts(File file) {
+        if (file == null) return;
+        try {
+            EntryHistoryManager.deleteHistory(file);
+        } catch (Throwable ignored) {}
+        try {
+            NativeAutosaveCoordinator.cleanupArtifacts(file.getAbsolutePath());
+        } catch (Throwable ignored) {}
+        cleanupLegacyRecoveryFiles(file);
+        cleanupTempCopies(file);
+    }
+
+    private void cleanupLegacyRecoveryFiles(File file) {
+        if (file == null) return;
+        File parent = file.getParentFile();
+        if (parent == null) return;
+        File recoveryDir = new File(parent, ".recovery");
+        File rec = new File(recoveryDir, file.getName() + ".recover");
+        try {
+            FileIO.deleteWithVerify(rec.toPath());
+        } catch (Throwable ignored) {}
+    }
+
+    private void cleanupTempCopies(File file) {
+        if (file == null) return;
+        File parent = file.getParentFile();
+        if (parent == null) return;
+        String base = file.getName() + ".tmp";
+        File[] temps = parent.listFiles((dir, name) -> name.startsWith(base) && name.endsWith(".tmp"));
+        if (temps == null) return;
+        for (File tmp : temps) {
+            if (tmp == null) continue;
+            try {
+                FileIO.deleteWithVerify(tmp.toPath());
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private void clearLastOpenedMetadata(File file) {
+        if (file == null) return;
+        try {
+            SettingsStore store = SettingsStore.get();
+            String last = store.getLastOpenedFilePath();
+            if (last != null && !last.isBlank() && file.equals(new File(last))) {
+                store.setLastOpenedFilePath(null);
+                store.save();
+            }
+        } catch (Throwable ignored) {}
+    }
+
     private void deleteNotebook(){
         boolean ok = CustomConfirmDialog.confirm(this, "Delete Notebook", "Delete entire notebook '"+nb.getName()+"'?" );
         if(!ok) return;
+        try { app.closeEditorsInFolder(nb.getFolder()); } catch (Throwable ignored) {}
         // Access store to delete
         new main.core.service.NotebookStore().delete(nb);
         main.ui.components.toast.ToastOverlay.success("Notebook deleted");
+        clearLastOpenedMetadataInFolder(nb.getFolder());
         // refresh manager panel
         app.refreshNotebookManager();
         app.switchCard(JournalApp.NOTEBOOK_MANAGER);
+    }
+
+    private void clearLastOpenedMetadataInFolder(File folder) {
+        if (folder == null) return;
+        try {
+            SettingsStore store = SettingsStore.get();
+            String last = store.getLastOpenedFilePath();
+            if (last == null || last.isBlank()) return;
+            String root = folder.getAbsolutePath();
+            String path = new File(last).getAbsolutePath();
+            if (path.equals(root) || path.startsWith(root + File.separator)) {
+                store.setLastOpenedFilePath(null);
+                store.save();
+            }
+        } catch (Throwable ignored) {}
     }
     
     private java.time.LocalDate filterStartDate = null;
@@ -1507,6 +1606,7 @@ public class NotebookEntriesPanel extends JPanel {
             @Override protected Void doInBackground() {
                 for (File f : order) {
                     if (isCancelled()) break;
+                    if (f == null || !f.exists()) continue;
                     if (metaComputed.contains(f)) continue;
                     synchronized (metaQueued) {
                         if (metaQueued.contains(f)) continue;
@@ -1523,6 +1623,7 @@ public class NotebookEntriesPanel extends JPanel {
             }
             @Override protected void process(java.util.List<FileMeta> chunks) {
                 for (FileMeta m : chunks) {
+                    if (m == null || m.file == null || !m.file.exists()) continue;
                     titles.put(m.file, m.title);
                     wordCounts.put(m.file, m.wc);
                     moodValues.put(m.file, m.mood);
@@ -1695,6 +1796,7 @@ public class NotebookEntriesPanel extends JPanel {
             @Override protected Void doInBackground() {
                 for (File f : order) {
                     if (isCancelled()) break;
+                    if (f == null || !f.exists()) continue;
                     PreviewSnapshot snap = previewCache.get(f);
                     if (snap != null && snap.isFresh(f)) continue;
                     PreviewSnapshot computed = buildPreviewSnapshot(f);
@@ -1715,7 +1817,7 @@ public class NotebookEntriesPanel extends JPanel {
     }
 
     private PreviewSnapshot buildPreviewSnapshot(File f) {
-        if (f == null) return null;
+        if (f == null || !f.exists()) return null;
         String title = titles.getOrDefault(f, f.getName());
         if (EncryptionManager.isEncrypted(f)) {
             return new PreviewSnapshot(f, f.lastModified(), f.length(), title, "Encrypted entry.");

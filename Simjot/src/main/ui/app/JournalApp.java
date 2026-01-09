@@ -1215,6 +1215,52 @@ public class JournalApp extends JFrame {
         openEditors.add(editor);
     }
 
+    /**
+     * Close any open editors that are bound to the given file.
+     * Used when an entry is deleted so autosave doesn't recreate it.
+     */
+    public void closeEditorsForFile(java.io.File file) {
+        if (file == null) return;
+        boolean removed = false;
+        for (main.ui.features.entries.NotebookEditor editor : new java.util.ArrayList<>(openEditors)) {
+            java.io.File current = editor.getCurrentFile();
+            if (current != null && current.equals(file)) {
+                openEditors.remove(editor);
+                removed = true;
+                try { cardPanel.remove(editor.getMainComponent()); } catch (Throwable ignored) {}
+                cardMap.entrySet().removeIf(e -> e.getValue() == editor.getMainComponent());
+            }
+        }
+        if (removed) {
+            try { cardPanel.revalidate(); } catch (Throwable ignored) {}
+            try { cardPanel.repaint(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /**
+     * Close any open editors that belong to a folder (used when deleting a notebook).
+     */
+    public void closeEditorsInFolder(java.io.File folder) {
+        if (folder == null) return;
+        String root = folder.getAbsolutePath();
+        boolean removed = false;
+        for (main.ui.features.entries.NotebookEditor editor : new java.util.ArrayList<>(openEditors)) {
+            java.io.File current = editor.getCurrentFile();
+            if (current == null) continue;
+            String path = current.getAbsolutePath();
+            if (path.equals(root) || path.startsWith(root + java.io.File.separator)) {
+                openEditors.remove(editor);
+                removed = true;
+                try { cardPanel.remove(editor.getMainComponent()); } catch (Throwable ignored) {}
+                cardMap.entrySet().removeIf(e -> e.getValue() == editor.getMainComponent());
+            }
+        }
+        if (removed) {
+            try { cardPanel.revalidate(); } catch (Throwable ignored) {}
+            try { cardPanel.repaint(); } catch (Throwable ignored) {}
+        }
+    }
+
     private void installQuickCaptureHotkey() {
         boolean ok = GlobalHotkeyManager.registerQuickCapture(() -> SwingUtilities.invokeLater(this::showQuickCapture));
         if (!ok) {

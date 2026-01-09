@@ -9,7 +9,9 @@
 package main.ui.features.entries;
 
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.FileIO;
 import javax.swing.SwingUtilities;
+import java.io.File;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -131,6 +133,16 @@ public class NativeAutosaveCoordinator {
      */
     public static boolean hasRecovery(String filePath) {
         return NativeAccess.autosaveHasRecovery(filePath);
+    }
+
+    public static void cleanupArtifacts(String filePath) {
+        if (filePath == null || filePath.isBlank()) return;
+        try {
+            FileIO.deleteWithVerify(new File(filePath + ".sjrecovery").toPath());
+        } catch (Throwable ignored) {}
+        try {
+            FileIO.deleteWithVerify(new File(filePath + ".sjtmp").toPath());
+        } catch (Throwable ignored) {}
     }
     
     /**

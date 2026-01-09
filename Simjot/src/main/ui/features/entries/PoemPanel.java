@@ -1720,6 +1720,12 @@ public class PoemPanel extends AbstractEditorPanel {
     }
 
     @Override
+    public void removeNotify() {
+        try { if (autosaveCoordinator != null) autosaveCoordinator.shutdown(); } catch (Throwable ignored) {}
+        super.removeNotify();
+    }
+
+    @Override
     protected void performSave() {
         savePoem();
     }

@@ -88,6 +88,39 @@ public final class EntryHistoryManager {
         return snaps.isEmpty() ? null : snaps.get(snaps.size() - 1);
     }
 
+    public static void deleteHistory(File entryFile) {
+        if (entryFile == null) return;
+        File historyRoot = new File(entryFile.getParentFile(), HISTORY_DIR);
+        if (!historyRoot.exists()) return;
+        String entryName = entryFile.getName();
+
+        List<Snapshot> all = readManifest(historyRoot);
+        if (all.isEmpty()) return;
+
+        List<Snapshot> remaining = new ArrayList<>();
+        boolean removed = false;
+        for (Snapshot snap : all) {
+            if (entryName.equals(snap.entryName)) {
+                removed = true;
+                if (snap.file != null) {
+                    try { FileIO.deleteWithVerify(snap.file.toPath()); } catch (Throwable ignored) {}
+                }
+                continue;
+            }
+            remaining.add(snap);
+        }
+        if (!removed) return;
+        writeManifest(historyRoot, remaining);
+
+        if (remaining.isEmpty()) {
+            try { Files.deleteIfExists(new File(historyRoot, MANIFEST_NAME).toPath()); } catch (IOException ignored) {}
+            File[] leftovers = historyRoot.listFiles();
+            if (leftovers == null || leftovers.length == 0) {
+                try { Files.deleteIfExists(historyRoot.toPath()); } catch (IOException ignored) {}
+            }
+        }
+    }
+
     public static List<Snapshot> listSnapshots(File entryFile) {
         if (entryFile == null) return List.of();
         File historyRoot = new File(entryFile.getParentFile(), HISTORY_DIR);

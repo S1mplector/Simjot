@@ -1668,7 +1668,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     @Override
     public void removeNotify() {
-        try { if (autosaveCoordinator != null) autosaveCoordinator.stop(); } catch (Throwable ignored) {}
+        try { if (autosaveCoordinator != null) autosaveCoordinator.shutdown(); } catch (Throwable ignored) {}
         releaseEntryLock();
         super.removeNotify();
     }
