@@ -47,6 +47,7 @@ import java.nio.file.WatchService;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -58,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -100,6 +100,11 @@ import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroTheme;
 
 public class NotebookEntriesPanel extends JPanel {
+    private static final DateTimeFormatter ENTRY_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter ENTRY_DATE_FORMAT = DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy");
+    private static final ThreadLocal<SimpleDateFormat> ENTRY_LIST_DATE_FORMAT =
+            ThreadLocal.withInitial(() -> new SimpleDateFormat("dd/MM/yy HH:mm"));
+
     private final JournalApp app;
     private final NotebookInfo nb;
     private final DefaultListModel<EntryRow> model = new DefaultListModel<>();
@@ -116,6 +121,8 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
     private final java.util.Map<File,Integer> moodValues = new java.util.HashMap<>();
+    private final java.util.Map<File, LocalDate> entryDates = new java.util.HashMap<>();
+    private final java.util.Map<File, Long> entryTimestamps = new java.util.HashMap<>();
     private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
     private final java.util.Map<File, PreviewSnapshot> previewCache = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
@@ -419,6 +426,7 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
             @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
             @SuppressWarnings("unchecked") Map<File,Integer> moods = (Map<File,Integer>) list.getClientProperty("moods");
+            @SuppressWarnings("unchecked") Map<File,Long> timestamps = (Map<File,Long>) list.getClientProperty("entryTimestamps");
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
             @SuppressWarnings("unchecked") Map<File, PreviewSnapshot> previews = (Map<File, PreviewSnapshot>) list.getClientProperty("previews");
@@ -446,17 +454,26 @@ public class NotebookEntriesPanel extends JPanel {
             hovered = (hoverIdx == index);
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
-            Date created = file != null ? resolveCreatedDate(file) : new Date();
+            long createdTs = -1L;
+            if (file != null && timestamps != null) {
+                Long ts = timestamps.get(file);
+                if (ts != null) createdTs = ts;
+            }
+            if (createdTs <= 0 && file != null) {
+                createdTs = entrySortTimestamp(file);
+                if (timestamps != null) timestamps.put(file, createdTs);
+            }
+            Date created = createdTs > 0 ? new Date(createdTs) : new Date();
             Date modified = file != null ? new Date(file.lastModified()) : new Date();
 
             String displayTitle = (t==null||t.isBlank()) ? fallback : t;
             title.setText(displayTitle);
-            SimpleDateFormat df = new SimpleDateFormat("dd/MM/yy HH:mm");
             String size = file != null ? NotebookEntriesPanel.humanReadableSize(file.length()) : "-";
             
             // Update individual stat labels
             sizeLabel.setText(size);
             wordsLabel.setText(wc + " words");
+            SimpleDateFormat df = ENTRY_LIST_DATE_FORMAT.get();
             createdLabel.setText("Created " + df.format(created));
             editedLabel.setText("Edited " + df.format(modified));
             PreviewSnapshot snap = (file != null && previews != null) ? previews.get(file) : null;
@@ -779,6 +796,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("titles", titles);
         list.putClientProperty("wordCounts", wordCounts);
         list.putClientProperty("moods", moodValues);
+        list.putClientProperty("entryTimestamps", entryTimestamps);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
         list.putClientProperty("dashedBorderPhase", dashedBorderPhase);
@@ -930,6 +948,8 @@ public class NotebookEntriesPanel extends JPanel {
             titles.keySet().retainAll(current);
             wordCounts.keySet().retainAll(current);
             moodValues.keySet().retainAll(current);
+            entryDates.keySet().retainAll(current);
+            entryTimestamps.keySet().retainAll(current);
             metaComputed.retainAll(current);
             synchronized (metaQueued) { metaQueued.retainAll(current); }
             metaCache.keySet().retainAll(current);
@@ -956,6 +976,8 @@ public class NotebookEntriesPanel extends JPanel {
                 }
                 if (!wordCounts.containsKey(f)) wordCounts.put(f, 0);
                 if (!moodValues.containsKey(f)) moodValues.put(f, -1);
+                if (!entryTimestamps.containsKey(f)) entryTimestamps.put(f, entrySortTimestamp(f));
+                if (!entryDates.containsKey(f)) entryDates.put(f, resolveEntryDate(entryTimestamps.get(f)));
             }
             metaCache.clear();
             metaCache.putAll(refreshedCache);
@@ -966,6 +988,8 @@ public class NotebookEntriesPanel extends JPanel {
             titles.clear();
             wordCounts.clear();
             moodValues.clear();
+            entryDates.clear();
+            entryTimestamps.clear();
             metaComputed.clear();
             metaQueued.clear();
             metaCache.clear();
@@ -987,33 +1011,36 @@ public class NotebookEntriesPanel extends JPanel {
         try { scrollVal = listScroll.getVerticalScrollBar().getValue(); } catch (Throwable ignored) {}
 
         String q = searchField.getText()==null? "" : searchField.getText().toLowerCase();
-        List<File> filtered = allFiles.stream().filter(f -> {
-            String name = f.getName().toLowerCase();
-            String title = java.util.Objects.toString(titles.get(f), f.getName()).toLowerCase();
-            boolean textMatch = NativeAccess.searchContains(name, q) || NativeAccess.searchContains(title, q);
-            if (!textMatch) return false;
-            
+        boolean hasQuery = !q.isEmpty();
+        List<File> filtered = new ArrayList<>(allFiles.size());
+        for (File f : allFiles) {
+            if (hasQuery) {
+                String name = f.getName().toLowerCase();
+                String title = java.util.Objects.toString(titles.get(f), f.getName()).toLowerCase();
+                boolean textMatch = NativeAccess.searchContains(name, q) || NativeAccess.searchContains(title, q);
+                if (!textMatch) continue;
+            }
             // Apply date filter if set
             if (filterStartDate != null || filterEndDate != null) {
                 java.time.LocalDate fileDate = java.time.Instant.ofEpochMilli(f.lastModified())
                     .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
-                if (filterStartDate != null && fileDate.isBefore(filterStartDate)) return false;
-                if (filterEndDate != null && fileDate.isAfter(filterEndDate)) return false;
+                if (filterStartDate != null && fileDate.isBefore(filterStartDate)) continue;
+                if (filterEndDate != null && fileDate.isAfter(filterEndDate)) continue;
             }
-            return true;
-        }).collect(Collectors.toList());
+            filtered.add(f);
+        }
         Comparator<File> withinDate;
         boolean dateDesc = true;
         switch (sortBox.getSelectedIndex()) {
             case 0 -> {
                 dateDesc = true;
-                withinDate = Comparator.comparingLong(NotebookEntriesPanel::entrySortTimestamp)
+                withinDate = Comparator.comparingLong(this::entrySortTimestampCached)
                     .reversed()
                     .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
             }
             case 1 -> {
                 dateDesc = false;
-                withinDate = Comparator.comparingLong(NotebookEntriesPanel::entrySortTimestamp)
+                withinDate = Comparator.comparingLong(this::entrySortTimestampCached)
                     .thenComparing(f -> f.getName().toLowerCase(java.util.Locale.ROOT));
             }
             case 2 -> withinDate = Comparator
@@ -1532,7 +1559,7 @@ public class NotebookEntriesPanel extends JPanel {
         if (files == null || files.isEmpty()) return rows;
         LocalDate current = null;
         for (File f : files) {
-            LocalDate date = resolveEntryDate(f);
+            LocalDate date = entryDates.getOrDefault(f, resolveEntryDate(f));
             if (current == null || !current.equals(date)) {
                 current = date;
                 rows.add(EntryRow.header(date, formatEntryDate(date)));
@@ -1546,7 +1573,7 @@ public class NotebookEntriesPanel extends JPanel {
         if (files == null || files.isEmpty()) return java.util.Collections.emptyList();
         Map<LocalDate, List<File>> grouped = new HashMap<>();
         for (File f : files) {
-            LocalDate date = resolveEntryDate(f);
+            LocalDate date = entryDates.getOrDefault(f, resolveEntryDate(f));
             grouped.computeIfAbsent(date, k -> new ArrayList<>()).add(f);
         }
         List<LocalDate> dates = new ArrayList<>(grouped.keySet());
@@ -1810,41 +1837,50 @@ public class NotebookEntriesPanel extends JPanel {
 
     private static LocalDate resolveEntryDate(File file) {
         long ts = entrySortTimestamp(file);
-        return Instant.ofEpochMilli(ts)
+        return resolveEntryDate(ts);
+    }
+
+    private static LocalDate resolveEntryDate(long timestamp) {
+        return Instant.ofEpochMilli(timestamp)
             .atZone(ZoneId.systemDefault())
             .toLocalDate();
+    }
+
+    private long entrySortTimestampCached(File file) {
+        if (file == null) return System.currentTimeMillis();
+        Long cached = entryTimestamps.get(file);
+        if (cached != null) return cached;
+        long ts = entrySortTimestamp(file);
+        entryTimestamps.put(file, ts);
+        return ts;
     }
 
     private static long entrySortTimestamp(File file) {
         if (file == null) return System.currentTimeMillis();
         // Use creation date from filename (yyyyMMdd_HHmmss) so entries stay at their original date
-        try {
-            String nm = file.getName();
-            String base = nm.contains(".") ? nm.substring(0, nm.lastIndexOf('.')) : nm;
-            SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            return fmt.parse(base).getTime();
-        } catch (Exception ignored) {
-            // Fallback to last modified if filename doesn't match expected format
-            return file.lastModified();
-        }
-    }
-
-    private static Date resolveCreatedDate(File file) {
-        if (file == null) return new Date();
-        Date created = new Date(file.lastModified());
-        try {
-            String nm = file.getName();
-            String base = nm.contains(".") ? nm.substring(0, nm.lastIndexOf('.')) : nm;
-            SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            created = fmt.parse(base);
-        } catch (Exception ignored) {}
-        return created;
+        long parsed = parseTimestampFromName(file.getName());
+        if (parsed > 0) return parsed;
+        // Fallback to last modified if filename doesn't match expected format
+        return file.lastModified();
     }
 
     private static String formatEntryDate(LocalDate date) {
         if (date == null) return "";
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy");
-        return fmt.format(date);
+        return ENTRY_DATE_FORMAT.format(date);
+    }
+
+    private static long parseTimestampFromName(String name) {
+        if (name == null) return -1L;
+        String base = name;
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) base = name.substring(0, dot);
+        if (base.length() != 15 || base.charAt(8) != '_') return -1L;
+        try {
+            LocalDateTime dt = LocalDateTime.parse(base, ENTRY_TS_FORMAT);
+            return dt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (RuntimeException ignored) {
+            return -1L;
+        }
     }
 
     private static Font resolveClusterFont(float size) {

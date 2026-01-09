@@ -1179,6 +1179,7 @@ private class DrawingOverlay extends JComponent {
     // Optimizer for large stroke collections (quadtree spatial index)
     private long optimizerHandle = 0;
     private java.util.Map<DrawStroke, Integer> strokeToOptId = new java.util.HashMap<>();
+    private java.util.Map<Integer, DrawStroke> optIdToStroke = new java.util.HashMap<>();
     private static final int OPTIMIZER_THRESHOLD = 100; // Enable when stroke count exceeds this
     private boolean useOptimizer = false;
 
@@ -1476,8 +1477,8 @@ private class DrawingOverlay extends JComponent {
             List<DrawStroke> erased = new ArrayList<>();
             float px = p.x, py = p.y;
             
-            // Check all strokes directly
-            for (DrawStroke s : new ArrayList<>(drawStrokes)) {
+            // Query nearby strokes when the optimizer is available
+            for (DrawStroke s : queryStrokesNearPoint(p, r + 2)) {
                 boolean shouldErase = false;
                 
                 // For pen strokes, check floatPoints (what's actually rendered)
@@ -1580,6 +1581,8 @@ private class DrawingOverlay extends JComponent {
             if (optimizerHandle != 0) return;
             optimizerHandle = nativeDrawing.optimizerCreate(8192, 8192);
             if (optimizerHandle == 0) return;
+            strokeToOptId.clear();
+            optIdToStroke.clear();
             
             // Add all existing strokes to optimizer
             for (DrawStroke s : drawStrokes) {
@@ -1593,6 +1596,7 @@ private class DrawingOverlay extends JComponent {
             nativeDrawing.optimizerDestroy(optimizerHandle);
             optimizerHandle = 0;
             strokeToOptId.clear();
+            optIdToStroke.clear();
             useOptimizer = false;
         }
         
@@ -1614,6 +1618,7 @@ private class DrawingOverlay extends JComponent {
                                                           s.color.getRGB(), s.thickness);
             if (optId >= 0) {
                 strokeToOptId.put(s, optId);
+                optIdToStroke.put(optId, s);
             }
         }
         
@@ -1622,6 +1627,7 @@ private class DrawingOverlay extends JComponent {
             Integer optId = strokeToOptId.remove(s);
             if (optId != null) {
                 nativeDrawing.optimizerRemoveStroke(optimizerHandle, optId);
+                optIdToStroke.remove(optId);
             }
         }
         
@@ -1640,12 +1646,8 @@ private class DrawingOverlay extends JComponent {
                 int[] nearbyIds = nativeDrawing.optimizerQueryPoint(optimizerHandle, p.x, p.y, radius);
                 // Map optimizer IDs back to DrawStroke objects
                 for (int optId : nearbyIds) {
-                    for (java.util.Map.Entry<DrawStroke, Integer> e : strokeToOptId.entrySet()) {
-                        if (e.getValue() == optId) {
-                            result.add(e.getKey());
-                            break;
-                        }
-                    }
+                    DrawStroke stroke = optIdToStroke.get(optId);
+                    if (stroke != null) result.add(stroke);
                 }
             } else {
                 // Fallback: return all strokes (original behavior)
@@ -1863,45 +1865,44 @@ private class DrawingOverlay extends JComponent {
             
             // Render pen strokes with caching
             if (strokeBufferDirty || penStrokeBuffer == null) {
-                // Check if any pen strokes exist
-                boolean hasPenStrokes = false;
                 java.awt.Rectangle viewRect = new java.awt.Rectangle((int) offsetX, (int) offsetY, w, h);
-                for (DrawStroke s : drawStrokes) {
-                    if (s.tool == DrawTool.PEN && s.intersectsRect(viewRect, s.thickness + 4)) { hasPenStrokes = true; break; }
+                if (penStrokeBuffer == null || penStrokeBuffer.getWidth() != w || penStrokeBuffer.getHeight() != h) {
+                    penStrokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
                 }
-                
-                if (hasPenStrokes) {
-                    if (penStrokeBuffer == null || penStrokeBuffer.getWidth() != w || penStrokeBuffer.getHeight() != h) {
-                        penStrokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                    }
-                    
+
+                boolean drew = false;
+                if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
                     int[] pixels = ((java.awt.image.DataBufferInt) penStrokeBuffer.getRaster().getDataBuffer()).getData();
                     java.util.Arrays.fill(pixels, 0);
-                    
-                    if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
-                        for (DrawStroke s : drawStrokes) {
-                            if (s.tool != DrawTool.PEN || s.floatPoints.isEmpty()) continue;
-                            if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
-                            float[] xs = s.getPointsX();
-                            float[] ys = s.getPointsY();
-                            float[] thicknesses = getOrComputeThicknesses(s);
-                            nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
-                        }
-                    } else {
-                        // Java fallback with Path2D for better performance
-                        Graphics2D g2 = penStrokeBuffer.createGraphics();
-                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                        g2.translate(-offsetX, -offsetY);
-                        for (DrawStroke s : drawStrokes) {
-                            if (s.tool != DrawTool.PEN) continue;
-                            if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
-                            g2.setColor(s.color);
-                            g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                            drawStrokePath(g2, s.floatPoints);
-                        }
-                        g2.dispose();
+                    for (DrawStroke s : drawStrokes) {
+                        if (s.tool != DrawTool.PEN || s.floatPoints.isEmpty()) continue;
+                        if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
+                        float[] xs = s.getPointsX();
+                        float[] ys = s.getPointsY();
+                        float[] thicknesses = getOrComputeThicknesses(s);
+                        nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
+                        drew = true;
                     }
                 } else {
+                    // Java fallback with Path2D for better performance
+                    Graphics2D g2 = penStrokeBuffer.createGraphics();
+                    g2.setComposite(java.awt.AlphaComposite.Clear);
+                    g2.fillRect(0, 0, w, h);
+                    g2.setComposite(java.awt.AlphaComposite.SrcOver);
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.translate(-offsetX, -offsetY);
+                    for (DrawStroke s : drawStrokes) {
+                        if (s.tool != DrawTool.PEN) continue;
+                        if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
+                        g2.setColor(s.color);
+                        g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                        drawStrokePath(g2, s.floatPoints);
+                        drew = true;
+                    }
+                    g2.dispose();
+                }
+
+                if (!drew) {
                     // No pen strokes - clear the buffer so erased strokes don't persist
                     penStrokeBuffer = null;
                 }

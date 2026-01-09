@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 import javax.swing.BorderFactory;
@@ -170,6 +171,17 @@ public class PoemPanel extends AbstractEditorPanel {
     private javax.swing.Timer analysisDebounceTimer;
     private javax.swing.Timer analysisSplashTimer;
     private String analysisSplashOriginalStatus;
+    private String analysisPendingText = "";
+    private javax.swing.Timer statusDebounceTimer;
+    private static final int STATUS_DEBOUNCE_MS = 160;
+    private String statusPendingText = "";
+    private int statusPendingStanzas = 0;
+    private int textChangeId = 0;
+    private int lastRhymesTextChangeId = -1;
+    private String lastRhymesWordLower = null;
+    private int lastWordHighlightStart = -1;
+    private int lastWordHighlightEnd = -1;
+    private int lastWordHighlightTextChangeId = -1;
     private UndoRedoManager poemTitleUndoManager;
     private UndoRedoManager poemContentUndoManager;
     // Poetry toolkit controls
@@ -186,11 +198,16 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Helper: determine 0-based line index at caret (by counting newlines before caret)
     private int getCaretLineIndex() {
+        return getCaretLineIndex(poemEditor != null ? poemEditor.getText() : null);
+    }
+
+    private int getCaretLineIndex(String text) {
         try {
+            if (poemEditor == null) return -1;
             int pos = poemEditor.getCaretPosition();
-            String text = poemEditor.getText();
             if (text == null || text.isEmpty()) return -1;
-            if (pos < 0) pos = 0; if (pos > text.length()) pos = text.length();
+            if (pos < 0) pos = 0;
+            if (pos > text.length()) pos = text.length();
             int line = 0;
             for (int i = 0; i < pos; i++) if (text.charAt(i) == '\n') line++;
             return line;
@@ -199,13 +216,18 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Helper: determine word at current caret position
     private String getWordAtCaret() {
+        return getWordAtCaret(poemEditor != null ? poemEditor.getText() : null);
+    }
+
+    private String getWordAtCaret(String text) {
         try {
+            if (poemEditor == null) return null;
             int pos = poemEditor.getCaretPosition();
-            String text = poemEditor.getText();
             if (text == null || text.isEmpty()) return null;
-            if (pos < 0) pos = 0; if (pos > text.length()) pos = text.length();
+            if (pos < 0) pos = 0;
+            if (pos > text.length()) pos = text.length();
             int start = pos;
-            while (start > 0 && Character.isLetter(text.charAt(start-1))) start--;
+            while (start > 0 && Character.isLetter(text.charAt(start - 1))) start--;
             int end = pos;
             while (end < text.length() && Character.isLetter(text.charAt(end))) end++;
             if (end > start) return text.substring(start, end);
@@ -268,9 +290,10 @@ public class PoemPanel extends AbstractEditorPanel {
                 rhymesDock.setVisible(vis);
                 rhymesToggle.setSelected(vis);
                 if (vis) {
-                    String w = getWordAtCaret();
-                    rhymesDock.update(w, poemEditor.getText());
-                    updateWordHighlight();
+                    String text = poemEditor.getText();
+                    String w = getWordAtCaret(text);
+                    updateRhymesDock(w, text, true);
+                    updateWordHighlight(text);
                 } else {
                     clearWordHighlight();
                 }
@@ -491,47 +514,19 @@ public class PoemPanel extends AbstractEditorPanel {
         poemEditor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                updateStanzaCount(stanzaLabel);
-                if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
-                if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
-                if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
-                updateGuidedWriting();
-                schedulePoetryAnalysis();
+                handlePoemDocumentChange(stanzaLabel);
             }
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                updateStanzaCount(stanzaLabel);
-                if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
-                if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
-                if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
-                updateGuidedWriting();
-                schedulePoetryAnalysis();
+                handlePoemDocumentChange(stanzaLabel);
             }
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                updateStanzaCount(stanzaLabel);
-                if (statsPanel != null) statsPanel.updateFromText(poemEditor.getText());
-                if (rhymesDock != null && rhymesDock.isVisible()) rhymesDock.update(getWordAtCaret(), poemEditor.getText());
-                if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(getCaretLineIndex());
-                if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
-                updateGuidedWriting();
-                schedulePoetryAnalysis();
+                handlePoemDocumentChange(stanzaLabel);
             }
         });
         // Caret listener to update rhyme/synonyms for current word
-        poemEditor.addCaretListener(e -> {
-            if (rhymesDock != null && rhymesDock.isVisible()) {
-                String w = getWordAtCaret();
-                rhymesDock.update(w, poemEditor.getText());
-                updateWordHighlight();
-            }
-            if (statsPanel != null && statsPanel.isVisible()) {
-                statsPanel.setHighlightedLine(getCaretLineIndex());
-            }
-            updateGuidedWriting();
-        });
+        poemEditor.addCaretListener(e -> handlePoemCaretUpdate());
         // Autosave on title change as well
         poemTitleField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
@@ -613,24 +608,82 @@ public class PoemPanel extends AbstractEditorPanel {
         guidedFormConfig = guidedConfigForPreset((String) formPresetBox.getSelectedItem());
     }
 
-    private void updateStanzaCount(JLabel label) {
-        String text = poemEditor.getText();
-        if (text.trim().isEmpty()) {
-            label.setText("Stanzas: 0");
-            updateStatus(text, 0);
-            return;
-        }
-        // A stanza is a block of text separated by one or more newlines
-        int stanzas = text.split("\\n\\s*\\n").length;
+    private void updateStanzaCount(JLabel label, String text) {
+        int stanzas = countStanzas(text);
         label.setText("Stanzas: " + stanzas);
-        updateStatus(text, stanzas);
+        scheduleStatusUpdate(text, stanzas);
     }
 
     private void updateMetrics(JLabel stanzaLabel) {
         String text = poemEditor.getText();
-        int stanzas = text.trim().isEmpty() ? 0 : text.split("\\n\\s*\\n").length;
-        stanzaLabel.setText("Stanzas: " + stanzas);
-        updateStatus(text, stanzas);
+        updateStanzaCount(stanzaLabel, text);
+    }
+
+    private void updateRhymesDock(String word, String text, boolean force) {
+        if (rhymesDock == null || !rhymesDock.isVisible()) return;
+        String normalized = (word == null) ? null : word.toLowerCase(Locale.ROOT);
+        if (!force) {
+            if (normalized == null) {
+                if (lastRhymesWordLower == null && lastRhymesTextChangeId == textChangeId) return;
+            } else if (normalized.equals(lastRhymesWordLower) && lastRhymesTextChangeId == textChangeId) {
+                return;
+            }
+        }
+        rhymesDock.update(word, text);
+        lastRhymesWordLower = normalized;
+        lastRhymesTextChangeId = textChangeId;
+    }
+
+    private void handlePoemDocumentChange(JLabel stanzaLabel) {
+        if (poemEditor == null) return;
+        String text = poemEditor.getText();
+        textChangeId++;
+        updateStanzaCount(stanzaLabel, text);
+        if (statsPanel != null) statsPanel.updateFromText(text);
+        updateRhymesDock(getWordAtCaret(text), text, true);
+        int caretLine = getCaretLineIndex(text);
+        if (statsPanel != null && statsPanel.isVisible()) statsPanel.setHighlightedLine(caretLine);
+        if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
+        updateGuidedWriting(text, caretLine);
+        schedulePoetryAnalysis(text);
+    }
+
+    private void handlePoemCaretUpdate() {
+        if (poemEditor == null) return;
+        String text = poemEditor.getText();
+        int caretLine = getCaretLineIndex(text);
+        updateRhymesDock(getWordAtCaret(text), text, false);
+        updateWordHighlight(text);
+        if (statsPanel != null && statsPanel.isVisible()) {
+            statsPanel.setHighlightedLine(caretLine);
+        }
+        updateGuidedWriting(text, caretLine);
+    }
+
+    private int countStanzas(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        int count = 0;
+        boolean inStanza = false;
+        boolean lineHasContent = false;
+        int len = text.length();
+        for (int i = 0; i <= len; i++) {
+            char c = (i < len) ? text.charAt(i) : '\n';
+            if (c == '\r') continue;
+            if (c == '\n') {
+                if (lineHasContent) {
+                    if (!inStanza) {
+                        count++;
+                        inStanza = true;
+                    }
+                } else {
+                    inStanza = false;
+                }
+                lineHasContent = false;
+            } else if (!Character.isWhitespace(c)) {
+                lineHasContent = true;
+            }
+        }
+        return count;
     }
 
     private JPanel buildToolkitBar() {
@@ -838,6 +891,10 @@ public class PoemPanel extends AbstractEditorPanel {
     }
     
     private void updateGuidedWriting() {
+        updateGuidedWriting(poemEditor != null ? poemEditor.getText() : null, -1);
+    }
+
+    private void updateGuidedWriting(String text, int caretLineIndex) {
         clearGuidedHighlights();
         if (!guidedModeEnabled) {
             updateGuidedHint(null);
@@ -848,19 +905,18 @@ public class PoemPanel extends AbstractEditorPanel {
             return;
         }
         if (poemEditor == null) return;
-        
-        String text = poemEditor.getText();
+
         if (text == null) {
             updateGuidedHint(null);
             return;
         }
-        
-        int caretLine = getCaretLineIndex();
+
+        int caretLine = (caretLineIndex >= 0) ? caretLineIndex : getCaretLineIndex(text);
         if (caretLine < 0) {
             updateGuidedHint(null);
             return;
         }
-        
+
         GuidedLineState state = buildGuidedLineState(text, caretLine);
         if (guidedFormConfig.expectedLines > 0 && state.contentLineOrdinal >= guidedFormConfig.expectedLines) {
             updateGuidedHint("Guided: form complete (" + guidedFormConfig.expectedLines + " lines).");
@@ -1254,36 +1310,51 @@ public class PoemPanel extends AbstractEditorPanel {
     }
 
     private void schedulePoetryAnalysis() {
-        String text = poemEditor.getText();
-        if (analysisDebounceTimer != null && analysisDebounceTimer.isRunning()) {
-            analysisDebounceTimer.stop();
+        schedulePoetryAnalysis(poemEditor != null ? poemEditor.getText() : "");
+    }
+
+    private void schedulePoetryAnalysis(String text) {
+        analysisPendingText = (text == null) ? "" : text;
+        if (analysisDebounceTimer == null) {
+            analysisDebounceTimer = new javax.swing.Timer(500, e -> {
+                analysisDebounceTimer.stop();
+                runPoetryAnalysis(analysisPendingText);
+            });
+            analysisDebounceTimer.setRepeats(false);
         }
-        // Debounce: wait 500ms after last keystroke before running analysis
-        analysisDebounceTimer = new javax.swing.Timer(500, e -> {
-            analysisDebounceTimer.stop();
-            runPoetryAnalysis(text);
-        });
-        analysisDebounceTimer.setRepeats(false);
-        analysisDebounceTimer.start();
+        analysisDebounceTimer.restart();
+    }
+
+    private void scheduleStatusUpdate(String text, int stanzas) {
+        statusPendingText = (text == null) ? "" : text;
+        statusPendingStanzas = stanzas;
+        if (statusDebounceTimer == null) {
+            statusDebounceTimer = new javax.swing.Timer(STATUS_DEBOUNCE_MS, e -> {
+                statusDebounceTimer.stop();
+                updateStatus(statusPendingText, statusPendingStanzas);
+            });
+            statusDebounceTimer.setRepeats(false);
+        }
+        statusDebounceTimer.restart();
     }
 
     private void updateStatus(String text, int stanzas) {
+        String safeText = (text == null) ? "" : text;
         int words = 0;
-        int chars = text == null ? 0 : text.length();
-        Integer nativeWords = NativeAccess.textWordCount(text);
+        int chars = safeText.length();
+        Integer nativeWords = NativeAccess.textWordCount(safeText);
         if (nativeWords != null) {
             words = nativeWords;
-        } else if (text != null) {
-            String trimmed = text.trim();
+        } else {
+            String trimmed = safeText.trim();
             words = trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
         }
-        Integer nativeChars = NativeAccess.textCharCount(text, true);
+        Integer nativeChars = NativeAccess.textCharCount(safeText, true);
         if (nativeChars != null) chars = nativeChars;
         int minutes = Math.max(0, (int)Math.ceil(words / 200.0));
         if (statusLabel != null) {
             statusLabel.setText(String.format("Words: %d • Chars: %d • Stanzas: %d • ~%d min read", words, chars, stanzas, minutes));
         }
-        if (statsPanel != null && statsPanel.isVisible()) statsPanel.updateFromText(text);
     }
 
     private void showInspirationalWord() {
@@ -1687,11 +1758,16 @@ public class PoemPanel extends AbstractEditorPanel {
      * @return int[2] with {start, end} or null if no word
      */
     private int[] getWordBoundsAtCaret() {
+        return getWordBoundsAtCaret(poemEditor != null ? poemEditor.getText() : null);
+    }
+
+    private int[] getWordBoundsAtCaret(String text) {
         try {
+            if (poemEditor == null) return null;
             int pos = poemEditor.getCaretPosition();
-            String text = poemEditor.getText();
             if (text == null || text.isEmpty()) return null;
-            if (pos < 0) pos = 0; if (pos > text.length()) pos = text.length();
+            if (pos < 0) pos = 0;
+            if (pos > text.length()) pos = text.length();
             int start = pos;
             while (start > 0 && Character.isLetter(text.charAt(start - 1))) start--;
             int end = pos;
@@ -1705,15 +1781,34 @@ public class PoemPanel extends AbstractEditorPanel {
      * Update the word highlight overlay when rhymes dock is visible.
      */
     private void updateWordHighlight() {
+        updateWordHighlight(poemEditor != null ? poemEditor.getText() : null);
+    }
+
+    private void updateWordHighlight(String text) {
+        if (rhymesDock == null || !rhymesDock.isVisible()) {
+            clearWordHighlight();
+            return;
+        }
+
+        int[] bounds = getWordBoundsAtCaret(text);
+        if (bounds == null) {
+            clearWordHighlight();
+            return;
+        }
+        if (currentWordHighlight != null
+                && bounds[0] == lastWordHighlightStart
+                && bounds[1] == lastWordHighlightEnd
+                && lastWordHighlightTextChangeId == textChangeId) {
+            return;
+        }
+
         clearWordHighlight();
-        if (rhymesDock == null || !rhymesDock.isVisible()) return;
-        
-        int[] bounds = getWordBoundsAtCaret();
-        if (bounds == null) return;
-        
         try {
             Highlighter hl = poemEditor.getHighlighter();
             currentWordHighlight = hl.addHighlight(bounds[0], bounds[1], wordHighlightPainter);
+            lastWordHighlightStart = bounds[0];
+            lastWordHighlightEnd = bounds[1];
+            lastWordHighlightTextChangeId = textChangeId;
         } catch (BadLocationException ignored) {}
     }
     
@@ -1725,6 +1820,9 @@ public class PoemPanel extends AbstractEditorPanel {
             poemEditor.getHighlighter().removeHighlight(currentWordHighlight);
             currentWordHighlight = null;
         }
+        lastWordHighlightStart = -1;
+        lastWordHighlightEnd = -1;
+        lastWordHighlightTextChangeId = -1;
     }
     
     /**

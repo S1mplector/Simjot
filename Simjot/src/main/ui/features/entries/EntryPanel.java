@@ -129,6 +129,7 @@ public class EntryPanel extends AbstractEditorPanel {
     protected MoodSlider moodSlider;
     private DetailedMoodPanel detailedMoodPanel;
     private SaveIndicatorPanel saveIndicator;
+    private JLabel wordCountLabel;
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
@@ -174,6 +175,9 @@ public class EntryPanel extends AbstractEditorPanel {
     private UndoRedoManager contentUndoManager;
     // Reusable document listener reference so we can reattach after setDocument()
     private javax.swing.event.DocumentListener editorDocListener;
+    private javax.swing.Timer metricsDebounceTimer;
+    private static final int METRICS_DEBOUNCE_MS = 160;
+    private String lastTypingSnapshot = "";
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -677,22 +681,19 @@ public class EntryPanel extends AbstractEditorPanel {
         editorDocListener = new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                updateWordCount();
-                emitTypingSnapshot();
+                scheduleMetricsUpdate();
                 if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
             }
 
             @Override
             public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                updateWordCount();
-                emitTypingSnapshot();
+                scheduleMetricsUpdate();
                 if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
             }
 
             @Override
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                updateWordCount();
-                emitTypingSnapshot();
+                scheduleMetricsUpdate();
                 if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty();
             }
         };
@@ -789,7 +790,7 @@ public class EntryPanel extends AbstractEditorPanel {
         saveButton = EditorUIUtils.createSaveButton("Save Entry", this::saveEntry);
 
         // Word count label
-        JLabel wordCountLabel = new JLabel("Words: 0");
+        wordCountLabel = new JLabel("Words: 0");
         wordCountLabel.setForeground(Color.GRAY);
         wordCountLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
         wordCountLabel.setBorder(new EmptyBorder(0, 10, 5, 0));
@@ -820,16 +821,35 @@ public class EntryPanel extends AbstractEditorPanel {
 
     // --- Sim helpers ---
     private void emitTypingSnapshot() {
+        emitTypingSnapshot(contentArea != null ? contentArea.getText() : "");
+    }
+
+    private void emitTypingSnapshot(String text) {
         try {
-            Document doc = contentArea.getDocument();
-            String all = doc.getText(0, doc.getLength());
-            // Truncate to avoid huge payloads
+            if (text == null) return;
             int max = 500;
-            String snapshot = all.length() > max ? all.substring(all.length() - max) : all;
+            int len = text.length();
+            int start = Math.max(0, len - max);
+            String snapshot = text.substring(start);
+            if (snapshot.equals(lastTypingSnapshot)) return;
+            lastTypingSnapshot = snapshot;
             SimEventBus.get().emitTyping(snapshot);
-        } catch (BadLocationException | RuntimeException ignored) {
+        } catch (RuntimeException ignored) {
             // ignore
         }
+    }
+
+    private void scheduleMetricsUpdate() {
+        if (metricsDebounceTimer == null) {
+            metricsDebounceTimer = new javax.swing.Timer(METRICS_DEBOUNCE_MS, e -> {
+                metricsDebounceTimer.stop();
+                String text = contentArea != null ? contentArea.getText() : "";
+                updateWordCount(text);
+                emitTypingSnapshot(text);
+            });
+            metricsDebounceTimer.setRepeats(false);
+        }
+        metricsDebounceTimer.restart();
     }
 
     private void ensureSimStyles(){
@@ -1381,17 +1401,22 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private void updateWordCount() {
-        String text = contentArea.getText();
-        int count = countWords(text);
+        updateWordCount(contentArea != null ? contentArea.getText() : "");
+    }
 
-        // Find the word count label and update it
-        // This is a bit of a workaround, but effective for this structure
+    private void updateWordCount(String text) {
+        int count = countWords(text);
+        if (wordCountLabel != null) {
+            wordCountLabel.setText("Words: " + count);
+            return;
+        }
+
+        // Fallback: locate the label if for some reason it is not cached.
         for (Component comp : getComponents()) {
-            if (comp instanceof JPanel) {
-                JPanel bottomPanel = (JPanel) comp;
-                for (Component innerComp : bottomPanel.getComponents()) {
-                    if (innerComp instanceof JLabel && ((JLabel) innerComp).getText().startsWith("Words:")) {
-                        ((JLabel) innerComp).setText("Words: " + count);
+            if (comp instanceof JPanel panel) {
+                for (Component innerComp : panel.getComponents()) {
+                    if (innerComp instanceof JLabel label && label.getText().startsWith("Words:")) {
+                        label.setText("Words: " + count);
                         return;
                     }
                 }
