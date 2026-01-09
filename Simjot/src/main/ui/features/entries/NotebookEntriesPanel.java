@@ -55,10 +55,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
+import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -89,6 +91,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
@@ -1167,9 +1170,10 @@ public class NotebookEntriesPanel extends JPanel {
             return;
         }
         try { app.closeEditorsForFile(f); } catch (Throwable ignored) {}
+        Map<String, Set<Integer>> moodKeys = resolveMoodLogKeys(f);
         String title = java.util.Objects.toString(titles.get(f), f.getName());
         if (!f.exists()) {
-            cleanupDeletedEntry(f);
+            cleanupDeletedEntry(f, moodKeys);
             refreshImmediate();
             return;
         }
@@ -1183,16 +1187,17 @@ public class NotebookEntriesPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Could not delete '"+title+"'. The file may be in use.", "Delete Failed", JOptionPane.ERROR_MESSAGE);
             main.ui.components.toast.ToastOverlay.error("Failed to delete entry");
         } else {
-            cleanupDeletedEntry(f);
+            cleanupDeletedEntry(f, moodKeys);
             main.ui.components.toast.ToastOverlay.success("Entry deleted");
         }
         // Use immediate refresh for instant UI update after deletion
         refreshImmediate();
     }
 
-    private void cleanupDeletedEntry(File file) {
+    private void cleanupDeletedEntry(File file, Map<String, Set<Integer>> moodKeys) {
         cleanupEntryCaches(file);
         cleanupEntryArtifacts(file);
+        cleanupMoodLogEntries(moodKeys);
         clearLastOpenedMetadata(file);
     }
 
@@ -1251,6 +1256,134 @@ public class NotebookEntriesPanel extends JPanel {
         }
     }
 
+    private Map<String, Set<Integer>> resolveMoodLogKeys(File file) {
+        Map<String, Set<Integer>> keys = new HashMap<>();
+        if (nb == null || nb.getType() != NotebookInfo.Type.JOURNAL) return keys;
+
+        MoodMeta meta = readEntryMoodMeta(file);
+        if (meta != null) {
+            addMoodKey(keys, meta.savedAt, meta.mood);
+        }
+
+        String filenameStamp = extractFilenameTimestamp(file);
+        int mood = meta != null ? meta.mood : moodValues.getOrDefault(file, -1);
+        if (filenameStamp != null && mood >= 0) {
+            addMoodKey(keys, filenameStamp, mood);
+        }
+
+        try {
+            for (EntryHistoryManager.Snapshot snap : EntryHistoryManager.listSnapshots(file)) {
+                MoodMeta snapMeta = readEntryMoodMeta(snap.file);
+                if (snapMeta != null) {
+                    addMoodKey(keys, snapMeta.savedAt, snapMeta.mood);
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return keys;
+    }
+
+    private void addMoodKey(Map<String, Set<Integer>> keys, long savedAt, int mood) {
+        String stamp = formatMoodTimestamp(savedAt);
+        if (stamp == null) return;
+        addMoodKey(keys, stamp, mood);
+    }
+
+    private void addMoodKey(Map<String, Set<Integer>> keys, String stamp, int mood) {
+        if (stamp == null || stamp.isBlank() || mood < 0) return;
+        keys.computeIfAbsent(stamp, k -> new HashSet<>()).add(mood);
+    }
+
+    private String formatMoodTimestamp(long savedAt) {
+        if (savedAt <= 0) return null;
+        try {
+            return ENTRY_TS_FORMAT.format(Instant.ofEpochMilli(savedAt).atZone(ZoneId.systemDefault()));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private String extractFilenameTimestamp(File file) {
+        if (file == null) return null;
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        if (base.length() != 15 || base.charAt(8) != '_') return null;
+        for (int i = 0; i < base.length(); i++) {
+            if (i == 8) continue;
+            char c = base.charAt(i);
+            if (c < '0' || c > '9') return null;
+        }
+        return base;
+    }
+
+    private MoodMeta readEntryMoodMeta(File file) {
+        if (file == null || !file.exists()) return null;
+        try {
+            if (EncryptionManager.isEncrypted(file)) {
+                EncryptedMetadata.Meta meta = EncryptionManager.readMetadata(file);
+                if (meta == null) return null;
+                return new MoodMeta(meta.savedAt, meta.mood);
+            }
+            try (BufferedReader br = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+                String first = br.readLine();
+                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
+                if (meta == null) return null;
+                return new MoodMeta(meta.savedAt, meta.mood);
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private void cleanupMoodLogEntries(Map<String, Set<Integer>> moodKeys) {
+        if (moodKeys == null || moodKeys.isEmpty()) return;
+        try {
+            File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
+            if (!moodFile.exists()) return;
+            List<String> remaining = new ArrayList<>();
+            boolean removed = false;
+            try (BufferedReader br = Files.newBufferedReader(moodFile.toPath(), StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (line.isBlank()) {
+                        remaining.add(line);
+                        continue;
+                    }
+                    String[] parts = line.split(",", -1);
+                    if (parts.length < 2) {
+                        remaining.add(line);
+                        continue;
+                    }
+                    String stamp = parts[0].trim();
+                    Set<Integer> moods = moodKeys.get(stamp);
+                    if (moods == null || moods.isEmpty()) {
+                        remaining.add(line);
+                        continue;
+                    }
+                    int value;
+                    try {
+                        value = Integer.parseInt(parts[1].trim());
+                    } catch (NumberFormatException ex) {
+                        remaining.add(line);
+                        continue;
+                    }
+                    if (moods.contains(value)) {
+                        removed = true;
+                        continue;
+                    }
+                    remaining.add(line);
+                }
+            }
+            if (!removed) return;
+            StringBuilder sb = new StringBuilder(Math.max(64, remaining.size() * 24));
+            for (String line : remaining) {
+                sb.append(line).append('\n');
+            }
+            FileIO.atomicWrite(moodFile.toPath(), sb.toString(), StandardCharsets.UTF_8, true, true);
+        } catch (Throwable ignored) {}
+    }
+
     private void clearLastOpenedMetadata(File file) {
         if (file == null) return;
         try {
@@ -1261,6 +1394,16 @@ public class NotebookEntriesPanel extends JPanel {
                 store.save();
             }
         } catch (Throwable ignored) {}
+    }
+
+    private static final class MoodMeta {
+        final long savedAt;
+        final int mood;
+
+        private MoodMeta(long savedAt, int mood) {
+            this.savedAt = savedAt;
+            this.mood = mood;
+        }
     }
 
     private void deleteNotebook(){
