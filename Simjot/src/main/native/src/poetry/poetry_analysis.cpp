@@ -53,6 +53,8 @@ std::string to_lower(std::string_view sv) {
 std::vector<std::string> split_words(std::string_view text) {
     std::vector<std::string> words;
     std::string current;
+    words.reserve(text.size() / 4);
+    current.reserve(16);
     
     for (char c : text) {
         if (std::isalpha(static_cast<unsigned char>(c)) || c == '\'') {
@@ -355,6 +357,33 @@ static std::vector<SoundDevice> g_sound_devices;
 static std::unordered_map<std::string, double> g_themes;
 static VocabStats g_vocab_stats;
 static std::vector<int> g_line_syllable_counts;
+static thread_local PoetryAnalysisResult g_analysis_result;
+
+const char* detect_meter_name(const std::vector<int>& syllable_counts) {
+    if (syllable_counts.empty()) return "";
+
+    std::unordered_map<int, int> counts;
+    counts.reserve(syllable_counts.size());
+    for (int s : syllable_counts) {
+        counts[s]++;
+    }
+
+    int most_common = 0;
+    int max_freq = 0;
+    for (const auto& [syllables, freq] : counts) {
+        if (freq > max_freq) {
+            max_freq = freq;
+            most_common = syllables;
+        }
+    }
+
+    if (most_common == 10) return "iambic pentameter";
+    if (most_common == 8) return "tetrameter";
+    if (most_common == 12) return "alexandrine";
+    if (most_common == 14) return "fourteener";
+    if (most_common == 5 || most_common == 7) return "haiku-like";
+    return "free verse";
+}
 
 } /* anonymous namespace */
 
@@ -539,32 +568,84 @@ int32_t simjot_poetry_get_line_syllables(int32_t line_index) {
 int32_t simjot_poetry_detect_meter(char* output, int32_t output_len) {
     if (!output || output_len <= 0 || g_line_syllable_counts.empty()) return 0;
     
-    /* Find most common syllable count */
-    std::unordered_map<int, int> counts;
-    for (int s : g_line_syllable_counts) {
-        counts[s]++;
-    }
-    
-    int most_common = 0;
-    int max_freq = 0;
-    for (const auto& [syllables, freq] : counts) {
-        if (freq > max_freq) {
-            max_freq = freq;
-            most_common = syllables;
-        }
-    }
-    
-    const char* meter = "free verse";
-    if (most_common == 10) meter = "iambic pentameter";
-    else if (most_common == 8) meter = "tetrameter";
-    else if (most_common == 12) meter = "alexandrine";
-    else if (most_common == 14) meter = "fourteener";
-    else if (most_common == 5 || most_common == 7) meter = "haiku-like";
+    const char* meter = detect_meter_name(g_line_syllable_counts);
     
     std::strncpy(output, meter, output_len - 1);
     output[output_len - 1] = '\0';
 
     return static_cast<int32_t>(std::min<std::size_t>(std::strlen(meter), output_len - 1));
+}
+
+const PoetryAnalysisResult* simjot_poetry_analyze_all(const char* text) {
+    if (!text) return nullptr;
+
+    g_sound_devices.clear();
+    g_themes.clear();
+    g_line_syllable_counts.clear();
+    g_vocab_stats = VocabStats{};
+
+    std::string_view sv(text);
+    auto lines = split_lines(sv);
+
+    std::vector<std::string> all_words;
+    all_words.reserve(sv.size() / 4);
+
+    int line_num = 0;
+    for (const auto& line : lines) {
+        auto words = split_words(line);
+        int syllables = 0;
+        for (const auto& word : words) {
+            syllables += count_syllables(word);
+            all_words.push_back(word);
+        }
+        g_line_syllable_counts.push_back(syllables);
+
+        if (!words.empty()) {
+            auto alliterations = find_alliteration(words, line_num);
+            auto assonances = find_assonance(words, line_num);
+            auto consonances = find_consonance(words, line_num);
+
+            g_sound_devices.insert(g_sound_devices.end(),
+                std::make_move_iterator(alliterations.begin()),
+                std::make_move_iterator(alliterations.end()));
+            g_sound_devices.insert(g_sound_devices.end(),
+                std::make_move_iterator(assonances.begin()),
+                std::make_move_iterator(assonances.end()));
+            g_sound_devices.insert(g_sound_devices.end(),
+                std::make_move_iterator(consonances.begin()),
+                std::make_move_iterator(consonances.end()));
+        }
+
+        line_num++;
+    }
+
+    g_vocab_stats = compute_vocab_stats(all_words);
+    g_themes = analyze_themes(all_words);
+
+    std::string dominant_theme;
+    double best_score = 0.0;
+    for (const auto& [theme, score] : g_themes) {
+        if (score > best_score) {
+            best_score = score;
+            dominant_theme = theme;
+        }
+    }
+
+    const char* meter = detect_meter_name(g_line_syllable_counts);
+
+    g_analysis_result.ttr = g_vocab_stats.lexical_diversity;
+    g_analysis_result.sound_device_count = static_cast<int32_t>(g_sound_devices.size());
+    g_analysis_result.unique_words = g_vocab_stats.unique_words;
+    g_analysis_result.total_words = g_vocab_stats.total_words;
+
+    std::strncpy(g_analysis_result.dominant_theme, dominant_theme.c_str(),
+                 sizeof(g_analysis_result.dominant_theme) - 1);
+    g_analysis_result.dominant_theme[sizeof(g_analysis_result.dominant_theme) - 1] = '\0';
+    std::strncpy(g_analysis_result.dominant_meter, meter,
+                 sizeof(g_analysis_result.dominant_meter) - 1);
+    g_analysis_result.dominant_meter[sizeof(g_analysis_result.dominant_meter) - 1] = '\0';
+
+    return &g_analysis_result;
 }
 
 } /* extern "C" */

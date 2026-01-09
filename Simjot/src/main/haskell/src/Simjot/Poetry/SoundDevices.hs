@@ -23,10 +23,11 @@ module Simjot.Poetry.SoundDevices
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Char (toLower)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.List (groupBy, nub)
+import Data.List (foldl')
+import Data.Set (Set)
+import qualified Data.Set as S
 
 import Simjot.Poetry.Internal (isVowel)
 
@@ -189,7 +190,7 @@ detectInternalRhyme ws =
       let end = T.toLower $ T.takeEnd 2 w
       in if T.length end < 2 then m else M.insertWith (++) end [w] m
     hasMultiple (_, xs) = length xs >= 2
-    toDevice (sound, xs) = SoundDevice InternalRhyme 0 sound (nub xs)
+    toDevice (sound, xs) = SoundDevice InternalRhyme 0 sound (uniqueTexts xs)
       (min 1.0 (fromIntegral (length xs) / 4.0))
 
 -- | Detect rich rhyme (matching last 3 letters)
@@ -202,7 +203,7 @@ detectRichRhyme ws =
       let end = T.toLower $ T.takeEnd 3 w
       in if T.length end < 3 then m else M.insertWith (++) end [w] m
     hasMultiple (_, xs) = length xs >= 2
-    toDevice (sound, xs) = SoundDevice RichRhyme 0 sound (nub xs)
+    toDevice (sound, xs) = SoundDevice RichRhyme 0 sound (uniqueTexts xs)
       (min 1.0 (fromIntegral (length xs) / 3.0))
 
 -- | Detect pararhyme (same consonants, varying vowels)
@@ -215,15 +216,23 @@ detectPararhyme ws =
       let consonants = T.filter (not . isVowel) (T.toLower w)
       in if T.length consonants < 2 then m else M.insertWith (++) consonants [w] m
     hasMultiple (_, xs) = length xs >= 2
-    toDevice (sound, xs) = SoundDevice Pararhyme 0 sound (nub xs)
+    toDevice (sound, xs) = SoundDevice Pararhyme 0 sound (uniqueTexts xs)
       (min 1.0 (fromIntegral (length xs) / 4.0))
 
 -- | Phonetic density: ratio of letters that are vowels or common digraphs
 calculatePhoneticDensity :: [Text] -> Double
 calculatePhoneticDensity ws =
-  let chars = T.length (T.concat ws)
-      vowels = T.length (T.filter isVowel (T.concat ws))
+  let allChars = T.concat ws
+      chars = T.length allChars
+      vowels = T.length (T.filter isVowel allChars)
   in if chars == 0 then 0 else fromIntegral vowels / fromIntegral chars
+
+uniqueTexts :: [Text] -> [Text]
+uniqueTexts = reverse . snd . foldl' step (S.empty, [])
+  where
+    step (seen, acc) t
+      | S.member t seen = (seen, acc)
+      | otherwise = (S.insert t seen, t : acc)
 
 -- | Prosodic feature summary (simple blend of device strengths)
 analyzeProsodicFeatures :: [SoundDevice] -> Double

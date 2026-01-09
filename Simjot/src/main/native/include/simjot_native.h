@@ -216,6 +216,15 @@ int32_t simjot_poetry_count_syllables(const char* word);
 int32_t simjot_poetry_analyze_meter(const char* text);
 int32_t simjot_poetry_get_line_syllables(int32_t line_index);
 int32_t simjot_poetry_detect_meter(char* output, int32_t output_len);
+typedef struct PoetryAnalysisResult {
+    double ttr;
+    int32_t sound_device_count;
+    int32_t unique_words;
+    int32_t total_words;
+    char dominant_theme[64];
+    char dominant_meter[64];
+} PoetryAnalysisResult;
+const PoetryAnalysisResult* simjot_poetry_analyze_all(const char* text);
 
 /* Rhyme engine */
 void simjot_rhyme_add_word(const char* word);
