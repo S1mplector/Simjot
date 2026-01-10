@@ -31,6 +31,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -51,18 +53,21 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
+import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JTextPane;
 import javax.swing.JViewport;
 import javax.swing.JWindow;
 import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -85,6 +90,7 @@ public class NotetakingPanel extends EntryPanel {
     private boolean overlayVisible = true;  // paint overlay visibility
     private DrawTool currentDrawTool = DrawTool.PEN;
     private final List<DrawStroke> drawStrokes = new ArrayList<>(); // persisted per-note
+    private final List<FloatingImage> floatingImages = new ArrayList<>(); // per-note floating images
     private final List<UndoAction> undoStack = new ArrayList<>(); // for undo/redo
     private final List<UndoAction> redoStack = new ArrayList<>();
     private JWindow colorWindow;
@@ -143,6 +149,12 @@ public class NotetakingPanel extends EntryPanel {
     @Override
     protected boolean supportsGuidanceButton() {
         return false;
+    }
+
+    @Override
+    public void removeNotify() {
+        try { if (drawingOverlay != null) drawingOverlay.shutdown(); } catch (Throwable ignored) {}
+        super.removeNotify();
     }
 
     // Install Draw toggle + tool chooser into the right toolbar
@@ -551,6 +563,40 @@ public class NotetakingPanel extends EntryPanel {
         } catch (Throwable ignored) {}
     }
 
+    public boolean promoteInlineImage(JTextPane editor, int startOffset, ImageIcon icon, File sourceFile, java.awt.Rectangle viewBounds) {
+        if (editor == null || icon == null) return false;
+        java.awt.Rectangle bounds = viewBounds;
+        if (bounds == null) {
+            try {
+                java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
+                if (r2 != null) {
+                    bounds = r2.getBounds();
+                    bounds.width = icon.getIconWidth();
+                    bounds.height = icon.getIconHeight();
+                }
+            } catch (Throwable ignored) {}
+        }
+        if (bounds == null) return false;
+
+        BufferedImage img = toBufferedImage(icon.getImage());
+        if (img == null) return false;
+        File stored = ensureFloatingImageFile(sourceFile, img);
+        JViewport vp = null;
+        java.awt.Container parent = editor.getParent();
+        if (parent instanceof JViewport) vp = (JViewport) parent;
+        Point vpPos = vp != null ? vp.getViewPosition() : new Point(0, 0);
+        int x = bounds.x + vpPos.x;
+        int y = bounds.y + vpPos.y;
+
+        FloatingImage fi = new FloatingImage(stored, img, x, y, icon.getIconWidth(), icon.getIconHeight());
+        floatingImages.add(fi);
+        try {
+            editor.getStyledDocument().remove(startOffset, 1);
+        } catch (BadLocationException ignored) {}
+        if (drawingOverlay != null) drawingOverlay.repaint();
+        return true;
+    }
+
     @Override
     public String fileExtension() {
         return ".ntk";
@@ -580,11 +626,20 @@ public class NotetakingPanel extends EntryPanel {
                 String pts = toPointsCsv(s.points);
                 out.println("S|" + (s.tool==DrawTool.PEN?"pen":"hl") + "|" + c.getRed()+","+c.getGreen()+","+c.getBlue()+","+c.getAlpha() + "|" + s.thickness + "|" + pts);
             }
+            for (FloatingImage img : floatingImages) {
+                File stored = ensureFloatingImageFile(img.sourceFile, img.image);
+                if (stored == null) continue;
+                img.sourceFile = stored;
+                String rel = makeRelativeToJournal(stored);
+                if (rel == null) continue;
+                out.println("I|" + rel + "|" + img.x + "|" + img.y + "|" + img.width + "|" + img.height);
+            }
         } catch (IOException ignored) { }
     }
 
     private void loadDrawingSidecar(File mainFile) {
         drawStrokes.clear();
+        floatingImages.clear();
         if (mainFile == null) return;
         File side = new File(mainFile.getAbsolutePath() + ".draw");
         if (!side.exists()) return;
@@ -593,20 +648,101 @@ public class NotetakingPanel extends EntryPanel {
             if (first == null || !first.startsWith("DRAWV1")) return;
             String line;
             while ((line = in.readLine()) != null) {
-                if (!line.startsWith("S|")) continue;
-                String[] parts = line.split("\\|");
-                if (parts.length < 5) continue;
-                DrawTool tool = "pen".equals(parts[1]) ? DrawTool.PEN : DrawTool.HIGHLIGHT;
-                String[] rgba = parts[2].split(",");
-                int r = Integer.parseInt(rgba[0]);
-                int g = Integer.parseInt(rgba[1]);
-                int b = Integer.parseInt(rgba[2]);
-                int a = Integer.parseInt(rgba[3]);
-                int thick = Integer.parseInt(parts[3]);
-                List<Point> pts = fromPointsCsv(parts[4]);
-                drawStrokes.add(new DrawStroke(tool, new Color(r,g,b,a), thick, pts));
+                if (line.startsWith("S|")) {
+                    String[] parts = line.split("\\|");
+                    if (parts.length < 5) continue;
+                    DrawTool tool = "pen".equals(parts[1]) ? DrawTool.PEN : DrawTool.HIGHLIGHT;
+                    String[] rgba = parts[2].split(",");
+                    int r = Integer.parseInt(rgba[0]);
+                    int g = Integer.parseInt(rgba[1]);
+                    int b = Integer.parseInt(rgba[2]);
+                    int a = Integer.parseInt(rgba[3]);
+                    int thick = Integer.parseInt(parts[3]);
+                    List<Point> pts = fromPointsCsv(parts[4]);
+                    drawStrokes.add(new DrawStroke(tool, new Color(r,g,b,a), thick, pts));
+                } else if (line.startsWith("I|")) {
+                    String[] parts = line.split("\\|");
+                    if (parts.length < 6) continue;
+                    File imgFile = resolveImageFile(parts[1]);
+                    if (imgFile == null || !imgFile.exists()) continue;
+                    int x = Integer.parseInt(parts[2]);
+                    int y = Integer.parseInt(parts[3]);
+                    int w = Integer.parseInt(parts[4]);
+                    int h = Integer.parseInt(parts[5]);
+                    BufferedImage img = null;
+                    try { img = ImageIO.read(imgFile); } catch (Throwable ignored) {}
+                    if (img == null) continue;
+                    if (w > 0 && h > 0) {
+                        img = scaleToSize(img, w, h);
+                    }
+                    floatingImages.add(new FloatingImage(imgFile, img, x, y, img.getWidth(), img.getHeight()));
+                }
             }
         } catch (Exception ignored) {}
+    }
+
+    private File ensureFloatingImageFile(File sourceFile, BufferedImage img) {
+        if (journalFolder == null) return sourceFile;
+        File dir = new File(journalFolder, "attachments");
+        if (!dir.exists()) dir.mkdirs();
+        File target = sourceFile;
+        boolean inJournal = target != null && target.getAbsolutePath().startsWith(journalFolder.getAbsolutePath());
+        if (img == null) {
+            return (target != null && target.exists()) ? target : null;
+        }
+        if (target == null || !inJournal) {
+            target = new File(dir, timestampName() + ".png");
+        }
+        if (img != null && target != null && !target.exists()) {
+            try { ImageIO.write(img, "PNG", target); } catch (IOException ignored) {}
+        }
+        return target;
+    }
+
+    private File resolveImageFile(String rel) {
+        if (rel == null || rel.isBlank()) return null;
+        File f = new File(rel);
+        if (!f.isAbsolute()) f = new File(journalFolder, rel);
+        return f;
+    }
+
+    private String makeRelativeToJournal(File f) {
+        if (f == null || journalFolder == null) return null;
+        String base = journalFolder.getAbsolutePath();
+        String path = f.getAbsolutePath();
+        if (path.startsWith(base)) {
+            String rel = path.substring(base.length());
+            if (rel.startsWith(File.separator)) rel = rel.substring(1);
+            return rel.replace('\\', '/');
+        }
+        return path;
+    }
+
+    private static String timestampName() {
+        return new java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new java.util.Date());
+    }
+
+    private static BufferedImage toBufferedImage(java.awt.Image img) {
+        if (img == null) return null;
+        if (img instanceof BufferedImage bi) return bi;
+        BufferedImage b = new BufferedImage(img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = b.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.drawImage(img, 0, 0, null);
+        g2.dispose();
+        return b;
+    }
+
+    private static BufferedImage scaleToSize(BufferedImage src, int targetW, int targetH) {
+        if (src == null || targetW <= 0 || targetH <= 0) return src;
+        if (src.getWidth() == targetW && src.getHeight() == targetH) return src;
+        BufferedImage out = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(src, 0, 0, targetW, targetH, null);
+        g2.dispose();
+        return out;
     }
 
     private static String toPointsCsv(List<Point> pts) {
@@ -702,6 +838,10 @@ public class NotetakingPanel extends EntryPanel {
                 contentArea.doLayout();
             };
             if (SwingUtilities.isEventDispatchThread()) print.run(); else SwingUtilities.invokeAndWait(print);
+            for (FloatingImage imgEntry : floatingImages) {
+                if (imgEntry.image == null) continue;
+                g2.drawImage(imgEntry.image, imgEntry.x, imgEntry.y, imgEntry.width, imgEntry.height, null);
+            }
             for (DrawStroke s : drawStrokes) {
                 g2.setColor(s.color);
                 g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
@@ -762,6 +902,28 @@ public class NotetakingPanel extends EntryPanel {
 
     // --- Drawing model & overlay ---
     private enum DrawTool { PEN, HIGHLIGHT, ERASER, LASSO }
+
+    private static class FloatingImage {
+        private File sourceFile;
+        private BufferedImage image;
+        private int x;
+        private int y;
+        private int width;
+        private int height;
+
+        private FloatingImage(File sourceFile, BufferedImage image, int x, int y, int width, int height) {
+            this.sourceFile = sourceFile;
+            this.image = image;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+
+        private java.awt.Rectangle bounds() {
+            return new java.awt.Rectangle(x, y, width, height);
+        }
+    }
     
     // Enhanced stroke with float precision and timestamps for velocity-based rendering
     private static class DrawStroke {
@@ -1195,6 +1357,7 @@ private class DrawingOverlay extends JComponent {
     // Lasso selection state
     private List<Point> lassoPath = new ArrayList<>();
     private java.util.Set<DrawStroke> selectedStrokes = new java.util.HashSet<>();
+    private java.util.Set<FloatingImage> selectedImages = new java.util.HashSet<>();
     private java.awt.Rectangle selectionBounds = null;
     private boolean isDraggingSelection = false;
     private Point dragStart = null;
@@ -1460,6 +1623,16 @@ private class DrawingOverlay extends JComponent {
             revalidate();
             repaint();
         }
+        void shutdown() {
+            try { strokeWorker.shutdownNow(); } catch (Throwable ignored) {}
+            try { disableOptimizer(); } catch (Throwable ignored) {}
+            try {
+                if (nativeDrawing != null && nativeStrokeManager != 0) {
+                    nativeDrawing.strokeManagerDestroy(nativeStrokeManager);
+                    nativeStrokeManager = 0;
+                }
+            } catch (Throwable ignored) {}
+        }
         @Override public boolean contains(int x, int y) {
             // When not capturing, pretend we are not under the mouse so the text editor receives events
             return capture && super.contains(x, y);
@@ -1680,10 +1853,12 @@ private class DrawingOverlay extends JComponent {
                 // Move selected strokes
                 int dx = p.x - dragStart.x;
                 int dy = p.y - dragStart.y;
-                moveSelectedStrokes(dx, dy);
+                moveSelectedItems(dx, dy);
                 dragStart = p;
-                strokeBufferDirty = true;
-                highlightBufferDirty = true;
+                if (!selectedStrokes.isEmpty()) {
+                    strokeBufferDirty = true;
+                    highlightBufferDirty = true;
+                }
                 repaint();
             } else {
                 // Continue drawing lasso path
@@ -1698,14 +1873,15 @@ private class DrawingOverlay extends JComponent {
                 dragStart = null;
             } else if (lassoPath.size() >= 3) {
                 // Complete lasso and select strokes
-                selectStrokesInLasso();
+                selectItemsInLasso();
                 lassoPath.clear();
             }
             repaint();
         }
         
-        private void selectStrokesInLasso() {
+        private void selectItemsInLasso() {
             selectedStrokes.clear();
+            selectedImages.clear();
             float[] lassoX = new float[lassoPath.size()];
             float[] lassoY = new float[lassoPath.size()];
             for (int i = 0; i < lassoPath.size(); i++) {
@@ -1737,6 +1913,13 @@ private class DrawingOverlay extends JComponent {
                 
                 if (selected) selectedStrokes.add(s);
             }
+
+            for (FloatingImage img : floatingImages) {
+                if (img == null || img.width <= 0 || img.height <= 0) continue;
+                if (lassoHitsRect(lassoX, lassoY, img.bounds())) {
+                    selectedImages.add(img);
+                }
+            }
             
             updateSelectionBounds();
         }
@@ -1763,9 +1946,36 @@ private class DrawingOverlay extends JComponent {
             }
             return inside;
         }
+
+        private boolean lassoHitsRect(float[] lassoX, float[] lassoY, java.awt.Rectangle rect) {
+            if (rect == null || rect.width <= 0 || rect.height <= 0 || lassoX.length < 3) return false;
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
+            float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
+            for (int i = 0; i < lassoX.length; i++) {
+                minX = Math.min(minX, lassoX[i]);
+                minY = Math.min(minY, lassoY[i]);
+                maxX = Math.max(maxX, lassoX[i]);
+                maxY = Math.max(maxY, lassoY[i]);
+            }
+            if (rect.x > maxX || rect.y > maxY || rect.x + rect.width < minX || rect.y + rect.height < minY) {
+                return false;
+            }
+            for (int i = 0; i < lassoX.length; i++) {
+                if (rect.contains(lassoX[i], lassoY[i])) return true;
+            }
+            int rx = rect.x;
+            int ry = rect.y;
+            int rw = rect.width;
+            int rh = rect.height;
+            if (pointInPolygon(rx, ry, lassoX, lassoY)) return true;
+            if (pointInPolygon(rx + rw, ry, lassoX, lassoY)) return true;
+            if (pointInPolygon(rx, ry + rh, lassoX, lassoY)) return true;
+            if (pointInPolygon(rx + rw, ry + rh, lassoX, lassoY)) return true;
+            return false;
+        }
         
         private void updateSelectionBounds() {
-            if (selectedStrokes.isEmpty()) {
+            if (selectedStrokes.isEmpty() && selectedImages.isEmpty()) {
                 selectionBounds = null;
                 return;
             }
@@ -1779,11 +1989,21 @@ private class DrawingOverlay extends JComponent {
                     if (p.y > maxY) maxY = p.y;
                 }
             }
+            for (FloatingImage img : selectedImages) {
+                int x1 = img.x;
+                int y1 = img.y;
+                int x2 = img.x + img.width;
+                int y2 = img.y + img.height;
+                if (x1 < minX) minX = x1;
+                if (y1 < minY) minY = y1;
+                if (x2 > maxX) maxX = x2;
+                if (y2 > maxY) maxY = y2;
+            }
             int pad = 8;
             selectionBounds = new java.awt.Rectangle(minX - pad, minY - pad, maxX - minX + 2*pad, maxY - minY + 2*pad);
         }
         
-        private void moveSelectedStrokes(int dx, int dy) {
+        private void moveSelectedItems(int dx, int dy) {
             for (DrawStroke s : selectedStrokes) {
                 for (Point p : s.points) {
                     p.x += dx;
@@ -1797,6 +2017,10 @@ private class DrawingOverlay extends JComponent {
                 // Sync with optimizer
                 moveStrokeInOptimizer(s, dx, dy);
             }
+            for (FloatingImage img : selectedImages) {
+                img.x += dx;
+                img.y += dy;
+            }
             if (selectionBounds != null) {
                 selectionBounds.translate(dx, dy);
             }
@@ -1804,6 +2028,7 @@ private class DrawingOverlay extends JComponent {
         
         private void clearSelection() {
             selectedStrokes.clear();
+            selectedImages.clear();
             selectionBounds = null;
             lassoPath.clear();
         }
@@ -1861,6 +2086,20 @@ private class DrawingOverlay extends JComponent {
                 highlightBufferDirty = true;
                 lastBufferWidth = w;
                 lastBufferHeight = h;
+            }
+
+            if (!floatingImages.isEmpty()) {
+                Graphics2D ig = (Graphics2D) g.create();
+                ig.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                ig.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                for (FloatingImage img : floatingImages) {
+                    if (img == null || img.image == null) continue;
+                    int sx = img.x - (int) offsetX;
+                    int sy = img.y - (int) offsetY;
+                    if (sx + img.width < 0 || sy + img.height < 0 || sx > w || sy > h) continue;
+                    ig.drawImage(img.image, sx, sy, img.width, img.height, null);
+                }
+                ig.dispose();
             }
             
             // Render pen strokes with caching

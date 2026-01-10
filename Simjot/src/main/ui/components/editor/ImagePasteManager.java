@@ -12,6 +12,7 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -65,6 +66,7 @@ import main.infrastructure.io.FileIO;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.slider.MoodSlider;
+import main.ui.features.entries.NotetakingPanel;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -500,6 +502,14 @@ public final class ImagePasteManager {
         deleteBtn.setMinimumSize(new Dimension(30, 30));
         deleteBtn.setMaximumSize(new Dimension(30, 30));
         deleteBtn.setToolTipText("Delete image");
+
+        ToolbarIconButton floatBtn = new ToolbarIconButton("image");
+        floatBtn.setPreferredSize(new Dimension(30, 30));
+        floatBtn.setMinimumSize(new Dimension(30, 30));
+        floatBtn.setMaximumSize(new Dimension(30, 30));
+        floatBtn.setToolTipText("Float image (free placement)");
+        NotetakingPanel notetakingPanel = (NotetakingPanel) SwingUtilities.getAncestorOfClass(NotetakingPanel.class, editor);
+        floatBtn.setVisible(notetakingPanel != null);
         
         // Slider change listener with debounce
         final Timer[] resizeTimer = new Timer[1];
@@ -529,6 +539,34 @@ public final class ImagePasteManager {
             } catch (BadLocationException ignored) {}
             dismissActiveOverlay();
         });
+
+        floatBtn.addActionListener(e -> {
+            if (notetakingPanel == null) return;
+            try {
+                StyledDocument doc = editor.getStyledDocument();
+                javax.swing.text.Element el = doc.getCharacterElement(startOffset);
+                if (el == null) return;
+                Object ico = StyleConstants.getIcon(el.getAttributes());
+                if (!(ico instanceof ImageIcon icon)) return;
+                File srcFile = srcRef[0];
+                Object srcAttr = el.getAttributes().getAttribute("imageSourceFile");
+                if (srcAttr instanceof File) srcFile = (File) srcAttr;
+
+                Rectangle bounds = imageBounds;
+                try {
+                    java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
+                    if (r2 != null) {
+                        bounds = r2.getBounds();
+                        bounds.width = icon.getIconWidth();
+                        bounds.height = icon.getIconHeight();
+                    }
+                } catch (Throwable ignored) {}
+
+                if (notetakingPanel.promoteInlineImage(editor, startOffset, icon, srcFile, bounds)) {
+                    dismissActiveOverlay();
+                }
+            } catch (Throwable ignored) {}
+        });
         
         // Layout: [slider] [size] [delete]
         JPanel sliderPanel = new JPanel(new java.awt.BorderLayout(6, 0));
@@ -536,8 +574,12 @@ public final class ImagePasteManager {
         sliderPanel.add(sizeSlider, java.awt.BorderLayout.CENTER);
         sliderPanel.add(sizeLabel, java.awt.BorderLayout.EAST);
         
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        actions.setOpaque(false);
+        if (floatBtn.isVisible()) actions.add(floatBtn);
+        actions.add(deleteBtn);
         content.add(sliderPanel, java.awt.BorderLayout.CENTER);
-        content.add(deleteBtn, java.awt.BorderLayout.EAST);
+        content.add(actions, java.awt.BorderLayout.EAST);
         
         toolbar.setContentPane(content);
         toolbar.pack();
