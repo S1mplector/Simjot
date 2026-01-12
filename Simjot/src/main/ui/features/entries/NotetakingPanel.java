@@ -969,6 +969,7 @@ public class NotetakingPanel extends EntryPanel {
             floatPoints.add(new float[]{x, y, timestamp});
             updateBounds(Math.round(x), Math.round(y));
             cacheValid = false; // Invalidate cache
+            cachedThicknesses = null;
         }
         
         void invalidateCache() {
@@ -1048,8 +1049,10 @@ public class NotetakingPanel extends EntryPanel {
 
         void addLegacyPoint(Point p) {
             points.add(p);
+            floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
             updateBounds(p.x, p.y);
             cacheValid = false;
+            cachedThicknesses = null;
         }
         
         private void rebuildCache() {
@@ -1349,10 +1352,12 @@ private class DrawingOverlay extends JComponent {
     private float smoothX, smoothY;
     private float lastRawX, lastRawY;
     private long lastTimestamp;
-    private static final float SMOOTH_ALPHA = 0.6f; // Responsive but smooth
-    private static final float MIN_DISTANCE_BASE = 1.5f;
+    private static final float SMOOTH_ALPHA = 0.48f; // More smoothing without heavy lag
+    private static final float MIN_DISTANCE_BASE = 1.4f;
     private static final float MAX_DISTANCE_BOOST = 8f;
     private static final float DISTANCE_VELOCITY_SCALE = 6f;
+    private static final int FINAL_SMOOTH_ITER = 3;
+    private static final float FINAL_SAMPLE_DISTANCE = 1.2f;
 
     // Lasso selection state
     private List<Point> lassoPath = new ArrayList<>();
@@ -1456,7 +1461,7 @@ private class DrawingOverlay extends JComponent {
                 lastRawX = rawX;
                 lastRawY = rawY;
                 lastTimestamp = now;
-                appendPenSegment(current, prev, lastPoint);
+                appendPenSegment(current);
                 repaintDirty(prev, lastPoint, current.thickness);
             }
 
@@ -1469,9 +1474,12 @@ private class DrawingOverlay extends JComponent {
                     handleLassoRelease();
                     return;
                 }
-                if (current != null && current.floatPoints.size() >= 3 && currentDrawTool == DrawTool.PEN) {
+                if (current != null && currentDrawTool == DrawTool.PEN && current.floatPoints.size() >= 3) {
                     final DrawStroke strokeToSmooth = current;
                     strokeWorker.submit(() -> applyFinalSmoothing(strokeToSmooth));
+                } else if (current != null && currentDrawTool == DrawTool.HIGHLIGHT && current.points.size() >= 3) {
+                    final DrawStroke strokeToSmooth = current;
+                    strokeWorker.submit(() -> applyFinalHighlightSmoothing(strokeToSmooth));
                 }
                 if (current != null && useOptimizer) {
                     addStrokeToOptimizer(current);
@@ -1510,14 +1518,14 @@ private class DrawingOverlay extends JComponent {
             float[] workingY = ys;
             long[] workingTs = ts;
             
-            float[][] sampled = nativeDrawing.strokeDistanceSample(xs, ys, MIN_DISTANCE_BASE);
+            float[][] sampled = nativeDrawing.strokeDistanceSample(xs, ys, FINAL_SAMPLE_DISTANCE);
             if (sampled != null && sampled[0].length >= 3 && sampled[0].length < xs.length) {
                 workingX = sampled[0];
                 workingY = sampled[1];
                 workingTs = mapSampledTimestamps(sampled[0], sampled[1], xs, ys, ts);
             }
             
-            float[][] smoothed = nativeDrawing.strokeSmoothChaikin(workingX, workingY, 2);
+            float[][] smoothed = nativeDrawing.strokeSmoothChaikin(workingX, workingY, FINAL_SMOOTH_ITER);
             float[] finalX = workingX;
             float[] finalY = workingY;
             long[] finalTs = workingTs;
@@ -1531,6 +1539,62 @@ private class DrawingOverlay extends JComponent {
             float[] finalYs = finalY;
             long[] finalTimestamps = finalTs;
             SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, finalTimestamps));
+        }
+
+        private void applyFinalHighlightSmoothing(DrawStroke stroke) {
+            if (stroke == null || stroke.points.size() < 3) return;
+            if (nativeDrawing != null) {
+                float[] xs = stroke.getPointsX();
+                float[] ys = stroke.getPointsY();
+                if (xs.length >= 3 && ys.length == xs.length) {
+                    float[] finalX = xs;
+                    float[] finalY = ys;
+                    float[][] sampled = nativeDrawing.strokeDistanceSample(xs, ys, FINAL_SAMPLE_DISTANCE);
+                    if (sampled != null && sampled[0].length >= 3 && sampled[0].length < xs.length) {
+                        finalX = sampled[0];
+                        finalY = sampled[1];
+                    }
+                    float[][] smoothed = nativeDrawing.strokeSmoothChaikin(finalX, finalY, FINAL_SMOOTH_ITER);
+                    if (smoothed != null && smoothed[0].length >= 3) {
+                        finalX = smoothed[0];
+                        finalY = smoothed[1];
+                    }
+                    float[] outX = finalX;
+                    float[] outY = finalY;
+                    long[] baseTs = stroke.getTimestamps();
+                    long start = (baseTs.length > 0) ? baseTs[0] : System.currentTimeMillis();
+                    long end = (baseTs.length > 0) ? baseTs[baseTs.length - 1] : start;
+                    long[] ts = interpolateTimestamps(outX, outY, start, end);
+                    SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, outX, outY, ts));
+                    return;
+                }
+            }
+            java.util.List<Point> pts = stroke.points;
+            int n = pts.size();
+            java.util.List<Point> smooth = new java.util.ArrayList<>(n);
+            smooth.add(new Point(pts.get(0)));
+            for (int i = 1; i < n - 1; i++) {
+                Point p0 = pts.get(i - 1);
+                Point p1 = pts.get(i);
+                Point p2 = pts.get(i + 1);
+                int x = Math.round((p0.x + p1.x * 2f + p2.x) / 4f);
+                int y = Math.round((p0.y + p1.y * 2f + p2.y) / 4f);
+                smooth.add(new Point(x, y));
+            }
+            smooth.add(new Point(pts.get(n - 1)));
+            SwingUtilities.invokeLater(() -> {
+                stroke.points.clear();
+                stroke.points.addAll(smooth);
+                stroke.floatPoints.clear();
+                for (Point p : smooth) {
+                    stroke.floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
+                }
+                stroke.invalidateCache();
+                stroke.recomputeBounds();
+                strokeBufferDirty = true;
+                highlightBufferDirty = true;
+                repaint();
+            });
         }
         
         private long[] mapSampledTimestamps(float[] sampledX, float[] sampledY, float[] originalX, float[] originalY, long[] originalTs) {
@@ -1582,20 +1646,67 @@ private class DrawingOverlay extends JComponent {
          * Append a newly drawn pen segment directly to the cached pen buffer to avoid
          * forcing a full buffer rebuild on every drag event.
          */
-        private void appendPenSegment(DrawStroke stroke, Point p1, Point p2) {
+        private void appendPenSegment(DrawStroke stroke) {
             if (stroke == null || stroke.tool != DrawTool.PEN) return;
             if (strokeBufferDirty || penStrokeBuffer == null) {
                 // Will be rebuilt on next paint; avoid drawing with stale offsets
                 return;
             }
             try {
+                int n = stroke.floatPoints.size();
+                if (n == 0) return;
                 Point vpPos = vp.getViewPosition();
+                if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                    int count = Math.min(3, n);
+                    float[] xs = new float[count];
+                    float[] ys = new float[count];
+                    for (int i = 0; i < count; i++) {
+                        float[] p = stroke.floatPoints.get(n - count + i);
+                        xs[i] = p[0];
+                        ys[i] = p[1];
+                    }
+                    float[] thicknesses = buildConstantThicknesses(count, stroke.thickness);
+                    int[] pixels = ((java.awt.image.DataBufferInt) penStrokeBuffer.getRaster().getDataBuffer()).getData();
+                    boolean ok = nativeDrawing.strokeRenderVariable(pixels, penStrokeBuffer.getWidth(), penStrokeBuffer.getHeight(),
+                            xs, ys, thicknesses, stroke.color.getRGB(), vpPos.x, vpPos.y);
+                    if (ok) return;
+                }
                 Graphics2D g2 = penStrokeBuffer.createGraphics();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.translate(-vpPos.x, -vpPos.y);
                 g2.setColor(stroke.color);
                 g2.setStroke(new BasicStroke(stroke.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(p1.x, p1.y, p2.x, p2.y);
+                if (n == 1) {
+                    float[] p0 = stroke.floatPoints.get(0);
+                    g2.fillOval(Math.round(p0[0] - 1), Math.round(p0[1] - 1), 3, 3);
+                } else if (n == 2) {
+                    float[] p0 = stroke.floatPoints.get(0);
+                    float[] p1 = stroke.floatPoints.get(1);
+                    g2.drawLine(Math.round(p0[0]), Math.round(p0[1]), Math.round(p1[0]), Math.round(p1[1]));
+                } else if (n == 3) {
+                    float[] p0 = stroke.floatPoints.get(0);
+                    float[] p1 = stroke.floatPoints.get(1);
+                    float[] p2 = stroke.floatPoints.get(2);
+                    float mx = (p1[0] + p2[0]) * 0.5f;
+                    float my = (p1[1] + p2[1]) * 0.5f;
+                    Path2D.Float path = new Path2D.Float();
+                    path.moveTo(p0[0], p0[1]);
+                    path.quadTo(p1[0], p1[1], mx, my);
+                    path.lineTo(p2[0], p2[1]);
+                    g2.draw(path);
+                } else {
+                    float[] p0 = stroke.floatPoints.get(n - 3);
+                    float[] p1 = stroke.floatPoints.get(n - 2);
+                    float[] p2 = stroke.floatPoints.get(n - 1);
+                    float mx1 = (p0[0] + p1[0]) * 0.5f;
+                    float my1 = (p0[1] + p1[1]) * 0.5f;
+                    float mx2 = (p1[0] + p2[0]) * 0.5f;
+                    float my2 = (p1[1] + p2[1]) * 0.5f;
+                    Path2D.Float path = new Path2D.Float();
+                    path.moveTo(mx1, my1);
+                    path.quadTo(p1[0], p1[1], mx2, my2);
+                    g2.draw(path);
+                }
                 g2.dispose();
             } catch (Throwable ignored) {
                 // If anything goes wrong, fall back to a full rebuild on next paint
@@ -2163,46 +2274,79 @@ private class DrawingOverlay extends JComponent {
                 if (!hasHighlighters) {
                     // No highlighter strokes - clear the buffer so erased strokes don't persist
                     highlightStrokeBuffer = null;
-                } else if (hasHighlighters) {
+                } else {
                     if (highlightStrokeBuffer == null || highlightStrokeBuffer.getWidth() != w || highlightStrokeBuffer.getHeight() != h) {
                         highlightStrokeBuffer = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
                     }
-                    
-                    Graphics2D bufG = highlightStrokeBuffer.createGraphics();
-                    bufG.setComposite(java.awt.AlphaComposite.Clear);
-                    bufG.fillRect(0, 0, w, h);
-                    bufG.setComposite(java.awt.AlphaComposite.SrcOver);
-                    bufG.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    bufG.translate(-offsetX, -offsetY);
+                    boolean drew = false;
                     java.awt.Rectangle viewRect = new java.awt.Rectangle((int) offsetX, (int) offsetY, w, h);
                     
-                    // Render each highlighter stroke with proper alpha compositing
-                    for (DrawStroke s : drawStrokes) {
-                        if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
-                        if (!s.intersectsRect(viewRect, s.thickness + 10)) continue;
-                        int alpha = s.color.getAlpha();
-                        Color opaqueColor = new Color(s.color.getRed(), s.color.getGreen(), s.color.getBlue(), 255);
-                        
-                        // Use a small clip-bounded buffer for this stroke only
-                        java.awt.Rectangle bounds = getStrokeBounds(s, (int)offsetX, (int)offsetY, w, h);
-                        if (bounds.width <= 0 || bounds.height <= 0) continue;
-                        
-                        java.awt.image.BufferedImage strokeBuf = new java.awt.image.BufferedImage(
-                            bounds.width, bounds.height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                        Graphics2D sg = strokeBuf.createGraphics();
-                        sg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                        sg.translate(-bounds.x - offsetX, -bounds.y - offsetY);
-                        sg.setColor(opaqueColor);
-                        sg.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                        drawPointsPath(sg, s.points);
-                        sg.dispose();
-                        
-                        // Composite to main highlighter buffer with alpha
-                        bufG.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha / 255f));
-                        bufG.drawImage(strokeBuf, bounds.x + (int)offsetX, bounds.y + (int)offsetY, null);
+                    if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                        int[] pixels = ((java.awt.image.DataBufferInt) highlightStrokeBuffer.getRaster().getDataBuffer()).getData();
+                        java.util.Arrays.fill(pixels, 0);
+                        for (DrawStroke s : drawStrokes) {
+                            if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
+                            if (!s.intersectsRect(viewRect, s.thickness + 10)) continue;
+                            float[] xs = s.getPointsX();
+                            float[] ys = s.getPointsY();
+                            if (xs.length == 0 || ys.length != xs.length) {
+                                xs = new float[s.points.size()];
+                                ys = new float[s.points.size()];
+                                for (int i = 0; i < s.points.size(); i++) {
+                                    Point p = s.points.get(i);
+                                    xs[i] = p.x;
+                                    ys[i] = p.y;
+                                }
+                            }
+                            if (xs.length == 0) continue;
+                            float[] thicknesses = getOrComputeThicknesses(s);
+                            if (thicknesses.length != xs.length) {
+                                thicknesses = buildConstantThicknesses(xs.length, s.thickness);
+                            }
+                            nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
+                            drew = true;
+                        }
+                    } else {
+                        Graphics2D bufG = highlightStrokeBuffer.createGraphics();
+                        bufG.setComposite(java.awt.AlphaComposite.Clear);
+                        bufG.fillRect(0, 0, w, h);
                         bufG.setComposite(java.awt.AlphaComposite.SrcOver);
+                        bufG.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        bufG.translate(-offsetX, -offsetY);
+                        
+                        // Render each highlighter stroke with proper alpha compositing
+                        for (DrawStroke s : drawStrokes) {
+                            if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
+                            if (!s.intersectsRect(viewRect, s.thickness + 10)) continue;
+                            int alpha = s.color.getAlpha();
+                            Color opaqueColor = new Color(s.color.getRed(), s.color.getGreen(), s.color.getBlue(), 255);
+                            
+                            // Use a small clip-bounded buffer for this stroke only
+                            java.awt.Rectangle bounds = getStrokeBounds(s, (int)offsetX, (int)offsetY, w, h);
+                            if (bounds.width <= 0 || bounds.height <= 0) continue;
+                            
+                            java.awt.image.BufferedImage strokeBuf = new java.awt.image.BufferedImage(
+                                bounds.width, bounds.height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                            Graphics2D sg = strokeBuf.createGraphics();
+                            sg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                            sg.translate(-bounds.x - offsetX, -bounds.y - offsetY);
+                            sg.setColor(opaqueColor);
+                            sg.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                            drawPointsPath(sg, s.points);
+                            sg.dispose();
+                            
+                            // Composite to main highlighter buffer with alpha
+                            bufG.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha / 255f));
+                            bufG.drawImage(strokeBuf, bounds.x + (int)offsetX, bounds.y + (int)offsetY, null);
+                            bufG.setComposite(java.awt.AlphaComposite.SrcOver);
+                            drew = true;
+                        }
+                        bufG.dispose();
                     }
-                    bufG.dispose();
+                    
+                    if (!drew) {
+                        highlightStrokeBuffer = null;
+                    }
                 }
                 highlightBufferDirty = false;
             }
@@ -2278,43 +2422,18 @@ private class DrawingOverlay extends JComponent {
             if (cached != null && cached.length == s.floatPoints.size()) {
                 return cached;
             }
-            // Compute and cache
             int n = s.floatPoints.size();
-            float[] thicknesses = new float[n];
+            float[] thicknesses = new float[Math.max(1, n)];
             float baseT = s.thickness;
-            
-            if (n < 2) {
-                java.util.Arrays.fill(thicknesses, baseT);
-                s.setCachedThicknesses(thicknesses);
-                return thicknesses;
-            }
-            
-            thicknesses[0] = baseT;
-            float smoothVelocity = 0f;
-            
-            for (int i = 1; i < n; i++) {
-                float[] prev = s.floatPoints.get(i - 1);
-                float[] curr = s.floatPoints.get(i);
-                
-                float dx = curr[0] - prev[0];
-                float dy = curr[1] - prev[1];
-                float dist = (float) Math.sqrt(dx * dx + dy * dy);
-                float dt = curr[2] - prev[2];
-                if (dt < 1) dt = 1;
-                
-                float velocity = dist / dt;
-                smoothVelocity = 0.3f * velocity + 0.7f * smoothVelocity;
-                
-                // Map velocity to thickness (slower = thicker, faster = thinner)
-                float normalized = smoothVelocity / 0.8f;
-                float pressure = (float) Math.exp(-normalized * 1.5);
-                pressure = Math.max(0.2f, Math.min(1f, pressure));
-                
-                float factor = 0.4f + pressure * 0.8f;
-                thicknesses[i] = baseT * factor;
-            }
-            
+            java.util.Arrays.fill(thicknesses, baseT);
             s.setCachedThicknesses(thicknesses);
+            return thicknesses;
+        }
+
+        private float[] buildConstantThicknesses(int count, float thickness) {
+            if (count <= 0) return new float[0];
+            float[] thicknesses = new float[count];
+            java.util.Arrays.fill(thicknesses, thickness);
             return thicknesses;
         }
         
@@ -2330,10 +2449,15 @@ private class DrawingOverlay extends JComponent {
             java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
             float[] first = floatPoints.get(0);
             path.moveTo(first[0], first[1]);
-            for (int i = 1; i < n; i++) {
+            for (int i = 1; i < n - 1; i++) {
                 float[] p = floatPoints.get(i);
-                path.lineTo(p[0], p[1]);
+                float[] next = floatPoints.get(i + 1);
+                float mx = (p[0] + next[0]) * 0.5f;
+                float my = (p[1] + next[1]) * 0.5f;
+                path.quadTo(p[0], p[1], mx, my);
             }
+            float[] last = floatPoints.get(n - 1);
+            path.lineTo(last[0], last[1]);
             g2.draw(path);
         }
         
@@ -2349,10 +2473,15 @@ private class DrawingOverlay extends JComponent {
             java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
             Point first = points.get(0);
             path.moveTo(first.x, first.y);
-            for (int i = 1; i < n; i++) {
+            for (int i = 1; i < n - 1; i++) {
                 Point p = points.get(i);
-                path.lineTo(p.x, p.y);
+                Point next = points.get(i + 1);
+                float mx = (p.x + next.x) * 0.5f;
+                float my = (p.y + next.y) * 0.5f;
+                path.quadTo(p.x, p.y, mx, my);
             }
+            Point last = points.get(n - 1);
+            path.lineTo(last.x, last.y);
             g2.draw(path);
         }
     }
