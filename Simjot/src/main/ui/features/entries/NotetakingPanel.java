@@ -2211,13 +2211,19 @@ private class DrawingOverlay extends JComponent {
             }
             int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
             int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+            boolean hasStrokeBounds = false;
             for (DrawStroke s : selectedStrokes) {
-                for (Point p : s.points) {
-                    if (p.x < minX) minX = p.x;
-                    if (p.y < minY) minY = p.y;
-                    if (p.x > maxX) maxX = p.x;
-                    if (p.y > maxY) maxY = p.y;
-                }
+                java.awt.Rectangle bounds = computeStrokeBoundsNative(s);
+                if (bounds.width <= 0 || bounds.height <= 0) continue;
+                hasStrokeBounds = true;
+                int x1 = bounds.x;
+                int y1 = bounds.y;
+                int x2 = bounds.x + bounds.width;
+                int y2 = bounds.y + bounds.height;
+                if (x1 < minX) minX = x1;
+                if (y1 < minY) minY = y1;
+                if (x2 > maxX) maxX = x2;
+                if (y2 > maxY) maxY = y2;
             }
             for (FloatingImage img : selectedImages) {
                 int x1 = img.x;
@@ -2229,6 +2235,10 @@ private class DrawingOverlay extends JComponent {
                 if (x2 > maxX) maxX = x2;
                 if (y2 > maxY) maxY = y2;
             }
+            if (!hasStrokeBounds && selectedImages.isEmpty()) {
+                selectionBounds = null;
+                return;
+            }
             int pad = 8;
             selectionBounds = new java.awt.Rectangle(minX - pad, minY - pad, maxX - minX + 2*pad, maxY - minY + 2*pad);
         }
@@ -2237,15 +2247,18 @@ private class DrawingOverlay extends JComponent {
             boolean movedPen = false;
             boolean movedHighlight = false;
             for (DrawStroke s : selectedStrokes) {
-                for (Point p : s.points) {
-                    p.x += dx;
-                    p.y += dy;
-                }
-                for (float[] fp : s.floatPoints) {
-                    fp[0] += dx;
-                    fp[1] += dy;
+                if (!translateStrokeNative(s, dx, dy)) {
+                    for (Point p : s.points) {
+                        p.x += dx;
+                        p.y += dy;
+                    }
+                    for (float[] fp : s.floatPoints) {
+                        fp[0] += dx;
+                        fp[1] += dy;
+                    }
                 }
                 s.invalidateCache();
+                s.shiftBounds(dx, dy);
                 // Sync with optimizer
                 moveStrokeInOptimizer(s, dx, dy);
                 if (s.tool == DrawTool.PEN) movedPen = true;
@@ -2267,6 +2280,52 @@ private class DrawingOverlay extends JComponent {
             selectedImages.clear();
             selectionBounds = null;
             lassoPath.clear();
+        }
+
+        private java.awt.Rectangle computeStrokeBoundsNative(DrawStroke s) {
+            if (s == null || s.floatPoints.isEmpty()) return new java.awt.Rectangle();
+            if (nativeDrawing != null && nativeDrawing.isLassoAvailable()) {
+                float[] xs = s.getPointsX();
+                float[] ys = s.getPointsY();
+                if (xs.length > 0 && ys.length == xs.length) {
+                    float[] bounds = nativeDrawing.lassoComputeBounds(xs, ys);
+                    if (bounds != null && bounds.length == 4) {
+                        int minX = (int) Math.floor(bounds[0]);
+                        int minY = (int) Math.floor(bounds[1]);
+                        int maxX = (int) Math.ceil(bounds[2]);
+                        int maxY = (int) Math.ceil(bounds[3]);
+                        return new java.awt.Rectangle(minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
+                    }
+                }
+            }
+            return s.getBoundsWithPadding(0);
+        }
+
+        private boolean translateStrokeNative(DrawStroke s, int dx, int dy) {
+            if (nativeDrawing == null || !nativeDrawing.isLassoAvailable() || s == null) return false;
+            float[] xs = s.getPointsX();
+            float[] ys = s.getPointsY();
+            if (xs.length == 0 || ys.length != xs.length) return false;
+            if (!nativeDrawing.lassoTranslatePoints(xs, ys, dx, dy)) return false;
+            int n = xs.length;
+            if (s.floatPoints.size() == n && s.points.size() == n) {
+                for (int i = 0; i < n; i++) {
+                    float[] fp = s.floatPoints.get(i);
+                    fp[0] = xs[i];
+                    fp[1] = ys[i];
+                    Point p = s.points.get(i);
+                    p.x = Math.round(xs[i]);
+                    p.y = Math.round(ys[i]);
+                }
+            } else {
+                s.floatPoints.clear();
+                s.points.clear();
+                for (int i = 0; i < n; i++) {
+                    s.floatPoints.add(new float[]{xs[i], ys[i], System.currentTimeMillis()});
+                    s.points.add(new Point(Math.round(xs[i]), Math.round(ys[i])));
+                }
+            }
+            return true;
         }
         
         // Get stroke bounding box clipped to viewport
