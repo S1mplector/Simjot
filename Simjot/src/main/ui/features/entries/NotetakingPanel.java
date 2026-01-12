@@ -679,6 +679,9 @@ public class NotetakingPanel extends EntryPanel {
                 }
             }
         } catch (Exception ignored) {}
+        if (drawingOverlay != null) {
+            drawingOverlay.markNativeDirtyAll();
+        }
     }
 
     private File ensureFloatingImageFile(File sourceFile, BufferedImage img) {
@@ -1086,10 +1089,12 @@ public class NotetakingPanel extends EntryPanel {
             case AddStrokeAction a -> {
                 drawStrokes.remove(a.stroke());
                 redoStack.add(action);
+                if (drawingOverlay != null) drawingOverlay.markNativeDirty(a.stroke().tool);
             }
             case EraseStrokesAction a -> {
                 drawStrokes.addAll(a.erased());
                 redoStack.add(action);
+                if (drawingOverlay != null) drawingOverlay.markNativeDirtyAll();
             }
         }
         if (drawingOverlay != null) drawingOverlay.repaint();
@@ -1102,10 +1107,12 @@ public class NotetakingPanel extends EntryPanel {
             case AddStrokeAction a -> {
                 drawStrokes.add(a.stroke());
                 undoStack.add(action);
+                if (drawingOverlay != null) drawingOverlay.markNativeDirty(a.stroke().tool);
             }
             case EraseStrokesAction a -> {
                 drawStrokes.removeAll(a.erased());
                 undoStack.add(action);
+                if (drawingOverlay != null) drawingOverlay.markNativeDirtyAll();
             }
         }
         if (drawingOverlay != null) drawingOverlay.repaint();
@@ -1325,8 +1332,12 @@ private class DrawingOverlay extends JComponent {
 
     // Native stroke engine
     private main.infrastructure.ffi.NativeDrawing nativeDrawing;
-    private long nativeStrokeManager = 0;
+    private long nativePenManager = 0;
+    private long nativeHighlightManager = 0;
     private int currentNativeStrokeIdx = -1;
+    private DrawTool currentNativeTool = null;
+    private boolean nativePenDirty = true;
+    private boolean nativeHighlightDirty = true;
     private final ExecutorService strokeWorker = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "NotetakingStrokeWorker");
         t.setDaemon(true);
@@ -1376,7 +1387,8 @@ private class DrawingOverlay extends JComponent {
         try {
             nativeDrawing = main.infrastructure.ffi.NativeDrawing.getInstance();
             if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
-                nativeStrokeManager = nativeDrawing.strokeManagerCreate(4096, 4096);
+                nativePenManager = createNativeManager();
+                nativeHighlightManager = createNativeManager();
             }
         } catch (Throwable ignored) {
             nativeDrawing = null;
@@ -1397,6 +1409,7 @@ private class DrawingOverlay extends JComponent {
                 long now = System.currentTimeMillis();
                 redoStack.clear();
                 current = makeStroke();
+                beginNativeStroke(current, p.x, p.y, now);
 
                 if (currentDrawTool == DrawTool.HIGHLIGHT) {
                     current.addLegacyPoint(p);
@@ -1429,6 +1442,7 @@ private class DrawingOverlay extends JComponent {
                 if (currentDrawTool == DrawTool.HIGHLIGHT) {
                     Point prev = lastPoint;
                     current.addLegacyPoint(raw);
+                    addNativePoint(current, raw.x, raw.y, System.currentTimeMillis());
                     lastPoint = raw;
                     highlightBufferDirty = true;
                     repaintDirty(prev, raw, current.thickness);
@@ -1457,6 +1471,7 @@ private class DrawingOverlay extends JComponent {
 
                 Point prev = lastPoint;
                 current.addPoint(smoothX, smoothY, now);
+                addNativePoint(current, smoothX, smoothY, now);
                 lastPoint = new Point(Math.round(smoothX), Math.round(smoothY));
                 lastRawX = rawX;
                 lastRawY = rawY;
@@ -1473,6 +1488,9 @@ private class DrawingOverlay extends JComponent {
                 if (currentDrawTool == DrawTool.LASSO) {
                     handleLassoRelease();
                     return;
+                }
+                if (current != null) {
+                    endNativeStroke(current);
                 }
                 if (current != null && currentDrawTool == DrawTool.PEN && current.floatPoints.size() >= 3) {
                     final DrawStroke strokeToSmooth = current;
@@ -1506,6 +1524,94 @@ private class DrawingOverlay extends JComponent {
             @Override public void componentResized(ComponentEvent e) { strokeBufferDirty = true; highlightBufferDirty = true; revalidate(); repaint(); }
         });
     }
+
+        private long createNativeManager() {
+            if (nativeDrawing == null) return 0;
+            Dimension pref = view.getPreferredSize();
+            int docW = Math.max(1, Math.max(view.getWidth(), pref != null ? pref.width : 0));
+            int docH = Math.max(1, Math.max(view.getHeight(), pref != null ? pref.height : 0));
+            return nativeDrawing.strokeManagerCreate(docW, docH);
+        }
+
+        private boolean ensureNativeManager(DrawTool tool) {
+            if (nativeDrawing == null || !nativeDrawing.isStrokeEngineAvailable()) return false;
+            if (tool == DrawTool.PEN) {
+                if (nativePenManager == 0) nativePenManager = createNativeManager();
+                return nativePenManager != 0;
+            }
+            if (tool == DrawTool.HIGHLIGHT) {
+                if (nativeHighlightManager == 0) nativeHighlightManager = createNativeManager();
+                return nativeHighlightManager != 0;
+            }
+            return false;
+        }
+
+        private void markNativeDirty(DrawTool tool) {
+            if (tool == DrawTool.PEN) nativePenDirty = true;
+            else if (tool == DrawTool.HIGHLIGHT) nativeHighlightDirty = true;
+        }
+
+        private void markNativeDirtyAll() {
+            nativePenDirty = true;
+            nativeHighlightDirty = true;
+        }
+
+        private void rebuildNativeManager(DrawTool tool) {
+            if (!ensureNativeManager(tool)) return;
+            long handle = (tool == DrawTool.PEN) ? nativePenManager : nativeHighlightManager;
+            if (handle == 0) return;
+            nativeDrawing.strokeClearAll(handle);
+            for (DrawStroke s : drawStrokes) {
+                if (s.tool != tool || s.floatPoints.isEmpty()) continue;
+                addStrokeToNativeManager(handle, s);
+            }
+            if (tool == DrawTool.PEN) nativePenDirty = false;
+            else if (tool == DrawTool.HIGHLIGHT) nativeHighlightDirty = false;
+        }
+
+        private void addStrokeToNativeManager(long handle, DrawStroke stroke) {
+            if (handle == 0 || stroke == null || stroke.floatPoints.isEmpty()) return;
+            float[] first = stroke.floatPoints.get(0);
+            int idx = nativeDrawing.strokeBegin(handle, first[0], first[1], (long) first[2],
+                    stroke.thickness, stroke.color.getRGB(), false);
+            if (idx < 0) return;
+            for (int i = 1; i < stroke.floatPoints.size(); i++) {
+                float[] p = stroke.floatPoints.get(i);
+                nativeDrawing.strokeAddPoint(handle, idx, p[0], p[1], (long) p[2]);
+            }
+            nativeDrawing.strokeEnd(handle, idx, false);
+        }
+
+        private void beginNativeStroke(DrawStroke stroke, float x, float y, long timestamp) {
+            if (stroke == null) return;
+            DrawTool tool = stroke.tool;
+            if (!ensureNativeManager(tool)) return;
+            long handle = (tool == DrawTool.PEN) ? nativePenManager : nativeHighlightManager;
+            if (tool == DrawTool.PEN && nativePenDirty) {
+                rebuildNativeManager(DrawTool.PEN);
+            } else if (tool == DrawTool.HIGHLIGHT && nativeHighlightDirty) {
+                rebuildNativeManager(DrawTool.HIGHLIGHT);
+            }
+            if (handle == 0) return;
+            currentNativeStrokeIdx = nativeDrawing.strokeBegin(handle, x, y, timestamp,
+                    stroke.thickness, stroke.color.getRGB(), false);
+            currentNativeTool = tool;
+        }
+
+        private void addNativePoint(DrawStroke stroke, float x, float y, long timestamp) {
+            if (stroke == null || currentNativeStrokeIdx < 0 || currentNativeTool != stroke.tool) return;
+            long handle = (stroke.tool == DrawTool.PEN) ? nativePenManager : nativeHighlightManager;
+            if (handle == 0) return;
+            nativeDrawing.strokeAddPoint(handle, currentNativeStrokeIdx, x, y, timestamp);
+        }
+
+        private void endNativeStroke(DrawStroke stroke) {
+            if (stroke == null || currentNativeStrokeIdx < 0 || currentNativeTool != stroke.tool) return;
+            long handle = (stroke.tool == DrawTool.PEN) ? nativePenManager : nativeHighlightManager;
+            if (handle != 0) nativeDrawing.strokeEnd(handle, currentNativeStrokeIdx, false);
+            currentNativeStrokeIdx = -1;
+            currentNativeTool = null;
+        }
         
         private void applyFinalSmoothing(DrawStroke stroke) {
             if (nativeDrawing == null || stroke == null) return;
@@ -1629,6 +1735,7 @@ private class DrawingOverlay extends JComponent {
             stroke.invalidateCache();
             strokeBufferDirty = true;
             highlightBufferDirty = true;
+            markNativeDirty(stroke.tool);
             repaint();
         }
         
@@ -1738,9 +1845,15 @@ private class DrawingOverlay extends JComponent {
             try { strokeWorker.shutdownNow(); } catch (Throwable ignored) {}
             try { disableOptimizer(); } catch (Throwable ignored) {}
             try {
-                if (nativeDrawing != null && nativeStrokeManager != 0) {
-                    nativeDrawing.strokeManagerDestroy(nativeStrokeManager);
-                    nativeStrokeManager = 0;
+                if (nativeDrawing != null) {
+                    if (nativePenManager != 0) {
+                        nativeDrawing.strokeManagerDestroy(nativePenManager);
+                        nativePenManager = 0;
+                    }
+                    if (nativeHighlightManager != 0) {
+                        nativeDrawing.strokeManagerDestroy(nativeHighlightManager);
+                        nativeHighlightManager = 0;
+                    }
                 }
             } catch (Throwable ignored) {}
         }
@@ -1760,6 +1873,8 @@ private class DrawingOverlay extends JComponent {
             int r2 = r * r;
             List<DrawStroke> erased = new ArrayList<>();
             float px = p.x, py = p.y;
+            boolean erasedPen = false;
+            boolean erasedHighlight = false;
             
             // Query nearby strokes when the optimizer is available
             for (DrawStroke s : queryStrokesNearPoint(p, r + 2)) {
@@ -1805,6 +1920,8 @@ private class DrawingOverlay extends JComponent {
                     drawStrokes.remove(s);
                     removeStrokeFromOptimizer(s);
                     erased.add(s);
+                    if (s.tool == DrawTool.PEN) erasedPen = true;
+                    else if (s.tool == DrawTool.HIGHLIGHT) erasedHighlight = true;
                 }
             }
             
@@ -1814,6 +1931,8 @@ private class DrawingOverlay extends JComponent {
                 checkOptimizerThreshold();
                 strokeBufferDirty = true;
                 highlightBufferDirty = true;
+                if (erasedPen) markNativeDirty(DrawTool.PEN);
+                if (erasedHighlight) markNativeDirty(DrawTool.HIGHLIGHT);
                 repaint();
             }
         }
@@ -2115,6 +2234,8 @@ private class DrawingOverlay extends JComponent {
         }
         
         private void moveSelectedItems(int dx, int dy) {
+            boolean movedPen = false;
+            boolean movedHighlight = false;
             for (DrawStroke s : selectedStrokes) {
                 for (Point p : s.points) {
                     p.x += dx;
@@ -2127,6 +2248,8 @@ private class DrawingOverlay extends JComponent {
                 s.invalidateCache();
                 // Sync with optimizer
                 moveStrokeInOptimizer(s, dx, dy);
+                if (s.tool == DrawTool.PEN) movedPen = true;
+                else if (s.tool == DrawTool.HIGHLIGHT) movedHighlight = true;
             }
             for (FloatingImage img : selectedImages) {
                 img.x += dx;
@@ -2135,6 +2258,8 @@ private class DrawingOverlay extends JComponent {
             if (selectionBounds != null) {
                 selectionBounds.translate(dx, dy);
             }
+            if (movedPen) markNativeDirty(DrawTool.PEN);
+            if (movedHighlight) markNativeDirty(DrawTool.HIGHLIGHT);
         }
         
         private void clearSelection() {
@@ -2221,7 +2346,15 @@ private class DrawingOverlay extends JComponent {
                 }
 
                 boolean drew = false;
-                if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable() && ensureNativeManager(DrawTool.PEN)) {
+                    if (nativePenDirty) rebuildNativeManager(DrawTool.PEN);
+                    if (nativePenManager != 0 && nativeDrawing.strokeCount(nativePenManager) > 0) {
+                        int[] pixels = ((java.awt.image.DataBufferInt) penStrokeBuffer.getRaster().getDataBuffer()).getData();
+                        java.util.Arrays.fill(pixels, 0);
+                        drew = nativeDrawing.strokeRenderAll(nativePenManager, pixels, w, h, offsetX, offsetY);
+                    }
+                }
+                if (!drew && nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
                     int[] pixels = ((java.awt.image.DataBufferInt) penStrokeBuffer.getRaster().getDataBuffer()).getData();
                     java.util.Arrays.fill(pixels, 0);
                     for (DrawStroke s : drawStrokes) {
@@ -2233,7 +2366,8 @@ private class DrawingOverlay extends JComponent {
                         nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
                         drew = true;
                     }
-                } else {
+                }
+                if (!drew) {
                     // Java fallback with Path2D for better performance
                     Graphics2D g2 = penStrokeBuffer.createGraphics();
                     g2.setComposite(java.awt.AlphaComposite.Clear);
@@ -2281,7 +2415,15 @@ private class DrawingOverlay extends JComponent {
                     boolean drew = false;
                     java.awt.Rectangle viewRect = new java.awt.Rectangle((int) offsetX, (int) offsetY, w, h);
                     
-                    if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
+                    if (nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable() && ensureNativeManager(DrawTool.HIGHLIGHT)) {
+                        if (nativeHighlightDirty) rebuildNativeManager(DrawTool.HIGHLIGHT);
+                        if (nativeHighlightManager != 0 && nativeDrawing.strokeCount(nativeHighlightManager) > 0) {
+                            int[] pixels = ((java.awt.image.DataBufferInt) highlightStrokeBuffer.getRaster().getDataBuffer()).getData();
+                            java.util.Arrays.fill(pixels, 0);
+                            drew = nativeDrawing.strokeRenderAll(nativeHighlightManager, pixels, w, h, offsetX, offsetY);
+                        }
+                    }
+                    if (!drew && nativeDrawing != null && nativeDrawing.isStrokeEngineAvailable()) {
                         int[] pixels = ((java.awt.image.DataBufferInt) highlightStrokeBuffer.getRaster().getDataBuffer()).getData();
                         java.util.Arrays.fill(pixels, 0);
                         for (DrawStroke s : drawStrokes) {
@@ -2306,7 +2448,8 @@ private class DrawingOverlay extends JComponent {
                             nativeDrawing.strokeRenderVariable(pixels, w, h, xs, ys, thicknesses, s.color.getRGB(), offsetX, offsetY);
                             drew = true;
                         }
-                    } else {
+                    }
+                    if (!drew) {
                         Graphics2D bufG = highlightStrokeBuffer.createGraphics();
                         bufG.setComposite(java.awt.AlphaComposite.Clear);
                         bufG.fillRect(0, 0, w, h);

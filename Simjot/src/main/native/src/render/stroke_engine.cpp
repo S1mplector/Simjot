@@ -285,6 +285,11 @@ static float pressure_to_thickness(float pressure, float baseThickness) {
     return baseThickness * factor;
 }
 
+static inline float resolve_thickness(const LiveStroke& stroke, float pressure) {
+    return stroke.usePressure ? pressure_to_thickness(pressure, stroke.baseThickness)
+                              : stroke.baseThickness;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * DISTANCE-BASED POINT SAMPLING
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -572,6 +577,22 @@ int32_t simjot_draw_stroke_add_point(int64_t handle, int32_t strokeIdx,
     if (distSq < MIN_POINT_DISTANCE_SQ) {
         return 0;  // Too close, skip
     }
+
+    if (!stroke.usePressure) {
+        StrokePointEx pt;
+        pt.x = x;
+        pt.y = y;
+        pt.pressure = 1.0f;
+        pt.velocity = 0.0f;
+        pt.timestamp = timestamp;
+        stroke.rawPoints.push_back(pt);
+        stroke.smoothedPoints.push_back(pt);
+        stroke.smoothX = x;
+        stroke.smoothY = y;
+        stroke.lastTimestamp = timestamp;
+        stroke.isDirty = true;
+        return 1;
+    }
     
     // Calculate velocity
     float dt = (float)(timestamp - stroke.lastTimestamp);
@@ -714,7 +735,7 @@ int32_t simjot_draw_render_all(int64_t handle, uint32_t* pixels,
                 // Draw single point as dot
                 float x = pts[0].x - offsetX;
                 float y = pts[0].y - offsetY;
-                float thickness = pressure_to_thickness(pts[0].pressure, stroke.baseThickness);
+                float thickness = resolve_thickness(stroke, pts[0].pressure);
                 draw_thick_segment_aa(pixels, width, height, x, y, thickness, x, y, thickness, stroke.color);
             }
             continue;
@@ -724,11 +745,11 @@ int32_t simjot_draw_render_all(int64_t handle, uint32_t* pixels,
         for (size_t i = 0; i < pts.size() - 1; i++) {
             float x0 = pts[i].x - offsetX;
             float y0 = pts[i].y - offsetY;
-            float t0 = pressure_to_thickness(pts[i].pressure, stroke.baseThickness);
+            float t0 = resolve_thickness(stroke, pts[i].pressure);
             
             float x1 = pts[i + 1].x - offsetX;
             float y1 = pts[i + 1].y - offsetY;
-            float t1 = pressure_to_thickness(pts[i + 1].pressure, stroke.baseThickness);
+            float t1 = resolve_thickness(stroke, pts[i + 1].pressure);
             
             draw_thick_segment_aa(pixels, width, height, x0, y0, t0, x1, y1, t1, stroke.color);
         }
@@ -761,7 +782,7 @@ int32_t simjot_draw_render_one(int64_t handle, int32_t strokeIdx,
         if (pts.size() == 1) {
             float x = pts[0].x - offsetX;
             float y = pts[0].y - offsetY;
-            float thickness = pressure_to_thickness(pts[0].pressure, stroke.baseThickness);
+            float thickness = resolve_thickness(stroke, pts[0].pressure);
             draw_thick_segment_aa(pixels, width, height, x, y, thickness, x, y, thickness, stroke.color);
         }
         return 1;
@@ -770,11 +791,11 @@ int32_t simjot_draw_render_one(int64_t handle, int32_t strokeIdx,
     for (size_t i = 0; i < pts.size() - 1; i++) {
         float x0 = pts[i].x - offsetX;
         float y0 = pts[i].y - offsetY;
-        float t0 = pressure_to_thickness(pts[i].pressure, stroke.baseThickness);
+        float t0 = resolve_thickness(stroke, pts[i].pressure);
         
         float x1 = pts[i + 1].x - offsetX;
         float y1 = pts[i + 1].y - offsetY;
-        float t1 = pressure_to_thickness(pts[i + 1].pressure, stroke.baseThickness);
+        float t1 = resolve_thickness(stroke, pts[i + 1].pressure);
         
         draw_thick_segment_aa(pixels, width, height, x0, y0, t0, x1, y1, t1, stroke.color);
     }
