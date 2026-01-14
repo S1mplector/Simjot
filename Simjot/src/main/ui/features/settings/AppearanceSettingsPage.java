@@ -60,6 +60,7 @@ import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.slider.MoodSlider;
+import main.ui.components.fields.ModernTextField;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.TodayCalendarPanel;
@@ -72,6 +73,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox disableMainMenuAnimationsChk;
     private final MoodSlider glassOpacitySlider;
     private final JLabel glassOpacityValueLabel;
+    private final JCheckBox paperFeelChk;
+    private final JCheckBox typographyPolishChk;
+    private final JCheckBox headerStampChk;
+    private final ModernTextField headerLocationField;
     // Clock and Calendar style selection
     private String selectedClockStyle;
     private String selectedCalendarStyle;
@@ -160,25 +165,52 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         glassSliderPanel.add(glassOpacityValueLabel);
         gc.gridx = 1; add(glassSliderPanel, gc);
 
+        paperFeelChk = new JCheckBox("Paper feel overlay in journal/poem editors", store.isEditorPaperFeelEnabled());
+        paperFeelChk.setUI(new ModernCheckBoxUI());
+        paperFeelChk.setBackground(new Color(0, 0, 0, 0));
+
+        typographyPolishChk = new JCheckBox("Typography polish (line rhythm + focus glow)", store.isEditorTypographyPolishEnabled());
+        typographyPolishChk.setUI(new ModernCheckBoxUI());
+        typographyPolishChk.setBackground(new Color(0, 0, 0, 0));
+
+        headerStampChk = new JCheckBox("Handwritten header stamp in journal/poem editors", store.isEditorHeaderStampEnabled());
+        headerStampChk.setUI(new ModernCheckBoxUI());
+        headerStampChk.setBackground(new Color(0, 0, 0, 0));
+        headerLocationField = new ModernTextField(18);
+        headerLocationField.setText(store.getEditorHeaderStampLocation());
+        headerLocationField.setPlaceholder("Optional location (e.g., Paris)");
+
+        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(paperFeelChk, gc);
+        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(typographyPolishChk, gc);
+        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2; add(headerStampChk, gc);
+        gc.gridwidth = 1;
+        gc.gridx = 0; gc.gridy = 10; add(SettingsUi.label("Header location:"), gc);
+        gc.gridx = 1; add(headerLocationField, gc);
+        gc.gridwidth = 2;
+
+        Runnable toggleHeaderLocation = () -> headerLocationField.setEnabled(headerStampChk.isSelected());
+        headerStampChk.addActionListener(e -> toggleHeaderLocation.run());
+        toggleHeaderLocation.run();
+
         // Clock & Calendar Style section
-        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2;
         gc.insets = new Insets(20, 5, 5, 5);
         add(SettingsUi.header("Clock & Calendar", "Style for main menu widgets"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
 
         // Clock style selection
-        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 12; gc.gridwidth = 2;
         add(SettingsUi.label("Clock style:"), gc);
 
         selectedClockStyle = store.getClockStyle();
         StyleCycler clockCycler = new StyleCycler(CLOCK_STYLES, selectedClockStyle, true);
         clockCycler.setOnChange(style -> selectedClockStyle = style);
-        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 13; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(clockCycler, gc);
 
         // Calendar style selection
-        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 14; gc.gridwidth = 2;
         gc.insets = new Insets(10, 5, 5, 5);
         add(SettingsUi.label("Calendar style:"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
@@ -186,7 +218,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         selectedCalendarStyle = store.getCalendarStyle();
         StyleCycler calendarCycler = new StyleCycler(CALENDAR_STYLES, selectedCalendarStyle, false);
         calendarCycler.setOnChange(style -> selectedCalendarStyle = style);
-        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(calendarCycler, gc);
         gc.gridwidth = 1;
@@ -249,6 +281,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
 
         // Editor glass panel opacity
         store.setEditorGlassOpacity(glassOpacitySlider.getValue() / 100f);
+        store.setEditorPaperFeelEnabled(paperFeelChk.isSelected());
+        store.setEditorTypographyPolishEnabled(typographyPolishChk.isSelected());
+        store.setEditorHeaderStampEnabled(headerStampChk.isSelected());
+        store.setEditorHeaderStampLocation(headerLocationField.getText());
 
         // Clock and Calendar styles
         if (selectedClockStyle != null) store.setClockStyle(selectedClockStyle);

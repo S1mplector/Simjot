@@ -23,6 +23,7 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.Insets;
 import java.awt.LinearGradientPaint;
 import java.awt.Paint;
 import java.awt.Point;
@@ -105,9 +106,12 @@ import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
+import main.ui.components.editor.CurrentLineGlowHighlighter;
 import main.ui.components.editor.FormattingHotkeyHandler;
+import main.ui.components.editor.HandwrittenHeaderStrip;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
+import main.ui.components.editor.PaperFeelViewport;
 import main.ui.components.editor.RichTextStyler;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
@@ -173,6 +177,9 @@ public class EntryPanel extends AbstractEditorPanel {
     private java.util.Map<Integer, String> questionResponses = new java.util.HashMap<>();
     private UndoRedoManager titleUndoManager;
     private UndoRedoManager contentUndoManager;
+    private Insets baseTextMargin;
+    private PaperFeelViewport paperViewport;
+    private HandwrittenHeaderStrip headerStamp;
     // Reusable document listener reference so we can reattach after setDocument()
     private javax.swing.event.DocumentListener editorDocListener;
     private javax.swing.Timer metricsDebounceTimer;
@@ -437,13 +444,50 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private void applyLineSpacing(String val) {
-        float spacing = switch (val) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        float spacing = resolveLineSpacing(val);
         try {
             StyledDocument doc = (StyledDocument) contentArea.getStyledDocument();
             MutableAttributeSet attrs = new SimpleAttributeSet();
             StyleConstants.setLineSpacing(attrs, spacing);
+            applyParagraphRhythm(attrs);
             doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
         } catch (Exception ignored) {}
+    }
+
+    private float resolveLineSpacing(String val) {
+        float spacing = switch (val) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
+            spacing = Math.min(0.6f, spacing + 0.08f);
+        }
+        return spacing;
+    }
+
+    private void applyParagraphRhythm(MutableAttributeSet attrs) {
+        if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
+            StyleConstants.setSpaceAbove(attrs, 2f);
+            StyleConstants.setSpaceBelow(attrs, 6f);
+        } else {
+            StyleConstants.setSpaceAbove(attrs, 0f);
+            StyleConstants.setSpaceBelow(attrs, 0f);
+        }
+    }
+
+    private void applyPaperFeelInsets() {
+        if (contentArea == null) return;
+        if (SettingsStore.get().isEditorPaperFeelEnabled()) {
+            contentArea.setMargin(new Insets(18, 64, 18, 32));
+        } else if (baseTextMargin != null) {
+            contentArea.setMargin(baseTextMargin);
+        }
+    }
+
+    private String buildHeaderStampText() {
+        String date = java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d"));
+        String location = SettingsStore.get().getEditorHeaderStampLocation();
+        if (location != null && !location.isBlank()) {
+            return date + " - " + location.trim();
+        }
+        return date;
     }
 
     // --- Typing style (affects new text via input attributes) ---
@@ -565,10 +609,24 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarContainer = sharedToolbar.getContainer();
         add(toolbarContainer, BorderLayout.NORTH);
 
+        if (SettingsStore.get().isEditorHeaderStampEnabled()) {
+            String stamp = buildHeaderStampText();
+            if (stamp != null && !stamp.isBlank()) {
+                headerStamp = new HandwrittenHeaderStrip();
+                headerStamp.setStampText(stamp);
+                headerStamp.setBorder(BorderFactory.createEmptyBorder(0, 52, 4, 12));
+                headerStamp.setAlignmentX(Component.LEFT_ALIGNMENT);
+            }
+        }
+
         // Stack toolbar + mood controls (mood lives below the frosted bar)
         toolbarGroup = new JPanel();
         toolbarGroup.setOpaque(false);
         toolbarGroup.setLayout(new BoxLayout(toolbarGroup, BoxLayout.Y_AXIS));
+        if (headerStamp != null) {
+            toolbarGroup.add(headerStamp);
+            toolbarGroup.add(Box.createVerticalStrut(2));
+        }
         toolbarGroup.add(toolbarContainer);
 
         if (supportsMoodControls()) {
@@ -627,13 +685,16 @@ public class EntryPanel extends AbstractEditorPanel {
         // JTextPane handles wrapping automatically via view; ensure editor kit is styled
         contentArea.setEditorKit(new main.ui.components.editor.CustomFontEditorKit());
         contentArea.setOpaque(false);
+        baseTextMargin = contentArea.getMargin();
+        applyPaperFeelInsets();
         // Apply line spacing from settings
-        float spacing = switch (lineSpacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        float spacing = resolveLineSpacing(lineSpacingStr);
         javax.swing.SwingUtilities.invokeLater(() -> {
             try {
                 StyledDocument doc = (StyledDocument) contentArea.getStyledDocument();
                 MutableAttributeSet attrs = new SimpleAttributeSet();
                 StyleConstants.setLineSpacing(attrs, spacing);
+                applyParagraphRhythm(attrs);
                 doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
             } catch (Exception ignored) {}
         });
@@ -666,6 +727,7 @@ public class EntryPanel extends AbstractEditorPanel {
             RichTextStyler.StyleState st = RichTextStyler.getTypingState(contentArea);
             sharedToolbar.setToggleStates(st.bold(), st.italic(), st.underline(), st.strike());
         });
+        CurrentLineGlowHighlighter.install(contentArea, () -> SettingsStore.get().isEditorTypographyPolishEnabled());
 
         // Add undo/redo support
         this.contentUndoManager = new UndoRedoManager(contentArea);
@@ -742,6 +804,10 @@ public class EntryPanel extends AbstractEditorPanel {
 
         JScrollPane scrollPane = new JScrollPane(contentArea);
         scrollPane.setOpaque(false);
+        paperViewport = new PaperFeelViewport(contentArea);
+        paperViewport.setPaperFeelEnabled(SettingsStore.get().isEditorPaperFeelEnabled());
+        paperViewport.setView(contentArea);
+        scrollPane.setViewport(paperViewport);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);

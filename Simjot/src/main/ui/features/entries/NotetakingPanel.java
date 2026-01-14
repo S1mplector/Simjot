@@ -223,7 +223,7 @@ public class NotetakingPanel extends EntryPanel {
         colorBtn.setOpaque(true);
         colorBtn.setContentAreaFilled(true);
         colorBtn.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,80), 1));
-        colorBtn.addActionListener(e -> showSimpleColorPicker());
+        colorBtn.addActionListener(e -> showColorPopover());
         rightToolbar.add(colorBtn);
 
         updatePickersForCurrentTool();
@@ -257,35 +257,64 @@ public class NotetakingPanel extends EntryPanel {
         if (scrollAssistOverlay != null) {
             scrollAssistOverlay.setPenMode(paint);
         }
-        if (textModeBtn != null) {
-            boolean textActive = !paint;
-            textModeBtn.setSelected(textActive);
-            textModeBtn.setIconOpacity(textActive ? 1f : 0.45f);
-        }
-        if (paintModeBtn != null) {
-            boolean paintActive = paint;
-            paintModeBtn.setSelected(paintActive);
-            paintModeBtn.setIconOpacity(paintActive ? 1f : 0.45f);
-        }
+        updateToolButtonStates();
     }
 
     private enum EditingMode { TEXT, PAINT }
 
-    private void showSimpleColorPicker() {
-        if (currentDrawTool == DrawTool.ERASER) return;
-        
-        Color currentColor = (currentDrawTool == DrawTool.HIGHLIGHT) ? highlightColor : penColor;
-        Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(this, "Pick Color", 
-            new Color(currentColor.getRed(), currentColor.getGreen(), currentColor.getBlue()));
-        
-        if (picked != null) {
-            if (currentDrawTool == DrawTool.HIGHLIGHT) {
-                highlightColor = new Color(picked.getRed(), picked.getGreen(), picked.getBlue(), highlightColor.getAlpha());
-            } else {
-                penColor = new Color(picked.getRed(), picked.getGreen(), picked.getBlue(), 255);
-            }
-            updatePickersForCurrentTool();
+    private void showColorPopover() {
+        if (currentDrawTool == DrawTool.ERASER || currentDrawTool == DrawTool.LASSO) return;
+        if (colorBtn == null) return;
+
+        if (colorWindow != null && colorWindow.isVisible()) {
+            try { colorWindow.setVisible(false); } catch (Throwable ignored) {}
+            return;
         }
+
+        if (colorWindow == null) {
+            java.awt.Window owner = SwingUtilities.getWindowAncestor(this);
+            colorWindow = (owner != null) ? new JWindow(owner) : new JWindow();
+            colorWindow.setFocusableWindowState(true);
+            colorWindow.setBackground(new Color(0, 0, 0, 0));
+            colorWindow.addWindowFocusListener(new java.awt.event.WindowAdapter() {
+                @Override public void windowLostFocus(java.awt.event.WindowEvent e) {
+                    try { colorWindow.setVisible(false); } catch (Throwable ignored) {}
+                }
+            });
+        }
+
+        JPanel content = buildColorPopupContent();
+        colorWindow.getContentPane().removeAll();
+        colorWindow.getContentPane().add(content);
+        colorWindow.pack();
+        positionColorWindow();
+        colorWindow.setVisible(true);
+        colorWindow.requestFocusInWindow();
+    }
+
+    private void positionColorWindow() {
+        if (colorWindow == null || colorBtn == null) return;
+        java.awt.Point p = colorBtn.getLocationOnScreen();
+        java.awt.Dimension size = colorWindow.getSize();
+        java.awt.Rectangle screen = getScreenBounds(colorBtn);
+        int x = p.x + colorBtn.getWidth() - size.width;
+        int y = p.y + colorBtn.getHeight() + 8;
+        if (x < screen.x + 8) x = screen.x + 8;
+        if (x + size.width > screen.x + screen.width - 8) {
+            x = screen.x + screen.width - size.width - 8;
+        }
+        if (y + size.height > screen.y + screen.height - 8) {
+            y = p.y - size.height - 8;
+        }
+        if (y < screen.y + 8) y = screen.y + 8;
+        colorWindow.setLocation(x, y);
+    }
+
+    private static java.awt.Rectangle getScreenBounds(Component anchor) {
+        java.awt.GraphicsConfiguration gc = anchor != null ? anchor.getGraphicsConfiguration() : null;
+        if (gc != null) return gc.getBounds();
+        java.awt.Dimension d = Toolkit.getDefaultToolkit().getScreenSize();
+        return new java.awt.Rectangle(0, 0, d.width, d.height);
     }
     
     private void showTextColorPicker() {
@@ -306,10 +335,13 @@ public class NotetakingPanel extends EntryPanel {
 
         JPanel panel = new JPanel();
         panel.setOpaque(true);
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createEmptyBorder(8,10,10,10));
+        panel.setBackground(new Color(252, 252, 252));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0,0,0,50), 1),
+                BorderFactory.createEmptyBorder(8,10,10,10)
+        ));
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setPreferredSize(new Dimension(240, currentDrawTool==DrawTool.HIGHLIGHT ? 180 : 150));
+        panel.setPreferredSize(new Dimension(228, currentDrawTool==DrawTool.HIGHLIGHT ? 172 : 146));
 
         JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0)); header.setOpaque(false);
         JLabel modeLbl = new JLabel(currentDrawTool == DrawTool.PEN ? "Pen" : "Highlighter");
@@ -773,24 +805,7 @@ public class NotetakingPanel extends EntryPanel {
     // --- Export helpers and tool UI sync ---
     private void updatePickersForCurrentTool() {
         if (strokeSpinner == null || colorBtn == null) return;
-        
-        // Update tool button selection states
-        if (paintModeBtn != null) {
-            paintModeBtn.setSelected(currentDrawTool == DrawTool.PEN);
-            paintModeBtn.setIconOpacity(currentDrawTool == DrawTool.PEN ? 1f : 0.6f);
-        }
-        if (highlighterBtn != null) {
-            highlighterBtn.setSelected(currentDrawTool == DrawTool.HIGHLIGHT);
-            highlighterBtn.setIconOpacity(currentDrawTool == DrawTool.HIGHLIGHT ? 1f : 0.6f);
-        }
-        if (eraserBtn != null) {
-            eraserBtn.setSelected(currentDrawTool == DrawTool.ERASER);
-            eraserBtn.setIconOpacity(currentDrawTool == DrawTool.ERASER ? 1f : 0.6f);
-        }
-        if (lassoBtn != null) {
-            lassoBtn.setSelected(currentDrawTool == DrawTool.LASSO);
-            lassoBtn.setIconOpacity(currentDrawTool == DrawTool.LASSO ? 1f : 0.6f);
-        }
+        updateToolButtonStates();
         
         // Update spinner and color button for current tool
         if (currentDrawTool == DrawTool.PEN) {
@@ -813,6 +828,37 @@ public class NotetakingPanel extends EntryPanel {
             colorBtn.setEnabled(false);
         }
         colorBtn.repaint();
+    }
+
+    private void updateToolButtonStates() {
+        boolean paint = (editingMode == EditingMode.PAINT);
+        float idle = paint ? 0.6f : 0.3f;
+
+        if (textModeBtn != null) {
+            boolean textActive = !paint;
+            textModeBtn.setSelected(textActive);
+            textModeBtn.setIconOpacity(textActive ? 1f : 0.45f);
+        }
+        if (paintModeBtn != null) {
+            boolean selected = paint && currentDrawTool == DrawTool.PEN;
+            paintModeBtn.setSelected(selected);
+            paintModeBtn.setIconOpacity(selected ? 1f : idle);
+        }
+        if (highlighterBtn != null) {
+            boolean selected = paint && currentDrawTool == DrawTool.HIGHLIGHT;
+            highlighterBtn.setSelected(selected);
+            highlighterBtn.setIconOpacity(selected ? 1f : idle);
+        }
+        if (eraserBtn != null) {
+            boolean selected = paint && currentDrawTool == DrawTool.ERASER;
+            eraserBtn.setSelected(selected);
+            eraserBtn.setIconOpacity(selected ? 1f : idle);
+        }
+        if (lassoBtn != null) {
+            boolean selected = paint && currentDrawTool == DrawTool.LASSO;
+            lassoBtn.setSelected(selected);
+            lassoBtn.setIconOpacity(selected ? 1f : idle);
+        }
     }
 
     private java.awt.image.BufferedImage renderSnapshotImage() {

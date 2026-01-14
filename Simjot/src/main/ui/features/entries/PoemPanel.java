@@ -11,6 +11,7 @@ package main.ui.features.entries;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -31,6 +32,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -86,9 +89,12 @@ import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
+import main.ui.components.editor.CurrentLineGlowHighlighter;
 import main.ui.components.editor.FormattingHotkeyHandler;
+import main.ui.components.editor.HandwrittenHeaderStrip;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
+import main.ui.components.editor.PaperFeelViewport;
 import main.ui.components.editor.RichTextStyler;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
@@ -122,6 +128,8 @@ public class PoemPanel extends AbstractEditorPanel {
     // Components for poem writing
     protected TitleDividerField poemTitleField;
     protected CustomFontTextPane poemEditor;
+    private Insets baseTextMargin;
+    private PaperFeelViewport paperViewport;
 
     private final String[] INSPIRATIONAL_WORDS = {
         "Ethereal", "Ephemeral", "Sonder", "Solitude", "Cascade", "Labyrinthine",
@@ -138,6 +146,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // UI refs for toggling
     private JPanel toolbarContainer;
+    private JPanel toolbarGroup;
     private JPanel bottomPanel;
     private boolean distractionFree = false;
     private JLabel statusLabel;
@@ -188,6 +197,7 @@ public class PoemPanel extends AbstractEditorPanel {
     private javax.swing.JComboBox<String> formPresetBox;
     private JLabel toolkitStatusLabel;
     private JLabel toolkitHintLabel;
+    private HandwrittenHeaderStrip headerStamp;
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -360,7 +370,24 @@ public class PoemPanel extends AbstractEditorPanel {
         );
         toolbarContainer = sharedToolbar.getContainer();
         poemTitleField = sharedToolbar.getTitleField();
-        add(toolbarContainer, BorderLayout.NORTH);
+        if (SettingsStore.get().isEditorHeaderStampEnabled()) {
+            String stamp = buildHeaderStampText();
+            if (stamp != null && !stamp.isBlank()) {
+                headerStamp = new HandwrittenHeaderStrip();
+                headerStamp.setStampText(stamp);
+                headerStamp.setBorder(BorderFactory.createEmptyBorder(0, 52, 4, 12));
+                headerStamp.setAlignmentX(Component.LEFT_ALIGNMENT);
+            }
+        }
+        toolbarGroup = new JPanel();
+        toolbarGroup.setOpaque(false);
+        toolbarGroup.setLayout(new BoxLayout(toolbarGroup, BoxLayout.Y_AXIS));
+        if (headerStamp != null) {
+            toolbarGroup.add(headerStamp);
+            toolbarGroup.add(Box.createVerticalStrut(2));
+        }
+        toolbarGroup.add(toolbarContainer);
+        add(toolbarGroup, BorderLayout.NORTH);
 
         // Distraction-free header: only Back button, no other controls
         dfHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -385,6 +412,8 @@ public class PoemPanel extends AbstractEditorPanel {
         poemEditor = new CustomFontTextPane();
         poemEditor.setOpaque(false);
         poemEditor.setForeground(new Color(40, 40, 40));
+        baseTextMargin = poemEditor.getMargin();
+        applyPaperFeelInsets();
 
         // Load font settings from Appearance settings
         String fontFamily = SettingsStore.get().getEditorFontFamily();
@@ -396,11 +425,12 @@ public class PoemPanel extends AbstractEditorPanel {
             poemTitleField.setPlaceholder(null);
         }
         // Apply line spacing from settings
-        float spacing = switch (lineSpacingStr) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        float spacing = resolveLineSpacing(lineSpacingStr);
         javax.swing.SwingUtilities.invokeLater(() -> {
             StyledDocument doc = poemEditor.getStyledDocument();
             MutableAttributeSet attrs = new SimpleAttributeSet();
             StyleConstants.setLineSpacing(attrs, spacing);
+            applyParagraphRhythm(attrs);
             doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
         });
 
@@ -420,9 +450,14 @@ public class PoemPanel extends AbstractEditorPanel {
 
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(poemEditor);
+        CurrentLineGlowHighlighter.install(poemEditor, () -> SettingsStore.get().isEditorTypographyPolishEnabled());
 
         JScrollPane scrollPane = new JScrollPane(poemEditor);
         scrollPane.setOpaque(false);
+        paperViewport = new PaperFeelViewport(poemEditor);
+        paperViewport.setPaperFeelEnabled(SettingsStore.get().isEditorPaperFeelEnabled());
+        paperViewport.setView(poemEditor);
+        scrollPane.setViewport(paperViewport);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -1546,11 +1581,48 @@ public class PoemPanel extends AbstractEditorPanel {
     }
 
     private void applyLineSpacing(String val) {
-        float spacing = switch (val) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        float spacing = resolveLineSpacing(val);
         StyledDocument doc = poemEditor.getStyledDocument();
         MutableAttributeSet attrs = new SimpleAttributeSet();
         StyleConstants.setLineSpacing(attrs, spacing);
+        applyParagraphRhythm(attrs);
         doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+    }
+
+    private float resolveLineSpacing(String val) {
+        float spacing = switch (val) { case "1.2" -> 0.2f; case "1.5" -> 0.5f; default -> 0.0f; };
+        if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
+            spacing = Math.min(0.6f, spacing + 0.08f);
+        }
+        return spacing;
+    }
+
+    private void applyParagraphRhythm(MutableAttributeSet attrs) {
+        if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
+            StyleConstants.setSpaceAbove(attrs, 2f);
+            StyleConstants.setSpaceBelow(attrs, 6f);
+        } else {
+            StyleConstants.setSpaceAbove(attrs, 0f);
+            StyleConstants.setSpaceBelow(attrs, 0f);
+        }
+    }
+
+    private void applyPaperFeelInsets() {
+        if (poemEditor == null) return;
+        if (SettingsStore.get().isEditorPaperFeelEnabled()) {
+            poemEditor.setMargin(new Insets(18, 64, 18, 32));
+        } else if (baseTextMargin != null) {
+            poemEditor.setMargin(baseTextMargin);
+        }
+    }
+
+    private String buildHeaderStampText() {
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d"));
+        String location = SettingsStore.get().getEditorHeaderStampLocation();
+        if (location != null && !location.isBlank()) {
+            return date + " - " + location.trim();
+        }
+        return date;
     }
 
     private void toggleDistractionFree() {
@@ -1558,13 +1630,13 @@ public class PoemPanel extends AbstractEditorPanel {
         // Swap toolbar with minimal df header in NORTH
         if (distractionFree) {
             // Entering distraction-free: remove main toolbar, add dfHeader
-            try { remove(toolbarContainer); } catch (Throwable ignored) {}
+            try { remove(toolbarGroup != null ? toolbarGroup : toolbarContainer); } catch (Throwable ignored) {}
             add(dfHeader, BorderLayout.NORTH);
             if (bottomPanel != null) bottomPanel.setVisible(false);
         } else {
             // Exiting distraction-free: remove dfHeader, restore toolbar
             try { remove(dfHeader); } catch (Throwable ignored) {}
-            add(toolbarContainer, BorderLayout.NORTH);
+            add(toolbarGroup != null ? toolbarGroup : toolbarContainer, BorderLayout.NORTH);
             if (bottomPanel != null) bottomPanel.setVisible(true);
         }
         revalidate();

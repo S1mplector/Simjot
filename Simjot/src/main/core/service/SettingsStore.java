@@ -76,6 +76,10 @@ public final class SettingsStore {
     private static final String KEY_POEM_BG_IMAGE = "poemBackgroundImage";
     private static final String KEY_POEM_BG_OPACITY = "poemBackgroundOpacity";
     private static final String KEY_EDITOR_GLASS_OPACITY = "editorGlassOpacity";
+    private static final String KEY_EDITOR_PAPER_FEEL = "editorPaperFeelEnabled";
+    private static final String KEY_EDITOR_TYPO_POLISH = "editorTypographyPolishEnabled";
+    private static final String KEY_EDITOR_HEADER_STAMP = "editorHeaderStampEnabled";
+    private static final String KEY_EDITOR_HEADER_LOCATION = "editorHeaderStampLocation";
     private static final String KEY_BRUSH_SIZE   = "defaultBrushSize";
     private static final String KEY_SMOOTHING    = "strokeSmoothing";
     private static final String KEY_THUMBNAILS   = "generateThumbnails";
@@ -137,6 +141,9 @@ public final class SettingsStore {
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
     private static final float DEF_EDITOR_GLASS_OPACITY = 0.9f; // Glass panel opacity (0=transparent, 1=opaque)
+    private static final boolean DEF_EDITOR_PAPER_FEEL = true;
+    private static final boolean DEF_EDITOR_TYPO_POLISH = true;
+    private static final boolean DEF_EDITOR_HEADER_STAMP = false;
 
     // ====================
     // DEFAULT VALUES
@@ -436,6 +443,42 @@ public final class SettingsStore {
     public void setEditorGlassOpacity(float opacity) {
         float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
         props.setProperty(KEY_EDITOR_GLASS_OPACITY, String.valueOf(clamped));
+    }
+
+    public boolean isEditorPaperFeelEnabled() {
+        return Boolean.parseBoolean(props.getProperty(KEY_EDITOR_PAPER_FEEL, String.valueOf(DEF_EDITOR_PAPER_FEEL)));
+    }
+
+    public void setEditorPaperFeelEnabled(boolean enabled) {
+        props.setProperty(KEY_EDITOR_PAPER_FEEL, String.valueOf(enabled));
+    }
+
+    public boolean isEditorTypographyPolishEnabled() {
+        return Boolean.parseBoolean(props.getProperty(KEY_EDITOR_TYPO_POLISH, String.valueOf(DEF_EDITOR_TYPO_POLISH)));
+    }
+
+    public void setEditorTypographyPolishEnabled(boolean enabled) {
+        props.setProperty(KEY_EDITOR_TYPO_POLISH, String.valueOf(enabled));
+    }
+
+    public boolean isEditorHeaderStampEnabled() {
+        return Boolean.parseBoolean(props.getProperty(KEY_EDITOR_HEADER_STAMP, String.valueOf(DEF_EDITOR_HEADER_STAMP)));
+    }
+
+    public void setEditorHeaderStampEnabled(boolean enabled) {
+        props.setProperty(KEY_EDITOR_HEADER_STAMP, String.valueOf(enabled));
+    }
+
+    public String getEditorHeaderStampLocation() {
+        return props.getProperty(KEY_EDITOR_HEADER_LOCATION, "");
+    }
+
+    public void setEditorHeaderStampLocation(String location) {
+        if (location == null || location.trim().isEmpty()) {
+            props.remove(KEY_EDITOR_HEADER_LOCATION);
+        } else {
+            props.setProperty(KEY_EDITOR_HEADER_LOCATION, location.trim());
+        }
     }
     
     public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); props.remove(KEY_MAINMENU_ACCENT_RGB); }
