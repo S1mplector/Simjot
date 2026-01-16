@@ -135,6 +135,33 @@ public final class FileIO {
         }
     }
 
+    public static long copyDirectory(Path source, Path target, boolean copyAttributes) throws IOException {
+        if (source == null || target == null) throw new IllegalArgumentException("source or target is null");
+        if (!Files.isDirectory(source)) throw new IOException("Source is not a directory: " + source);
+        final long[] filesCopied = new long[1];
+        Files.walkFileTree(source, new java.nio.file.SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path rel = source.relativize(dir);
+                Path dest = target.resolve(rel);
+                Files.createDirectories(dest);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Path rel = source.relativize(file);
+                Path dest = target.resolve(rel);
+                Path parent = dest.getParent();
+                if (parent != null) Files.createDirectories(parent);
+                copyFile(file, dest, copyAttributes);
+                filesCopied[0]++;
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return filesCopied[0];
+    }
+
     public static void cleanupTempFiles(Path root, String suffix, long olderThanMs) {
         if (root == null || suffix == null) return;
         long now = System.currentTimeMillis();

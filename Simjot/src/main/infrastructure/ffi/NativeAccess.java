@@ -2565,6 +2565,25 @@ public final class NativeAccess {
         try { return lib.isMacOnBattery(); } catch (Throwable e) { return false; }
     }
 
+    /**
+     * Get suggested iCloud Drive path for Simjot on macOS.
+     * @return path string or null if unavailable
+     */
+    public static String getMacIcloudPath() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try { return lib.getMacIcloudPath(); } catch (Throwable e) { return null; }
+    }
+
+    /**
+     * Check if a given path is an iCloud (ubiquitous) item on macOS.
+     */
+    public static boolean isMacIcloudPath(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || path.isBlank()) return false;
+        try { return lib.isMacIcloudPath(path); } catch (Throwable e) { return false; }
+    }
+
     /** Invalidate cached display scale values (call when displays change) */
     public static void invalidateDisplayCache() {
         cachedPrimaryScale = -1f;

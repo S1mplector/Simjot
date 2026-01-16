@@ -15,6 +15,7 @@
 #import <objc/message.h>
 #import <IOKit/ps/IOPowerSources.h>
 #import <IOKit/ps/IOPSKeys.h>
+#include <cstring>
 #endif
 
 extern "C" float simjot_macos_get_primary_refresh_rate(void) {
@@ -173,4 +174,62 @@ extern "C" int32_t simjot_macos_is_on_battery(void) {
     }
 #endif
     return 0;
+}
+
+extern "C" int32_t simjot_macos_get_icloud_path(char* out, int32_t out_len) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = [fm ubiquityIdentityToken];
+        if (!token) return 0; // iCloud not signed in
+
+        NSString* basePath = nil;
+        NSURL* ubiq = [fm URLForUbiquityContainerIdentifier:nil];
+        if (ubiq) {
+            NSURL* docs = [ubiq URLByAppendingPathComponent:@"Documents"];
+            basePath = [docs path];
+        }
+        if (!basePath) {
+            basePath = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Mobile Documents/com~apple~CloudDocs"];
+        }
+        if (!basePath) return 0;
+
+        NSString* simjotPath = [basePath stringByAppendingPathComponent:@"Simjot"];
+        NSData* data = [simjotPath dataUsingEncoding:NSUTF8StringEncoding];
+        if (!data) return 0;
+
+        int32_t len = (int32_t)[data length];
+        if (out && out_len > 0) {
+            int32_t copy_len = (len < out_len - 1) ? len : out_len - 1;
+            memcpy(out, [data bytes], (size_t)copy_len);
+            out[copy_len] = '\0';
+        }
+        return len;
+    }
+#else
+    (void)out;
+    (void)out_len;
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_macos_is_icloud_path(const char* path) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path) return 0;
+        NSString* nsPath = [NSString stringWithUTF8String:path];
+        if (!nsPath) return 0;
+        NSURL* url = [NSURL fileURLWithPath:nsPath];
+        if (!url) return 0;
+        NSNumber* isUbiq = nil;
+        NSError* error = nil;
+        if (![url getResourceValue:&isUbiq forKey:NSURLIsUbiquitousItemKey error:&error]) {
+            return 0;
+        }
+        return [isUbiq boolValue] ? 1 : 0;
+    }
+#else
+    (void)path;
+    return 0;
+#endif
 }

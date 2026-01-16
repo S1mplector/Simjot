@@ -65,6 +65,7 @@ import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.security.LockScreenDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
@@ -158,6 +159,8 @@ public class JournalApp extends JFrame {
      * Filename for the configuration file.
      */
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
+
+    private static final String ICLOUD_PROMPT_FLAG = "icloud.migration.prompted";
     
     /**
      * Timeout for the exit watchdog thread to force application termination.
@@ -465,6 +468,7 @@ public class JournalApp extends JFrame {
      */
     private void loadOrChooseRootFolder() {
         configFile = new File(System.getProperty("user.home"), CONFIG_FILENAME);
+        File icloudExisting = AppDirectories.findExistingIcloudRoot();
         
         // Try native config read first (more reliable verification)
         String nativePath = main.infrastructure.ffi.NativeAccess.readConfig(configFile.getAbsolutePath());
@@ -472,15 +476,8 @@ public class JournalApp extends JFrame {
             File folder = new File(nativePath);
             // Verify setup is complete using native verification
             if (main.infrastructure.ffi.NativeAccess.isSetupComplete(folder.getAbsolutePath())) {
-                rootFolder = folder;
-                AppDirectories.setRoot(rootFolder);
-                // Ensure subdirectories exist
-                AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
-                AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
-                AppDirectories.folder(AppDirectories.Type.SETTINGS);
-                AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
-                AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
-                FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
+                configureRootFolder(folder, false);
+                maybePromptIcloudSwitch(icloudExisting);
                 return;
             }
         }
@@ -492,20 +489,19 @@ public class JournalApp extends JFrame {
                 if (path != null) {
                     File folder = new File(path);
                     if (folder.exists() && folder.isDirectory()) {
-                        rootFolder = folder;
-                        AppDirectories.setRoot(rootFolder);
-                        AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
-                        AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
-                        AppDirectories.folder(AppDirectories.Type.SETTINGS);
-                        AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
-                        AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
-                        FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
+                        configureRootFolder(folder, false);
+                        maybePromptIcloudSwitch(icloudExisting);
                         return;
                     }
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
+        }
+
+        if (icloudExisting != null) {
+            configureRootFolder(icloudExisting, true);
+            return;
         }
         
         // Show setup wizard
@@ -514,6 +510,50 @@ public class JournalApp extends JFrame {
         rootFolder = dlg.getRootFolder();
         if (rootFolder != null) {
             saveJournalFolderConfig();
+        }
+    }
+
+    private void configureRootFolder(File folder, boolean saveConfig) {
+        if (folder == null) return;
+        if (!folder.exists()) {
+            if (!folder.mkdirs()) return;
+        }
+        if (!folder.isDirectory()) return;
+        rootFolder = folder;
+        AppDirectories.setRoot(rootFolder);
+        try { main.infrastructure.ffi.NativeAccess.setupInit(rootFolder.getAbsolutePath()); } catch (Throwable ignored) {}
+        AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
+        AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
+        AppDirectories.folder(AppDirectories.Type.SETTINGS);
+        AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
+        AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
+        FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
+        if (saveConfig) {
+            saveJournalFolderConfig();
+        }
+    }
+
+    private void maybePromptIcloudSwitch(File icloudRoot) {
+        if (!AppLifecycle.isMacOS()) return;
+        if (icloudRoot == null || rootFolder == null) return;
+        if (AppDirectories.isIcloudRoot(rootFolder)) return;
+        if (!AppDirectories.looksLikeSimjotRoot(icloudRoot)) return;
+        SettingsStore store = SettingsStore.get();
+        if (store.getFlag(ICLOUD_PROMPT_FLAG, false)) return;
+
+        String msg = "<html><div style='width:360px;'>" +
+                "We found Simjot data in iCloud Drive. " +
+                "Use it to sync across your Macs?<br><br>" +
+                "<b>iCloud folder:</b><br>" + icloudRoot.getAbsolutePath() +
+                "</div></html>";
+        String[] options = new String[] { "Use iCloud Data", "Keep Local", "Not Now" };
+        int choice = CustomChoiceDialog.choose(this, "iCloud Sync", msg, options);
+        if (choice >= 0) {
+            store.setFlag(ICLOUD_PROMPT_FLAG, true);
+            store.save();
+        }
+        if (choice == 0) {
+            configureRootFolder(icloudRoot, true);
         }
     }
 

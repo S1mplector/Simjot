@@ -4325,6 +4325,44 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Get suggested iCloud Drive path for Simjot on macOS.
+     * @return Path string or null if unavailable.
+     */
+    public String getMacIcloudPath() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_get_icloud_path",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment buf = arena.allocate(512);
+                int len = (int) handle.invokeExact(buf, 512);
+                if (len <= 0) return null;
+                byte[] bytes = new byte[Math.min(len, 511)];
+                MemorySegment.copy(buf, ValueLayout.JAVA_BYTE, 0, bytes, 0, bytes.length);
+                return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /**
+     * Check whether a path is an iCloud Drive (ubiquitous) item on macOS.
+     */
+    public boolean isMacIcloudPath(String path) {
+        if (path == null || path.isBlank()) return false;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_is_icloud_path",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = arena.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {

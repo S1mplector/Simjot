@@ -313,10 +313,22 @@ public class SetupWizardDialog extends JDialog {
         panel.add(Box.createVerticalStrut(20));
         
         // Location buttons
-        JPanel locationButtons = new JPanel(new GridLayout(2, 1, 0, 10));
+        File icloudRoot = AppDirectories.suggestedIcloudRoot();
+        boolean showIcloud = icloudRoot != null;
+        JPanel locationButtons = new JPanel(new GridLayout(showIcloud ? 3 : 2, 1, 0, 10));
         locationButtons.setOpaque(false);
-        locationButtons.setMaximumSize(new Dimension(440, 140));
+        locationButtons.setMaximumSize(new Dimension(440, showIcloud ? 220 : 140));
         locationButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        if (showIcloud) {
+            JComponent icloudBtn = createLocationButton(
+                "iCloud Drive",
+                "Sync across your Macs automatically",
+                "open_folder",
+                () -> selectRootFolderDirect(icloudRoot, true)
+            );
+            locationButtons.add(icloudBtn);
+        }
         
         JComponent docsBtn = createLocationButton(
             "Documents",
@@ -466,6 +478,15 @@ public class SetupWizardDialog extends JDialog {
     private void selectRootFolder(File baseFolder, boolean autoProceed) {
         if (baseFolder == null) return;
         rootFolder = new File(baseFolder, "Simjot");
+        updateSelectedPath();
+        if (autoProceed) {
+            proceedFromLocation();
+        }
+    }
+
+    private void selectRootFolderDirect(File folder, boolean autoProceed) {
+        if (folder == null) return;
+        rootFolder = folder;
         updateSelectedPath();
         if (autoProceed) {
             proceedFromLocation();

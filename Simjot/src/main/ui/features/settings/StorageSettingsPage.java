@@ -51,11 +51,15 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import main.ui.app.AppConfig;
+import main.ui.app.AppLifecycle;
+import main.ui.app.JournalApp;
 import main.core.security.EncryptionManager;
 import main.core.service.SettingsStore;
 import main.infrastructure.backup.BackupManager;
 import main.infrastructure.backup.BackupService;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.FileIO;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
@@ -63,6 +67,7 @@ import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.security.EncryptionUnlockDialog;
 
@@ -197,6 +202,67 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
         content.add(Box.createVerticalStrut(8));
         content.add(actions);
+
+        if (AppLifecycle.isMacOS()) {
+            JPanel icloudCard = new GlassCardPanel();
+            icloudCard.setLayout(new BorderLayout());
+            icloudCard.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+            icloudCard.setAlignmentX(0.5f);
+
+            JLabel icloudTitle = new JLabel("iCloud Sync");
+            icloudTitle.setFont(icloudTitle.getFont().deriveFont(Font.BOLD));
+            JLabel icloudSub = new JLabel("Sync your Simjot folder across Macs");
+            icloudSub.setFont(icloudSub.getFont().deriveFont(Font.PLAIN, 11f));
+            icloudSub.setForeground(new Color(0,0,0,120));
+
+            JPanel icloudHeader = new JPanel();
+            icloudHeader.setOpaque(false);
+            icloudHeader.setLayout(new BoxLayout(icloudHeader, BoxLayout.Y_AXIS));
+            icloudHeader.add(icloudTitle);
+            icloudHeader.add(icloudSub);
+            icloudCard.add(icloudHeader, BorderLayout.NORTH);
+
+            JPanel icloudBody = new JPanel();
+            icloudBody.setOpaque(false);
+            icloudBody.setLayout(new BoxLayout(icloudBody, BoxLayout.Y_AXIS));
+
+            File icloudRoot = AppDirectories.suggestedIcloudRoot();
+            boolean icloudAvailable = icloudRoot != null;
+            boolean rootInIcloud = AppDirectories.isIcloudRoot(AppDirectories.getRoot());
+
+            JLabel status = new JLabel();
+            status.setFont(status.getFont().deriveFont(Font.PLAIN, 12f));
+            status.setForeground(new Color(0,0,0,160));
+
+            if (!icloudAvailable) {
+                status.setText("iCloud Drive not detected. Sign in to iCloud to enable sync.");
+            } else if (rootInIcloud) {
+                status.setText("Your Simjot data is already stored in iCloud Drive.");
+            } else {
+                status.setText("Move your Simjot folder to iCloud Drive for automatic sync.");
+            }
+            icloudBody.add(status);
+
+            if (icloudAvailable) {
+                JLabel icloudPath = new JLabel(icloudRoot.getAbsolutePath());
+                icloudPath.setFont(new Font("Monospaced", Font.PLAIN, 11));
+                icloudPath.setForeground(new Color(0,0,0,120));
+                icloudPath.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+                icloudBody.add(icloudPath);
+            }
+
+            if (icloudAvailable && !rootInIcloud) {
+                icloudBody.add(Box.createVerticalStrut(8));
+                RoundedButton moveBtn = new RoundedButton("Move to iCloud");
+                moveBtn.putClientProperty("iconId", "open_folder");
+                moveBtn.addActionListener(e -> startIcloudMigration(icloudRoot, moveBtn));
+                icloudBody.add(moveBtn);
+            }
+
+            icloudCard.add(icloudBody, BorderLayout.CENTER);
+            content.add(Box.createVerticalStrut(12));
+            content.add(icloudCard);
+        }
 
         // Backup settings (moved from General) — placed at bottom
         content.add(Box.createVerticalStrut(12));
@@ -520,6 +586,107 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         TreePath sel = dirTree.getSelectionPath();
         if (sel == null) return;
         openPath(sel);
+    }
+
+    private void startIcloudMigration(File icloudRoot, RoundedButton button) {
+        if (icloudRoot == null) {
+            CustomMessageDialog.display(this, "iCloud Sync", "iCloud Drive is not available on this Mac.", true);
+            return;
+        }
+
+        File currentRoot = AppDirectories.getRoot();
+        if (AppDirectories.isIcloudRoot(currentRoot)) {
+            CustomMessageDialog.display(this, "iCloud Sync", "Simjot is already using iCloud Drive.", false);
+            return;
+        }
+
+        if (AppDirectories.looksLikeSimjotRoot(icloudRoot)) {
+            boolean switchNow = CustomConfirmDialog.confirm(
+                this,
+                "iCloud Sync",
+                "An iCloud Simjot folder already exists. Switch to it on next restart?"
+            );
+            if (switchNow) {
+                if (AppConfig.saveRootFolder(icloudRoot)) {
+                    promptRestart("iCloud folder selected. Restart to use it now?");
+                } else {
+                    CustomMessageDialog.display(this, "iCloud Sync", "Failed to update the data location.", true);
+                }
+            }
+            return;
+        }
+
+        boolean ok = CustomConfirmDialog.confirm(
+            this,
+            "Move to iCloud",
+            "This will copy your current Simjot data to iCloud Drive and keep the local folder as a backup. Continue?"
+        );
+        if (!ok) return;
+
+        String originalText = button.getText();
+        button.setEnabled(false);
+        button.setText("Migrating...");
+
+        final java.util.concurrent.atomic.AtomicReference<Throwable> err = new java.util.concurrent.atomic.AtomicReference<>();
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Boolean doInBackground() {
+                try {
+                    java.nio.file.Path src = currentRoot.toPath().toAbsolutePath().normalize();
+                    java.nio.file.Path dst = icloudRoot.toPath().toAbsolutePath().normalize();
+                    if (src.equals(dst)) return true;
+                    if (dst.startsWith(src)) {
+                        throw new IllegalStateException("iCloud path cannot be inside the current root.");
+                    }
+                    java.nio.file.Files.createDirectories(dst);
+                    FileIO.copyDirectory(src, dst, true);
+                    try { main.infrastructure.ffi.NativeAccess.setupInit(icloudRoot.getAbsolutePath()); } catch (Throwable ignored) {}
+                    return true;
+                } catch (Throwable t) {
+                    err.set(t);
+                    return false;
+                }
+            }
+
+            @Override
+            protected void done() {
+                button.setText(originalText);
+                button.setEnabled(true);
+                boolean success = false;
+                try {
+                    success = get();
+                } catch (Throwable t) {
+                    err.set(t);
+                }
+                if (!success) {
+                    String msg = "Migration failed.";
+                    Throwable t = err.get();
+                    if (t != null && t.getMessage() != null && !t.getMessage().isBlank()) {
+                        msg += " " + t.getMessage();
+                    }
+                    CustomMessageDialog.display(StorageSettingsPage.this, "iCloud Sync", msg, true);
+                    return;
+                }
+                if (!AppConfig.saveRootFolder(icloudRoot)) {
+                    CustomMessageDialog.display(StorageSettingsPage.this, "iCloud Sync", "Copy complete, but config update failed.", true);
+                    return;
+                }
+                promptRestart("iCloud copy complete. Restart to use the new location?");
+            }
+        };
+        worker.execute();
+    }
+
+    private void promptRestart(String message) {
+        boolean restart = CustomConfirmDialog.confirm(this, "Restart Required", message);
+        if (!restart) return;
+        java.awt.Window win = SwingUtilities.getWindowAncestor(this);
+        if (win instanceof JournalApp app) {
+            app.restartAfterSettingsChange();
+        } else {
+            AppLifecycle.relaunch();
+            System.exit(0);
+        }
     }
 
     private void doRestore() {

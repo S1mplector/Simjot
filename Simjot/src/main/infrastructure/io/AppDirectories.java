@@ -9,6 +9,7 @@
 package main.infrastructure.io;
 
 import java.io.File;
+import main.infrastructure.ffi.NativeAccess;
 
 /**
  * Centralized directory management for Simjot application file locations.
@@ -149,6 +150,102 @@ public final class AppDirectories {
      */
     public static void setRoot(File rootFolder) {
         root = rootFolder;
+    }
+
+    /**
+     * Suggest an iCloud Drive path for Simjot on macOS, if available.
+     * Does not change the current root.
+     */
+    public static File suggestedIcloudRoot() {
+        String os = System.getProperty("os.name", "");
+        if (os == null || !os.toLowerCase().contains("mac")) return null;
+        String path = NativeAccess.getMacIcloudPath();
+        if (path == null || path.isBlank()) {
+            String home = System.getProperty("user.home");
+            if (home != null && !home.isBlank()) {
+                File cloudDocs = new File(home, "Library/Mobile Documents/com~apple~CloudDocs");
+                if (cloudDocs.exists() && cloudDocs.isDirectory()) {
+                    path = new File(cloudDocs, "Simjot").getAbsolutePath();
+                }
+            }
+        }
+        if (path == null || path.isBlank()) return null;
+        return new File(path);
+    }
+
+    /**
+     * Attempt to set the root to iCloud Drive (creates folders if needed).
+     * @return true if iCloud path was available and root was set.
+     */
+    public static boolean trySetIcloudRoot() {
+        File icloud = suggestedIcloudRoot();
+        if (icloud == null) return false;
+        if (!icloud.exists() && !icloud.mkdirs()) return false;
+        setRoot(icloud);
+        // Ensure active subdirectories exist
+        folder(Type.NOTEBOOKS);
+        folder(Type.MOOD_DATA);
+        folder(Type.SETTINGS);
+        folder(Type.WALLPAPERS);
+        folder(Type.CUSTOM_FONTS);
+        return true;
+    }
+
+    /**
+     * Check if a folder is inside iCloud Drive on macOS.
+     */
+    public static boolean isIcloudRoot(File folder) {
+        if (folder == null) return false;
+        String os = System.getProperty("os.name", "");
+        if (os == null || !os.toLowerCase().contains("mac")) return false;
+        String path = folder.getAbsolutePath();
+        if (path == null || path.isBlank()) return false;
+        try {
+            if (NativeAccess.isMacIcloudPath(path)) return true;
+        } catch (Throwable ignored) {}
+        File icloud = suggestedIcloudRoot();
+        if (icloud == null) return false;
+        try {
+            java.nio.file.Path rootPath = folder.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path icloudPath = icloud.toPath().toAbsolutePath().normalize();
+            return rootPath.equals(icloudPath) || rootPath.startsWith(icloudPath);
+        } catch (Throwable ignored) {
+            String icloudPath = icloud.getAbsolutePath();
+            if (icloudPath == null || icloudPath.isBlank()) return false;
+            String rootPath = path;
+            if (rootPath.equals(icloudPath)) return true;
+            String prefix = icloudPath.endsWith(File.separator) ? icloudPath : icloudPath + File.separator;
+            return rootPath.startsWith(prefix);
+        }
+    }
+
+    /**
+     * Heuristic check for existing Simjot data under a folder.
+     */
+    public static boolean looksLikeSimjotRoot(File folder) {
+        if (folder == null || !folder.exists() || !folder.isDirectory()) return false;
+        if (new File(folder, ".simjot_setup").exists()) return true;
+        String[] candidates = new String[] {
+            "notebooks", "settings", "mood", "wallpapers", "fonts",
+            "entries", "poems", "drawings", "tasks"
+        };
+        for (String name : candidates) {
+            File f = new File(folder, name);
+            if (f.exists()) return true;
+        }
+        return new File(folder, "notebooks.json").exists();
+    }
+
+    /**
+     * Find an existing Simjot root inside iCloud Drive, if available.
+     */
+    public static File findExistingIcloudRoot() {
+        File icloud = suggestedIcloudRoot();
+        if (icloud == null || !icloud.exists() || !icloud.isDirectory()) return null;
+        try {
+            if (NativeAccess.isSetupComplete(icloud.getAbsolutePath())) return icloud;
+        } catch (Throwable ignored) {}
+        return looksLikeSimjotRoot(icloud) ? icloud : null;
     }
 
     /**

@@ -1,0 +1,17 @@
+main/ui/dialog/export/PoemExportDialog$1.class
+ui/dialog/file/package-info.class
+main/ui/features/entries/PoemPanel$5.class
+main/ui/features/poetry/PoetryToolsPanel$3.class
+main/ui/features/settings/StorageSettingsPage$6.class
+main/core/sim/engine/SimScheduler$1.class
+core/security/crypto/package-info.class
+core/poetry/package-info.class
+main/ui/features/entries/NotebookEditorFactory$1.class
+main/ui/theme/aero/AeroTheme$1.class
+main/core/sim/llm/prompt/PromptBuilder$1.class
+main/infrastructure/backup/BackupService$1.class
+main/ui/features/entries/QuickCaptureDialog$3.class
+main/core/sim/engine/SimBrain$1.class
+main/ui/theme/aero/AeroLookAndFeel$1.class
+main/ui/features/entries/MoodButton$1.class
+main/ui/features/notebooks/ModernClusterOrganizer$3.class

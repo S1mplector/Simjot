@@ -99,6 +99,14 @@ public final class AppConfig {
                 ex.printStackTrace();
             }
         }
+
+        File icloud = AppDirectories.findExistingIcloudRoot();
+        if (icloud != null) {
+            rootFolder = icloud;
+            AppDirectories.setRoot(rootFolder);
+            saveRootFolder(rootFolder);
+            return rootFolder;
+        }
         
         return null;
     }

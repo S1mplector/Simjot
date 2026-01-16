@@ -461,6 +461,8 @@ int32_t simjot_macos_reduce_motion_enabled(void);
 int32_t simjot_macos_get_thermal_state(void);
 int32_t simjot_macos_get_accent_color(void);
 int32_t simjot_macos_is_on_battery(void);
+int32_t simjot_macos_get_icloud_path(char* out, int32_t out_len);
+int32_t simjot_macos_is_icloud_path(const char* path);
 
 /* Scaling utilities */
 int32_t simjot_scale_dimension(int32_t value, float scale);
