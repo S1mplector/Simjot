@@ -65,6 +65,40 @@ extern "C" int32_t sjf_stroke_add_point(sjf_stroke_t* stroke, float x, float y, 
     return SJF_OK;
 }
 
+extern "C" int32_t sjf_stroke_set_points(sjf_stroke_t* stroke,
+                                         const float* xs, const float* ys,
+                                         const float* pressures, const float* timestamps,
+                                         int32_t count) {
+    if (!stroke || !xs || !ys) return SJF_ERR_NULL_PTR;
+    if (count < 0) return SJF_ERR_INVALID_DATA;
+    if (count == 0) {
+        stroke->point_count = 0;
+        return SJF_OK;
+    }
+    
+    if (stroke->capacity < count) {
+        sjf_point_t* new_points = (sjf_point_t*)realloc(stroke->points, count * sizeof(sjf_point_t));
+        if (!new_points) return SJF_ERR_MEMORY;
+        stroke->points = new_points;
+        stroke->capacity = count;
+    }
+    
+    stroke->point_count = count;
+    for (int32_t i = 0; i < count; i++) {
+        stroke->points[i].x = xs[i];
+        stroke->points[i].y = ys[i];
+        stroke->points[i].pressure = pressures ? pressures[i] : 1.0f;
+        stroke->points[i].timestamp = timestamps ? timestamps[i] : 0.0f;
+    }
+    
+    return SJF_OK;
+}
+
+extern "C" void sjf_stroke_set_thickness(sjf_stroke_t* stroke, float thickness) {
+    if (!stroke) return;
+    stroke->thickness = (thickness > 0.0f) ? thickness : 0.0f;
+}
+
 extern "C" void sjf_stroke_clear(sjf_stroke_t* stroke) {
     if (stroke) {
         stroke->point_count = 0;

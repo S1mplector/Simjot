@@ -14,6 +14,14 @@ file(GLOB_RECURSE SIMJOT_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+if(APPLE)
+    enable_language(OBJCXX)
+    file(GLOB_RECURSE SIMJOT_OBJCXX_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm"
+    )
+    list(APPEND SIMJOT_SOURCES ${SIMJOT_OBJCXX_SOURCES})
+endif()
+
 add_library(simjot_native SHARED ${SIMJOT_SOURCES})
 set_target_properties(simjot_native PROPERTIES OUTPUT_NAME "simjot_native")
 target_include_directories(simjot_native PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -25,6 +33,8 @@ if(APPLE)
         "-framework ApplicationServices"
         "-framework CoreText"
         "-framework CoreFoundation"
+        "-framework Cocoa"
+        "-framework CoreVideo"
     )
 elseif(WIN32)
     target_link_libraries(simjot_native PRIVATE Shcore)

@@ -63,6 +63,8 @@ public final class NativeFonts implements AutoCloseable {
     private final MethodHandle strokeCreateHandle;
     private final MethodHandle strokeFreeHandle;
     private final MethodHandle strokeAddPointHandle;
+    private final MethodHandle strokeSetPointsHandle;
+    private final MethodHandle strokeSetThicknessHandle;
     private final MethodHandle strokeClearHandle;
     private final MethodHandle strokeSmoothHandle;
     private final MethodHandle strokeLengthHandle;
@@ -171,6 +173,11 @@ public final class NativeFonts implements AutoCloseable {
         strokeAddPointHandle = downcall("sjf_stroke_add_point",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, 
                 ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT));
+        strokeSetPointsHandle = downcall("sjf_stroke_set_points",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        strokeSetThicknessHandle = downcall("sjf_stroke_set_thickness",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_FLOAT));
         strokeClearHandle = downcall("sjf_stroke_clear",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
         strokeSmoothHandle = downcall("sjf_stroke_smooth",
@@ -553,6 +560,31 @@ public final class NativeFonts implements AutoCloseable {
             return (int) strokeAddPointHandle.invokeExact(stroke, x, y, pressure, timestamp);
         } catch (Throwable t) {
             throw new RuntimeException("strokeAddPoint failed", t);
+        }
+    }
+
+    public boolean hasStrokeSetPoints() {
+        return strokeSetPointsHandle != null;
+    }
+
+    public boolean hasStrokeSetThickness() {
+        return strokeSetThicknessHandle != null;
+    }
+
+    public int strokeSetPoints(MemorySegment stroke, MemorySegment xs, MemorySegment ys,
+                               MemorySegment pressures, MemorySegment timestamps, int count) {
+        try {
+            return (int) strokeSetPointsHandle.invokeExact(stroke, xs, ys, pressures, timestamps, count);
+        } catch (Throwable t) {
+            throw new RuntimeException("strokeSetPoints failed", t);
+        }
+    }
+
+    public void strokeSetThickness(MemorySegment stroke, float thickness) {
+        try {
+            strokeSetThicknessHandle.invokeExact(stroke, thickness);
+        } catch (Throwable t) {
+            throw new RuntimeException("strokeSetThickness failed", t);
         }
     }
     

@@ -4241,6 +4241,48 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Get refresh rate for the primary display (macOS only).
+     */
+    public float getPrimaryDisplayRefreshRate() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_get_primary_refresh_rate",
+                FunctionDescriptor.of(ValueLayout.JAVA_FLOAT));
+            if (handle == null) return 0.0f;
+            return (float) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0.0f;
+        }
+    }
+
+    /**
+     * Check if system low power mode is enabled (macOS only).
+     */
+    public boolean isMacLowPowerMode() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_is_low_power_mode",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if Reduce Motion accessibility setting is enabled (macOS only).
+     */
+    public boolean isMacReduceMotionEnabled() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_reduce_motion_enabled",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {

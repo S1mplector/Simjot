@@ -2523,6 +2523,27 @@ public final class NativeAccess {
         try { return lib.getDisplayDpi(displayIndex); } catch (Throwable e) { return 96.0f; }
     }
 
+    /** Get primary display refresh rate (macOS only; returns 0 if unavailable) */
+    public static float getPrimaryDisplayRefreshRate() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0.0f;
+        try { return lib.getPrimaryDisplayRefreshRate(); } catch (Throwable e) { return 0.0f; }
+    }
+
+    /** Check system low power mode (macOS only) */
+    public static boolean isMacLowPowerMode() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.isMacLowPowerMode(); } catch (Throwable e) { return false; }
+    }
+
+    /** Check Reduce Motion accessibility setting (macOS only) */
+    public static boolean isMacReduceMotionEnabled() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.isMacReduceMotionEnabled(); } catch (Throwable e) { return false; }
+    }
+
     /** Invalidate cached display scale values (call when displays change) */
     public static void invalidateDisplayCache() {
         cachedPrimaryScale = -1f;

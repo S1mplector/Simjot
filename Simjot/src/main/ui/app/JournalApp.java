@@ -60,6 +60,7 @@ import main.infrastructure.io.CrashReporter;
 import main.infrastructure.io.FileIO;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
+import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
@@ -1358,6 +1359,7 @@ public class JournalApp extends JFrame {
     public static void main(String[] args) {
         launchArgs = (args == null) ? new String[0] : args.clone();
         try { CrashReporter.install(); } catch (Throwable ignored) {}
+        try { AppPerf.applySystemHints(); } catch (Throwable ignored) {}
         SwingUtilities.invokeLater(() -> {
             // Apply LAF before creating the splash to prevent flicker
             try { AeroLookAndFeel.apply(); } catch (Throwable ignored) {}

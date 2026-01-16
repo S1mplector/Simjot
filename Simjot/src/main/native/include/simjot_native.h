@@ -454,6 +454,11 @@ float simjot_get_primary_display_scale(void);
 float simjot_get_display_dpi(int32_t displayIndex);
 void simjot_invalidate_display_cache(void);
 
+/* macOS system hints */
+float simjot_macos_get_primary_refresh_rate(void);
+int32_t simjot_macos_is_low_power_mode(void);
+int32_t simjot_macos_reduce_motion_enabled(void);
+
 /* Scaling utilities */
 int32_t simjot_scale_dimension(int32_t value, float scale);
 float simjot_scale_value(float value, float scale);
@@ -1704,6 +1709,8 @@ int32_t simjot_link_at_position(const char* text, int32_t len, int32_t position,
 #define simjot_stroke_create sjf_stroke_create
 #define simjot_stroke_free sjf_stroke_free
 #define simjot_stroke_add_point sjf_stroke_add_point
+#define simjot_stroke_set_points sjf_stroke_set_points
+#define simjot_stroke_set_thickness sjf_stroke_set_thickness
 #define simjot_stroke_clear sjf_stroke_clear
 #define simjot_stroke_smooth sjf_stroke_smooth
 #define simjot_stroke_length sjf_stroke_length
@@ -1780,6 +1787,9 @@ void simjot_glyph_get_bounds(const void* glyph, float* x, float* y, float* w, fl
 void* simjot_stroke_create(int32_t initial_capacity);
 void simjot_stroke_free(void* stroke);
 int32_t simjot_stroke_add_point(void* stroke, float x, float y, float pressure, float timestamp);
+int32_t simjot_stroke_set_points(void* stroke, const float* xs, const float* ys,
+                                 const float* pressures, const float* timestamps, int32_t count);
+void simjot_stroke_set_thickness(void* stroke, float thickness);
 void simjot_stroke_clear(void* stroke);
 int32_t simjot_stroke_smooth(void* stroke, int32_t iterations, float tension, float resample_dist, int32_t preserve_corners);
 float simjot_stroke_length(const void* stroke);

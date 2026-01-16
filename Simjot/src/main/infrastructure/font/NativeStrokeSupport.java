@@ -59,9 +59,10 @@ public final class NativeStrokeSupport {
             MemorySegment nativeStroke = fonts.strokeCreate(Math.max(16, points.size()));
             if (nativeStroke == null || nativeStroke.equals(MemorySegment.NULL)) return false;
             try {
-                for (StrokePoint p : points) {
-                    fonts.strokeAddPoint(nativeStroke, p.getX(), p.getY(), p.getPressure(), p.getTimestamp());
+                if (fonts.hasStrokeSetThickness()) {
+                    fonts.strokeSetThickness(nativeStroke, stroke.getThickness());
                 }
+                if (!uploadPoints(fonts, arena, nativeStroke, points)) return false;
 
                 int result = fonts.strokeSmooth(nativeStroke, iterations, tension, resampleDist, preserveCorners);
                 if (result < 0) return false;
@@ -89,5 +90,30 @@ public final class NativeStrokeSupport {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    private static boolean uploadPoints(NativeFonts fonts, Arena arena, MemorySegment stroke, List<StrokePoint> points) {
+        int count = points.size();
+        if (count == 0) return true;
+        if (fonts.hasStrokeSetPoints()) {
+            MemorySegment xs = arena.allocate(ValueLayout.JAVA_FLOAT, count);
+            MemorySegment ys = arena.allocate(ValueLayout.JAVA_FLOAT, count);
+            MemorySegment pressures = arena.allocate(ValueLayout.JAVA_FLOAT, count);
+            MemorySegment timestamps = arena.allocate(ValueLayout.JAVA_FLOAT, count);
+            for (int i = 0; i < count; i++) {
+                StrokePoint p = points.get(i);
+                xs.setAtIndex(ValueLayout.JAVA_FLOAT, i, p.getX());
+                ys.setAtIndex(ValueLayout.JAVA_FLOAT, i, p.getY());
+                pressures.setAtIndex(ValueLayout.JAVA_FLOAT, i, p.getPressure());
+                timestamps.setAtIndex(ValueLayout.JAVA_FLOAT, i, p.getTimestamp());
+            }
+            int result = fonts.strokeSetPoints(stroke, xs, ys, pressures, timestamps, count);
+            return result >= 0;
+        }
+        for (StrokePoint p : points) {
+            int result = fonts.strokeAddPoint(stroke, p.getX(), p.getY(), p.getPressure(), p.getTimestamp());
+            if (result < 0) return false;
+        }
+        return true;
     }
 }
