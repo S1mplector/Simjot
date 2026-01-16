@@ -10,7 +10,7 @@ A highly personalizable creative wellness and writing studio with a modern Aero-
 
 ### **Multi-Format Content Creation**
 - Journal entries with mood tracking, rich formatting, images, and customizable templates
-- Dedicated poetry editor with real-time syllable counting, rhyme and meter analysis, and form detection powered by native engines (C/C++ and optional Haskell)
+- Dedicated poetry editor with real-time syllable counting, rhyme and meter analysis, and form detection powered by native engines (C/C++ and Haskell)
 
 ### **Mood & Wellness Tracking**
 - **Interactive mood slider** with visual feedback (0-100 scale)
