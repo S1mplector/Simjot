@@ -156,13 +156,10 @@ public final class AccentColorUtil {
             String os = System.getProperty("os.name", "");
             if (os != null && os.toLowerCase(Locale.ROOT).contains("mac")) {
                 int argb = NativeAccess.getMacAccentColor();
-                if ((argb >>> 24) != 0) {
-                    cachedDefaultAccent = new Color(argb, true);
-                    return cachedDefaultAccent;
-                }
+                if ((argb >>> 24) != 0) cachedDefaultAccent = new Color(argb, true);
             }
         } catch (Throwable ignored) {}
-        cachedDefaultAccent = fallback;
-        return fallback;
+        if (cachedDefaultAccent == null) cachedDefaultAccent = fallback;
+        return cachedDefaultAccent;
     }
 }

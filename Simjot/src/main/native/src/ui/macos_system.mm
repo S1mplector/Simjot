@@ -104,23 +104,30 @@ extern "C" int32_t simjot_macos_get_thermal_state(void) {
 extern "C" int32_t simjot_macos_get_accent_color(void) {
 #ifdef __APPLE__
     @autoreleasepool {
-        NSColor* color = nil;
-        SEL sel = NSSelectorFromString(@"controlAccentColor");
-        if ([NSColor respondsToSelector:sel]) {
-            color = ((NSColor* (*)(id, SEL))objc_msgSend)([NSColor class], sel);
+        NSColor* rgb = nil;
+        SEL accentSel = NSSelectorFromString(@"controlAccentColor");
+        if ([NSColor respondsToSelector:accentSel]) {
+            rgb = ((NSColor* (*)(id, SEL))objc_msgSend)([NSColor class], accentSel);
         }
-        if (!color) {
-            color = [NSColor alternateSelectedControlColor];
+        if (rgb) {
+            rgb = [rgb colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
         }
-        if (!color) return 0;
-
-        NSColor* rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-        if (!rgb) rgb = color;
+        if (!rgb) {
+            SEL fallbackSel = NSSelectorFromString(@"selectedContentBackgroundColor");
+            NSColor* fallback = nil;
+            if ([NSColor respondsToSelector:fallbackSel]) {
+                fallback = ((NSColor* (*)(id, SEL))objc_msgSend)([NSColor class], fallbackSel);
+            } else {
+                fallback = [NSColor selectedControlColor];
+            }
+            if (fallback) {
+                rgb = [fallback colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+            }
+        }
+        if (!rgb) return 0;
 
         CGFloat r = 0, g = 0, b = 0, a = 1;
-        if (![rgb getRed:&r green:&g blue:&b alpha:&a]) {
-            return 0;
-        }
+        [rgb getRed:&r green:&g blue:&b alpha:&a];
 
         int ri = (int)(r * 255.0 + 0.5);
         int gi = (int)(g * 255.0 + 0.5);
