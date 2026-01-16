@@ -4297,6 +4297,20 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Get macOS accent color as ARGB (0xAARRGGBB). Returns 0 if unavailable.
+     */
+    public int getMacAccentColor() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_get_accent_color",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {

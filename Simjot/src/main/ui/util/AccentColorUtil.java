@@ -25,11 +25,13 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.Locale;
 
 import main.infrastructure.ffi.NativeAccess;
 
 public final class AccentColorUtil {
     private AccentColorUtil() {}
+    private static volatile Color cachedDefaultAccent;
 
     public static Color extractAccent(Image src) {
         if (src == null) return defaultAccent();
@@ -147,6 +149,20 @@ public final class AccentColorUtil {
     private static int clamp255(int v) { return Math.max(0, Math.min(255, v)); }
 
     public static Color defaultAccent() {
-        return new Color(0, 120, 215);
+        Color cached = cachedDefaultAccent;
+        if (cached != null) return cached;
+        Color fallback = new Color(0, 120, 215);
+        try {
+            String os = System.getProperty("os.name", "");
+            if (os != null && os.toLowerCase(Locale.ROOT).contains("mac")) {
+                int argb = NativeAccess.getMacAccentColor();
+                if ((argb >>> 24) != 0) {
+                    cachedDefaultAccent = new Color(argb, true);
+                    return cachedDefaultAccent;
+                }
+            }
+        } catch (Throwable ignored) {}
+        cachedDefaultAccent = fallback;
+        return fallback;
     }
 }

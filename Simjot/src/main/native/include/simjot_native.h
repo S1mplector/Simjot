@@ -459,6 +459,7 @@ float simjot_macos_get_primary_refresh_rate(void);
 int32_t simjot_macos_is_low_power_mode(void);
 int32_t simjot_macos_reduce_motion_enabled(void);
 int32_t simjot_macos_get_thermal_state(void);
+int32_t simjot_macos_get_accent_color(void);
 
 /* Scaling utilities */
 int32_t simjot_scale_dimension(int32_t value, float scale);

@@ -2551,6 +2551,13 @@ public final class NativeAccess {
         try { return lib.getMacThermalState(); } catch (Throwable e) { return 0; }
     }
 
+    /** Get macOS accent color as ARGB (0xAARRGGBB). Returns 0 if unavailable. */
+    public static int getMacAccentColor() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.getMacAccentColor(); } catch (Throwable e) { return 0; }
+    }
+
     /** Invalidate cached display scale values (call when displays change) */
     public static void invalidateDisplayCache() {
         cachedPrimaryScale = -1f;

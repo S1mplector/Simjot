@@ -98,3 +98,40 @@ extern "C" int32_t simjot_macos_get_thermal_state(void) {
 #endif
     return 0;
 }
+
+extern "C" int32_t simjot_macos_get_accent_color(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSColor* color = nil;
+        SEL sel = NSSelectorFromString(@"controlAccentColor");
+        if ([NSColor respondsToSelector:sel]) {
+            color = ((NSColor* (*)(id, SEL))objc_msgSend)([NSColor class], sel);
+        }
+        if (!color) {
+            color = [NSColor alternateSelectedControlColor];
+        }
+        if (!color) return 0;
+
+        NSColor* rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+        if (!rgb) rgb = color;
+
+        CGFloat r = 0, g = 0, b = 0, a = 1;
+        if (![rgb getRed:&r green:&g blue:&b alpha:&a]) {
+            return 0;
+        }
+
+        int ri = (int)(r * 255.0 + 0.5);
+        int gi = (int)(g * 255.0 + 0.5);
+        int bi = (int)(b * 255.0 + 0.5);
+        int ai = (int)(a * 255.0 + 0.5);
+
+        if (ri < 0) ri = 0; else if (ri > 255) ri = 255;
+        if (gi < 0) gi = 0; else if (gi > 255) gi = 255;
+        if (bi < 0) bi = 0; else if (bi > 255) bi = 255;
+        if (ai < 0) ai = 0; else if (ai > 255) ai = 255;
+
+        return (int32_t)((ai << 24) | (ri << 16) | (gi << 8) | bi);
+    }
+#endif
+    return 0;
+}
