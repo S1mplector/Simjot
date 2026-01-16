@@ -84,3 +84,17 @@ extern "C" int32_t simjot_macos_reduce_motion_enabled(void) {
 #endif
     return 0;
 }
+
+extern "C" int32_t simjot_macos_get_thermal_state(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSProcessInfo* info = [NSProcessInfo processInfo];
+        SEL sel = NSSelectorFromString(@"thermalState");
+        if ([info respondsToSelector:sel]) {
+            NSInteger state = ((NSInteger (*)(id, SEL))objc_msgSend)(info, sel);
+            return (int32_t)state;
+        }
+    }
+#endif
+    return 0;
+}

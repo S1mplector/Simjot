@@ -56,6 +56,11 @@ public final class AppPerf {
         if (NativeAccess.isMacLowPowerMode() || NativeAccess.isMacReduceMotionEnabled()) {
             setLowPowerMode(true);
         }
+
+        int thermalState = NativeAccess.getMacThermalState();
+        if (thermalState >= 2) {
+            setLowPowerMode(true);
+        }
     }
 
     public static int getAnimationDelay() {

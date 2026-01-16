@@ -4283,6 +4283,20 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Get macOS thermal state (0=nominal, 1=fair, 2=serious, 3=critical).
+     */
+    public int getMacThermalState() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_get_thermal_state",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {

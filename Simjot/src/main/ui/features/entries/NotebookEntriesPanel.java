@@ -335,6 +335,14 @@ public class NotebookEntriesPanel extends JPanel {
             int x = (sw - w) / 2; if (x < 0) x = 0;
             int y = (sh - h) / 2; if (y < 0) y = 0;
             BufferedImage cropped = scaled.getSubimage(x, y, Math.min(w, sw), Math.min(h, sh));
+            BufferedImage blurred = new BufferedImage(cropped.getWidth(), cropped.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D gb = blurred.createGraphics();
+            gb.drawImage(cropped, 0, 0, null);
+            gb.dispose();
+            if (NativeAccess.imageBlur(blurred, 2)) {
+                BG_CACHE.put(key, blurred);
+                return blurred;
+            }
             // Apply a small blur kernel for softness
             float[] kernel = {
                     1f/16, 2f/16, 1f/16,
@@ -342,7 +350,6 @@ public class NotebookEntriesPanel extends JPanel {
                     1f/16, 2f/16, 1f/16
             };
             ConvolveOp op = new ConvolveOp(new Kernel(3,3,kernel), ConvolveOp.EDGE_NO_OP, null);
-            BufferedImage blurred = new BufferedImage(cropped.getWidth(), cropped.getHeight(), BufferedImage.TYPE_INT_ARGB);
             op.filter(cropped, blurred);
             BG_CACHE.put(key, blurred);
             return blurred;

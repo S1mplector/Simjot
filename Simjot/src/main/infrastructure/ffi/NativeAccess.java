@@ -2544,6 +2544,13 @@ public final class NativeAccess {
         try { return lib.isMacReduceMotionEnabled(); } catch (Throwable e) { return false; }
     }
 
+    /** Get macOS thermal state (0=nominal, 1=fair, 2=serious, 3=critical). */
+    public static int getMacThermalState() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.getMacThermalState(); } catch (Throwable e) { return 0; }
+    }
+
     /** Invalidate cached display scale values (call when displays change) */
     public static void invalidateDisplayCache() {
         cachedPrimaryScale = -1f;

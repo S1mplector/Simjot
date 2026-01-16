@@ -13,6 +13,7 @@ import java.awt.image.BufferedImage;
 import javax.swing.SwingWorker;
 import javax.swing.*;
 import main.core.service.SettingsStore;
+import main.infrastructure.ffi.NativeAccess;
 
 public class BackgroundPanel extends JPanel {
 	private static final long serialVersionUID = 1L;
@@ -127,6 +128,9 @@ public class BackgroundPanel extends JPanel {
 
 	// Shared blur algorithm
 	private BufferedImage applyBlur(BufferedImage src){
+		if (NativeAccess.imageBlur(src, 5)) {
+			return src;
+		}
 		// 5×5 uniform kernel (box blur) repeated for stronger effect
 		int size = 5;
 		float weight = 1f/(size*size);
