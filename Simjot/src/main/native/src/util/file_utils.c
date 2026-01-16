@@ -257,10 +257,9 @@ int32_t simjot_file_copy(const char* src, const char* dst) {
     if (!src || !dst) return 0;
     
 #ifdef __APPLE__
-    // Use macOS copyfile for efficiency
-    if (copyfile(src, dst, NULL, COPYFILE_ALL) == 0) {
-        return 1;
-    }
+    // Prefer APFS clone for speed (falls back to regular copy)
+    if (copyfile(src, dst, NULL, COPYFILE_ALL | COPYFILE_CLONE) == 0) return 1;
+    if (copyfile(src, dst, NULL, COPYFILE_ALL) == 0) return 1;
 #endif
     
     // Fallback: manual copy

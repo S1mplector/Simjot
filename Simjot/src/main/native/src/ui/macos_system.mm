@@ -13,6 +13,8 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreVideo/CoreVideo.h>
 #import <objc/message.h>
+#import <IOKit/ps/IOPowerSources.h>
+#import <IOKit/ps/IOPSKeys.h>
 #endif
 
 extern "C" float simjot_macos_get_primary_refresh_rate(void) {
@@ -131,6 +133,36 @@ extern "C" int32_t simjot_macos_get_accent_color(void) {
         if (ai < 0) ai = 0; else if (ai > 255) ai = 255;
 
         return (int32_t)((ai << 24) | (ri << 16) | (gi << 8) | bi);
+    }
+#endif
+    return 0;
+}
+
+extern "C" int32_t simjot_macos_is_on_battery(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        CFTypeRef info = IOPSCopyPowerSourcesInfo();
+        if (!info) return 0;
+        CFArrayRef sources = IOPSCopyPowerSourcesList(info);
+        if (!sources) {
+            CFRelease(info);
+            return 0;
+        }
+        int32_t on_battery = 0;
+        CFIndex count = CFArrayGetCount(sources);
+        for (CFIndex i = 0; i < count; i++) {
+            CFTypeRef ps = CFArrayGetValueAtIndex(sources, i);
+            CFDictionaryRef desc = IOPSGetPowerSourceDescription(info, ps);
+            if (!desc) continue;
+            CFStringRef state = (CFStringRef)CFDictionaryGetValue(desc, CFSTR(kIOPSPowerSourceStateKey));
+            if (state && CFStringCompare(state, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo) {
+                on_battery = 1;
+                break;
+            }
+        }
+        CFRelease(sources);
+        CFRelease(info);
+        return on_battery;
     }
 #endif
     return 0;

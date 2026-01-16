@@ -61,6 +61,10 @@ public final class AppPerf {
         if (thermalState >= 2) {
             setLowPowerMode(true);
         }
+
+        if (NativeAccess.isMacOnBattery() && baseFps > 60) {
+            setBaseFps(60);
+        }
     }
 
     public static int getAnimationDelay() {

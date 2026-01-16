@@ -2558,6 +2558,13 @@ public final class NativeAccess {
         try { return lib.getMacAccentColor(); } catch (Throwable e) { return 0; }
     }
 
+    /** Check if macOS is currently running on battery power. */
+    public static boolean isMacOnBattery() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.isMacOnBattery(); } catch (Throwable e) { return false; }
+    }
+
     /** Invalidate cached display scale values (call when displays change) */
     public static void invalidateDisplayCache() {
         cachedPrimaryScale = -1f;

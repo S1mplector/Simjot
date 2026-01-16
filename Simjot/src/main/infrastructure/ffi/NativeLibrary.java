@@ -4311,6 +4311,20 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Check if the system is running on battery power (macOS only).
+     */
+    public boolean isMacOnBattery() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_is_on_battery",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {
