@@ -50,21 +50,24 @@ public final class NotebookStore {
     private void load() {
         notebooks.clear();
         Set<String> seenNames = new HashSet<>();
+        boolean[] changed = new boolean[1];
         if(!jsonFile.exists()) return;
         try {
             String raw = Files.readString(jsonFile.toPath(), StandardCharsets.UTF_8);
             if (raw.trim().startsWith("[")) {
-                parseJson(raw, seenNames);
+                parseJson(raw, seenNames, changed);
+                if (changed[0]) save();
                 return;
             }
             // Legacy fallback (line-based :: format)
-            legacyLoad(raw, seenNames);
+            legacyLoad(raw, seenNames, changed);
+            if (changed[0]) save();
         } catch (IOException ex) {
             logWarn("Failed to read notebook store", ex);
         }
     }
 
-    private void legacyLoad(String raw, Set<String> seenNames) {
+    private void legacyLoad(String raw, Set<String> seenNames, boolean[] changed) {
         try(BufferedReader br = new BufferedReader(new java.io.StringReader(raw))){
             String line;
             while((line=br.readLine())!=null){
@@ -72,7 +75,8 @@ public final class NotebookStore {
                 if(parts.length>=3){
                     try {
                         NotebookInfo.Type type = NotebookInfo.Type.valueOf(parts[1]);
-                        File folder = new File(parts[2]);
+                        File folder = normalizeFolder(parts[2], parts[0], changed);
+                        if (folder == null) continue;
                         String iconId = parts.length>=4?parts[3]:"legacy";
                         long created=folder.exists()?folder.lastModified():System.currentTimeMillis();
                         if (isNewName(seenNames, parts[0])) {
@@ -89,7 +93,7 @@ public final class NotebookStore {
         }
     }
 
-    private void parseJson(String raw, Set<String> seenNames) {
+    private void parseJson(String raw, Set<String> seenNames, boolean[] changed) {
         // Minimal parser tailored to our own serialized format
         Pattern objPattern = Pattern.compile("\\{[^}]*\\}");
         Matcher m = objPattern.matcher(raw);
@@ -109,7 +113,8 @@ public final class NotebookStore {
             NotebookInfo.Type type;
             try { type = NotebookInfo.Type.valueOf(typeStr); } catch (IllegalArgumentException e) { continue; }
             if (!isNewName(seenNames, name)) continue;
-            File folder = new File(folderStr);
+            File folder = normalizeFolder(folderStr, name, changed);
+            if (folder == null) continue;
             long createdMs = created != null ? created : (folder.exists() ? folder.lastModified() : System.currentTimeMillis());
             int accent = accentColor != null ? accentColor.intValue() : -1;
             notebooks.add(new NotebookInfo(name, type, folder, createdMs, 
@@ -117,6 +122,44 @@ public final class NotebookStore {
                 description == null ? "" : description,
                 accent,
                 clusterId));
+        }
+    }
+
+    private static File normalizeFolder(String folderStr, String name, boolean[] changed) {
+        if (folderStr == null || folderStr.isBlank()) return null;
+        File root = null;
+        try { root = AppDirectories.getRoot(); } catch (Throwable ignored) {}
+        File folder = new File(folderStr);
+        if (root != null) {
+            if (!folder.isAbsolute()) {
+                folder = new File(root, folderStr);
+                if (changed != null) changed[0] = true;
+            }
+            if (!isUnderRoot(folder, root) && name != null && !name.isBlank()) {
+                File candidate = new File(new File(root, "notebooks"), name);
+                if (candidate.exists()) {
+                    IoLog.warn("notebook-rebase", "Rebasing notebook folder from " + folder.getAbsolutePath() +
+                            " to " + candidate.getAbsolutePath(), null);
+                    folder = candidate;
+                    if (changed != null) changed[0] = true;
+                }
+            }
+        }
+        return folder;
+    }
+
+    private static boolean isUnderRoot(File folder, File root) {
+        if (folder == null || root == null) return false;
+        try {
+            java.nio.file.Path rootPath = root.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path folderPath = folder.toPath().toAbsolutePath().normalize();
+            return folderPath.startsWith(rootPath);
+        } catch (Throwable ignored) {
+            String rootPath = root.getAbsolutePath();
+            String folderPath = folder.getAbsolutePath();
+            if (rootPath == null || folderPath == null) return false;
+            String prefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
+            return folderPath.startsWith(prefix);
         }
     }
 

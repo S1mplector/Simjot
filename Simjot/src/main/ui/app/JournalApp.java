@@ -64,12 +64,10 @@ import main.infrastructure.monitoring.AppPerf;
 import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.security.LockScreenDialog;
 import main.ui.dialog.setup.SetupWizardDialog;
-import main.ui.dialog.setup.TutorialDialog;
 import main.ui.features.drawing.DrawingPanel;
 import main.ui.features.entries.GlobalSearchDialog;
 import main.ui.features.entries.NotebookEditor;
@@ -469,29 +467,23 @@ public class JournalApp extends JFrame {
     private void loadOrChooseRootFolder() {
         configFile = new File(System.getProperty("user.home"), CONFIG_FILENAME);
         File icloudExisting = AppDirectories.findExistingIcloudRoot();
-        
-        // Try native config read first (more reliable verification)
+        File configRoot = null;
+
         String nativePath = main.infrastructure.ffi.NativeAccess.readConfig(configFile.getAbsolutePath());
-        if (nativePath != null) {
-            File folder = new File(nativePath);
-            // Verify setup is complete using native verification
-            if (main.infrastructure.ffi.NativeAccess.isSetupComplete(folder.getAbsolutePath())) {
-                configureRootFolder(folder, false);
-                maybePromptIcloudSwitch(icloudExisting);
-                return;
+        if (nativePath != null && !nativePath.isBlank()) {
+            File folder = new File(nativePath.trim());
+            if (folder.exists() && folder.isDirectory()) {
+                configRoot = folder;
             }
         }
-        
-        // Fallback: try Java config read
-        if (configFile.exists()) {
+
+        if (configRoot == null && configFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
                 String path = reader.readLine();
-                if (path != null) {
-                    File folder = new File(path);
+                if (path != null && !path.isBlank()) {
+                    File folder = new File(path.trim());
                     if (folder.exists() && folder.isDirectory()) {
-                        configureRootFolder(folder, false);
-                        maybePromptIcloudSwitch(icloudExisting);
-                        return;
+                        configRoot = folder;
                     }
                 }
             } catch (IOException ex) {
@@ -499,8 +491,31 @@ public class JournalApp extends JFrame {
             }
         }
 
-        if (icloudExisting != null) {
-            configureRootFolder(icloudExisting, true);
+        File local = AppDirectories.defaultLocalRoot();
+        File docs = AppDirectories.defaultDocumentsRoot();
+        File best = AppDirectories.chooseBestRoot(configRoot, icloudExisting, local, docs);
+        if (best != null) {
+            int configScore = AppDirectories.estimateDataScore(configRoot);
+            int icloudScore = AppDirectories.estimateDataScore(icloudExisting);
+            int localScore = AppDirectories.estimateDataScore(local);
+            int docsScore = AppDirectories.estimateDataScore(docs);
+            int bestScore = AppDirectories.estimateDataScore(best);
+            main.infrastructure.io.IoLog.info("root-select", "config=" + pathOrNull(configRoot) +
+                    " score=" + configScore + ", icloud=" + pathOrNull(icloudExisting) +
+                    " score=" + icloudScore + ", local=" + pathOrNull(local) +
+                    " score=" + localScore + ", docs=" + pathOrNull(docs) +
+                    " score=" + docsScore + ", selected=" + best.getAbsolutePath() +
+                    " score=" + bestScore);
+            if (configRoot != null && !configRoot.equals(best)) {
+                main.infrastructure.io.IoLog.warn("root-select", "Config root seems empty; switching to " +
+                        best.getAbsolutePath(), null);
+                configureRootFolder(best, true);
+            } else {
+                configureRootFolder(best, configRoot == null);
+            }
+            if (configRoot != null && configRoot.equals(best)) {
+                maybePromptIcloudSwitch(icloudExisting);
+            }
             return;
         }
         
@@ -511,6 +526,10 @@ public class JournalApp extends JFrame {
         if (rootFolder != null) {
             saveJournalFolderConfig();
         }
+    }
+
+    private static String pathOrNull(File f) {
+        return f == null ? "null" : f.getAbsolutePath();
     }
 
     private void configureRootFolder(File folder, boolean saveConfig) {
@@ -708,7 +727,6 @@ public class JournalApp extends JFrame {
             } catch (Throwable t) {
                 logWarn("Lock init", t);
             }
-            showTutorialIfFirstTime();
             ensureFullScreen();
             installQuickCaptureHotkey();
             // Force widget panel visible and on top
@@ -879,19 +897,6 @@ public class JournalApp extends JFrame {
         // Ensure widgets panel is visible immediately on creation
         panel.updateWidgetPanelVisibility();
         return panel;
-    }
-
-    private void showTutorialIfFirstTime() {
-        SettingsStore store = SettingsStore.get();
-        if (!store.isTutorialSeen()) {
-            boolean yes = CustomConfirmDialog.confirm(this, "Quick Tour",
-                    "Would you like a quick tour of Simjot's features?");
-            if (yes) {
-                new TutorialDialog(this).setVisible(true);
-            }
-            store.setTutorialSeen(true);
-            store.save();
-        }
     }
 
     public void ensureFullScreen() {

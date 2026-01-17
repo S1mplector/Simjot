@@ -17,6 +17,7 @@ import java.io.PrintWriter;
 
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.IoLog;
 
 /**
  * Manages application configuration files including the root folder path.
@@ -71,28 +72,23 @@ public final class AppConfig {
         if (configFile == null) {
             initialize();
         }
-        
-        // Try native config read first (more reliable verification)
+
+        File configRoot = null;
         String nativePath = NativeAccess.readConfig(configFile.getAbsolutePath());
-        if (nativePath != null) {
-            File folder = new File(nativePath);
-            if (NativeAccess.isSetupComplete(folder.getAbsolutePath())) {
-                rootFolder = folder;
-                AppDirectories.setRoot(rootFolder);
-                return rootFolder;
+        if (nativePath != null && !nativePath.isBlank()) {
+            File folder = new File(nativePath.trim());
+            if (folder.exists() && folder.isDirectory()) {
+                configRoot = folder;
             }
         }
-        
-        // Fallback: try Java config read
-        if (configFile.exists()) {
+
+        if (configRoot == null && configFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
                 String path = reader.readLine();
                 if (path != null && !path.isBlank()) {
                     File folder = new File(path.trim());
                     if (folder.exists() && folder.isDirectory()) {
-                        rootFolder = folder;
-                        AppDirectories.setRoot(rootFolder);
-                        return rootFolder;
+                        configRoot = folder;
                     }
                 }
             } catch (IOException ex) {
@@ -101,13 +97,25 @@ public final class AppConfig {
         }
 
         File icloud = AppDirectories.findExistingIcloudRoot();
-        if (icloud != null) {
-            rootFolder = icloud;
+        File local = AppDirectories.defaultLocalRoot();
+        File docs = AppDirectories.defaultDocumentsRoot();
+
+        File best = AppDirectories.chooseBestRoot(configRoot, icloud, local, docs);
+        if (best != null) {
+            int configScore = AppDirectories.estimateDataScore(configRoot);
+            int bestScore = AppDirectories.estimateDataScore(best);
+            if (configRoot != null && !configRoot.equals(best)) {
+                IoLog.warn("root-select", "Config root seems empty; switching to " + best.getAbsolutePath() +
+                        " (score=" + bestScore + ", configScore=" + configScore + ")", null);
+                saveRootFolder(best);
+            } else {
+                IoLog.info("root-select", "Using root: " + best.getAbsolutePath() + " (score=" + bestScore + ")");
+            }
+            rootFolder = best;
             AppDirectories.setRoot(rootFolder);
-            saveRootFolder(rootFolder);
             return rootFolder;
         }
-        
+
         return null;
     }
     

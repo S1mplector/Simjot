@@ -56,6 +56,7 @@ import main.ui.app.AppLifecycle;
 import main.ui.app.JournalApp;
 import main.core.security.EncryptionManager;
 import main.core.service.SettingsStore;
+import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.backup.BackupManager;
 import main.infrastructure.backup.BackupService;
 import main.infrastructure.io.AppDirectories;
@@ -639,8 +640,18 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
                         throw new IllegalStateException("iCloud path cannot be inside the current root.");
                     }
                     java.nio.file.Files.createDirectories(dst);
+                    if (!NativeAccess.verifyWritable(dst.toString())) {
+                        throw new java.io.IOException("iCloud folder is not writable.");
+                    }
+                    long bytesNeeded = folderSize(currentRoot);
+                    if (bytesNeeded > 0) {
+                        FileIO.ensureSpace(dst, bytesNeeded, "iCloud migration");
+                    }
                     FileIO.copyDirectory(src, dst, true);
                     try { main.infrastructure.ffi.NativeAccess.setupInit(icloudRoot.getAbsolutePath()); } catch (Throwable ignored) {}
+                    if (!main.infrastructure.ffi.NativeAccess.isSetupComplete(icloudRoot.getAbsolutePath())) {
+                        throw new java.io.IOException("iCloud folder verification failed.");
+                    }
                     return true;
                 } catch (Throwable t) {
                     err.set(t);

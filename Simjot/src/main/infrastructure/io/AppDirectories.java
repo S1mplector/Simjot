@@ -245,7 +245,100 @@ public final class AppDirectories {
         try {
             if (NativeAccess.isSetupComplete(icloud.getAbsolutePath())) return icloud;
         } catch (Throwable ignored) {}
-        return looksLikeSimjotRoot(icloud) ? icloud : null;
+        return estimateDataScore(icloud) > 0 ? icloud : null;
+    }
+
+    /**
+     * Default Simjot root in the user's home folder.
+     */
+    public static File defaultLocalRoot() {
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) return null;
+        return new File(home, "Simjot");
+    }
+
+    /**
+     * Default Simjot root in the user's Documents folder.
+     */
+    public static File defaultDocumentsRoot() {
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) return null;
+        return new File(new File(home, "Documents"), "Simjot");
+    }
+
+    /**
+     * Estimate whether a root contains user data (higher score = more data).
+     */
+    public static int estimateDataScore(File rootFolder) {
+        if (rootFolder == null || !rootFolder.exists() || !rootFolder.isDirectory()) return 0;
+        int score = 0;
+        if (new File(rootFolder, ".simjot_setup").exists()) score += 2;
+
+        File notebooksJson = new File(rootFolder, "notebooks.json");
+        if (notebooksJson.isFile()) {
+            score += 50;
+            long len = notebooksJson.length();
+            score += (int) Math.min(100, len / 256);
+        }
+
+        File notebooks = new File(rootFolder, "notebooks");
+        int notebookCount = countChildren(notebooks, 64);
+        if (notebookCount > 0) {
+            score += 10;
+            score += Math.min(50, notebookCount);
+        }
+
+        File prefs = new File(new File(rootFolder, "settings"), "preferences.properties");
+        if (prefs.isFile()) score += 5;
+
+        if (countChildren(new File(rootFolder, "mood"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "wallpapers"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "fonts"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "entries"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "poems"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "drawings"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "tasks"), 1) > 0) score += 1;
+
+        return score;
+    }
+
+    /**
+     * Choose the best existing root, preferring the given root if it contains data.
+     */
+    public static File chooseBestRoot(File preferred, File... candidates) {
+        int preferredScore = estimateDataScore(preferred);
+        if (preferred != null && preferred.exists() && preferred.isDirectory() && preferredScore > 0) {
+            return preferred;
+        }
+
+        File best = null;
+        int bestScore = -1;
+        if (preferred != null && preferred.exists() && preferred.isDirectory()) {
+            best = preferred;
+            bestScore = preferredScore;
+        }
+
+        if (candidates != null) {
+            for (File candidate : candidates) {
+                if (candidate == null) continue;
+                if (!candidate.exists() || !candidate.isDirectory()) continue;
+                int score = estimateDataScore(candidate);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+        }
+
+        if (bestScore > 0) return best;
+        return (preferred != null && preferred.exists() && preferred.isDirectory()) ? preferred : null;
+    }
+
+    private static int countChildren(File dir, int max) {
+        if (dir == null || max <= 0 || !dir.exists() || !dir.isDirectory()) return 0;
+        File[] list = dir.listFiles();
+        if (list == null || list.length == 0) return 0;
+        return Math.min(max, list.length);
     }
 
     /**
