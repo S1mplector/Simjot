@@ -16,6 +16,9 @@ This creates a professional `.pkg` installer in `dist/Simjot-X.X.X.pkg`.
 ### Requirements
 
 - **Java 17+** with `jpackage` (included in JDK 17+)
+- **JDK 24+** for building the app JAR
+- **arm64 + x86_64 JDKs** (required for `--universal`, see notes below)
+- **macOS 11+** (runtime from JDK 24 requires macOS 11 or newer)
 - **Maven** (`mvn`)
 - **Xcode Command Line Tools** (for `iconutil`, `pkgbuild`, `productbuild`)
 
@@ -31,6 +34,7 @@ xcode-select --install
 | `--dmg` | Also create a DMG disk image |
 | `--clean` | Clean build directories before starting |
 | `--sign "Developer ID"` | Code sign with your Developer ID |
+| `--universal` | Build a universal app (arm64 + x86_64) |
 | `-h, --help` | Show help |
 
 ### Examples
@@ -38,6 +42,11 @@ xcode-select --install
 ```bash
 # Build PKG only
 ./build-macos-pkg.sh
+
+# Build universal PKG (Intel + Apple Silicon)
+JDK_ARM64_HOME="/path/to/jdk-arm64" \
+JDK_X86_64_HOME="/path/to/jdk-x86_64" \
+./build-macos-pkg.sh --universal
 
 # Build both PKG and DMG
 ./build-macos-pkg.sh --dmg
@@ -58,6 +67,22 @@ xcode-select --install
 5. **Enhances** `Info.plist` for better macOS integration
 6. **Creates** a `.pkg` installer with welcome/conclusion screens
 7. **(Optional)** Creates a `.dmg` disk image
+
+### Universal Build Notes
+
+For `--universal`, provide both arm64 and x86_64 JDKs:
+
+```bash
+JDK_ARM64_HOME="/path/to/jdk-arm64"
+JDK_X86_64_HOME="/path/to/jdk-x86_64"
+./build-macos-pkg.sh --universal
+```
+
+If you already have a universal2 JDK, you can skip the env vars and ensure its
+`jpackage` is on your `PATH`.
+
+If you keep JDKs under `~/.local/jdks`, the script auto-detects the newest
+arm64 + x86_64 JDKs there when `--universal` is used.
 
 ### Output Files
 

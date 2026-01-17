@@ -14,6 +14,8 @@
 # Options:
 #   --clean       Clean build directories before compiling
 #   --release     Build with optimizations (default: debug)
+#   --arch ARCH   macOS arch: arm64, x86_64, or universal
+#   --universal   Alias for --arch universal (macOS only)
 #   --haskell     Also build the Haskell FFI library
 #   --skip-tests  Skip running native tests
 #   --help        Show this help message
@@ -40,6 +42,7 @@ CLEAN=false
 BUILD_TYPE="Debug"
 BUILD_HASKELL=false
 RUN_TESTS=true
+TARGET_ARCH=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -50,6 +53,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --release)
             BUILD_TYPE="Release"
+            shift
+            ;;
+        --arch)
+            TARGET_ARCH="${2:-}"
+            shift 2
+            ;;
+        --universal)
+            TARGET_ARCH="universal"
             shift
             ;;
         --haskell)
@@ -70,6 +81,21 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -n "${TARGET_ARCH}" ]]; then
+    case "${TARGET_ARCH}" in
+        universal|universal2)
+            TARGET_ARCH="universal"
+            ;;
+        arm64|x86_64)
+            ;;
+        *)
+            echo -e "${RED}Invalid arch: ${TARGET_ARCH}${NC}"
+            echo "Use: --arch arm64 | x86_64 | universal"
+            exit 1
+            ;;
+    esac
+fi
 
 #═══════════════════════════════════════════════════════════════════════════════
 # UTILITY FUNCTIONS
@@ -168,6 +194,22 @@ info "Building native library (${BUILD_TYPE} mode)..."
 
 cd "${NATIVE_DIR}"
 
+# Ensure the native library targets a reasonable minimum macOS version.
+MACOS_DEPLOYMENT_TARGET="${SIMJOT_MACOS_MIN_VERSION:-${MACOSX_DEPLOYMENT_TARGET:-11.0}}"
+
+# Configure macOS arch target when requested
+CMAKE_ARCH_ARGS=()
+if [[ "$(uname)" == "Darwin" && -n "${TARGET_ARCH}" ]]; then
+    if [[ "${TARGET_ARCH}" == "universal" ]]; then
+        CMAKE_ARCH_ARGS=(-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64")
+    else
+        CMAKE_ARCH_ARGS=(-DCMAKE_OSX_ARCHITECTURES="${TARGET_ARCH}")
+    fi
+    info "macOS architecture target: ${TARGET_ARCH}"
+elif [[ -n "${TARGET_ARCH}" ]]; then
+    warn "--arch is ignored on non-macOS platforms"
+fi
+
 # Clean if requested
 if [[ "${CLEAN}" == true ]]; then
     info "Cleaning build directory..."
@@ -181,9 +223,19 @@ cd "${BUILD_DIR}"
 
 # Configure with CMake
 info "Configuring with CMake..."
-cmake .. \
-    -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+CMAKE_ARGS=(
+    -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
     -DSIMJOT_NATIVE_BUILD_TESTS=ON
+)
+if [[ "$(uname)" == "Darwin" ]]; then
+    export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
+    CMAKE_ARGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOS_DEPLOYMENT_TARGET}")
+    info "macOS deployment target: ${MACOS_DEPLOYMENT_TARGET}"
+fi
+if [[ ${#CMAKE_ARCH_ARGS[@]} -gt 0 ]]; then
+    CMAKE_ARGS+=("${CMAKE_ARCH_ARGS[@]}")
+fi
+cmake .. "${CMAKE_ARGS[@]}"
 
 # Build
 info "Compiling native library..."

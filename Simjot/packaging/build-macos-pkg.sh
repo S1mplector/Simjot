@@ -3,7 +3,7 @@
 # Simjot macOS Installer Builder
 # Creates a professional .pkg installer with proper app icon
 #
-# Usage: ./build-macos-pkg.sh [--dmg] [--clean]
+# Usage: ./build-macos-pkg.sh [--dmg] [--clean] [--universal]
 #
 # Requirements:
 #   - Java 17+ (for jpackage)
@@ -27,6 +27,7 @@ BUILD_DIR="$ROOT_DIR/build/macos-installer"
 ICONSET_DIR="$BUILD_DIR/AppIcon.iconset"
 CUSTOM_ICON_ICNS="$ROOT_DIR/src/main/resources/img/icons/original/simjot.icns"
 DIST_DIR="$ROOT_DIR/dist"
+MACOS_MIN_VERSION="${SIMJOT_MACOS_MIN_VERSION:-${MACOSX_DEPLOYMENT_TARGET:-11.0}}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -51,6 +52,155 @@ check_command() {
     fi
 }
 
+get_java_version() {
+    local java_bin="$1"
+    "$java_bin" -version 2>&1 | head -n 1 | cut -d'"' -f2 | cut -d'.' -f1
+}
+
+discover_jdk_home() {
+    local search_dir="$1"
+    local arch="$2"
+    local min_version="$3"
+    local best=""
+    local best_version=0
+
+    if ! command -v lipo >/dev/null 2>&1; then
+        echo ""
+        return 0
+    fi
+    if [[ ! -d "$search_dir" ]]; then
+        echo ""
+        return 0
+    fi
+
+    while IFS= read -r -d '' java_bin; do
+        local home
+        home="$(cd "$(dirname "$java_bin")/.." && pwd)"
+        local jvm_lib="$home/lib/server/libjvm.dylib"
+        [[ -f "$jvm_lib" ]] || continue
+
+        local archs
+        archs="$(lipo -archs "$jvm_lib" 2>/dev/null || true)"
+        case "$arch" in
+            arm64)
+                [[ "$archs" == *"arm64"* ]] || continue
+                ;;
+            x86_64)
+                [[ "$archs" == *"x86_64"* ]] || continue
+                ;;
+            *)
+                continue
+                ;;
+        esac
+
+        local ver=""
+        if [[ "$arch" == "x86_64" ]]; then
+            if ! arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+                continue
+            fi
+            ver=$(arch -x86_64 "$java_bin" -version 2>&1 | head -n 1 | cut -d'"' -f2 | cut -d'.' -f1)
+        else
+            ver=$(get_java_version "$java_bin")
+        fi
+
+        if [[ "$ver" =~ ^[0-9]+$ && "$ver" -ge "$min_version" ]]; then
+            if [[ "$ver" -gt "$best_version" ]]; then
+                best="$home"
+                best_version="$ver"
+            fi
+        fi
+    done < <(find "$search_dir" -type f -path "*/bin/java" -perm -111 -print0 2>/dev/null)
+
+    echo "$best"
+}
+
+require_jdk() {
+    local jdk_path="$1"
+    local arch="$2"
+    local jvm_lib="$jdk_path/lib/server/libjvm.dylib"
+
+    if [[ -z "$jdk_path" || ! -x "$jdk_path/bin/java" ]]; then
+        log_error "JDK not found or invalid: $jdk_path"
+        exit 1
+    fi
+    if [[ ! -f "$jvm_lib" ]]; then
+        log_error "JDK missing libjvm.dylib: $jvm_lib"
+        exit 1
+    fi
+
+    local archs
+    archs="$(lipo -archs "$jvm_lib" 2>/dev/null || true)"
+    case "$arch" in
+        arm64)
+            if [[ "$archs" != *"arm64"* ]]; then
+                log_error "Expected arm64 JDK, found: ${archs:-unknown}"
+                exit 1
+            fi
+            ;;
+        x86_64)
+            if [[ "$archs" != *"x86_64"* ]]; then
+                log_error "Expected x86_64 JDK, found: ${archs:-unknown}"
+                exit 1
+            fi
+            ;;
+        universal)
+            if [[ "$archs" != *"x86_64"* || "$archs" != *"arm64"* ]]; then
+                log_error "Expected universal JDK, found: ${archs:-unknown}"
+                exit 1
+            fi
+            ;;
+        *)
+            log_error "Unknown arch check: $arch"
+            exit 1
+            ;;
+    esac
+}
+
+require_universal_binary() {
+    local path="$1"
+    if [[ ! -f "$path" ]]; then
+        log_error "Expected binary not found: $path"
+        exit 1
+    fi
+    local archs
+    archs="$(lipo -archs "$path" 2>/dev/null || true)"
+    if [[ "$archs" != *"x86_64"* || "$archs" != *"arm64"* ]]; then
+        log_error "Universal build expected, but $path has archs: ${archs:-unknown}"
+        exit 1
+    fi
+}
+
+is_universal_binary() {
+    local path="$1"
+    local archs
+    archs="$(lipo -archs "$path" 2>/dev/null || true)"
+    [[ "$archs" == *"x86_64"* && "$archs" == *"arm64"* ]]
+}
+
+merge_universal_tree() {
+    local arm_dir="$1"
+    local x64_dir="$2"
+    local out_dir="$3"
+
+    rm -rf "$out_dir"
+    mkdir -p "$out_dir"
+    rsync -a "$arm_dir/" "$out_dir/"
+
+    find "$arm_dir" -type f -print0 | while IFS= read -r -d '' arm_file; do
+        local rel="${arm_file#$arm_dir/}"
+        local x64_file="$x64_dir/$rel"
+        local out_file="$out_dir/$rel"
+        if [[ -f "$x64_file" ]]; then
+            if file -b "$arm_file" | grep -q "Mach-O"; then
+                lipo -create "$arm_file" "$x64_file" -output "$out_file"
+                local mode
+                mode=$(stat -f %Lp "$arm_file")
+                chmod "$mode" "$out_file"
+            fi
+        fi
+    done
+}
+
 # ============================================================================
 # Parse Arguments
 # ============================================================================
@@ -59,6 +209,7 @@ CLEAN_BUILD=false
 SIGN_APP=false
 COPY_TO_DESKTOP=false
 ICON_COLOR="blue"
+BUILD_UNIVERSAL=false
 DEVELOPER_ID=""
 
 while [[ $# -gt 0 ]]; do
@@ -67,6 +218,7 @@ while [[ $# -gt 0 ]]; do
         --clean)    CLEAN_BUILD=true; shift ;;
         --desktop)  COPY_TO_DESKTOP=true; shift ;;
         --color)    ICON_COLOR="${2:-blue}"; shift 2 ;;
+        --universal) BUILD_UNIVERSAL=true; shift ;;
         --sign)     SIGN_APP=true; DEVELOPER_ID="${2:-}"; shift 2 ;;
         -h|--help)
             echo "Usage: $0 [options]"
@@ -76,6 +228,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --clean        Clean build directories before starting"
             echo "  --desktop      Copy installer(s) to Desktop"
             echo "  --color COLOR  Icon color: blue, green, purple, red, orange, teal, pink, gold, or #RRGGBB"
+            echo "  --universal    Build a universal app (arm64 + x86_64)"
             echo "  --sign ID      Code sign with Developer ID"
             echo "  -h, --help     Show this help"
             exit 0
@@ -87,14 +240,59 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Optional dual-JDK override for universal builds
+JDK_ARM64_HOME="${JDK_ARM64_HOME:-${JDK_ARM64:-}}"
+JDK_X86_64_HOME="${JDK_X86_64_HOME:-${JDK_X86_64:-}}"
+MIN_JAVA_VERSION=24
+AUTO_JDK_SEARCH_DIR="$HOME/.local/jdks"
+if [[ "$BUILD_UNIVERSAL" == true && -z "$JDK_ARM64_HOME" && -z "$JDK_X86_64_HOME" ]]; then
+    JDK_ARM64_HOME="$(discover_jdk_home "$AUTO_JDK_SEARCH_DIR" "arm64" "$MIN_JAVA_VERSION")"
+    JDK_X86_64_HOME="$(discover_jdk_home "$AUTO_JDK_SEARCH_DIR" "x86_64" "$MIN_JAVA_VERSION")"
+fi
+USE_DUAL_JDK=false
+if [[ "$BUILD_UNIVERSAL" == true && -n "$JDK_ARM64_HOME" && -n "$JDK_X86_64_HOME" ]]; then
+    USE_DUAL_JDK=true
+fi
+
 # ============================================================================
 # Pre-flight Checks
 # ============================================================================
 log_info "Checking requirements..."
-check_command java
 check_command mvn
 check_command iconutil
-check_command jpackage
+check_command pkgbuild
+check_command productbuild
+
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    check_command lipo
+    check_command file
+    require_jdk "$JDK_ARM64_HOME" "arm64"
+    require_jdk "$JDK_X86_64_HOME" "x86_64"
+    for tool in java jdeps jlink jpackage; do
+        if [[ ! -x "$JDK_ARM64_HOME/bin/$tool" ]]; then
+            log_error "Missing tool in arm64 JDK: $JDK_ARM64_HOME/bin/$tool"
+            exit 1
+        fi
+        if [[ ! -x "$JDK_X86_64_HOME/bin/$tool" ]]; then
+            log_error "Missing tool in x86_64 JDK: $JDK_X86_64_HOME/bin/$tool"
+            exit 1
+        fi
+    done
+    if ! arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+        log_error "Rosetta is required to run x86_64 JDK tools."
+        log_error "Install with: softwareupdate --install-rosetta --agree-to-license"
+        exit 1
+    fi
+else
+    check_command java
+    check_command jdeps
+    check_command jlink
+    check_command jpackage
+    if [[ "$BUILD_UNIVERSAL" == true ]]; then
+        check_command lipo
+        check_command file
+    fi
+fi
 
 # Verify we're on macOS
 if [[ "$(uname)" != "Darwin" ]]; then
@@ -103,12 +301,45 @@ if [[ "$(uname)" != "Darwin" ]]; then
 fi
 
 # Get Java version
-JAVA_VERSION=$(java -version 2>&1 | head -n 1 | cut -d'"' -f2 | cut -d'.' -f1)
+JAVA_BIN="java"
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    JAVA_BIN="$JDK_ARM64_HOME/bin/java"
+fi
+JAVA_VERSION=$(get_java_version "$JAVA_BIN")
 if [[ "$JAVA_VERSION" -lt 17 ]]; then
     log_error "Java 17 or higher is required (found: $JAVA_VERSION)"
     exit 1
 fi
 log_ok "Java $JAVA_VERSION detected"
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    log_ok "Using arm64 JDK: $JDK_ARM64_HOME"
+    log_ok "Using x86_64 JDK: $JDK_X86_64_HOME"
+fi
+log_ok "macOS minimum version: $MACOS_MIN_VERSION"
+
+# Validate universal JDK when requested (single-JDK path)
+if [[ "$BUILD_UNIVERSAL" == true && "$USE_DUAL_JDK" != true ]]; then
+    JPACKAGE_BIN="$(command -v jpackage)"
+    JDK_HOME="$(cd "$(dirname "$JPACKAGE_BIN")/.." && pwd)"
+    JVM_LIB="$JDK_HOME/lib/server/libjvm.dylib"
+    JDK_ARCHS=""
+    if [[ -f "$JVM_LIB" ]]; then
+        JDK_ARCHS="$(lipo -archs "$JVM_LIB" 2>/dev/null || true)"
+    fi
+    if [[ "$JDK_ARCHS" != *"x86_64"* || "$JDK_ARCHS" != *"arm64"* ]]; then
+        log_error "Universal build requested but JDK is not universal2."
+        log_error "Install a universal2 JDK 17+ and ensure its bin is on PATH."
+        log_error "Detected JDK: $JDK_HOME"
+        log_error "Detected archs: ${JDK_ARCHS:-unknown}"
+        exit 1
+    fi
+    log_ok "Universal2 JDK detected: $JDK_ARCHS"
+fi
+
+PKG_ARCHS="$(uname -m)"
+if [[ "$BUILD_UNIVERSAL" == true ]]; then
+    PKG_ARCHS="x86_64,arm64"
+fi
 
 # ============================================================================
 # Setup
@@ -130,7 +361,11 @@ log_info "Building $APP_NAME version $VERSION"
 # Step 1: Build the Application JAR
 # ============================================================================
 log_info "Building application JAR..."
-mvn -DskipTests clean package -q
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    JAVA_HOME="$JDK_ARM64_HOME" PATH="$JDK_ARM64_HOME/bin:$PATH" mvn -DskipTests clean package -q
+else
+    mvn -DskipTests clean package -q
+fi
 SHADED_JAR="$APP_NAME-$VERSION.jar"
 JAR_PATH="$ROOT_DIR/target/$SHADED_JAR"
 
@@ -202,12 +437,18 @@ fi
 # ============================================================================
 log_info "Creating optimized Java runtime..."
 RUNTIME_DIR="$BUILD_DIR/runtime"
-rm -rf "$RUNTIME_DIR"
+RUNTIME_DIR_ARM="$BUILD_DIR/runtime-arm64"
+RUNTIME_DIR_X64="$BUILD_DIR/runtime-x86_64"
+rm -rf "$RUNTIME_DIR" "$RUNTIME_DIR_ARM" "$RUNTIME_DIR_X64"
 
 # Detect required modules
 log_info "  Analyzing module dependencies..."
 # Filter out warning lines from jdeps output (split package warnings go to stdout)
-MODULES=$(jdeps --multi-release 17 --ignore-missing-deps --print-module-deps "$JAR_PATH" 2>/dev/null | grep -v "^Warning:" | tail -1 || echo "java.base,java.desktop,java.logging,java.prefs,java.sql")
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    MODULES=$("$JDK_ARM64_HOME/bin/jdeps" --multi-release "$JAVA_VERSION" --ignore-missing-deps --print-module-deps "$JAR_PATH" 2>/dev/null | grep -v "^Warning:" | tail -1 || echo "java.base,java.desktop,java.logging,java.prefs,java.sql")
+else
+    MODULES=$(jdeps --multi-release "$JAVA_VERSION" --ignore-missing-deps --print-module-deps "$JAR_PATH" 2>/dev/null | grep -v "^Warning:" | tail -1 || echo "java.base,java.desktop,java.logging,java.prefs,java.sql")
+fi
 
 # Add modules that might be missed but are commonly needed for Swing apps
 EXTRA_MODULES="jdk.unsupported,java.naming,java.management"
@@ -216,15 +457,40 @@ MODULES="$MODULES,$EXTRA_MODULES"
 log_info "  Required modules: $MODULES"
 log_info "  Building runtime with jlink..."
 
-jlink \
-    --add-modules "$MODULES" \
-    --strip-debug \
-    --no-header-files \
-    --no-man-pages \
-    --compress=2 \
-    --output "$RUNTIME_DIR"
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    "$JDK_ARM64_HOME/bin/jlink" \
+        --add-modules "$MODULES" \
+        --strip-debug \
+        --no-header-files \
+        --no-man-pages \
+        --compress=2 \
+        --output "$RUNTIME_DIR_ARM"
 
-log_ok "Custom runtime created ($(du -sh "$RUNTIME_DIR" | cut -f1))"
+    arch -x86_64 "$JDK_X86_64_HOME/bin/jlink" \
+        --add-modules "$MODULES" \
+        --strip-debug \
+        --no-header-files \
+        --no-man-pages \
+        --compress=2 \
+        --output "$RUNTIME_DIR_X64"
+
+    merge_universal_tree "$RUNTIME_DIR_ARM" "$RUNTIME_DIR_X64" "$RUNTIME_DIR"
+    log_ok "Universal runtime created ($(du -sh "$RUNTIME_DIR" | cut -f1))"
+else
+    jlink \
+        --add-modules "$MODULES" \
+        --strip-debug \
+        --no-header-files \
+        --no-man-pages \
+        --compress=2 \
+        --output "$RUNTIME_DIR"
+
+    log_ok "Custom runtime created ($(du -sh "$RUNTIME_DIR" | cut -f1))"
+fi
+if [[ "$BUILD_UNIVERSAL" == true ]]; then
+    require_universal_binary "$RUNTIME_DIR/lib/server/libjvm.dylib"
+    log_ok "Universal runtime verified"
+fi
 
 # ============================================================================
 # Step 4: Create macOS App Bundle with jpackage
@@ -232,15 +498,13 @@ log_ok "Custom runtime created ($(du -sh "$RUNTIME_DIR" | cut -f1))"
 log_info "Creating macOS application bundle..."
 
 # Prepare jpackage arguments
-JPKG_ARGS=(
+JPKG_BASE_ARGS=(
     --type app-image
     --name "$APP_NAME"
     --app-version "$VERSION"
     --vendor "$VENDOR"
-    --dest "$BUILD_DIR"
     --input "$ROOT_DIR/target"
     --main-jar "$SHADED_JAR"
-    --runtime-image "$RUNTIME_DIR"
     --mac-package-identifier "$BUNDLE_ID"
     --mac-package-name "$APP_NAME"
     --java-options "-Xmx1G"
@@ -252,14 +516,43 @@ JPKG_ARGS=(
 
 # Add icon if available
 if [[ -n "${ICNS_PATH:-}" && -f "$ICNS_PATH" ]]; then
-    JPKG_ARGS+=(--icon "$ICNS_PATH")
+    JPKG_BASE_ARGS+=(--icon "$ICNS_PATH")
 fi
 
 # Remove existing app bundle
 rm -rf "$BUILD_DIR/$APP_NAME.app"
 
-jpackage "${JPKG_ARGS[@]}"
+if [[ "$USE_DUAL_JDK" == true ]]; then
+    BUILD_DIR_ARM="$BUILD_DIR/arm64"
+    BUILD_DIR_X64="$BUILD_DIR/x86_64"
+    mkdir -p "$BUILD_DIR_ARM" "$BUILD_DIR_X64"
+    rm -rf "$BUILD_DIR_ARM/$APP_NAME.app" "$BUILD_DIR_X64/$APP_NAME.app"
+
+    JPKG_ARGS_ARM=("${JPKG_BASE_ARGS[@]}" --dest "$BUILD_DIR_ARM" --runtime-image "$RUNTIME_DIR_ARM")
+    JPKG_ARGS_X64=("${JPKG_BASE_ARGS[@]}" --dest "$BUILD_DIR_X64" --runtime-image "$RUNTIME_DIR_X64")
+
+    "$JDK_ARM64_HOME/bin/jpackage" "${JPKG_ARGS_ARM[@]}"
+    arch -x86_64 "$JDK_X86_64_HOME/bin/jpackage" "${JPKG_ARGS_X64[@]}"
+
+    cp -R "$BUILD_DIR_ARM/$APP_NAME.app" "$BUILD_DIR/$APP_NAME.app"
+    rm -rf "$BUILD_DIR/$APP_NAME.app/Contents/runtime"
+    cp -R "$RUNTIME_DIR" "$BUILD_DIR/$APP_NAME.app/Contents/runtime"
+
+    ARM_LAUNCHER="$BUILD_DIR_ARM/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+    X64_LAUNCHER="$BUILD_DIR_X64/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+    UNIVERSAL_LAUNCHER="$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+    lipo -create "$ARM_LAUNCHER" "$X64_LAUNCHER" -output "$UNIVERSAL_LAUNCHER"
+    chmod "$(stat -f %Lp "$ARM_LAUNCHER")" "$UNIVERSAL_LAUNCHER"
+else
+    JPKG_ARGS=("${JPKG_BASE_ARGS[@]}" --dest "$BUILD_DIR" --runtime-image "$RUNTIME_DIR")
+    jpackage "${JPKG_ARGS[@]}"
+fi
+
 log_ok "App bundle created: $APP_NAME.app"
+if [[ "$BUILD_UNIVERSAL" == true ]]; then
+    require_universal_binary "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+    log_ok "Universal launcher verified"
+fi
 
 # ============================================================================
 # Step 4b: Bundle Native Library
@@ -270,14 +563,35 @@ APP_MACOS_DIR="$BUILD_DIR/$APP_NAME.app/Contents/app"
 
 if [[ -d "$NATIVE_DIR" ]]; then
     # Build native library if not already built
+    NEED_NATIVE_BUILD=false
     if [[ ! -f "$NATIVE_LIB" ]]; then
+        NEED_NATIVE_BUILD=true
+    elif [[ "$BUILD_UNIVERSAL" == true ]] && ! is_universal_binary "$NATIVE_LIB"; then
+        log_warn "Native library is not universal; rebuilding..."
+        NEED_NATIVE_BUILD=true
+    fi
+
+    if [[ "$NEED_NATIVE_BUILD" == true ]]; then
         log_info "Building native library..."
         if [[ -f "$ROOT_DIR/compile-native.sh" ]]; then
-            "$ROOT_DIR/compile-native.sh" --clean
+            NATIVE_BUILD_ARGS=(--clean --release)
+            if [[ "$BUILD_UNIVERSAL" == true ]]; then
+                NATIVE_BUILD_ARGS+=(--arch universal)
+            fi
+            SIMJOT_MACOS_MIN_VERSION="$MACOS_MIN_VERSION" "$ROOT_DIR/compile-native.sh" "${NATIVE_BUILD_ARGS[@]}"
         else
             mkdir -p "$NATIVE_DIR/build"
             cd "$NATIVE_DIR/build"
-            cmake .. -DCMAKE_BUILD_TYPE=Release
+            if [[ "$BUILD_UNIVERSAL" == true ]]; then
+                MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN_VERSION" cmake .. \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_MIN_VERSION" \
+                    -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+            else
+                MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN_VERSION" cmake .. \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_MIN_VERSION"
+            fi
             make -j$(sysctl -n hw.ncpu)
             cd "$ROOT_DIR"
         fi
@@ -285,6 +599,10 @@ if [[ -d "$NATIVE_DIR" ]]; then
     
     # Bundle into app
     if [[ -f "$NATIVE_LIB" ]]; then
+        if [[ "$BUILD_UNIVERSAL" == true ]]; then
+            require_universal_binary "$NATIVE_LIB"
+            log_ok "Universal native library verified"
+        fi
         log_info "Bundling native library into app..."
         mkdir -p "$APP_MACOS_DIR"
         cp "$NATIVE_LIB" "$APP_MACOS_DIR/"
@@ -305,7 +623,8 @@ if [[ -f "$PLIST_PATH" ]]; then
     /usr/libexec/PlistBuddy -c "Add :LSApplicationCategoryType string $CATEGORY" "$PLIST_PATH" 2>/dev/null || true
     /usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" "$PLIST_PATH" 2>/dev/null || true
     /usr/libexec/PlistBuddy -c "Add :NSSupportsAutomaticGraphicsSwitching bool true" "$PLIST_PATH" 2>/dev/null || true
-    /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 10.14" "$PLIST_PATH" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MACOS_MIN_VERSION" "$PLIST_PATH" 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string $MACOS_MIN_VERSION" "$PLIST_PATH" 2>/dev/null || true
     log_ok "Info.plist enhanced"
 fi
 
@@ -383,7 +702,7 @@ cat > "$DIST_XML" <<EOF
     <title>$APP_NAME</title>
     <organization>$BUNDLE_ID</organization>
     <domains enable_localSystem="true"/>
-    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+    <options customize="never" require-scripts="false" hostArchitectures="$PKG_ARCHS"/>
     
     $BG_IMAGE_TAG
     
@@ -528,6 +847,9 @@ if [[ "$CREATE_DMG" == true ]]; then
     echo "  💿 DMG Image:     $DMG_PATH"
 fi
 echo "  📱 App Bundle:    $BUILD_DIR/$APP_NAME.app"
+if [[ "$BUILD_UNIVERSAL" == true ]]; then
+    echo "  Universal build:  arm64 + x86_64"
+fi
 if [[ "$COPY_TO_DESKTOP" == true ]]; then
     echo ""
     echo "Copied to Desktop:"
