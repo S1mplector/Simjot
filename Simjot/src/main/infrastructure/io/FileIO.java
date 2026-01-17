@@ -448,6 +448,8 @@ public final class FileIO {
      */
     public static boolean rename(Path source, Path target) {
         if (source == null || target == null) return false;
+        Boolean icloudMove = NativeAccess.macosIcloudCoordinatedMove(source, target);
+        if (Boolean.TRUE.equals(icloudMove)) return true;
         if (NativeAccess.fsRename(source.toString(), target.toString())) return true;
         try {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);

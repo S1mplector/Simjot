@@ -15,6 +15,7 @@
 #import <objc/message.h>
 #import <IOKit/ps/IOPowerSources.h>
 #import <IOKit/ps/IOPSKeys.h>
+#include <copyfile.h>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
@@ -829,6 +830,123 @@ extern "C" int32_t simjot_macos_icloud_coordinated_write(const char* path, const
     (void)data_len;
     (void)fsync_file;
     (void)fsync_dir;
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_macos_icloud_coordinated_copy(const char* src_path, const char* dst_path, int32_t copy_attributes) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!src_path || !*src_path || !dst_path || !*dst_path) return 0;
+        NSString* srcPath = [NSString stringWithUTF8String:src_path];
+        NSString* dstPath = [NSString stringWithUTF8String:dst_path];
+        if (!srcPath || !dstPath) return 0;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = nil;
+        if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+            token = [fm ubiquityIdentityToken];
+        }
+        if (!token) return 0;
+
+        if (!simjot_is_icloud_path_fallback(srcPath) && !simjot_is_icloud_path_fallback(dstPath)) {
+            return 0;
+        }
+
+        NSString* dstDir = [dstPath stringByDeletingLastPathComponent];
+        if (dstDir && ![fm fileExistsAtPath:dstDir]) {
+            [fm createDirectoryAtPath:dstDir withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+
+        NSURL* srcUrl = [NSURL fileURLWithPath:srcPath];
+        NSURL* dstUrl = [NSURL fileURLWithPath:dstPath];
+        if (!srcUrl || !dstUrl) return 0;
+
+        __block BOOL ok = NO;
+        __block NSError* coordError = nil;
+        NSFileCoordinator* coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
+        [coordinator coordinateReadingItemAtURL:srcUrl
+                                        options:0
+                               writingItemAtURL:dstUrl
+                                        options:NSFileCoordinatorWritingForReplacing
+                                          error:&coordError
+                                     byAccessor:^(NSURL* newSrc, NSURL* newDst) {
+            const char* srcFs = [newSrc fileSystemRepresentation];
+            const char* dstFs = [newDst fileSystemRepresentation];
+            if (!srcFs || !dstFs) return;
+            int flags = copy_attributes ? COPYFILE_ALL : COPYFILE_DATA;
+            flags |= COPYFILE_UNLINK;
+            ok = (copyfile(srcFs, dstFs, NULL, (copyfile_flags_t)flags) == 0);
+        }];
+
+#if !__has_feature(objc_arc)
+        [coordinator release];
+#endif
+        (void)coordError;
+        return ok ? 1 : 0;
+    }
+#else
+    (void)src_path;
+    (void)dst_path;
+    (void)copy_attributes;
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_macos_icloud_coordinated_move(const char* src_path, const char* dst_path) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!src_path || !*src_path || !dst_path || !*dst_path) return 0;
+        NSString* srcPath = [NSString stringWithUTF8String:src_path];
+        NSString* dstPath = [NSString stringWithUTF8String:dst_path];
+        if (!srcPath || !dstPath) return 0;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = nil;
+        if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+            token = [fm ubiquityIdentityToken];
+        }
+        if (!token) return 0;
+
+        if (!simjot_is_icloud_path_fallback(srcPath) && !simjot_is_icloud_path_fallback(dstPath)) {
+            return 0;
+        }
+
+        NSString* dstDir = [dstPath stringByDeletingLastPathComponent];
+        if (dstDir && ![fm fileExistsAtPath:dstDir]) {
+            [fm createDirectoryAtPath:dstDir withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+
+        NSURL* srcUrl = [NSURL fileURLWithPath:srcPath];
+        NSURL* dstUrl = [NSURL fileURLWithPath:dstPath];
+        if (!srcUrl || !dstUrl) return 0;
+
+        __block BOOL ok = NO;
+        __block NSError* coordError = nil;
+        NSFileCoordinator* coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
+        [coordinator coordinateWritingItemAtURL:srcUrl
+                                        options:NSFileCoordinatorWritingForMoving
+                               writingItemAtURL:dstUrl
+                                        options:NSFileCoordinatorWritingForReplacing
+                                          error:&coordError
+                                     byAccessor:^(NSURL* newSrc, NSURL* newDst) {
+            NSError* moveError = nil;
+            [fm removeItemAtURL:newDst error:nil];
+            ok = [fm moveItemAtURL:newSrc toURL:newDst error:&moveError];
+            if (!ok && moveError) {
+                coordError = moveError;
+            }
+        }];
+
+#if !__has_feature(objc_arc)
+        [coordinator release];
+#endif
+        (void)coordError;
+        return ok ? 1 : 0;
+    }
+#else
+    (void)src_path;
+    (void)dst_path;
     return 0;
 #endif
 }

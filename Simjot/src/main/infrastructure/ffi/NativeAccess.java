@@ -282,6 +282,16 @@ public final class NativeAccess {
         NativeLibrary lib = library();
         if (lib == null || src == null || dst == null) return null;
         try {
+            boolean icloudPath = false;
+            try {
+                if (lib.isMacIcloudPath(src.toString()) || lib.isMacIcloudPath(dst.toString())) {
+                    icloudPath = true;
+                }
+            } catch (Throwable ignored) {}
+            if (icloudPath) {
+                boolean ok = lib.macosIcloudCoordinatedCopy(src, dst, copyAttributes);
+                if (ok) return true;
+            }
             return lib.copyFile(src, dst, copyAttributes);
         } catch (Throwable t) {
             IoLog.warn("native-copy", "Native file copy failed; falling back to Java.", t);
@@ -2651,6 +2661,17 @@ public final class NativeAccess {
         NativeLibrary lib = library();
         if (lib == null || path == null || path.isBlank()) return -1;
         try { return lib.ensureMacIcloudDownloaded(path, timeoutMs); } catch (Throwable e) { return -1; }
+    }
+
+    public static Boolean macosIcloudCoordinatedMove(Path src, Path dst) {
+        NativeLibrary lib = library();
+        if (lib == null || src == null || dst == null) return null;
+        try {
+            return lib.macosIcloudCoordinatedMove(src, dst);
+        } catch (Throwable t) {
+            IoLog.warn("native-move", "Native coordinated move failed; falling back to Java.", t);
+            return null;
+        }
     }
 
     /**

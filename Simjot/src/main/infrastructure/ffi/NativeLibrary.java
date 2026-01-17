@@ -4509,6 +4509,42 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Perform a coordinated iCloud copy on macOS.
+     */
+    public boolean macosIcloudCoordinatedCopy(Path src, Path dst, boolean copyAttributes) {
+        if (src == null || dst == null) return false;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_coordinated_copy",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            MemorySegment cSrc = arena.allocateFrom(src.toString());
+            MemorySegment cDst = arena.allocateFrom(dst.toString());
+            int ok = (int) handle.invokeExact(cSrc, cDst, copyAttributes ? 1 : 0);
+            return ok != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Perform a coordinated iCloud move on macOS.
+     */
+    public boolean macosIcloudCoordinatedMove(Path src, Path dst) {
+        if (src == null || dst == null) return false;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_coordinated_move",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cSrc = arena.allocateFrom(src.toString());
+            MemorySegment cDst = arena.allocateFrom(dst.toString());
+            int ok = (int) handle.invokeExact(cSrc, cDst);
+            return ok != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {
