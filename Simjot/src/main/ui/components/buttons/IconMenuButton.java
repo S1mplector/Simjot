@@ -9,17 +9,21 @@
 package main.ui.components.buttons;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Stroke;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
 
 import javax.swing.JButton;
@@ -28,7 +32,6 @@ import javax.swing.Timer;
 import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
 
@@ -86,6 +89,7 @@ public class IconMenuButton extends JButton {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         int w = getWidth();
+        int h = getHeight();
 
         boolean enabled = isEnabled();
         
@@ -100,26 +104,38 @@ public class IconMenuButton extends JButton {
         // Icon
         int iconSize = Math.min(w - 18, 56);
         int iconX = (w - iconSize) / 2;
-        int lift = (int) Math.round(5 * (1f - te));
-        int iconY = 14 + lift; // nudge down a bit when idle
+        float lift = 5f * (1f - te);
+        int iconY = 14; // base position; lift applied via transform
 
         if (aeroGlowEnabled && enabled && te > 0.01f) {
-            Color accent = resolveAccent();
-            int glowPad = Math.max(8, iconSize / 6);
-            int glowW = iconSize + glowPad * 2;
-            int glowH = iconSize + glowPad * 2;
-            int glowX = (w - glowW) / 2;
-            int glowY = iconY - glowPad + 2;
-            int arc = Math.max(10, iconSize / 2);
-            Rectangle glowRect = new Rectangle(glowX, glowY, glowW, glowH);
-            AeroPainters.paintOuterGlow(g2, glowRect, arc, accent, Math.max(5, glowPad), Math.round(60 + 80 * te));
+            int arc = 16;
+            int overlayH = Math.max(1, h - 9);
+            RoundRectangle2D overlay = new RoundRectangle2D.Float(1, 1, w - 3f, overlayH, arc, arc);
+            float alpha = 0.35f + 0.45f * te;
+            Composite oldComposite = g2.getComposite();
+            Stroke oldStroke = g2.getStroke();
 
-            g2.setComposite(AlphaComposite.SrcOver.derive(0.08f + 0.14f * te));
-            g2.setColor(new Color(255, 255, 255, 220));
-            g2.fill(new RoundRectangle2D.Float(glowX + 1, glowY + 1, glowW - 2f, glowH - 2f, arc, arc));
-            g2.setComposite(AlphaComposite.SrcOver);
+            g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+            g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 220), 0, overlayH,
+                    new Color(224, 232, 244, 210)));
+            g2.fill(overlay);
+            g2.setComposite(AlphaComposite.SrcOver.derive(0.25f * te));
+            g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 200),
+                    0, overlayH * 0.5f, new Color(255, 255, 255, 0)));
+            g2.fill(overlay);
+            g2.setComposite(oldComposite);
+
+            g2.setColor(new Color(255, 255, 255, Math.round(130 * te)));
+            g2.drawRoundRect(2, 2, w - 5, overlayH - 2, arc - 2, arc - 2);
+            g2.setColor(new Color(0, 0, 0, Math.round(50 * te)));
+            g2.setStroke(new BasicStroke(1.4f));
+            g2.drawRoundRect(1, 1, w - 3, overlayH, arc, arc);
+
+            g2.setStroke(oldStroke);
         }
 
+        AffineTransform oldTransform = g2.getTransform();
+        g2.translate(0, lift);
         String resPath = ImageIconRenderer.mapIdToResource(iconId);
         if (resPath != null) {
             ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
@@ -147,6 +163,7 @@ public class IconMenuButton extends JButton {
             g2.drawString(caption, textX, textY);
             g2.setComposite(AlphaComposite.SrcOver);
         }
+        g2.setTransform(oldTransform);
 
         g2.dispose();
     }
@@ -186,8 +203,8 @@ public class IconMenuButton extends JButton {
         hoverLastNs = now;
         dt = Math.max(0f, Math.min(0.05f, dt));
 
-        // Asymmetric timing: faster fade-in, gentler fade-out
-        float smoothTime = hoverTarget ? 0.18f : 0.32f;
+        // Match notebook hover timing for a uniform feel.
+        float smoothTime = 0.18f;
         float omega = 2f / smoothTime;
         float x = omega * dt;
         float exp = 1f / (1f + x + 0.48f * x * x + 0.235f * x * x * x);
@@ -197,7 +214,7 @@ public class IconMenuButton extends JButton {
         hoverT = target + (change + temp) * exp;
         hoverT = Math.max(0f, Math.min(1f, hoverT));
 
-        if (Math.abs(hoverT - target) < 0.0008f && Math.abs(hoverV) < 0.0008f) {
+        if (Math.abs(hoverT - target) < 0.001f && Math.abs(hoverV) < 0.001f) {
             hoverT = target;
             hoverV = 0f;
             stopHoverTimer();
