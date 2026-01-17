@@ -385,3 +385,88 @@ extern "C" int32_t simjot_macos_icloud_start_download(const char* path) {
 #endif
     return 0;
 }
+
+extern "C" int32_t simjot_macos_icloud_prefetch_dir(const char* path, int32_t max_items, int32_t max_depth) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path) return 0;
+        NSString* rootPath = [NSString stringWithUTF8String:path];
+        if (!rootPath) return 0;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:rootPath isDirectory:&isDir] || !isDir) return 0;
+
+        NSURL* rootUrl = [NSURL fileURLWithPath:rootPath];
+        if (!rootUrl) return 0;
+
+        NSArray* keys = @[
+            NSURLIsUbiquitousItemKey,
+            NSURLUbiquitousItemIsDownloadedKey,
+            NSURLUbiquitousItemIsDownloadingKey,
+            NSURLIsDirectoryKey
+        ];
+
+        NSDirectoryEnumerator* enumerator = [fm enumeratorAtURL:rootUrl
+                                     includingPropertiesForKeys:keys
+                                                        options:(NSDirectoryEnumerationSkipsHiddenFiles |
+                                                                 NSDirectoryEnumerationSkipsPackageDescendants)
+                                                   errorHandler:^BOOL(NSURL* url, NSError* error) {
+            (void)url;
+            (void)error;
+            return YES;
+        }];
+        if (!enumerator) return 0;
+
+        NSUInteger rootDepth = [[rootPath pathComponents] count];
+        int32_t requested = 0;
+        for (NSURL* url in enumerator) {
+            if (!url) continue;
+            NSString* itemPath = [url path];
+            if (itemPath && max_depth > 0) {
+                NSUInteger depth = [[itemPath pathComponents] count];
+                if (depth > rootDepth + (NSUInteger)max_depth) {
+                    [enumerator skipDescendants];
+                    continue;
+                }
+            }
+
+            NSNumber* isUbiq = nil;
+            if (![url getResourceValue:&isUbiq forKey:NSURLIsUbiquitousItemKey error:nil]) {
+                continue;
+            }
+            if (!isUbiq || ![isUbiq boolValue]) continue;
+
+            NSNumber* downloaded = nil;
+            if ([url getResourceValue:&downloaded forKey:NSURLUbiquitousItemIsDownloadedKey error:nil]) {
+                if (downloaded && [downloaded boolValue]) {
+                    continue;
+                }
+            }
+
+            NSNumber* downloading = nil;
+            if ([url getResourceValue:&downloading forKey:NSURLUbiquitousItemIsDownloadingKey error:nil]) {
+                if (downloading && [downloading boolValue]) {
+                    continue;
+                }
+            }
+
+            SEL sel = NSSelectorFromString(@"startDownloadingUbiquitousItemAtURL:error:");
+            if ([fm respondsToSelector:sel]) {
+                NSError* error = nil;
+                BOOL ok = ((BOOL (*)(id, SEL, NSURL*, NSError**))objc_msgSend)(fm, sel, url, &error);
+                if (ok) requested++;
+            }
+
+            if (max_items > 0 && requested >= max_items) break;
+        }
+
+        return requested;
+    }
+#else
+    (void)path;
+    (void)max_items;
+    (void)max_depth;
+    return 0;
+#endif
+}

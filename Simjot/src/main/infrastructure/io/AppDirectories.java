@@ -290,6 +290,8 @@ public final class AppDirectories {
         if (notebookCount > 0) {
             score += 10;
             score += Math.min(50, notebookCount);
+        } else if (icloudRoot) {
+            score += icloudItemScore(notebooks, 10);
         }
 
         File prefs = new File(new File(rootFolder, "settings"), "preferences.properties");

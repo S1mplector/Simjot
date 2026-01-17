@@ -17,6 +17,7 @@ import java.io.PrintWriter;
 
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.IcloudSyncService;
 import main.infrastructure.io.IoLog;
 
 /**
@@ -330,6 +331,9 @@ public final class AppConfig {
         try {
             File setupMarker = new File(root, ".simjot_setup");
             NativeAccess.startMacIcloudDownload(setupMarker.getAbsolutePath());
+        } catch (Throwable ignored) {}
+        try {
+            IcloudSyncService.warmupRoot(root);
         } catch (Throwable ignored) {}
     }
 }

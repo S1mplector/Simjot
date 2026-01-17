@@ -2607,6 +2607,16 @@ public final class NativeAccess {
     }
 
     /**
+     * Prefetch iCloud directory contents on macOS.
+     * @return number of download requests started.
+     */
+    public static int prefetchMacIcloudDir(String path, int maxItems, int maxDepth) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || path.isBlank()) return 0;
+        try { return lib.prefetchMacIcloudDir(path, maxItems, maxDepth); } catch (Throwable e) { return 0; }
+    }
+
+    /**
      * Check if a given path is an iCloud (ubiquitous) item on macOS.
      */
     public static boolean isMacIcloudPath(String path) {
