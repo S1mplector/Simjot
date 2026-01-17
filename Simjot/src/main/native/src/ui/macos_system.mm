@@ -18,6 +18,53 @@
 #include <cstring>
 #endif
 
+#ifdef __APPLE__
+enum {
+    SIMJOT_ICLOUD_EXISTS = 1 << 0,
+    SIMJOT_ICLOUD_UBIQUITOUS = 1 << 1,
+    SIMJOT_ICLOUD_DOWNLOADED = 1 << 2,
+    SIMJOT_ICLOUD_DOWNLOADING = 1 << 3,
+    SIMJOT_ICLOUD_UPLOADING = 1 << 4,
+    SIMJOT_ICLOUD_CONFLICT = 1 << 5
+};
+
+static int simjot_path_is_under(NSString* path, NSString* base) {
+    if (!path || !base) return 0;
+    NSString* p = [path stringByStandardizingPath];
+    NSString* b = [base stringByStandardizingPath];
+    if (!p || !b) return 0;
+    if ([p isEqualToString:b]) return 1;
+    if (![b hasSuffix:@"/"]) {
+        b = [b stringByAppendingString:@"/"];
+    }
+    return [p hasPrefix:b] ? 1 : 0;
+}
+
+static int simjot_is_icloud_path_fallback(NSString* path) {
+    if (!path) return 0;
+    NSFileManager* fm = [NSFileManager defaultManager];
+    NSString* base = nil;
+    id token = nil;
+    if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+        token = [fm ubiquityIdentityToken];
+    }
+    if (token) {
+        SEL sel = NSSelectorFromString(@"URLForUbiquityContainerIdentifier:");
+        if ([fm respondsToSelector:sel]) {
+            NSURL* ubiq = ((NSURL* (*)(id, SEL, NSString*))objc_msgSend)(fm, sel, nil);
+            if (ubiq) {
+                NSURL* docs = [ubiq URLByAppendingPathComponent:@"Documents"];
+                base = [docs path];
+            }
+        }
+    }
+    if (!base) {
+        base = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Mobile Documents/com~apple~CloudDocs"];
+    }
+    return simjot_path_is_under(path, base);
+}
+#endif
+
 extern "C" float simjot_macos_get_primary_refresh_rate(void) {
 #ifdef __APPLE__
     double rate = 0.0;
@@ -224,12 +271,117 @@ extern "C" int32_t simjot_macos_is_icloud_path(const char* path) {
         NSNumber* isUbiq = nil;
         NSError* error = nil;
         if (![url getResourceValue:&isUbiq forKey:NSURLIsUbiquitousItemKey error:&error]) {
-            return 0;
+            return simjot_is_icloud_path_fallback(nsPath);
         }
-        return [isUbiq boolValue] ? 1 : 0;
+        if (isUbiq && [isUbiq boolValue]) return 1;
+        return simjot_is_icloud_path_fallback(nsPath);
     }
 #else
     (void)path;
     return 0;
 #endif
+}
+
+extern "C" int32_t simjot_macos_icloud_is_available(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSFileManager* fm = [NSFileManager defaultManager];
+        SEL sel = NSSelectorFromString(@"ubiquityIdentityToken");
+        if ([fm respondsToSelector:sel]) {
+            id token = ((id (*)(id, SEL))objc_msgSend)(fm, sel);
+            return token ? 1 : 0;
+        }
+    }
+#endif
+    return 0;
+}
+
+extern "C" int32_t simjot_macos_icloud_item_status(const char* path) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path) return 0;
+        NSString* nsPath = [NSString stringWithUTF8String:path];
+        if (!nsPath) return 0;
+        NSFileManager* fm = [NSFileManager defaultManager];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:nsPath isDirectory:&isDir]) return 0;
+
+        int32_t flags = SIMJOT_ICLOUD_EXISTS;
+        NSURL* url = [NSURL fileURLWithPath:nsPath];
+        if (!url) return flags;
+
+        NSNumber* isUbiq = nil;
+        NSError* error = nil;
+        if ([url getResourceValue:&isUbiq forKey:NSURLIsUbiquitousItemKey error:&error]) {
+            if (isUbiq && [isUbiq boolValue]) flags |= SIMJOT_ICLOUD_UBIQUITOUS;
+        } else if (simjot_is_icloud_path_fallback(nsPath)) {
+            flags |= SIMJOT_ICLOUD_UBIQUITOUS;
+        }
+
+        if (flags & SIMJOT_ICLOUD_UBIQUITOUS) {
+            NSNumber* downloaded = nil;
+            if ([url getResourceValue:&downloaded forKey:NSURLUbiquitousItemIsDownloadedKey error:nil]) {
+                if (downloaded && [downloaded boolValue]) flags |= SIMJOT_ICLOUD_DOWNLOADED;
+            }
+            NSNumber* downloading = nil;
+            if ([url getResourceValue:&downloading forKey:NSURLUbiquitousItemIsDownloadingKey error:nil]) {
+                if (downloading && [downloading boolValue]) flags |= SIMJOT_ICLOUD_DOWNLOADING;
+            }
+            NSNumber* uploading = nil;
+            if ([url getResourceValue:&uploading forKey:NSURLUbiquitousItemIsUploadingKey error:nil]) {
+                if (uploading && [uploading boolValue]) flags |= SIMJOT_ICLOUD_UPLOADING;
+            }
+            NSNumber* conflicts = nil;
+            if ([url getResourceValue:&conflicts forKey:NSURLUbiquitousItemHasUnresolvedConflictsKey error:nil]) {
+                if (conflicts && [conflicts boolValue]) flags |= SIMJOT_ICLOUD_CONFLICT;
+            }
+            NSString* status = nil;
+            if ([url getResourceValue:&status forKey:NSURLUbiquitousItemDownloadingStatusKey error:nil]) {
+                if ([status isEqualToString:NSURLUbiquitousItemDownloadingStatusCurrent] ||
+                    [status isEqualToString:NSURLUbiquitousItemDownloadingStatusDownloaded]) {
+                    flags |= SIMJOT_ICLOUD_DOWNLOADED;
+                }
+            }
+        }
+
+        return flags;
+    }
+#else
+    (void)path;
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_macos_icloud_start_download(const char* path) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path) return 0;
+        NSString* nsPath = [NSString stringWithUTF8String:path];
+        if (!nsPath) return 0;
+        NSFileManager* fm = [NSFileManager defaultManager];
+        if (![fm fileExistsAtPath:nsPath]) return 0;
+        NSURL* url = [NSURL fileURLWithPath:nsPath];
+        if (!url) return 0;
+
+        NSNumber* isUbiq = nil;
+        if ([url getResourceValue:&isUbiq forKey:NSURLIsUbiquitousItemKey error:nil]) {
+            if (!isUbiq || ![isUbiq boolValue]) return 0;
+        } else if (!simjot_is_icloud_path_fallback(nsPath)) {
+            return 0;
+        }
+
+        NSNumber* downloaded = nil;
+        if ([url getResourceValue:&downloaded forKey:NSURLUbiquitousItemIsDownloadedKey error:nil]) {
+            if (downloaded && [downloaded boolValue]) return 1;
+        }
+
+        SEL sel = NSSelectorFromString(@"startDownloadingUbiquitousItemAtURL:error:");
+        if ([fm respondsToSelector:sel]) {
+            NSError* error = nil;
+            BOOL ok = ((BOOL (*)(id, SEL, NSURL*, NSError**))objc_msgSend)(fm, sel, url, &error);
+            return ok ? 1 : 0;
+        }
+    }
+#endif
+    return 0;
 }

@@ -113,6 +113,7 @@ public final class AppConfig {
             }
             rootFolder = best;
             AppDirectories.setRoot(rootFolder);
+            preflightIcloudRoot(rootFolder);
             return rootFolder;
         }
 
@@ -173,6 +174,7 @@ public final class AppConfig {
         rootFolder = folder;
         if (folder != null) {
             AppDirectories.setRoot(folder);
+            preflightIcloudRoot(folder);
         }
     }
     
@@ -312,5 +314,22 @@ public final class AppConfig {
             return file;
         }
         return null;
+    }
+
+    private static void preflightIcloudRoot(File root) {
+        if (root == null) return;
+        if (!AppDirectories.isIcloudRoot(root)) return;
+        try {
+            File notebooks = new File(root, "notebooks.json");
+            NativeAccess.startMacIcloudDownload(notebooks.getAbsolutePath());
+        } catch (Throwable ignored) {}
+        try {
+            File prefs = new File(new File(root, "settings"), "preferences.properties");
+            NativeAccess.startMacIcloudDownload(prefs.getAbsolutePath());
+        } catch (Throwable ignored) {}
+        try {
+            File setupMarker = new File(root, ".simjot_setup");
+            NativeAccess.startMacIcloudDownload(setupMarker.getAbsolutePath());
+        } catch (Throwable ignored) {}
     }
 }

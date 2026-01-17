@@ -161,6 +161,7 @@ public final class AppDirectories {
         if (os == null || !os.toLowerCase().contains("mac")) return null;
         String path = NativeAccess.getMacIcloudPath();
         if (path == null || path.isBlank()) {
+            if (NativeAccess.isAvailable() && !NativeAccess.isMacIcloudAvailable()) return null;
             String home = System.getProperty("user.home");
             if (home != null && !home.isBlank()) {
                 File cloudDocs = new File(home, "Library/Mobile Documents/com~apple~CloudDocs");
@@ -271,6 +272,7 @@ public final class AppDirectories {
      */
     public static int estimateDataScore(File rootFolder) {
         if (rootFolder == null || !rootFolder.exists() || !rootFolder.isDirectory()) return 0;
+        boolean icloudRoot = isIcloudRoot(rootFolder);
         int score = 0;
         if (new File(rootFolder, ".simjot_setup").exists()) score += 2;
 
@@ -279,6 +281,8 @@ public final class AppDirectories {
             score += 50;
             long len = notebooksJson.length();
             score += (int) Math.min(100, len / 256);
+        } else if (icloudRoot) {
+            score += icloudItemScore(notebooksJson, 50);
         }
 
         File notebooks = new File(rootFolder, "notebooks");
@@ -289,7 +293,11 @@ public final class AppDirectories {
         }
 
         File prefs = new File(new File(rootFolder, "settings"), "preferences.properties");
-        if (prefs.isFile()) score += 5;
+        if (prefs.isFile()) {
+            score += 5;
+        } else if (icloudRoot) {
+            score += icloudItemScore(prefs, 5);
+        }
 
         if (countChildren(new File(rootFolder, "mood"), 1) > 0) score += 1;
         if (countChildren(new File(rootFolder, "wallpapers"), 1) > 0) score += 1;
@@ -299,6 +307,16 @@ public final class AppDirectories {
         if (countChildren(new File(rootFolder, "drawings"), 1) > 0) score += 1;
         if (countChildren(new File(rootFolder, "tasks"), 1) > 0) score += 1;
 
+        return score;
+    }
+
+    private static int icloudItemScore(File file, int baseScore) {
+        if (file == null) return 0;
+        int status = NativeAccess.getMacIcloudItemStatus(file.getAbsolutePath());
+        if ((status & NativeAccess.ICLOUD_ITEM_EXISTS) == 0) return 0;
+        int score = baseScore;
+        if ((status & NativeAccess.ICLOUD_ITEM_DOWNLOADED) != 0) score += 2;
+        if ((status & NativeAccess.ICLOUD_ITEM_CONFLICT) != 0) score += 1;
         return score;
     }
 

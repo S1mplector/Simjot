@@ -29,8 +29,6 @@ import main.infrastructure.io.ResourceLoader;
 /**
  * Lazily loads the native library and provides fallbacks, even if not ideal.
  * 
- * Meant to be 
- * 
  * @author S1mplector
  */
 public final class NativeAccess {
@@ -39,6 +37,12 @@ public final class NativeAccess {
     private static final String ENV_PATH = "SIMJOT_NATIVE_PATH";
     private static final Object LOCK = new Object();
     private static final Object DICT_LOCK = new Object();
+    public static final int ICLOUD_ITEM_EXISTS = 1 << 0;
+    public static final int ICLOUD_ITEM_UBIQUITOUS = 1 << 1;
+    public static final int ICLOUD_ITEM_DOWNLOADED = 1 << 2;
+    public static final int ICLOUD_ITEM_DOWNLOADING = 1 << 3;
+    public static final int ICLOUD_ITEM_UPLOADING = 1 << 4;
+    public static final int ICLOUD_ITEM_CONFLICT = 1 << 5;
 
     private static volatile NativeLibrary library;
     private static volatile boolean attempted;
@@ -2573,6 +2577,33 @@ public final class NativeAccess {
         NativeLibrary lib = library();
         if (lib == null) return null;
         try { return lib.getMacIcloudPath(); } catch (Throwable e) { return null; }
+    }
+
+    /**
+     * Check whether iCloud is available (signed in) on macOS.
+     */
+    public static boolean isMacIcloudAvailable() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.isMacIcloudAvailable(); } catch (Throwable e) { return false; }
+    }
+
+    /**
+     * Get iCloud item status bitmask on macOS.
+     */
+    public static int getMacIcloudItemStatus(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || path.isBlank()) return 0;
+        try { return lib.getMacIcloudItemStatus(path); } catch (Throwable e) { return 0; }
+    }
+
+    /**
+     * Trigger download of an iCloud item on macOS.
+     */
+    public static boolean startMacIcloudDownload(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || path.isBlank()) return false;
+        try { return lib.startMacIcloudDownload(path); } catch (Throwable e) { return false; }
     }
 
     /**

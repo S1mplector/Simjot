@@ -4363,6 +4363,52 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Check whether iCloud is available (signed in) on macOS.
+     */
+    public boolean isMacIcloudAvailable() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_is_available",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get iCloud item status bitmask on macOS.
+     */
+    public int getMacIcloudItemStatus(String path) {
+        if (path == null || path.isBlank()) return 0;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_item_status",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return 0;
+            MemorySegment cPath = arena.allocateFrom(path);
+            return (int) handle.invokeExact(cPath);
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Trigger download of an iCloud item on macOS.
+     */
+    public boolean startMacIcloudDownload(String path) {
+        if (path == null || path.isBlank()) return false;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_start_download",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            if (handle == null) return false;
+            MemorySegment cPath = arena.allocateFrom(path);
+            return ((int) handle.invokeExact(cPath)) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {

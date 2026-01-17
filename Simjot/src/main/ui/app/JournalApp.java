@@ -550,6 +550,7 @@ public class JournalApp extends JFrame {
         if (saveConfig) {
             saveJournalFolderConfig();
         }
+        try { AppConfig.setRootFolder(rootFolder); } catch (Throwable ignored) {}
     }
 
     private void maybePromptIcloudSwitch(File icloudRoot) {
