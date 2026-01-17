@@ -467,6 +467,7 @@ int32_t simjot_macos_icloud_is_available(void);
 int32_t simjot_macos_icloud_item_status(const char* path);
 int32_t simjot_macos_icloud_start_download(const char* path);
 int32_t simjot_macos_icloud_prefetch_dir(const char* path, int32_t max_items, int32_t max_depth);
+int32_t simjot_macos_icloud_prefetch_query(const char* path, int32_t max_items, int32_t timeout_ms);
 
 /* Scaling utilities */
 int32_t simjot_scale_dimension(int32_t value, float scale);

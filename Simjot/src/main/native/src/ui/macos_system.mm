@@ -470,3 +470,117 @@ extern "C" int32_t simjot_macos_icloud_prefetch_dir(const char* path, int32_t ma
     return 0;
 #endif
 }
+
+extern "C" int32_t simjot_macos_icloud_prefetch_query(const char* path, int32_t max_items, int32_t timeout_ms) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path) return -1;
+        NSString* rootPath = [NSString stringWithUTF8String:path];
+        if (!rootPath) return -1;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = nil;
+        if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+            token = [fm ubiquityIdentityToken];
+        }
+        if (!token) return -1;
+
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:rootPath isDirectory:&isDir] || !isDir) return -1;
+
+        if (!simjot_is_icloud_path_fallback(rootPath)) return -1;
+
+        NSURL* rootUrl = [NSURL fileURLWithPath:rootPath];
+        if (!rootUrl) return -1;
+
+        NSMetadataQuery* query = [[NSMetadataQuery alloc] init];
+        if (!query) return -1;
+
+        [query setSearchScopes:@[rootUrl]];
+        NSPredicate* predicate = [NSPredicate predicateWithFormat:@"%K == FALSE",
+                                  NSMetadataUbiquitousItemIsDownloadedKey];
+        [query setPredicate:predicate];
+
+        __block BOOL done = NO;
+        NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
+        id finishObserver = [nc addObserverForName:NSMetadataQueryDidFinishGatheringNotification
+                                            object:query
+                                             queue:nil
+                                        usingBlock:^(NSNotification* note) {
+            (void)note;
+            done = YES;
+        }];
+        id updateObserver = [nc addObserverForName:NSMetadataQueryDidUpdateNotification
+                                            object:query
+                                             queue:nil
+                                        usingBlock:^(NSNotification* note) {
+            (void)note;
+        }];
+
+        if (![query startQuery]) {
+            [nc removeObserver:finishObserver];
+            if (updateObserver) [nc removeObserver:updateObserver];
+#if !__has_feature(objc_arc)
+            [query release];
+#endif
+            return -1;
+        }
+
+        int32_t timeout = timeout_ms > 0 ? timeout_ms : 1200;
+        NSDate* end = [NSDate dateWithTimeIntervalSinceNow:timeout / 1000.0];
+        while (!done && [end timeIntervalSinceNow] > 0) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+
+        [query disableUpdates];
+        NSArray* results = [query results];
+        int32_t requested = 0;
+        for (NSMetadataItem* item in results) {
+            if (!item) continue;
+            if (max_items > 0 && requested >= max_items) break;
+
+            NSURL* url = [item valueForAttribute:NSMetadataItemURLKey];
+            if (![url isKindOfClass:[NSURL class]]) continue;
+
+            NSNumber* isDirNum = nil;
+            if ([url getResourceValue:&isDirNum forKey:NSURLIsDirectoryKey error:nil]) {
+                if (isDirNum && [isDirNum boolValue]) {
+                    continue;
+                }
+            }
+
+            NSNumber* downloaded = nil;
+            if ([url getResourceValue:&downloaded forKey:NSURLUbiquitousItemIsDownloadedKey error:nil]) {
+                if (downloaded && [downloaded boolValue]) continue;
+            }
+
+            NSNumber* downloading = nil;
+            if ([url getResourceValue:&downloading forKey:NSURLUbiquitousItemIsDownloadingKey error:nil]) {
+                if (downloading && [downloading boolValue]) continue;
+            }
+
+            SEL sel = NSSelectorFromString(@"startDownloadingUbiquitousItemAtURL:error:");
+            if ([fm respondsToSelector:sel]) {
+                NSError* error = nil;
+                BOOL ok = ((BOOL (*)(id, SEL, NSURL*, NSError**))objc_msgSend)(fm, sel, url, &error);
+                if (ok) requested++;
+            }
+        }
+
+        [query stopQuery];
+        [query enableUpdates];
+        [nc removeObserver:finishObserver];
+        if (updateObserver) [nc removeObserver:updateObserver];
+#if !__has_feature(objc_arc)
+        [query release];
+#endif
+        return requested;
+    }
+#else
+    (void)path;
+    (void)max_items;
+    (void)timeout_ms;
+    return -1;
+#endif
+}

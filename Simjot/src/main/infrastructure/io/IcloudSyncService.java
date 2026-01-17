@@ -22,6 +22,7 @@ public final class IcloudSyncService {
     private static final long WARMUP_COOLDOWN_MS = 15000L;
     private static final int PREFETCH_MAX_ITEMS = 4096;
     private static final int PREFETCH_MAX_DEPTH = 6;
+    private static final int PREFETCH_QUERY_TIMEOUT_MS = 1200;
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
     private static volatile long lastWarmupMs = 0L;
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
@@ -62,19 +63,19 @@ public final class IcloudSyncService {
 
         File notebooks = new File(root, "notebooks");
         if (notebooks.exists()) {
-            NativeAccess.prefetchMacIcloudDir(notebooks.getAbsolutePath(), PREFETCH_MAX_ITEMS, PREFETCH_MAX_DEPTH);
+            prefetchDir(notebooks, PREFETCH_MAX_ITEMS, PREFETCH_MAX_DEPTH);
         } else {
-            NativeAccess.prefetchMacIcloudDir(root.getAbsolutePath(), PREFETCH_MAX_ITEMS, 3);
+            prefetchDir(root, PREFETCH_MAX_ITEMS, 3);
         }
 
         File wallpapers = new File(root, "wallpapers");
         if (wallpapers.exists()) {
-            NativeAccess.prefetchMacIcloudDir(wallpapers.getAbsolutePath(), 512, 3);
+            prefetchDir(wallpapers, 512, 3);
         }
 
         File fonts = new File(root, "fonts");
         if (fonts.exists()) {
-            NativeAccess.prefetchMacIcloudDir(fonts.getAbsolutePath(), 256, 3);
+            prefetchDir(fonts, 256, 3);
         }
     }
 
@@ -89,5 +90,14 @@ public final class IcloudSyncService {
         if ((status & NativeAccess.ICLOUD_ITEM_DOWNLOADED) != 0) return;
         if ((status & NativeAccess.ICLOUD_ITEM_DOWNLOADING) != 0) return;
         NativeAccess.startMacIcloudDownload(path);
+    }
+
+    private static void prefetchDir(File dir, int maxItems, int maxDepth) {
+        if (dir == null || !dir.exists()) return;
+        String path = dir.getAbsolutePath();
+        int requested = NativeAccess.prefetchMacIcloudQuery(path, maxItems, PREFETCH_QUERY_TIMEOUT_MS);
+        if (requested < 0) {
+            NativeAccess.prefetchMacIcloudDir(path, maxItems, maxDepth);
+        }
     }
 }

@@ -4426,6 +4426,23 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * Prefetch iCloud items using a metadata query on macOS.
+     * @return number of download requests started, or -1 if unsupported.
+     */
+    public int prefetchMacIcloudQuery(String path, int maxItems, int timeoutMs) {
+        if (path == null || path.isBlank()) return -1;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_prefetch_query",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            MemorySegment cPath = arena.allocateFrom(path);
+            return (int) handle.invokeExact(cPath, maxItems, timeoutMs);
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {
