@@ -291,6 +291,12 @@ public final class SettingsStore {
         // Accent values: drop invalid
         sanitizeIntProperty(KEY_MAINMENU_ACCENT_RGB);
         sanitizeIntProperty(KEY_WIDGET_ACCENT_RGB);
+
+        // Normalize stored paths for cross-device sync
+        normalizePathProperty(KEY_BG_IMAGE, true);
+        normalizePathProperty(KEY_ENTRY_BG_IMAGE, true);
+        normalizePathProperty(KEY_POEM_BG_IMAGE, true);
+        normalizePathProperty(KEY_LAST_OPENED_FILE, true);
     }
 
     private void sanitizeIntProperty(String key) {
@@ -304,6 +310,118 @@ public final class SettingsStore {
         } catch (NumberFormatException e) {
             props.remove(key);
         }
+    }
+
+    private void normalizePathProperty(String key, boolean allowLegacyRebase) {
+        try {
+            String current = props.getProperty(key);
+            if (current == null || current.isBlank()) return;
+            String normalized = normalizePathForStorage(current, allowLegacyRebase);
+            if (normalized == null || normalized.isBlank()) {
+                props.remove(key);
+                return;
+            }
+            if (!current.equals(normalized)) {
+                props.setProperty(key, normalized);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static String resolveStoredPath(String stored) {
+        if (stored == null || stored.isBlank()) return "";
+        String trimmed = stored.trim();
+        if (isSpecialPath(trimmed)) return trimmed;
+        File root = safeRoot();
+        if (root == null) return trimmed;
+        File f = new File(trimmed);
+        if (!f.isAbsolute()) {
+            return new File(root, trimmed).getAbsolutePath();
+        }
+        if (isUnderRoot(f, root)) {
+            return f.getAbsolutePath();
+        }
+        String rel = extractRelativeFromSimjotPath(trimmed);
+        if (rel != null && !rel.isBlank()) {
+            return new File(root, rel).getAbsolutePath();
+        }
+        return trimmed;
+    }
+
+    private static String normalizePathForStorage(String path, boolean allowLegacyRebase) {
+        if (path == null || path.isBlank()) return "";
+        String trimmed = path.trim();
+        if (isSpecialPath(trimmed)) return trimmed;
+        File root = safeRoot();
+        if (root == null) return trimmed;
+        File f = new File(trimmed);
+        if (!f.isAbsolute()) return trimmed;
+        if (isUnderRoot(f, root)) {
+            String rel = relativizeToRoot(root, f);
+            if (rel != null && !rel.isBlank()) return rel;
+            return trimmed;
+        }
+        if (allowLegacyRebase) {
+            String rel = extractRelativeFromSimjotPath(trimmed);
+            if (rel != null && !rel.isBlank()) return rel;
+        }
+        return trimmed;
+    }
+
+    private static boolean isSpecialPath(String path) {
+        if (path == null) return false;
+        String p = path.trim().toLowerCase();
+        return p.startsWith("res:") || p.startsWith("gen:");
+    }
+
+    private static File safeRoot() {
+        try { return AppDirectories.getRoot(); } catch (Throwable ignored) { return null; }
+    }
+
+    private static boolean isUnderRoot(File folder, File root) {
+        if (folder == null || root == null) return false;
+        try {
+            java.nio.file.Path rootPath = root.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path folderPath = folder.toPath().toAbsolutePath().normalize();
+            return folderPath.startsWith(rootPath);
+        } catch (Throwable ignored) {
+            String rootPath = root.getAbsolutePath();
+            String folderPath = folder.getAbsolutePath();
+            if (rootPath == null || folderPath == null) return false;
+            String prefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
+            return folderPath.startsWith(prefix);
+        }
+    }
+
+    private static String relativizeToRoot(File root, File target) {
+        try {
+            java.nio.file.Path rootPath = root.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path targetPath = target.toPath().toAbsolutePath().normalize();
+            if (!targetPath.startsWith(rootPath)) return null;
+            String rel = rootPath.relativize(targetPath).toString();
+            return rel.isEmpty() ? null : rel;
+        } catch (Throwable ignored) {
+            String rootPath = root.getAbsolutePath();
+            String targetPath = target.getAbsolutePath();
+            if (rootPath == null || targetPath == null) return null;
+            String prefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
+            if (!targetPath.startsWith(prefix)) return null;
+            return targetPath.substring(prefix.length());
+        }
+    }
+
+    private static String extractRelativeFromSimjotPath(String path) {
+        if (path == null) return null;
+        String normalized = path.replace('\\', '/');
+        String lower = normalized.toLowerCase();
+        String token = "/simjot/";
+        int idx = lower.lastIndexOf(token);
+        if (idx < 0) return null;
+        String rel = normalized.substring(idx + token.length());
+        if (rel.isEmpty()) return null;
+        if (File.separatorChar != '/') {
+            rel = rel.replace('/', File.separatorChar);
+        }
+        return rel;
     }
 
     /**
@@ -367,7 +485,7 @@ public final class SettingsStore {
     public boolean isGlowEnabled(){ return Boolean.parseBoolean(props.getProperty(KEY_GLOW, String.valueOf(DEF_GLOW))); }
     public void setGlowEnabled(boolean b){ props.setProperty(KEY_GLOW, String.valueOf(b)); }
 
-    public String getBackgroundImage(){ return props.getProperty(KEY_BG_IMAGE, DEF_BG_IMAGE); }
+    public String getBackgroundImage(){ return resolveStoredPath(props.getProperty(KEY_BG_IMAGE, DEF_BG_IMAGE)); }
     
     public float getBackgroundOpacity() {
         try {
@@ -383,14 +501,15 @@ public final class SettingsStore {
     }
     
     public String getEntryBackgroundImage() {
-        return props.getProperty(KEY_ENTRY_BG_IMAGE, "");
+        return resolveStoredPath(props.getProperty(KEY_ENTRY_BG_IMAGE, ""));
     }
     
     public void setEntryBackgroundImage(String path) {
-        if (path == null || path.trim().isEmpty()) {
+        String normalized = normalizePathForStorage(path, false);
+        if (normalized == null || normalized.trim().isEmpty()) {
             props.remove(KEY_ENTRY_BG_IMAGE);
         } else {
-            props.setProperty(KEY_ENTRY_BG_IMAGE, path);
+            props.setProperty(KEY_ENTRY_BG_IMAGE, normalized);
         }
     }
     
@@ -408,14 +527,15 @@ public final class SettingsStore {
     }
     
     public String getPoemBackgroundImage() {
-        return props.getProperty(KEY_POEM_BG_IMAGE, "");
+        return resolveStoredPath(props.getProperty(KEY_POEM_BG_IMAGE, ""));
     }
     
     public void setPoemBackgroundImage(String path) {
-        if (path == null || path.trim().isEmpty()) {
+        String normalized = normalizePathForStorage(path, false);
+        if (normalized == null || normalized.trim().isEmpty()) {
             props.remove(KEY_POEM_BG_IMAGE);
         } else {
-            props.setProperty(KEY_POEM_BG_IMAGE, path);
+            props.setProperty(KEY_POEM_BG_IMAGE, normalized);
         }
     }
     
@@ -481,7 +601,11 @@ public final class SettingsStore {
         }
     }
     
-    public void setBackgroundImage(String path){ props.setProperty(KEY_BG_IMAGE, path==null?"":path); props.remove(KEY_MAINMENU_ACCENT_RGB); }
+    public void setBackgroundImage(String path){
+        String normalized = normalizePathForStorage(path, false);
+        props.setProperty(KEY_BG_IMAGE, normalized == null ? "" : normalized);
+        props.remove(KEY_MAINMENU_ACCENT_RGB);
+    }
 
     public int getDefaultBrushSize(){ return safeInt(KEY_BRUSH_SIZE, DEF_BRUSH_SIZE); }
     public void setDefaultBrushSize(int v){ props.setProperty(KEY_BRUSH_SIZE, String.valueOf(v)); }
@@ -584,12 +708,13 @@ public final class SettingsStore {
     public void setOpenLastOnStartup(boolean b){ props.setProperty(KEY_OPEN_LAST, String.valueOf(b)); }
 
     // Last opened file path (absolute). Empty if none.
-    public String getLastOpenedFilePath(){ return props.getProperty(KEY_LAST_OPENED_FILE, ""); }
+    public String getLastOpenedFilePath(){ return resolveStoredPath(props.getProperty(KEY_LAST_OPENED_FILE, "")); }
     public void setLastOpenedFilePath(String path){
-        if (path == null || path.isBlank()) {
+        String normalized = normalizePathForStorage(path, false);
+        if (normalized == null || normalized.isBlank()) {
             props.remove(KEY_LAST_OPENED_FILE);
         } else {
-            props.setProperty(KEY_LAST_OPENED_FILE, path);
+            props.setProperty(KEY_LAST_OPENED_FILE, normalized);
         }
     }
 

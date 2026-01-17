@@ -41,6 +41,7 @@ public final class NotebookStore {
 
     private final File jsonFile;
     private final List<NotebookInfo> notebooks = new ArrayList<>();
+    private long lastLoadedMtime = -1L;
 
     public NotebookStore() {
         jsonFile = new File(AppDirectories.getRoot(), FILE_NAME);
@@ -49,25 +50,73 @@ public final class NotebookStore {
 
     private void load() {
         notebooks.clear();
-        Set<String> seenNames = new HashSet<>();
         boolean[] changed = new boolean[1];
-        if(!jsonFile.exists()) return;
-        try {
-            String raw = Files.readString(jsonFile.toPath(), StandardCharsets.UTF_8);
-            if (raw.trim().startsWith("[")) {
-                parseJson(raw, seenNames, changed);
-                if (changed[0]) save();
-                return;
-            }
-            // Legacy fallback (line-based :: format)
-            legacyLoad(raw, seenNames, changed);
-            if (changed[0]) save();
-        } catch (IOException ex) {
-            logWarn("Failed to read notebook store", ex);
+        boolean loadedPrimary = false;
+        if (jsonFile.exists()) {
+            lastLoadedMtime = jsonFile.lastModified();
+            loadedPrimary = mergeFromFile(jsonFile, changed);
+        } else {
+            lastLoadedMtime = -1L;
         }
+
+        boolean mergedConflicts = mergeConflictCopies(changed);
+        if (!loadedPrimary && mergedConflicts) {
+            // If only conflict copies were available, persist as primary.
+            changed[0] = true;
+        }
+
+        if (changed[0]) save();
     }
 
-    private void legacyLoad(String raw, Set<String> seenNames, boolean[] changed) {
+    private boolean mergeFromFile(File file, boolean[] changed) {
+        if (file == null || !file.exists() || !file.isFile()) return false;
+        String raw;
+        try {
+            raw = new String(FileIO.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            logWarn("Failed to read notebook store file: " + file.getAbsolutePath(), ex);
+            return false;
+        }
+        if (raw == null) return false;
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) return false;
+        int before = notebooks.size();
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            parseJson(trimmed, changed);
+        } else {
+            legacyLoad(trimmed, changed);
+        }
+        return notebooks.size() > before;
+    }
+
+    private boolean mergeConflictCopies(boolean[] changed) {
+        File root = jsonFile.getParentFile();
+        if (root == null || !root.exists() || !root.isDirectory()) return false;
+        File[] conflicts = root.listFiles((dir, name) -> isConflictCopy(name));
+        if (conflicts == null || conflicts.length == 0) return false;
+        boolean merged = false;
+        for (File conflict : conflicts) {
+            if (conflict == null || conflict.equals(jsonFile)) continue;
+            if (mergeFromFile(conflict, changed)) {
+                merged = true;
+            }
+        }
+        if (merged) {
+            IoLog.warn("notebook-store", "Merged iCloud conflict copies for notebooks.json", null);
+        }
+        return merged;
+    }
+
+    private static boolean isConflictCopy(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase();
+        if (!lower.startsWith("notebooks")) return false;
+        if (!lower.endsWith(".json")) return false;
+        if (lower.equals(FILE_NAME)) return false;
+        return lower.contains("conflict");
+    }
+
+    private void legacyLoad(String raw, boolean[] changed) {
         try(BufferedReader br = new BufferedReader(new java.io.StringReader(raw))){
             String line;
             while((line=br.readLine())!=null){
@@ -79,9 +128,7 @@ public final class NotebookStore {
                         if (folder == null) continue;
                         String iconId = parts.length>=4?parts[3]:"legacy";
                         long created=folder.exists()?folder.lastModified():System.currentTimeMillis();
-                        if (isNewName(seenNames, parts[0])) {
-                            notebooks.add(new NotebookInfo(parts[0],type,folder,created,iconId));
-                        }
+                        mergeNotebookEntry(new NotebookInfo(parts[0],type,folder,created,iconId));
                     } catch (IllegalArgumentException e) {
                         // Skip notebooks with unknown types (e.g., REGULAR type that was removed)
                         logWarn("Skipping notebook with unknown type: " + parts[1], null);
@@ -93,7 +140,7 @@ public final class NotebookStore {
         }
     }
 
-    private void parseJson(String raw, Set<String> seenNames, boolean[] changed) {
+    private void parseJson(String raw, boolean[] changed) {
         // Minimal parser tailored to our own serialized format
         Pattern objPattern = Pattern.compile("\\{[^}]*\\}");
         Matcher m = objPattern.matcher(raw);
@@ -108,20 +155,22 @@ public final class NotebookStore {
             String description = extractJsonString(obj, "description");
             Long accentColor = extractJsonLong(obj, "accentColor");
             String clusterId = extractJsonString(obj, "clusterId");
+            String customIconPath = extractJsonString(obj, "customIconPath");
             
             if (name == null || typeStr == null || folderStr == null) continue;
             NotebookInfo.Type type;
             try { type = NotebookInfo.Type.valueOf(typeStr); } catch (IllegalArgumentException e) { continue; }
-            if (!isNewName(seenNames, name)) continue;
             File folder = normalizeFolder(folderStr, name, changed);
             if (folder == null) continue;
             long createdMs = created != null ? created : (folder.exists() ? folder.lastModified() : System.currentTimeMillis());
             int accent = accentColor != null ? accentColor.intValue() : -1;
-            notebooks.add(new NotebookInfo(name, type, folder, createdMs, 
+            String normalizedIconPath = normalizeStoredPath(customIconPath, changed);
+            mergeNotebookEntry(new NotebookInfo(name, type, folder, createdMs, 
                 iconId == null ? "legacy" : iconId,
                 description == null ? "" : description,
                 accent,
-                clusterId));
+                clusterId,
+                normalizedIconPath));
         }
     }
 
@@ -130,14 +179,17 @@ public final class NotebookStore {
         File root = null;
         try { root = AppDirectories.getRoot(); } catch (Throwable ignored) {}
         File folder = new File(folderStr);
+        boolean wasAbsolute = folder.isAbsolute();
         if (root != null) {
-            if (!folder.isAbsolute()) {
+            if (!wasAbsolute) {
                 folder = new File(root, folderStr);
-                if (changed != null) changed[0] = true;
+            }
+            if (wasAbsolute && isUnderRoot(folder, root) && changed != null) {
+                changed[0] = true;
             }
             if (!isUnderRoot(folder, root) && name != null && !name.isBlank()) {
                 File candidate = new File(new File(root, "notebooks"), name);
-                if (candidate.exists()) {
+                if (candidate.exists() || looksLikeNotebookPath(folderStr, name)) {
                     IoLog.warn("notebook-rebase", "Rebasing notebook folder from " + folder.getAbsolutePath() +
                             " to " + candidate.getAbsolutePath(), null);
                     folder = candidate;
@@ -146,6 +198,16 @@ public final class NotebookStore {
             }
         }
         return folder;
+    }
+
+    private static boolean looksLikeNotebookPath(String folderStr, String name) {
+        if (folderStr == null || name == null || name.isBlank()) return false;
+        String cleanName = name.trim();
+        String sep = File.separator;
+        String probe = sep + "notebooks" + sep + cleanName;
+        if (folderStr.contains(probe)) return true;
+        String alt = folderStr.replace('\\', '/');
+        return alt.contains("/notebooks/" + cleanName);
     }
 
     private static boolean isUnderRoot(File folder, File root) {
@@ -165,11 +227,21 @@ public final class NotebookStore {
 
     private void save() {
         try {
+            if (jsonFile.exists()) {
+                long currentMtime = jsonFile.lastModified();
+                if (lastLoadedMtime > 0 && currentMtime > lastLoadedMtime) {
+                    boolean[] merged = new boolean[1];
+                    mergeFromFile(jsonFile, merged);
+                }
+            }
+            boolean[] mergedConflicts = new boolean[1];
+            mergeConflictCopies(mergedConflicts);
             String json = toJson(notebooks);
             File parent = jsonFile.getParentFile();
             if (parent != null && !parent.exists()) parent.mkdirs();
             FileIO.ensureSpace(jsonFile.toPath(), json.getBytes(StandardCharsets.UTF_8).length + 4096L, "notebook store save");
             FileIO.atomicWrite(jsonFile.toPath(), json, StandardCharsets.UTF_8, true, true);
+            lastLoadedMtime = jsonFile.lastModified();
         } catch(IOException ex){
             logWarn("Failed to save notebook store", ex);
         }
@@ -401,7 +473,8 @@ public final class NotebookStore {
             } catch (IOException atomicFail) {
                 Files.move(nb.getFolder().toPath(), newFolder.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
-            NotebookInfo updated = new NotebookInfo(newName, nb.getType(), newFolder, nb.getCreatedMillis(), nb.getIconId());
+            NotebookInfo updated = new NotebookInfo(newName, nb.getType(), newFolder, nb.getCreatedMillis(), nb.getIconId(),
+                nb.getDescription(), nb.getAccentColorRaw(), nb.getClusterId(), nb.getCustomIconPath());
             notebooks.remove(nb);
             notebooks.add(updated);
             save();
@@ -428,6 +501,119 @@ public final class NotebookStore {
     /** Reload notebooks from file system */
     public void reload(){ load(); }
 
+    private void mergeNotebookEntry(NotebookInfo candidate) {
+        if (candidate == null || candidate.getName() == null) return;
+        int idx = findIndexByName(candidate.getName());
+        if (idx < 0) {
+            notebooks.add(candidate);
+            return;
+        }
+        NotebookInfo existing = notebooks.get(idx);
+        NotebookInfo merged = mergeNotebook(existing, candidate);
+        if (merged != existing) {
+            notebooks.set(idx, merged);
+        }
+    }
+
+    private int findIndexByName(String name) {
+        if (name == null) return -1;
+        String key = name.trim().toLowerCase();
+        for (int i = 0; i < notebooks.size(); i++) {
+            NotebookInfo nb = notebooks.get(i);
+            if (nb.getName() != null && nb.getName().trim().toLowerCase().equals(key)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static NotebookInfo mergeNotebook(NotebookInfo existing, NotebookInfo incoming) {
+        if (existing == null) return incoming;
+        if (incoming == null) return existing;
+        File root = null;
+        try { root = AppDirectories.getRoot(); } catch (Throwable ignored) {}
+        String name = existing.getName() != null ? existing.getName() : incoming.getName();
+        NotebookInfo.Type type = existing.getType() != null ? existing.getType() : incoming.getType();
+        File folder = chooseFolder(existing.getFolder(), incoming.getFolder(), root);
+        long created = chooseCreated(existing.getCreatedMillis(), incoming.getCreatedMillis());
+        String iconId = chooseIconId(existing.getIconId(), incoming.getIconId());
+        String description = chooseNonEmpty(existing.getDescription(), incoming.getDescription());
+        int accent = chooseAccent(existing.getAccentColorRaw(), incoming.getAccentColorRaw());
+        String clusterId = chooseNonEmpty(existing.getClusterId(), incoming.getClusterId());
+        String customIcon = choosePath(existing.getCustomIconPath(), incoming.getCustomIconPath(), root);
+        return new NotebookInfo(name, type, folder, created, iconId, description, accent, clusterId, customIcon);
+    }
+
+    private static File chooseFolder(File existing, File incoming, File root) {
+        if (existing == null) return incoming;
+        if (incoming == null) return existing;
+        boolean existingExists = existing.exists();
+        boolean incomingExists = incoming.exists();
+        if (existingExists && !incomingExists) return existing;
+        if (incomingExists && !existingExists) return incoming;
+        if (root != null) {
+            boolean existingUnder = isUnderRoot(existing, root);
+            boolean incomingUnder = isUnderRoot(incoming, root);
+            if (existingUnder && !incomingUnder) return existing;
+            if (incomingUnder && !existingUnder) return incoming;
+        }
+        return existing;
+    }
+
+    private static long chooseCreated(long existing, long incoming) {
+        if (existing <= 0) return incoming;
+        if (incoming <= 0) return existing;
+        return Math.min(existing, incoming);
+    }
+
+    private static int chooseAccent(int existing, int incoming) {
+        if (existing != -1) return existing;
+        return incoming;
+    }
+
+    private static String chooseIconId(String existing, String incoming) {
+        String e = existing == null ? "" : existing.trim();
+        String i = incoming == null ? "" : incoming.trim();
+        if (e.isEmpty()) return i.isEmpty() ? "legacy" : i;
+        if ("legacy".equalsIgnoreCase(e) && !i.isEmpty() && !"legacy".equalsIgnoreCase(i)) return i;
+        return e;
+    }
+
+    private static String chooseNonEmpty(String existing, String incoming) {
+        String e = existing == null ? "" : existing.trim();
+        String i = incoming == null ? "" : incoming.trim();
+        if (e.isEmpty()) return i.isEmpty() ? "" : i;
+        return e;
+    }
+
+    private static String choosePath(String existing, String incoming, File root) {
+        String e = existing == null ? "" : existing.trim();
+        String i = incoming == null ? "" : incoming.trim();
+        if (e.isEmpty()) return i.isEmpty() ? "" : i;
+        if (i.isEmpty()) return e;
+        boolean eFile = looksLikeFilePath(e);
+        boolean iFile = looksLikeFilePath(i);
+        boolean eExists = eFile && new File(e).exists();
+        boolean iExists = iFile && new File(i).exists();
+        if (eExists && !iExists) return e;
+        if (iExists && !eExists) return i;
+        if (root != null) {
+            if (eFile && iFile) {
+                boolean eUnder = isUnderRoot(new File(e), root);
+                boolean iUnder = isUnderRoot(new File(i), root);
+                if (eUnder && !iUnder) return e;
+                if (iUnder && !eUnder) return i;
+            }
+        }
+        return e;
+    }
+
+    private static boolean looksLikeFilePath(String path) {
+        if (path == null) return false;
+        String p = path.trim().toLowerCase();
+        return !(p.startsWith("res:") || p.startsWith("gen:"));
+    }
+
     // --- JSON helpers (minimal, controlled format only) --- //
     private static String toJson(List<NotebookInfo> notebooks){
         StringBuilder sb = new StringBuilder();
@@ -438,13 +624,16 @@ public final class NotebookStore {
             sb.append("\n  {");
             sb.append("\"name\":\"").append(jsonEscape(nb.getName())).append("\",");
             sb.append("\"type\":\"").append(jsonEscape(nb.getType().name())).append("\",");
-            sb.append("\"folder\":\"").append(jsonEscape(nb.getFolder().getAbsolutePath())).append("\",");
+            sb.append("\"folder\":\"").append(jsonEscape(encodeFolderPath(nb.getFolder()))).append("\",");
             sb.append("\"created\":").append(nb.getCreatedMillis()).append(",");
             sb.append("\"iconId\":\"").append(jsonEscape(nb.getIconId())).append("\",");
             sb.append("\"description\":\"").append(jsonEscape(nb.getDescription())).append("\",");
             sb.append("\"accentColor\":").append(nb.getAccentColorRaw());
             if (nb.getClusterId() != null) {
                 sb.append(",\"clusterId\":\"").append(jsonEscape(nb.getClusterId())).append("\"");
+            }
+            if (nb.getCustomIconPath() != null && !nb.getCustomIconPath().isBlank()) {
+                sb.append(",\"customIconPath\":\"").append(jsonEscape(encodeStoredPath(nb.getCustomIconPath()))).append("\"");
             }
             sb.append("}");
         }
@@ -477,15 +666,85 @@ public final class NotebookStore {
         return NativeJson.getLong(obj, key);
     }
 
-    private static void logWarn(String msg, Throwable t){
-        IoLog.warn("notebook-store", msg, t);
+    private static String normalizeStoredPath(String path, boolean[] changed) {
+        if (path == null || path.isBlank()) return null;
+        String trimmed = path.trim();
+        if (trimmed.startsWith("res:") || trimmed.startsWith("gen:")) return trimmed;
+        File root = null;
+        try { root = AppDirectories.getRoot(); } catch (Throwable ignored) {}
+        if (root == null) return trimmed;
+        File f = new File(trimmed);
+        if (!f.isAbsolute()) {
+            return new File(root, trimmed).getAbsolutePath();
+        }
+        if (isUnderRoot(f, root)) {
+            if (changed != null) changed[0] = true;
+            return f.getAbsolutePath();
+        }
+        String rel = extractRelativeFromSimjotPath(trimmed);
+        if (rel != null && !rel.isBlank()) {
+            if (changed != null) changed[0] = true;
+            return new File(root, rel).getAbsolutePath();
+        }
+        return trimmed;
     }
 
-    private static boolean isNewName(Set<String> seenNames, String name){
-        if (name == null) return false;
-        String key = name.trim().toLowerCase();
-        if (seenNames.contains(key)) return false;
-        seenNames.add(key);
-        return true;
+    private static String encodeFolderPath(File folder) {
+        if (folder == null) return "";
+        return encodeStoredPath(folder.getAbsolutePath());
+    }
+
+    private static String encodeStoredPath(String path) {
+        if (path == null || path.isBlank()) return "";
+        String trimmed = path.trim();
+        if (trimmed.startsWith("res:") || trimmed.startsWith("gen:")) return trimmed;
+        File root = null;
+        try { root = AppDirectories.getRoot(); } catch (Throwable ignored) {}
+        if (root == null) return trimmed;
+        File f = new File(trimmed);
+        if (!f.isAbsolute()) return trimmed;
+        if (isUnderRoot(f, root)) {
+            String rel = relativizeToRoot(root, f);
+            if (rel != null && !rel.isBlank()) return rel;
+        }
+        String rel = extractRelativeFromSimjotPath(trimmed);
+        if (rel != null && !rel.isBlank()) return rel;
+        return trimmed;
+    }
+
+    private static String relativizeToRoot(File root, File target) {
+        try {
+            java.nio.file.Path rootPath = root.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path targetPath = target.toPath().toAbsolutePath().normalize();
+            if (!targetPath.startsWith(rootPath)) return null;
+            String rel = rootPath.relativize(targetPath).toString();
+            return rel.isEmpty() ? null : rel;
+        } catch (Throwable ignored) {
+            String rootPath = root.getAbsolutePath();
+            String targetPath = target.getAbsolutePath();
+            if (rootPath == null || targetPath == null) return null;
+            String prefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
+            if (!targetPath.startsWith(prefix)) return null;
+            return targetPath.substring(prefix.length());
+        }
+    }
+
+    private static String extractRelativeFromSimjotPath(String path) {
+        if (path == null) return null;
+        String normalized = path.replace('\\', '/');
+        String lower = normalized.toLowerCase();
+        String token = "/simjot/";
+        int idx = lower.lastIndexOf(token);
+        if (idx < 0) return null;
+        String rel = normalized.substring(idx + token.length());
+        if (rel.isEmpty()) return null;
+        if (File.separatorChar != '/') {
+            rel = rel.replace('/', File.separatorChar);
+        }
+        return rel;
+    }
+
+    private static void logWarn(String msg, Throwable t){
+        IoLog.warn("notebook-store", msg, t);
     }
 }
