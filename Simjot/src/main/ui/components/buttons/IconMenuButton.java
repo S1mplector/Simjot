@@ -16,9 +16,11 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
 
 import javax.swing.JButton;
 import javax.swing.Timer;
@@ -26,6 +28,7 @@ import javax.swing.Timer;
 import main.core.service.SettingsStore;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
 
@@ -41,6 +44,10 @@ public class IconMenuButton extends JButton {
     private float hoverV = 0f;
     private long hoverLastNs = 0L;
     private Timer hoverTimer;
+    private boolean aeroGlowEnabled = false;
+    private Font cachedCaptionFont;
+    private int cachedCaptionWidth = -1;
+    private int cachedCaptionAscent = 0;
 
     public IconMenuButton(String text, String iconId) {
         super(""); // we render text manually
@@ -68,6 +75,12 @@ public class IconMenuButton extends JButton {
         });
     }
 
+    public IconMenuButton setAeroGlowEnabled(boolean enabled) {
+        this.aeroGlowEnabled = enabled;
+        repaint();
+        return this;
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
@@ -82,27 +95,55 @@ public class IconMenuButton extends JButton {
         }
 
         float t = hoverT;
+        float te = smoothStep(t);
 
         // Icon
         int iconSize = Math.min(w - 18, 56);
         int iconX = (w - iconSize) / 2;
-        int lift = (int) Math.round(5 * (1f - t));
+        int lift = (int) Math.round(5 * (1f - te));
         int iconY = 14 + lift; // nudge down a bit when idle
+
+        if (aeroGlowEnabled && enabled && te > 0.01f) {
+            Color accent = resolveAccent();
+            int glowPad = Math.max(8, iconSize / 6);
+            int glowW = iconSize + glowPad * 2;
+            int glowH = iconSize + glowPad * 2;
+            int glowX = (w - glowW) / 2;
+            int glowY = iconY - glowPad + 2;
+            int arc = Math.max(10, iconSize / 2);
+            Rectangle glowRect = new Rectangle(glowX, glowY, glowW, glowH);
+            AeroPainters.paintOuterGlow(g2, glowRect, arc, accent, Math.max(5, glowPad), Math.round(60 + 80 * te));
+
+            g2.setComposite(AlphaComposite.SrcOver.derive(0.08f + 0.14f * te));
+            g2.setColor(new Color(255, 255, 255, 220));
+            g2.fill(new RoundRectangle2D.Float(glowX + 1, glowY + 1, glowW - 2f, glowH - 2f, arc, arc));
+            g2.setComposite(AlphaComposite.SrcOver);
+        }
+
         String resPath = ImageIconRenderer.mapIdToResource(iconId);
         if (resPath != null) {
             ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
         }
 
         // Caption (only when hovered and enabled)
-        if (enabled && t > 0.01f) {
-            Color captionColor = AccentColorUtil.blend(getForeground(), resolveAccent(), 0.25f * t);
-            g2.setComposite(AlphaComposite.SrcOver.derive(0.2f + 0.8f * t));
+        if (enabled && te > 0.01f) {
+            Color accent = resolveAccent();
+            Color captionColor = AccentColorUtil.blend(getForeground(), accent, 0.25f * te);
+            g2.setComposite(AlphaComposite.SrcOver.derive(0.2f + 0.8f * te));
             g2.setColor(captionColor);
             g2.setFont(getFont());
             FontMetrics fm = g2.getFontMetrics();
-            int textW = fm.stringWidth(caption);
+            int textW;
+            int textAscent;
+            if (cachedCaptionFont != getFont() || cachedCaptionWidth < 0) {
+                cachedCaptionFont = getFont();
+                cachedCaptionWidth = fm.stringWidth(caption);
+                cachedCaptionAscent = fm.getAscent();
+            }
+            textW = cachedCaptionWidth;
+            textAscent = cachedCaptionAscent;
             int textX = (w - textW) / 2;
-            int textY = iconY + iconSize + fm.getAscent() + 4;
+            int textY = iconY + iconSize + textAscent + 4;
             g2.drawString(caption, textX, textY);
             g2.setComposite(AlphaComposite.SrcOver);
         }
@@ -187,6 +228,11 @@ public class IconMenuButton extends JButton {
         } catch (Throwable ignored) {
         }
         return AccentColorUtil.defaultAccent();
+    }
+
+    private static float smoothStep(float t) {
+        float clamped = Math.max(0f, Math.min(1f, t));
+        return clamped * clamped * (3f - 2f * clamped);
     }
 
 }

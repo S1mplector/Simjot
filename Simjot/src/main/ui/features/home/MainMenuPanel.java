@@ -429,7 +429,7 @@ public class MainMenuPanel extends JPanel {
         notebooksButton.setToolTipText("Collect, draft, and manage your notebooks");
         iconRow.add(notebooksButton);
 
-        IconMenuButton searchButton = new IconMenuButton("Search", "search");
+        IconMenuButton searchButton = new IconMenuButton("Search", "search").setAeroGlowEnabled(true);
         searchButton.setToolTipText("Search across all poems and notebooks");
         searchButton.addActionListener(e -> app.showGlobalSearch());
         iconRow.add(searchButton);
@@ -448,7 +448,7 @@ public class MainMenuPanel extends JPanel {
         settingsButton.setToolTipText("Customize appearance, storage, security, and more");
         iconRow.add(settingsButton);
 
-        IconMenuButton exitButton = new IconMenuButton("Exit", "saveandexit");
+        IconMenuButton exitButton = new IconMenuButton("Exit", "saveandexit").setAeroGlowEnabled(true);
         exitButton.setToolTipText("Save all work and close Simjot");
         exitButton.addActionListener(e -> {
             if (app != null) {
@@ -1147,7 +1147,7 @@ public class MainMenuPanel extends JPanel {
     }
 
     private IconMenuButton createIconButton(String text, String cardName, String icon) {
-        IconMenuButton button = new IconMenuButton(text, icon);
+        IconMenuButton button = new IconMenuButton(text, icon).setAeroGlowEnabled(true);
         button.setAlignmentX(Component.CENTER_ALIGNMENT);
         button.addActionListener(e -> app.switchCard(cardName));
         return button;
