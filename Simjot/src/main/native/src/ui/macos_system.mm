@@ -16,6 +16,8 @@
 #import <IOKit/ps/IOPowerSources.h>
 #import <IOKit/ps/IOPSKeys.h>
 #include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 #endif
 
 #ifdef __APPLE__
@@ -62,6 +64,22 @@ static int simjot_is_icloud_path_fallback(NSString* path) {
         base = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Mobile Documents/com~apple~CloudDocs"];
     }
     return simjot_path_is_under(path, base);
+}
+
+static int simjot_append_utf8_line(char* out, int32_t out_len, int32_t* offset, NSString* line) {
+    if (!out || !offset || !line || out_len <= 0) return 0;
+    NSData* data = [line dataUsingEncoding:NSUTF8StringEncoding];
+    if (!data) return 0;
+    int32_t len = (int32_t)[data length];
+    if (len <= 0) return 0;
+    if (*offset + len + 1 >= out_len) return 0;
+    if (*offset > 0) {
+        out[(*offset)++] = '\n';
+    }
+    memcpy(out + *offset, [data bytes], (size_t)len);
+    *offset += len;
+    out[*offset] = '\0';
+    return 1;
 }
 #endif
 
@@ -582,5 +600,235 @@ extern "C" int32_t simjot_macos_icloud_prefetch_query(const char* path, int32_t 
     (void)max_items;
     (void)timeout_ms;
     return -1;
+#endif
+}
+
+extern "C" int32_t simjot_macos_icloud_list_conflicts(const char* path, int32_t max_items, int32_t timeout_ms, char* out, int32_t out_len) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path || !out || out_len <= 0) return -1;
+        out[0] = '\0';
+
+        NSString* rootPath = [NSString stringWithUTF8String:path];
+        if (!rootPath) return -1;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = nil;
+        if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+            token = [fm ubiquityIdentityToken];
+        }
+        if (!token) return -1;
+
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:rootPath isDirectory:&isDir] || !isDir) return -1;
+        if (!simjot_is_icloud_path_fallback(rootPath)) return -1;
+
+        NSURL* rootUrl = [NSURL fileURLWithPath:rootPath];
+        if (!rootUrl) return -1;
+
+        NSMetadataQuery* query = [[NSMetadataQuery alloc] init];
+        if (!query) return -1;
+
+        [query setSearchScopes:@[rootUrl]];
+        NSPredicate* predicate = [NSPredicate predicateWithFormat:@"%K == TRUE",
+                                  NSMetadataUbiquitousItemHasUnresolvedConflictsKey];
+        [query setPredicate:predicate];
+
+        __block BOOL done = NO;
+        NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
+        id finishObserver = [nc addObserverForName:NSMetadataQueryDidFinishGatheringNotification
+                                            object:query
+                                             queue:nil
+                                        usingBlock:^(NSNotification* note) {
+            (void)note;
+            done = YES;
+        }];
+        id updateObserver = [nc addObserverForName:NSMetadataQueryDidUpdateNotification
+                                            object:query
+                                             queue:nil
+                                        usingBlock:^(NSNotification* note) {
+            (void)note;
+        }];
+
+        if (![query startQuery]) {
+            [nc removeObserver:finishObserver];
+            if (updateObserver) [nc removeObserver:updateObserver];
+#if !__has_feature(objc_arc)
+            [query release];
+#endif
+            return -1;
+        }
+
+        int32_t timeout = timeout_ms > 0 ? timeout_ms : 1200;
+        NSDate* end = [NSDate dateWithTimeIntervalSinceNow:timeout / 1000.0];
+        while (!done && [end timeIntervalSinceNow] > 0) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+
+        [query disableUpdates];
+        NSArray* results = [query results];
+        int32_t count = 0;
+        int32_t offset = 0;
+        for (NSMetadataItem* item in results) {
+            if (!item) continue;
+            if (max_items > 0 && count >= max_items) break;
+            NSURL* url = [item valueForAttribute:NSMetadataItemURLKey];
+            if (![url isKindOfClass:[NSURL class]]) continue;
+            NSString* itemPath = [url path];
+            if (!itemPath || itemPath.length == 0) continue;
+            count++;
+            if (!simjot_append_utf8_line(out, out_len, &offset, itemPath)) {
+                break;
+            }
+        }
+
+        [query stopQuery];
+        [query enableUpdates];
+        [nc removeObserver:finishObserver];
+        if (updateObserver) [nc removeObserver:updateObserver];
+#if !__has_feature(objc_arc)
+        [query release];
+#endif
+        return count;
+    }
+#else
+    (void)path;
+    (void)max_items;
+    (void)timeout_ms;
+    (void)out;
+    (void)out_len;
+    return -1;
+#endif
+}
+
+extern "C" int32_t simjot_macos_icloud_ensure_downloaded(const char* path, int32_t timeout_ms) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path) return -1;
+        NSString* nsPath = [NSString stringWithUTF8String:path];
+        if (!nsPath) return -1;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = nil;
+        if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+            token = [fm ubiquityIdentityToken];
+        }
+        if (!token) return -1;
+
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:nsPath isDirectory:&isDir]) return 0;
+
+        NSURL* url = [NSURL fileURLWithPath:nsPath];
+        if (!url) return -1;
+
+        NSNumber* isUbiq = nil;
+        if (![url getResourceValue:&isUbiq forKey:NSURLIsUbiquitousItemKey error:nil]) {
+            if (!simjot_is_icloud_path_fallback(nsPath)) return 1;
+        } else if (!isUbiq || ![isUbiq boolValue]) {
+            return 1;
+        }
+
+        NSNumber* downloaded = nil;
+        if ([url getResourceValue:&downloaded forKey:NSURLUbiquitousItemIsDownloadedKey error:nil]) {
+            if (downloaded && [downloaded boolValue]) return 1;
+        }
+
+        SEL sel = NSSelectorFromString(@"startDownloadingUbiquitousItemAtURL:error:");
+        if ([fm respondsToSelector:sel]) {
+            NSError* error = nil;
+            ((BOOL (*)(id, SEL, NSURL*, NSError**))objc_msgSend)(fm, sel, url, &error);
+        }
+
+        int32_t timeout = timeout_ms > 0 ? timeout_ms : 2000;
+        NSDate* end = [NSDate dateWithTimeIntervalSinceNow:timeout / 1000.0];
+        while ([end timeIntervalSinceNow] > 0) {
+            NSNumber* nowDownloaded = nil;
+            if ([url getResourceValue:&nowDownloaded forKey:NSURLUbiquitousItemIsDownloadedKey error:nil]) {
+                if (nowDownloaded && [nowDownloaded boolValue]) return 1;
+            }
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+        return 0;
+    }
+#else
+    (void)path;
+    (void)timeout_ms;
+    return -1;
+#endif
+}
+
+extern "C" int32_t simjot_macos_icloud_coordinated_write(const char* path, const uint8_t* data, int32_t data_len, int32_t fsync_file, int32_t fsync_dir) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        if (!path || !*path || !data || data_len < 0) return 0;
+        NSString* nsPath = [NSString stringWithUTF8String:path];
+        if (!nsPath) return 0;
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        id token = nil;
+        if ([fm respondsToSelector:@selector(ubiquityIdentityToken)]) {
+            token = [fm ubiquityIdentityToken];
+        }
+        if (!token) return 0;
+
+        if (!simjot_is_icloud_path_fallback(nsPath)) return 0;
+
+        NSString* dirPath = [nsPath stringByDeletingLastPathComponent];
+        if (dirPath && ![fm fileExistsAtPath:dirPath]) {
+            [fm createDirectoryAtPath:dirPath withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+
+        NSURL* url = [NSURL fileURLWithPath:nsPath];
+        if (!url) return 0;
+
+        __block BOOL ok = NO;
+        __block NSError* coordError = nil;
+        NSFileCoordinator* coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
+        [coordinator coordinateWritingItemAtURL:url
+                                        options:NSFileCoordinatorWritingForReplacing
+                                          error:&coordError
+                                     byAccessor:^(NSURL* newURL) {
+            NSData* payload = [NSData dataWithBytes:data length:(NSUInteger)data_len];
+            NSError* writeError = nil;
+            ok = [payload writeToURL:newURL options:NSDataWritingAtomic error:&writeError];
+            if (!ok && writeError) {
+                coordError = writeError;
+            }
+        }];
+
+#if !__has_feature(objc_arc)
+        [coordinator release];
+#endif
+
+        if (!ok) return 0;
+
+        if (fsync_file) {
+            int fd = open(path, O_RDONLY);
+            if (fd >= 0) {
+                fsync(fd);
+                close(fd);
+            }
+        }
+        if (fsync_dir && dirPath) {
+            const char* dirC = [dirPath fileSystemRepresentation];
+            if (dirC && dirC[0]) {
+                int fd = open(dirC, O_RDONLY);
+                if (fd >= 0) {
+                    fsync(fd);
+                    close(fd);
+                }
+            }
+        }
+        return 1;
+    }
+#else
+    (void)path;
+    (void)data;
+    (void)data_len;
+    (void)fsync_file;
+    (void)fsync_dir;
+    return 0;
 #endif
 }

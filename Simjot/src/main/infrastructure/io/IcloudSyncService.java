@@ -23,8 +23,12 @@ public final class IcloudSyncService {
     private static final int PREFETCH_MAX_ITEMS = 4096;
     private static final int PREFETCH_MAX_DEPTH = 6;
     private static final int PREFETCH_QUERY_TIMEOUT_MS = 1200;
+    private static final long CONFLICT_SCAN_COOLDOWN_MS = 60000L;
+    private static final int CONFLICT_SCAN_LIMIT = 64;
+    private static final int ENSURE_DOWNLOAD_TIMEOUT_MS = 1200;
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
     private static volatile long lastWarmupMs = 0L;
+    private static volatile long lastConflictScanMs = 0L;
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "IcloudPrefetch");
         t.setDaemon(true);
@@ -77,6 +81,8 @@ public final class IcloudSyncService {
         if (fonts.exists()) {
             prefetchDir(fonts, 256, 3);
         }
+
+        scanConflicts(root);
     }
 
     private static void requestDownload(File file) {
@@ -90,6 +96,7 @@ public final class IcloudSyncService {
         if ((status & NativeAccess.ICLOUD_ITEM_DOWNLOADED) != 0) return;
         if ((status & NativeAccess.ICLOUD_ITEM_DOWNLOADING) != 0) return;
         NativeAccess.startMacIcloudDownload(path);
+        NativeAccess.ensureMacIcloudDownloaded(path, ENSURE_DOWNLOAD_TIMEOUT_MS);
     }
 
     private static void prefetchDir(File dir, int maxItems, int maxDepth) {
@@ -98,6 +105,25 @@ public final class IcloudSyncService {
         int requested = NativeAccess.prefetchMacIcloudQuery(path, maxItems, PREFETCH_QUERY_TIMEOUT_MS);
         if (requested < 0) {
             NativeAccess.prefetchMacIcloudDir(path, maxItems, maxDepth);
+        }
+    }
+
+    private static void scanConflicts(File root) {
+        if (root == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastConflictScanMs < CONFLICT_SCAN_COOLDOWN_MS) return;
+        lastConflictScanMs = now;
+        String raw = NativeAccess.listMacIcloudConflicts(root.getAbsolutePath(), CONFLICT_SCAN_LIMIT, PREFETCH_QUERY_TIMEOUT_MS);
+        if (raw == null || raw.isBlank()) return;
+        String[] lines = raw.split("\n");
+        if (lines.length == 0) return;
+        IoLog.warn("icloud-conflicts", "Unresolved iCloud conflicts detected: " + lines.length, null);
+        int limit = Math.min(lines.length, 5);
+        for (int i = 0; i < limit; i++) {
+            String line = lines[i];
+            if (line != null && !line.isBlank()) {
+                IoLog.warn("icloud-conflict", "Conflict: " + line, null);
+            }
         }
     }
 }

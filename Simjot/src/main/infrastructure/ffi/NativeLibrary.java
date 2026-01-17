@@ -4443,6 +4443,72 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     /**
+     * List unresolved iCloud conflicts under a path (newline-separated).
+     * @return newline-separated paths, empty string if none, or null on error.
+     */
+    public String listMacIcloudConflicts(String path, int maxItems, int timeoutMs) {
+        if (path == null || path.isBlank()) return null;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_list_conflicts",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment cPath = arena.allocateFrom(path);
+            int outLen = 65536;
+            MemorySegment out = arena.allocate(outLen);
+            int count = (int) handle.invokeExact(cPath, maxItems, timeoutMs, out, outLen);
+            if (count < 0) return null;
+            if (count == 0) return "";
+            return out.getString(0);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /**
+     * Ensure an iCloud item is downloaded locally.
+     * @return 1 if downloaded, 0 if not, -1 on error/unsupported.
+     */
+    public int ensureMacIcloudDownloaded(String path, int timeoutMs) {
+        if (path == null || path.isBlank()) return -1;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_ensure_downloaded",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return -1;
+            MemorySegment cPath = arena.allocateFrom(path);
+            return (int) handle.invokeExact(cPath, timeoutMs);
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Perform a coordinated iCloud write on macOS.
+     */
+    public boolean macosIcloudCoordinatedWrite(Path target, byte[] data, boolean fsyncFile, boolean fsyncDir) {
+        if (target == null || data == null) return false;
+        try (Arena arena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_macos_icloud_coordinated_write",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            MemorySegment cPath = arena.allocateFrom(target.toString());
+            MemorySegment dataSeg = arena.allocate(data.length == 0 ? 1 : data.length);
+            if (data.length > 0) dataSeg.asByteBuffer().put(data);
+            int ok = (int) handle.invokeExact(
+                cPath,
+                dataSeg,
+                data.length,
+                fsyncFile ? 1 : 0,
+                fsyncDir ? 1 : 0
+            );
+            return ok != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
      * Invalidate cached display scale values
      */
     public void invalidateDisplayCache() {

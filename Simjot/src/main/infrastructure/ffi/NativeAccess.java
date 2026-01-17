@@ -205,6 +205,14 @@ public final class NativeAccess {
         NativeLibrary lib = library();
         if (lib == null || target == null || data == null) return null;
         try {
+            boolean icloudPath = false;
+            try {
+                icloudPath = lib.isMacIcloudPath(target.toString());
+            } catch (Throwable ignored) {}
+            if (icloudPath) {
+                boolean ok = lib.macosIcloudCoordinatedWrite(target, data, fsyncFile, fsyncDir);
+                if (ok) return true;
+            }
             return lib.atomicWrite(target, data, fsyncFile, fsyncDir);
         } catch (Throwable t) {
             IoLog.warn("native-atomic-write", "Native atomic write failed; falling back to Java.", t);
@@ -2624,6 +2632,25 @@ public final class NativeAccess {
         NativeLibrary lib = library();
         if (lib == null || path == null || path.isBlank()) return -1;
         try { return lib.prefetchMacIcloudQuery(path, maxItems, timeoutMs); } catch (Throwable e) { return -1; }
+    }
+
+    /**
+     * List unresolved iCloud conflicts under a path (newline-separated).
+     */
+    public static String listMacIcloudConflicts(String path, int maxItems, int timeoutMs) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || path.isBlank()) return null;
+        try { return lib.listMacIcloudConflicts(path, maxItems, timeoutMs); } catch (Throwable e) { return null; }
+    }
+
+    /**
+     * Ensure an iCloud item is downloaded locally.
+     * @return 1 if downloaded, 0 if not, -1 on error/unsupported.
+     */
+    public static int ensureMacIcloudDownloaded(String path, int timeoutMs) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null || path.isBlank()) return -1;
+        try { return lib.ensureMacIcloudDownloaded(path, timeoutMs); } catch (Throwable e) { return -1; }
     }
 
     /**
