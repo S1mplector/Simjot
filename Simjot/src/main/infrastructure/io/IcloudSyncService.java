@@ -26,6 +26,8 @@ public final class IcloudSyncService {
     private static final long CONFLICT_SCAN_COOLDOWN_MS = 60000L;
     private static final int CONFLICT_SCAN_LIMIT = 64;
     private static final int ENSURE_DOWNLOAD_TIMEOUT_MS = 1200;
+    private static final int KEYFILE_TOUCH_LIMIT = 64 * 1024;
+    private static final int KEYFILE_WAIT_SLEEP_MS = 150;
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
     private static volatile long lastWarmupMs = 0L;
     private static volatile long lastConflictScanMs = 0L;
@@ -132,5 +134,65 @@ public final class IcloudSyncService {
 
     private static boolean isLowPowerMode() {
         return NativeAccess.isMacLowPowerMode() || NativeAccess.isMacOnBattery();
+    }
+
+    public static void ensureKeyFilesAvailable(File root, int timeoutMs) {
+        if (root == null) return;
+        if (!AppDirectories.isIcloudRoot(root)) return;
+        int timeout = Math.max(0, timeoutMs);
+        File[] keyFiles = new File[] {
+            new File(root, "notebooks.json"),
+            new File(new File(root, "settings"), "preferences.properties"),
+            new File(new File(root, "mood"), "mood_log.txt"),
+            new File(root, ".simjot_setup")
+        };
+        if (NativeAccess.isAvailable()) {
+            for (File file : keyFiles) {
+                if (file == null) continue;
+                try { NativeAccess.startMacIcloudDownload(file.getAbsolutePath()); } catch (Throwable ignored) {}
+                if (timeout > 0) {
+                    try { NativeAccess.ensureMacIcloudDownloaded(file.getAbsolutePath(), timeout); } catch (Throwable ignored) {}
+                }
+            }
+            return;
+        }
+
+        for (File file : keyFiles) {
+            touchFile(file, KEYFILE_TOUCH_LIMIT);
+        }
+        if (timeout == 0) return;
+        long deadline = System.currentTimeMillis() + timeout;
+        while (System.currentTimeMillis() < deadline) {
+            if (allNonEmpty(keyFiles)) return;
+            try { Thread.sleep(KEYFILE_WAIT_SLEEP_MS); } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    private static void touchFile(File file, int maxBytes) {
+        if (file == null || maxBytes <= 0) return;
+        if (!file.exists() || !file.isFile()) return;
+        int limit = Math.min(maxBytes, 64 * 1024);
+        byte[] buffer = new byte[limit];
+        int remaining = maxBytes;
+        try (java.io.InputStream in = new java.io.BufferedInputStream(new java.io.FileInputStream(file))) {
+            while (remaining > 0) {
+                int read = in.read(buffer, 0, Math.min(buffer.length, remaining));
+                if (read <= 0) break;
+                remaining -= read;
+            }
+        } catch (java.io.IOException ignored) {}
+    }
+
+    private static boolean allNonEmpty(File[] files) {
+        if (files == null || files.length == 0) return true;
+        for (File file : files) {
+            if (file == null) continue;
+            if (file.exists() && file.isFile() && file.length() > 0) continue;
+            return false;
+        }
+        return true;
     }
 }

@@ -333,6 +333,9 @@ public final class AppConfig {
             NativeAccess.startMacIcloudDownload(setupMarker.getAbsolutePath());
         } catch (Throwable ignored) {}
         try {
+            IcloudSyncService.ensureKeyFilesAvailable(root, 1500);
+        } catch (Throwable ignored) {}
+        try {
             IcloudSyncService.warmupRoot(root);
         } catch (Throwable ignored) {}
     }
