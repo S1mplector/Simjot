@@ -513,7 +513,7 @@ JPKG_BASE_ARGS=(
     --java-options "-Dcom.apple.mrj.application.apple.menu.about.name=$APP_NAME"
     --java-options "--enable-preview"
     --java-options "--enable-native-access=ALL-UNNAMED"
-    --java-options "-Dsimjot.native.path=$APPDIR/libsimjot_native.dylib"
+    --java-options "-Dsimjot.native.path=\$APPDIR/libsimjot_native.dylib"
 )
 
 # Add icon if available
@@ -627,6 +627,11 @@ if [[ -f "$PLIST_PATH" ]]; then
     /usr/libexec/PlistBuddy -c "Add :NSSupportsAutomaticGraphicsSwitching bool true" "$PLIST_PATH" 2>/dev/null || true
     /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MACOS_MIN_VERSION" "$PLIST_PATH" 2>/dev/null || \
         /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string $MACOS_MIN_VERSION" "$PLIST_PATH" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :NSDocumentsFolderUsageDescription string Simjot needs access to your documents and iCloud Drive to read and sync your journals." "$PLIST_PATH" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :NSDesktopFolderUsageDescription string Simjot needs access to the Desktop if you store notebooks there." "$PLIST_PATH" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :NSDownloadsFolderUsageDescription string Simjot needs access to Downloads for importing backups and files." "$PLIST_PATH" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :NSNetworkVolumesUsageDescription string Simjot needs access to network volumes you select for storage." "$PLIST_PATH" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :NSRemovableVolumesUsageDescription string Simjot needs access to external drives you select for storage." "$PLIST_PATH" 2>/dev/null || true
     log_ok "Info.plist enhanced"
 fi
 
@@ -643,7 +648,12 @@ fi
 # Step 7: Create .pkg Installer
 # ============================================================================
 log_info "Creating .pkg installer..."
-PKG_PATH="$DIST_DIR/$APP_NAME-$VERSION.pkg"
+PKG_SUFFIX="$PKG_ARCHS"
+if [[ "$BUILD_UNIVERSAL" == true ]]; then
+    PKG_SUFFIX="universal"
+fi
+PKG_BASENAME="$APP_NAME-$VERSION-$PKG_SUFFIX"
+PKG_PATH="$DIST_DIR/$PKG_BASENAME.pkg"
 
 # Create component package
 COMPONENT_PKG="$BUILD_DIR/component.pkg"
@@ -797,7 +807,7 @@ log_ok "Installer created: $PKG_PATH"
 # ============================================================================
 if [[ "$CREATE_DMG" == true ]]; then
     log_info "Creating DMG disk image..."
-    DMG_PATH="$DIST_DIR/$APP_NAME-$VERSION.dmg"
+    DMG_PATH="$DIST_DIR/$PKG_BASENAME.dmg"
     
     # Create a temporary DMG staging directory
     DMG_STAGE="$BUILD_DIR/dmg-stage"

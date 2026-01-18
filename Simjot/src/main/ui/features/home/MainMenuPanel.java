@@ -84,8 +84,7 @@ import main.ui.util.AccentColorUtil;
 /**
  * Main menu panel shown on app launch, and accessible from the header.
  * Sectioned layout with buttons for primary features.
- * Contains header, clock, calendar, quick access buttons, and optional widgets.
- * Draggable widget panel is currently disabled.
+ * Contains header, clock, calendar, quick access buttons.
  * Orchestrates layout and theming.
  * Handles user interactions and events.
  * Manages the lifecycle of child components.
@@ -425,7 +424,7 @@ public class MainMenuPanel extends JPanel {
         JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         iconRow.setOpaque(false);
 
-        IconMenuButton notebooksButton = createIconButton("Write", JournalApp.NOTEBOOK_MANAGER, "notebook");
+        IconMenuButton notebooksButton = createIconButton("Write", JournalApp.NOTEBOOK_MANAGER, "fountain_pen");
         notebooksButton.setToolTipText("Collect, draft, and manage your notebooks");
         iconRow.add(notebooksButton);
 

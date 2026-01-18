@@ -74,7 +74,6 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
         sectionModel.addElement("Security");
-        sectionModel.addElement("Debug");
         sectionModel.addElement("About");
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -116,9 +115,6 @@ public class SettingsPanel extends JPanel {
         // Security (lock & password)
         SecuritySettingsPage security = new SecuritySettingsPage();
         addPage("Security", security);
-
-        DebugSettingsPage debug = new DebugSettingsPage();
-        addPage("Debug", debug);
 
         // About (comprehensive information page)
         AboutSettingsPage aboutPage = new AboutSettingsPage();
@@ -231,7 +227,6 @@ public class SettingsPanel extends JPanel {
             SECTION_ICONS.put("Appearance", loadSectionIcon("appearance_settings"));
             SECTION_ICONS.put("Storage", loadSectionIcon("storage_settings"));
             SECTION_ICONS.put("Security", loadSectionIcon("security"));
-            SECTION_ICONS.put("Debug", loadSectionIcon("debug_settings"));
             SECTION_ICONS.put("About", loadSectionIcon("about_settings"));
         }
 

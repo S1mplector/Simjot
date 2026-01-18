@@ -103,7 +103,7 @@ JPKG_CMD=(
   --java-options "-Xmx1G"
   --java-options "--enable-preview"
   --java-options "--enable-native-access=ALL-UNNAMED"
-  --java-options "-Dsimjot.native.path=$APPDIR/libsimjot_native.dylib"
+  --java-options "-Dsimjot.native.path=\$APPDIR/libsimjot_native.dylib"
 )
 if (( ${#ICON_FLAG[@]} )); then
   JPKG_CMD+=("${ICON_FLAG[@]}")
