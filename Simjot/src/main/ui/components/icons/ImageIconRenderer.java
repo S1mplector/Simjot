@@ -490,7 +490,6 @@ public final class ImageIconRenderer {
             case "delete_notebook" -> "delete_notebook";
             case "trash" -> "delete_default";
             case "open_folder", "folder", "folder_open" -> "open_folder";
-            // Notetaking toolbar tools
             case "select_text", "text_select", "cursor" -> "notebook";
             case "pen_tool" -> "new_entry";
             case "highlighter_tool", "highlighter" -> "analyze";

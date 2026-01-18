@@ -512,6 +512,8 @@ JPKG_BASE_ARGS=(
     --java-options "-Dapple.awt.application.name=$APP_NAME"
     --java-options "-Dcom.apple.mrj.application.apple.menu.about.name=$APP_NAME"
     --java-options "--enable-preview"
+    --java-options "--enable-native-access=ALL-UNNAMED"
+    --java-options "-Dsimjot.native.path=$APPDIR/libsimjot_native.dylib"
 )
 
 # Add icon if available

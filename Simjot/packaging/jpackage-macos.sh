@@ -28,6 +28,15 @@ APP_NAME="Simjot"
 echo "Building shaded JAR..."
 mvn -DskipTests clean package
 
+# Bundle native library alongside the JAR when available.
+NATIVE_LIB_SRC="src/main/native/build/libsimjot_native.dylib"
+if [[ ! -f "$NATIVE_LIB_SRC" ]]; then
+  NATIVE_LIB_SRC="src/main/resources/native/libsimjot_native.dylib"
+fi
+if [[ -f "$NATIVE_LIB_SRC" ]]; then
+  cp "$NATIVE_LIB_SRC" "target/libsimjot_native.dylib"
+fi
+
 # Compute required modules for a minimal runtime
 echo "Computing required modules with jdeps..."
 MODULES="$(jdeps --multi-release 17 --ignore-missing-deps --print-module-deps "$JAR_PATH")"
@@ -92,6 +101,9 @@ JPKG_CMD=(
   --main-jar "$SHADED_JAR"
   --runtime-image "$RUNTIME_DIR"
   --java-options "-Xmx1G"
+  --java-options "--enable-preview"
+  --java-options "--enable-native-access=ALL-UNNAMED"
+  --java-options "-Dsimjot.native.path=$APPDIR/libsimjot_native.dylib"
 )
 if (( ${#ICON_FLAG[@]} )); then
   JPKG_CMD+=("${ICON_FLAG[@]}")
