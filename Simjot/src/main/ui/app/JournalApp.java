@@ -1402,6 +1402,29 @@ public class JournalApp extends JFrame {
         }
     }
 
+    public void handleNotebookRename(String oldName, String newName) {
+        if (oldName == null || newName == null || oldName.equalsIgnoreCase(newName)) return;
+
+        String oldCardId = "NotebookEntries_" + oldName;
+        NotebookEntriesPanel panel = notebookPanels.remove(oldCardId);
+        if (panel != null) {
+            try { panel.disposeResources(); } catch (Throwable t) { logWarn("NotebookEntriesPanel dispose", t); }
+            cardPanel.remove(panel);
+        }
+
+        if (lastActiveNotebook != null && lastActiveNotebook.getName().equalsIgnoreCase(oldName)) {
+            for (NotebookInfo nb : new NotebookStore().list()) {
+                if (nb.getName().equalsIgnoreCase(newName)) {
+                    lastActiveNotebook = nb;
+                    break;
+                }
+            }
+        }
+
+        cardPanel.revalidate();
+        cardPanel.repaint();
+    }
+
     public static void main(String[] args) {
         launchArgs = (args == null) ? new String[0] : args.clone();
         try { CrashReporter.install(); } catch (Throwable ignored) {}

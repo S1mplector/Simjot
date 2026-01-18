@@ -301,8 +301,7 @@ public class ModernClusterOrganizer extends JDialog {
         if (query.isEmpty()) return notebooks;
         List<NotebookInfo> filtered = new ArrayList<>();
         for (NotebookInfo nb : notebooks) {
-            if (nativeSearchMatch(nb.getName(), query) || 
-                nativeSearchMatch(nb.getDescription(), query)) {
+            if (nativeSearchMatch(nb.getName(), query)) {
                 filtered.add(nb);
             }
         }

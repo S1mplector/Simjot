@@ -8,10 +8,12 @@
 
 package main.ui.components.toast;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
@@ -53,7 +55,7 @@ public final class ToastOverlay {
     
     private static final int TOAST_WIDTH = 320;
     private static final int TOAST_HEIGHT = 44;
-    private static final int ARC = 14;
+    private static final int ARC = 16;
     private static final int MARGIN_TOP = 24;
     private static final long DISPLAY_DURATION_MS = 2200;
     private static final long SLIDE_IN_MS = 320;      // Slightly longer for smoothness
@@ -258,12 +260,31 @@ public final class ToastOverlay {
             animationTimer.start();
         }
         
-        /**
-         * Custom painted panel with simple white background.
-         */
         private class ToastPanel extends JPanel {
+            private final Color bgTop;
+            private final Color bgBottom;
+            private final Color barTop;
+            private final Color barBottom;
+            private final Color badgeTop;
+            private final Color badgeBottom;
+            private final Color iconColor;
+            private final Color textColor;
+            private final Color borderOuter;
+            private final Color borderInner;
+
             ToastPanel() {
                 setOpaque(false);
+                Color accent = toastType.accent;
+                bgTop = mix(new Color(255, 255, 255), accent, 0.06f);
+                bgBottom = mix(new Color(242, 244, 246), accent, 0.03f);
+                barTop = mix(accent, Color.WHITE, 0.18f);
+                barBottom = mix(accent, Color.BLACK, 0.12f);
+                badgeTop = mix(accent, Color.WHITE, 0.8f);
+                badgeBottom = mix(accent, Color.WHITE, 0.65f);
+                iconColor = mix(accent, Color.BLACK, 0.18f);
+                textColor = new Color(35, 40, 46);
+                borderOuter = new Color(0, 0, 0, 50);
+                borderInner = new Color(255, 255, 255, 130);
             }
             
             @Override
@@ -274,42 +295,65 @@ public final class ToastOverlay {
                 
                 int w = getWidth(), h = getHeight();
                 float alpha = Math.max(0f, Math.min(1f, opacity));
-                RoundRectangle2D shape = new RoundRectangle2D.Float(0, 0, w, h, ARC, ARC);
-                
-                // No opacity animation - always fully visible
-                
+                RoundRectangle2D outer = new RoundRectangle2D.Float(0, 0, w, h, ARC, ARC);
+                RoundRectangle2D inner = new RoundRectangle2D.Float(1f, 1f, w - 2f, h - 2f, ARC - 2, ARC - 2);
+                g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+
                 // Soft shadow
-                g2.setColor(new Color(0, 0, 0, 30));
+                g2.setColor(new Color(0, 0, 0, 26));
+                g2.fill(new RoundRectangle2D.Float(2, 4, w - 4, h - 2, ARC, ARC));
+                g2.setColor(new Color(0, 0, 0, 12));
                 g2.fill(new RoundRectangle2D.Float(1, 2, w - 2, h - 1, ARC, ARC));
-                
-                // Simple white background
-                g2.setColor(Color.WHITE);
-                g2.fill(shape);
-                
-                // Accent bar on left
-                g2.setColor(toastType.accent);
-                g2.fill(new RoundRectangle2D.Float(0, 0, 5, h, 3, 3));
-                
-                // Subtle border
-                g2.setColor(new Color(200, 200, 200));
+
+                // Polished background with subtle tint
+                g2.setPaint(new GradientPaint(0, 0, bgTop, 0, h, bgBottom));
+                g2.fill(outer);
+                g2.setPaint(new GradientPaint(0, 0, withAlpha(Color.WHITE, 170), 0, h * 0.6f, withAlpha(Color.WHITE, 0)));
+                g2.fill(inner);
+                g2.setPaint(new GradientPaint(0, h * 0.6f, withAlpha(Color.BLACK, 0), 0, h, withAlpha(Color.BLACK, 18)));
+                g2.fill(inner);
+
+                // Accent bar
+                int barW = 6;
+                int barArc = Math.min(ARC, barW * 2);
+                g2.setPaint(new GradientPaint(0, 0, barTop, 0, h, barBottom));
+                g2.fill(new RoundRectangle2D.Float(0, 0, barW, h, barArc, barArc));
+                g2.setColor(new Color(255, 255, 255, 120));
+                g2.drawLine(1, 2, 1, h - 3);
+
+                // Border
+                g2.setColor(borderOuter);
                 g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, ARC, ARC));
-                
+                g2.setColor(borderInner);
+                g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, ARC - 2, ARC - 2));
+
+                // Icon badge
+                int badgeSize = 22;
+                int badgeX = barW + 10;
+                int badgeY = (h - badgeSize) / 2;
+                g2.setPaint(new GradientPaint(0, badgeY, badgeTop, 0, badgeY + badgeSize, badgeBottom));
+                g2.fillOval(badgeX, badgeY, badgeSize, badgeSize);
+                g2.setColor(new Color(0, 0, 0, 28));
+                g2.drawOval(badgeX, badgeY, badgeSize, badgeSize);
+
                 // Icon based on type
-                int iconX = 16;
-                int iconY = (h - 18) / 2;
-                g2.setColor(toastType.accent);
+                int iconX = badgeX + (badgeSize - 18) / 2;
+                int iconY = badgeY + (badgeSize - 18) / 2;
+                g2.setColor(iconColor);
                 drawIcon(g2, iconX, iconY, toastType);
-                
+
                 // Message text
-                g2.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
-                g2.setColor(new Color(40, 45, 55));
+                Font baseFont = getFont();
+                if (baseFont == null) baseFont = new Font(Font.SANS_SERIF, Font.PLAIN, 13);
+                g2.setFont(baseFont.deriveFont(Font.PLAIN, 13f));
+                g2.setColor(textColor);
                 FontMetrics fm = g2.getFontMetrics();
-                int textX = iconX + 26;
+                int textX = badgeX + badgeSize + 10;
                 int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
                 
                 // Truncate if needed
                 String displayText = message;
-                int maxWidth = w - textX - 16;
+                int maxWidth = w - textX - 14;
                 if (fm.stringWidth(displayText) > maxWidth) {
                     while (fm.stringWidth(displayText + "...") > maxWidth && displayText.length() > 0) {
                         displayText = displayText.substring(0, displayText.length() - 1);
@@ -319,6 +363,20 @@ public final class ToastOverlay {
                 g2.drawString(displayText, textX, textY);
                 
                 g2.dispose();
+            }
+
+            private Color mix(Color a, Color b, float t) {
+                t = Math.max(0f, Math.min(1f, t));
+                int r = (int) (a.getRed() + (b.getRed() - a.getRed()) * t);
+                int g = (int) (a.getGreen() + (b.getGreen() - a.getGreen()) * t);
+                int bl = (int) (a.getBlue() + (b.getBlue() - a.getBlue()) * t);
+                int al = (int) (a.getAlpha() + (b.getAlpha() - a.getAlpha()) * t);
+                return new Color(r, g, bl, al);
+            }
+
+            private Color withAlpha(Color c, int alpha) {
+                int a = Math.max(0, Math.min(255, alpha));
+                return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
             }
             
             private void drawIcon(Graphics2D g2, int x, int y, ToastType tt) {

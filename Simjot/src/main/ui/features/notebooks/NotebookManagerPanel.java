@@ -67,7 +67,6 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -522,11 +521,6 @@ public class NotebookManagerPanel extends JPanel {
             nameLbl.setForeground(AeroTheme.TEXT_PRIMARY);
             NotebookTile.this.add(nameLbl, BorderLayout.SOUTH);
             
-            // Show description tooltip if present
-            if (nb.getDescription() != null && !nb.getDescription().isEmpty()) {
-                setToolTipText(nb.getDescription());
-            }
-            
             // Setup as drop target for creating new clusters
             setupDropTarget();
         }
@@ -860,10 +854,9 @@ public class NotebookManagerPanel extends JPanel {
         if(dlg.isAccepted()){
             String name = dlg.getNotebookName();
             NotebookInfo.Type type = dlg.getNotebookType();
-            String description = dlg.getDescription();
             if(name!=null && !name.isEmpty()){
                 try {
-                    store.create(name, type, "notebook", description, -1); // Use system accent color
+                    store.create(name, type, "notebook", "", -1); // Use system accent color
                     main.ui.components.toast.ToastOverlay.success("Notebook created");
                     refresh();
                 } catch (IllegalArgumentException ex) {
@@ -1090,7 +1083,6 @@ public class NotebookManagerPanel extends JPanel {
 
         boolean isAccepted(){ return accepted; }
         String getNotebookName(){ return nameField.getText().trim(); }
-        String getDescription(){ return ""; }
         NotebookInfo.Type getNotebookType(){ return selectedType; }
 
         /** Card component for notebook type selection */
@@ -1193,7 +1185,7 @@ public class NotebookManagerPanel extends JPanel {
         private boolean modified = false;
         private final NotebookStore store;
         private final NotebookInfo notebook;
-        private final ModernTextField descField;
+        private final TitleDividerField titleField;
         private final JPanel iconPreview;
         private String customIconPath = null;
         
@@ -1216,11 +1208,10 @@ public class NotebookManagerPanel extends JPanel {
             header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
             header.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
-            TitleDividerField titleField = new TitleDividerField(24);
+            titleField = new TitleDividerField(24);
             titleField.setText(nb.getName());
-            titleField.setPlaceholder(null);
-            titleField.setEditable(false);
-            titleField.setFocusable(false);
+            titleField.setPlaceholder("Notebook title");
+            titleField.setToolTipText("Edit notebook title");
             titleField.setAlignmentX(Component.LEFT_ALIGNMENT);
             try {
                 String family = SettingsStore.get().getEditorFontFamily();
@@ -1246,19 +1237,9 @@ public class NotebookManagerPanel extends JPanel {
             GridBagConstraints gc = new GridBagConstraints();
             gc.gridx=0; gc.gridy=0; gc.anchor=GridBagConstraints.WEST; gc.fill=GridBagConstraints.HORIZONTAL; gc.weightx=1.0; gc.insets=new Insets(8,4,8,4);
 
-            // Description field
-            JLabel descLabel = new JLabel("Description:");
-            descLabel.setForeground(Color.DARK_GRAY);
-            descLabel.setFont(descLabel.getFont().deriveFont(Font.BOLD, 13f));
-            center.add(descLabel, gc);
-            gc.gridy++;
-            descField = new ModernTextField(24);
-            descField.setText(nb.getDescription());
-            center.add(descField, gc);
-            
             // Icon section
-            gc.gridy++;
-            gc.insets = new Insets(14, 4, 6, 4);
+            gc.gridy = 0;
+            gc.insets = new Insets(8, 4, 6, 4);
             JLabel iconLabel = new JLabel("Notebook Icon:");
             iconLabel.setForeground(Color.DARK_GRAY);
             iconLabel.setFont(iconLabel.getFont().deriveFont(Font.BOLD, 13f));
@@ -1337,8 +1318,33 @@ public class NotebookManagerPanel extends JPanel {
             IconMenuButton saveBtn = new IconMenuButton("Save", "save");
             saveBtn.setToolTipText("Save changes");
             saveBtn.addActionListener(e->{ 
-                store.updateCustomization(notebook, descField.getText().trim(), -1, customIconPath);
-                modified = true;
+                String newName = titleField.getText() == null ? "" : titleField.getText().trim();
+                if (newName.isEmpty()) {
+                    CustomConfirmDialog.confirm(this, "Invalid Notebook Name", "Notebook name cannot be empty.");
+                    return;
+                }
+
+                boolean renamed = false;
+                NotebookInfo target = notebook;
+                if (!newName.equalsIgnoreCase(notebook.getName())) {
+                    if (!store.rename(notebook, newName)) {
+                        CustomConfirmDialog.confirm(this, "Rename Failed",
+                                "A notebook with that name already exists, or the folder could not be renamed.");
+                        return;
+                    }
+                    renamed = true;
+                    target = findNotebookByName(newName);
+                    if (target == null) {
+                        target = notebook;
+                    }
+                    app.handleNotebookRename(notebook.getName(), newName);
+                }
+
+                boolean updated = false;
+                if (target != null) {
+                    updated = store.updateCustomization(target, "", -1, customIconPath);
+                }
+                modified = renamed || updated;
                 setVisible(false); 
                 dispose(); 
             });
@@ -1365,6 +1371,16 @@ public class NotebookManagerPanel extends JPanel {
             pack();
             setSize(420, 420);
             setLocationRelativeTo(parent);
+        }
+
+        private NotebookInfo findNotebookByName(String name) {
+            if (name == null) return null;
+            for (NotebookInfo nb : store.list()) {
+                if (name.equalsIgnoreCase(nb.getName())) {
+                    return nb;
+                }
+            }
+            return null;
         }
         
         private void chooseCustomIcon() {
@@ -1430,23 +1446,4 @@ public class NotebookManagerPanel extends JPanel {
         return tile;
     }
 
-    // reusable rounded text field class
-    private static class ModernTextField extends JTextField{
-        ModernTextField(int cols){ super(cols); setOpaque(false); setBorder(BorderFactory.createEmptyBorder(6,10,6,10)); }
-        @Override protected void paintComponent(Graphics g){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(new Color(240,240,240));
-            g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-            super.paintComponent(g2);
-            g2.dispose();
-        }
-        @Override protected void paintBorder(Graphics g){
-            Graphics2D g2=(Graphics2D)g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
-            g2.dispose();
-        }
-    }
 }
