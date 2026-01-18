@@ -162,12 +162,9 @@ public final class AppDirectories {
         String path = NativeAccess.getMacIcloudPath();
         if (path == null || path.isBlank()) {
             if (NativeAccess.isAvailable() && !NativeAccess.isMacIcloudAvailable()) return null;
-            String home = System.getProperty("user.home");
-            if (home != null && !home.isBlank()) {
-                File cloudDocs = new File(home, "Library/Mobile Documents/com~apple~CloudDocs");
-                if (cloudDocs.exists() && cloudDocs.isDirectory()) {
-                    path = new File(cloudDocs, "Simjot").getAbsolutePath();
-                }
+            File cloudDocs = icloudDriveRoot();
+            if (cloudDocs != null) {
+                path = new File(cloudDocs, "Simjot").getAbsolutePath();
             }
         }
         if (path == null || path.isBlank()) return null;
@@ -205,18 +202,17 @@ public final class AppDirectories {
             if (NativeAccess.isMacIcloudPath(path)) return true;
         } catch (Throwable ignored) {}
         File icloud = suggestedIcloudRoot();
-        if (icloud == null) return false;
+        File icloudDrive = icloudDriveRoot();
+        if (icloud == null && icloudDrive == null) return false;
         try {
             java.nio.file.Path rootPath = folder.toPath().toAbsolutePath().normalize();
-            java.nio.file.Path icloudPath = icloud.toPath().toAbsolutePath().normalize();
-            return rootPath.equals(icloudPath) || rootPath.startsWith(icloudPath);
+            if (isUnderPath(rootPath, icloud)) return true;
+            if (isUnderPath(rootPath, icloudDrive)) return true;
+            return false;
         } catch (Throwable ignored) {
-            String icloudPath = icloud.getAbsolutePath();
-            if (icloudPath == null || icloudPath.isBlank()) return false;
             String rootPath = path;
-            if (rootPath.equals(icloudPath)) return true;
-            String prefix = icloudPath.endsWith(File.separator) ? icloudPath : icloudPath + File.separator;
-            return rootPath.startsWith(prefix);
+            if (isUnderPath(rootPath, icloud)) return true;
+            return isUnderPath(rootPath, icloudDrive);
         }
     }
 
@@ -359,6 +355,35 @@ public final class AppDirectories {
         File[] list = dir.listFiles();
         if (list == null || list.length == 0) return 0;
         return Math.min(max, list.length);
+    }
+
+    private static File icloudDriveRoot() {
+        String os = System.getProperty("os.name", "");
+        if (os == null || !os.toLowerCase().contains("mac")) return null;
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) return null;
+        File cloudDocs = new File(home, "Library/Mobile Documents/com~apple~CloudDocs");
+        if (cloudDocs.exists() && cloudDocs.isDirectory()) return cloudDocs;
+        return null;
+    }
+
+    private static boolean isUnderPath(java.nio.file.Path rootPath, File candidate) {
+        if (rootPath == null || candidate == null) return false;
+        try {
+            java.nio.file.Path candidatePath = candidate.toPath().toAbsolutePath().normalize();
+            return rootPath.equals(candidatePath) || rootPath.startsWith(candidatePath);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isUnderPath(String rootPath, File candidate) {
+        if (rootPath == null || rootPath.isBlank() || candidate == null) return false;
+        String candidatePath = candidate.getAbsolutePath();
+        if (candidatePath == null || candidatePath.isBlank()) return false;
+        if (rootPath.equals(candidatePath)) return true;
+        String prefix = candidatePath.endsWith(File.separator) ? candidatePath : candidatePath + File.separator;
+        return rootPath.startsWith(prefix);
     }
 
     /**
