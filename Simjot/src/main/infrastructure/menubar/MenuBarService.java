@@ -99,19 +99,39 @@ public final class MenuBarService {
     
     private Image loadTrayIcon() {
         try {
-            // Try to load from resources
-            URL iconUrl = ResourceLoader.getResource("icons/tray-icon.png");
+            // Try to load simjot.icns from resources (primary icon)
+            URL iconUrl = ResourceLoader.getResource("img/icons/original/simjot.icns");
+            if (iconUrl != null) {
+                Image img = Toolkit.getDefaultToolkit().getImage(iconUrl);
+                if (img != null) {
+                    IoLog.info("menubar", "Loaded tray icon from img/icons/original/simjot.icns");
+                    return img;
+                }
+            }
+            
+            // Try PNG version in background folder
+            iconUrl = ResourceLoader.getResource("img/background/simjot.icns");
+            if (iconUrl != null) {
+                Image img = Toolkit.getDefaultToolkit().getImage(iconUrl);
+                if (img != null) {
+                    IoLog.info("menubar", "Loaded tray icon from img/background/simjot.icns");
+                    return img;
+                }
+            }
+            
+            // Try legacy paths
+            iconUrl = ResourceLoader.getResource("icons/tray-icon.png");
             if (iconUrl != null) {
                 return Toolkit.getDefaultToolkit().getImage(iconUrl);
             }
             
-            // Try alternate path
             iconUrl = ResourceLoader.getResource("simjot-icon-16.png");
             if (iconUrl != null) {
                 return Toolkit.getDefaultToolkit().getImage(iconUrl);
             }
             
             // Create a simple fallback icon programmatically
+            IoLog.info("menubar", "Using fallback tray icon");
             return createFallbackIcon();
         } catch (Throwable t) {
             IoLog.warn("menubar", "Error loading tray icon: " + t.getMessage(), t);
