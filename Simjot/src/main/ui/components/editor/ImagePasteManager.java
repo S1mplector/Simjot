@@ -29,7 +29,6 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -86,11 +85,13 @@ public final class ImagePasteManager {
     
     // Track active overlay to prevent duplicates
     private static JWindow activeOverlay = null;
+    private static JWindow imageEditOverlay = null;
+    private static JWindow sizePreviewOverlay = null;
     private static float overlayAlpha = 0f;
     private static Timer overlayFadeTimer = null;
-    private static Timer hoverShowTimer = null;
-    private static Rectangle lastHoveredImageBounds = null;
-    private static int lastHoveredOffset = -1;
+    private static MouseAdapter activeMouseListener = null;
+    private static java.awt.event.FocusAdapter activeFocusListener = null;
+    private static JTextPane activeEditor = null;
     
     // Native image cache settings
     private static final int CACHE_MAX_ENTRIES = 48;
@@ -123,22 +124,12 @@ public final class ImagePasteManager {
         // Install transfer handler for drag & drop
         editor.setTransferHandler(new ImageFileTransferHandler(editor, attachmentsDirSupplier, maxWidthPx, editor.getTransferHandler()));
 
-        // Click handler for image adjustment
+        // Click handler for image adjustment (click-to-show is more reliable than hover)
         editor.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 1) {
                     handleImageClick(editor, e, attachmentsDirSupplier, maxWidthPx);
                 }
-            }
-            @Override public void mouseExited(MouseEvent e) {
-                cancelHoverShow();
-            }
-        });
-
-        // Hover detection for showing toolbar
-        editor.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override public void mouseMoved(MouseEvent e) {
-                handleImageHover(editor, e, attachmentsDirSupplier, maxWidthPx);
             }
         });
     }
@@ -179,99 +170,13 @@ public final class ImagePasteManager {
                         Object src = as.getAttribute("imageSourceFile");
                         if (src instanceof File) srcFile = (File) src;
                         
-                        showMinimalToolbar(editor, el.getStartOffset(), srcFile, icon, bounds, 
+                        showMinimalToolbarWithFade(editor, el.getStartOffset(), srcFile, icon, bounds, 
                                           attachmentsDirSupplier, maxWidthPx);
                         return;
                     }
                 }
             }
         } catch (Throwable ignored) {}
-    }
-
-    private static void handleImageHover(JTextPane editor, MouseEvent e,
-                                         Supplier<File> attachmentsDirSupplier, int maxWidthPx) {
-        // Skip if toolbar is already showing
-        if (activeOverlay != null && activeOverlay.isVisible()) {
-            return;
-        }
-
-        try {
-            int pos = editor.viewToModel2D(e.getPoint());
-            if (pos < 0) pos = 0;
-            StyledDocument doc = editor.getStyledDocument();
-            int len = doc.getLength();
-
-            // Search for icon element near mouse position
-            for (int d = 0; d <= 3; d++) {
-                for (int sign : new int[]{0, -1, 1}) {
-                    int idx = Math.max(0, Math.min(len, pos + sign * d));
-                    javax.swing.text.Element el = doc.getCharacterElement(idx);
-                    if (el == null) continue;
-
-                    javax.swing.text.AttributeSet as = el.getAttributes();
-                    Object ico = StyleConstants.getIcon(as);
-                    if (ico instanceof ImageIcon icon) {
-                        Rectangle bounds = null;
-                        try {
-                            java.awt.geom.Rectangle2D r2 = editor.modelToView2D(el.getStartOffset());
-                            if (r2 != null) {
-                                bounds = r2.getBounds();
-                                bounds.width = icon.getIconWidth();
-                                bounds.height = icon.getIconHeight();
-                            }
-                        } catch (Throwable ignored) {}
-
-                        if (bounds == null) {
-                            bounds = new Rectangle(e.getX(), e.getY(), icon.getIconWidth(), icon.getIconHeight());
-                        }
-
-                        // Check if mouse is actually over the image
-                        if (bounds.contains(e.getPoint())) {
-                            int offset = el.getStartOffset();
-                            // Same image as before? Skip to avoid re-triggering
-                            if (offset == lastHoveredOffset) {
-                                return;
-                            }
-
-                            lastHoveredOffset = offset;
-                            lastHoveredImageBounds = bounds;
-
-                            // Cancel any pending show timer
-                            cancelHoverShow();
-
-                            // Show toolbar after a short delay
-                            File srcFile = null;
-                            Object src = as.getAttribute("imageSourceFile");
-                            if (src instanceof File) srcFile = (File) src;
-
-                            final File finalSrcFile = srcFile;
-                            final Rectangle finalBounds = bounds;
-                            hoverShowTimer = new Timer(300, ev -> {
-                                showMinimalToolbarWithFade(editor, offset, finalSrcFile, icon, finalBounds,
-                                    attachmentsDirSupplier, maxWidthPx);
-                            });
-                            hoverShowTimer.setRepeats(false);
-                            hoverShowTimer.start();
-                            return;
-                        }
-                    }
-                }
-            }
-
-            // Mouse not over any image - reset hover state
-            if (lastHoveredOffset >= 0) {
-                cancelHoverShow();
-                lastHoveredOffset = -1;
-                lastHoveredImageBounds = null;
-            }
-        } catch (Throwable ignored) {}
-    }
-
-    private static void cancelHoverShow() {
-        if (hoverShowTimer != null) {
-            hoverShowTimer.stop();
-            hoverShowTimer = null;
-        }
     }
 
     private static void showMinimalToolbarWithFade(JTextPane editor,
@@ -333,22 +238,24 @@ public final class ImagePasteManager {
         NotetakingPanel notetakingPanel = (NotetakingPanel) SwingUtilities.getAncestorOfClass(NotetakingPanel.class, editor);
         floatBtn.setVisible(notetakingPanel != null);
 
-        final Timer[] resizeTimer = new Timer[1];
+        // Track original dimensions for aspect ratio
+        final int originalW = currentIcon.getIconWidth();
+        final int originalH = currentIcon.getIconHeight();
+        final float aspectRatio = originalH / (float) originalW;
+
         sizeSlider.addChangeListener(e -> {
             int newW = sizeSlider.getValue();
+            int newH = Math.round(newW * aspectRatio);
             sizeLabel.setText(newW + "px");
 
-            if (resizeTimer[0] != null) resizeTimer[0].stop();
-            if (!sizeSlider.getValueIsAdjusting()) {
+            if (sizeSlider.getValueIsAdjusting()) {
+                // Show live size preview overlay while dragging
+                showSizePreviewOverlay(editor, imageBounds, newW, newH);
+            } else {
+                // User released - apply the resize and hide preview
+                hideSizePreviewOverlay();
                 resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
                 repositionToolbar(toolbar, editor, startOffset);
-            } else {
-                resizeTimer[0] = new Timer(150, ev -> {
-                    resizeImage(editor, startOffset, srcRef, sizeSlider.getValue(), attachmentsDirSupplier);
-                    repositionToolbar(toolbar, editor, startOffset);
-                });
-                resizeTimer[0].setRepeats(false);
-                resizeTimer[0].start();
             }
         });
 
@@ -406,6 +313,9 @@ public final class ImagePasteManager {
         positionToolbar(toolbar, editor, imageBounds);
         toolbar.setVisible(true);
 
+        // Show "being edited" overlay on the image
+        showImageEditOverlay(editor, imageBounds);
+
         // Fade in animation
         overlayFadeTimer = new Timer(16, null);
         overlayFadeTimer.addActionListener(e -> {
@@ -418,43 +328,44 @@ public final class ImagePasteManager {
         });
         overlayFadeTimer.start();
 
+        // Track editor and remove any previous listeners
+        activeEditor = editor;
+        removeActiveListeners(editor);
+
         // Auto-dismiss when clicking elsewhere or mouse leaves
-        editor.addMouseListener(new MouseAdapter() {
+        activeMouseListener = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
                 Point screenPoint = e.getLocationOnScreen();
-                Rectangle toolbarBounds = toolbar.getBounds();
-                if (!toolbarBounds.contains(screenPoint)) {
+                if (!isMouseOverAnyOverlay(screenPoint)) {
                     fadeOutAndDismiss(toolbar);
-                    editor.removeMouseListener(this);
                 }
             }
             @Override public void mouseExited(MouseEvent e) {
-                // Check if mouse went to toolbar
-                Timer checkTimer = new Timer(150, ev -> {
-                    Point mousePos = java.awt.MouseInfo.getPointerInfo().getLocation();
-                    Rectangle toolbarBounds = toolbar.getBounds();
-                    if (!toolbarBounds.contains(mousePos)) {
+                // Check if mouse went to toolbar or overlay
+                Timer checkTimer = new Timer(200, ev -> {
+                    if (!isMouseOverAnyOverlay(null)) {
                         fadeOutAndDismiss(toolbar);
                     }
                 });
                 checkTimer.setRepeats(false);
                 checkTimer.start();
             }
-        });
+        };
+        editor.addMouseListener(activeMouseListener);
 
-        editor.addFocusListener(new java.awt.event.FocusAdapter() {
+        activeFocusListener = new java.awt.event.FocusAdapter() {
             @Override public void focusLost(java.awt.event.FocusEvent e) {
                 Timer timer = new Timer(200, ev -> {
                     Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
-                    if (focused != toolbar) {
+                    if (focused != toolbar && focused != imageEditOverlay && focused != sizePreviewOverlay) {
                         fadeOutAndDismiss(toolbar);
                     }
                 });
                 timer.setRepeats(false);
                 timer.start();
-                editor.removeFocusListener(this);
             }
-        });
+        };
+        editor.addFocusListener(activeFocusListener);
     }
 
     private static void fadeOutAndDismiss(JWindow toolbar) {
@@ -478,6 +389,150 @@ public final class ImagePasteManager {
             toolbar.repaint();
         });
         overlayFadeTimer.start();
+    }
+
+    /**
+     * Shows a subtle "being edited" overlay on the image.
+     */
+    private static void showImageEditOverlay(JTextPane editor, Rectangle imageBounds) {
+        hideImageEditOverlay();
+
+        try {
+            Point editorLoc = editor.getLocationOnScreen();
+            int x = editorLoc.x + imageBounds.x;
+            int y = editorLoc.y + imageBounds.y;
+
+            JWindow overlay = new JWindow(SwingUtilities.getWindowAncestor(editor));
+            overlay.setBackground(new Color(0, 0, 0, 0));
+            overlay.setAlwaysOnTop(true);
+
+            JPanel content = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    // Subtle blue tint overlay
+                    g2.setColor(new Color(59, 130, 246, 35));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    // Border
+                    g2.setColor(new Color(59, 130, 246, 120));
+                    g2.setStroke(new java.awt.BasicStroke(2f));
+                    g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 8, 8);
+                    g2.dispose();
+                }
+            };
+            content.setOpaque(false);
+            content.setPreferredSize(new Dimension(imageBounds.width, imageBounds.height));
+
+            overlay.setContentPane(content);
+            overlay.pack();
+            overlay.setLocation(x, y);
+            overlay.setVisible(true);
+
+            imageEditOverlay = overlay;
+        } catch (Throwable ignored) {}
+    }
+
+    private static void hideImageEditOverlay() {
+        if (imageEditOverlay != null) {
+            imageEditOverlay.setVisible(false);
+            imageEditOverlay.dispose();
+            imageEditOverlay = null;
+        }
+    }
+
+    /**
+     * Shows a size preview overlay centered on the image (like Apple Freeform).
+     */
+    private static void showSizePreviewOverlay(JTextPane editor, Rectangle imageBounds, int newW, int newH) {
+        try {
+            Point editorLoc = editor.getLocationOnScreen();
+            int centerX = editorLoc.x + imageBounds.x + imageBounds.width / 2;
+            int centerY = editorLoc.y + imageBounds.y + imageBounds.height / 2;
+
+            String sizeText = newW + " × " + newH;
+
+            if (sizePreviewOverlay == null) {
+                JWindow overlay = new JWindow(SwingUtilities.getWindowAncestor(editor));
+                overlay.setBackground(new Color(0, 0, 0, 0));
+                overlay.setAlwaysOnTop(true);
+
+                JLabel label = new JLabel(sizeText, javax.swing.SwingConstants.CENTER);
+                label.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 14f));
+                label.setForeground(Color.WHITE);
+                label.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+
+                JPanel content = new JPanel(new java.awt.BorderLayout()) {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        // Dark pill background
+                        g2.setColor(new Color(30, 30, 30, 220));
+                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                        g2.dispose();
+                    }
+                };
+                content.setOpaque(false);
+                content.add(label, java.awt.BorderLayout.CENTER);
+
+                overlay.setContentPane(content);
+                overlay.pack();
+
+                sizePreviewOverlay = overlay;
+            } else {
+                // Update existing overlay
+                JPanel content = (JPanel) sizePreviewOverlay.getContentPane();
+                JLabel label = (JLabel) content.getComponent(0);
+                label.setText(sizeText);
+                sizePreviewOverlay.pack();
+            }
+
+            // Center on image
+            int overlayW = sizePreviewOverlay.getWidth();
+            int overlayH = sizePreviewOverlay.getHeight();
+            sizePreviewOverlay.setLocation(centerX - overlayW / 2, centerY - overlayH / 2);
+            sizePreviewOverlay.setVisible(true);
+        } catch (Throwable ignored) {}
+    }
+
+    private static void hideSizePreviewOverlay() {
+        if (sizePreviewOverlay != null) {
+            sizePreviewOverlay.setVisible(false);
+            sizePreviewOverlay.dispose();
+            sizePreviewOverlay = null;
+        }
+    }
+
+    private static void removeActiveListeners(JTextPane editor) {
+        if (activeMouseListener != null) {
+            editor.removeMouseListener(activeMouseListener);
+            activeMouseListener = null;
+        }
+        if (activeFocusListener != null) {
+            editor.removeFocusListener(activeFocusListener);
+            activeFocusListener = null;
+        }
+    }
+
+    private static boolean isMouseOverAnyOverlay(Point screenPos) {
+        if (screenPos == null) {
+            try {
+                screenPos = java.awt.MouseInfo.getPointerInfo().getLocation();
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+        if (activeOverlay != null && activeOverlay.isVisible() && activeOverlay.getBounds().contains(screenPos)) {
+            return true;
+        }
+        if (imageEditOverlay != null && imageEditOverlay.isVisible() && imageEditOverlay.getBounds().contains(screenPos)) {
+            return true;
+        }
+        if (sizePreviewOverlay != null && sizePreviewOverlay.isVisible() && sizePreviewOverlay.getBounds().contains(screenPos)) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean tryPasteFromClipboard(JTextPane editor, Supplier<File> dirSupplier, int maxWidthPx) {
@@ -819,24 +874,25 @@ public final class ImagePasteManager {
         NotetakingPanel notetakingPanel = (NotetakingPanel) SwingUtilities.getAncestorOfClass(NotetakingPanel.class, editor);
         floatBtn.setVisible(notetakingPanel != null);
         
-        // Slider change listener with debounce
-        final Timer[] resizeTimer = new Timer[1];
+        // Track original dimensions for aspect ratio
+        final int originalW = currentIcon.getIconWidth();
+        final int originalH = currentIcon.getIconHeight();
+        final float aspectRatio = originalH / (float) originalW;
+
+        // Slider change listener - defer resize until release, show live preview
         sizeSlider.addChangeListener(e -> {
             int newW = sizeSlider.getValue();
+            int newH = Math.round(newW * aspectRatio);
             sizeLabel.setText(newW + "px");
             
-            // Debounce actual resize to avoid lag
-            if (resizeTimer[0] != null) resizeTimer[0].stop();
-            if (!sizeSlider.getValueIsAdjusting()) {
+            if (sizeSlider.getValueIsAdjusting()) {
+                // Show live size preview overlay while dragging
+                showSizePreviewOverlay(editor, imageBounds, newW, newH);
+            } else {
+                // User released - apply the resize and hide preview
+                hideSizePreviewOverlay();
                 resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
                 repositionToolbar(toolbar, editor, startOffset);
-            } else {
-                resizeTimer[0] = new Timer(150, ev -> {
-                    resizeImage(editor, startOffset, srcRef, sizeSlider.getValue(), attachmentsDirSupplier);
-                    repositionToolbar(toolbar, editor, startOffset);
-                });
-                resizeTimer[0].setRepeats(false);
-                resizeTimer[0].start();
             }
         });
         
@@ -861,7 +917,7 @@ public final class ImagePasteManager {
                 if (srcAttr instanceof File) srcFile = (File) srcAttr;
 
                 Rectangle bounds = imageBounds;
-                try {
+                 try {
                     java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
                     if (r2 != null) {
                         bounds = r2.getBounds();
@@ -895,33 +951,39 @@ public final class ImagePasteManager {
         // Position below the image
         positionToolbar(toolbar, editor, imageBounds);
         toolbar.setVisible(true);
+
+        // Show "being edited" overlay on the image
+        showImageEditOverlay(editor, imageBounds);
+
+        // Track editor and remove any previous listeners
+        activeEditor = editor;
+        removeActiveListeners(editor);
         
         // Auto-dismiss when clicking elsewhere
-        editor.addMouseListener(new MouseAdapter() {
+        activeMouseListener = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
                 Point screenPoint = e.getLocationOnScreen();
-                Rectangle toolbarBounds = toolbar.getBounds();
-                if (!toolbarBounds.contains(screenPoint)) {
+                if (!isMouseOverAnyOverlay(screenPoint)) {
                     dismissActiveOverlay();
-                    editor.removeMouseListener(this);
                 }
             }
-        });
+        };
+        editor.addMouseListener(activeMouseListener);
         
         // Dismiss on focus loss
-        editor.addFocusListener(new java.awt.event.FocusAdapter() {
+        activeFocusListener = new java.awt.event.FocusAdapter() {
             @Override public void focusLost(java.awt.event.FocusEvent e) {
                 Timer timer = new Timer(200, ev -> {
                     Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
-                    if (focused != toolbar) {
+                    if (focused != toolbar && focused != imageEditOverlay && focused != sizePreviewOverlay) {
                         dismissActiveOverlay();
                     }
                 });
                 timer.setRepeats(false);
                 timer.start();
-                editor.removeFocusListener(this);
             }
-        });
+        };
+        editor.addFocusListener(activeFocusListener);
     }
     
     private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds) {
@@ -960,10 +1022,16 @@ public final class ImagePasteManager {
     }
     
     private static void dismissActiveOverlay() {
+        hideImageEditOverlay();
+        hideSizePreviewOverlay();
+        if (activeEditor != null) {
+            removeActiveListeners(activeEditor);
+        }
         if (activeOverlay != null) {
             activeOverlay.dispose();
             activeOverlay = null;
         }
+        activeEditor = null;
     }
     
     private static void resizeImage(JTextPane editor, int startOffset, File[] srcRef, 
