@@ -179,7 +179,7 @@ public final class MenuBarService {
     private void showQuickEntryDialog() {
         SwingUtilities.invokeLater(() -> {
             if (quickEntryDialog == null) {
-                quickEntryDialog = new QuickEntryDialog(this);
+                quickEntryDialog = new QuickEntryDialog();
             }
             quickEntryDialog.showDialog();
         });

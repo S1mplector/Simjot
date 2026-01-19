@@ -96,6 +96,7 @@ public final class SettingsStore {
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
     // Menu bar service (macOS)
     private static final String KEY_MENUBAR_ENABLED = "menuBarServiceEnabled";
+    private static final String KEY_QUICK_ENTRY_NOTEBOOK = "quickEntryNotebookPath";
     // Header quotes settings
     private static final String KEY_HEADER_QUOTES = "header.quotes"; // multi-line string
     private static final String KEY_HEADER_QUOTE_ROTATE_SEC = "header.quote.rotate.sec"; // integer seconds
@@ -680,6 +681,10 @@ public final class SettingsStore {
         return Boolean.parseBoolean(props.getProperty(KEY_MENUBAR_ENABLED, "true"));
     }
     public void setMenuBarServiceEnabled(boolean b){ props.setProperty(KEY_MENUBAR_ENABLED, String.valueOf(b)); }
+    
+    // Quick Entry Notebook (for menu bar quick entries)
+    public String getQuickEntryNotebookPath(){ return props.getProperty(KEY_QUICK_ENTRY_NOTEBOOK, ""); }
+    public void setQuickEntryNotebookPath(String path){ props.setProperty(KEY_QUICK_ENTRY_NOTEBOOK, path == null ? "" : path); }
 
     // Clock and Calendar styles
     public String getClockStyle(){ return props.getProperty(KEY_CLOCK_STYLE, "Classic"); }

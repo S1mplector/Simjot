@@ -15,8 +15,21 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
+import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
+import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.io.FileIO;
+import main.infrastructure.io.IoLog;
 import main.ui.components.buttons.HandStyleToggleButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -34,11 +47,13 @@ import main.ui.theme.aero.AeroTheme;
  */
 public class QuickEntryDialog extends JDialog {
     
-    private final MenuBarService menuBarService;
     private final CustomFontTextPane contentArea;
     private final SaveIndicatorPanel saveIndicator;
     private final JLabel wordCountLabel;
+    private final JLabel notebookLabel;
+    private final JComboBox<NotebookInfo> notebookCombo;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
+    private NotebookInfo selectedNotebook;
     private HandStyleToggleButton boldBtn;
     private HandStyleToggleButton italicBtn;
     private HandStyleToggleButton underlineBtn;
@@ -46,9 +61,8 @@ public class QuickEntryDialog extends JDialog {
     private Timer autosaveTimer;
     private boolean isDirty = false;
     
-    public QuickEntryDialog(MenuBarService service) {
+    public QuickEntryDialog() {
         super((Frame) null, "Simjot Quick Entry", false);
-        this.menuBarService = service;
         
         setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
         setAlwaysOnTop(true);
@@ -117,6 +131,42 @@ public class QuickEntryDialog extends JDialog {
         toolbarPanel.add(strikeBtn);
         
         toolbarPanel.add(Box.createHorizontalGlue());
+        
+        // Notebook selector (only JOURNAL type notebooks)
+        notebookLabel = new JLabel("Save to:");
+        notebookLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        notebookLabel.setForeground(Color.GRAY);
+        toolbarPanel.add(notebookLabel);
+        toolbarPanel.add(Box.createHorizontalStrut(6));
+        
+        notebookCombo = new JComboBox<>();
+        notebookCombo.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        notebookCombo.setPreferredSize(new Dimension(140, 28));
+        notebookCombo.setMaximumSize(new Dimension(160, 28));
+        notebookCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof NotebookInfo nb) {
+                    setText(nb.getName());
+                }
+                return this;
+            }
+        });
+        notebookCombo.addActionListener(e -> {
+            NotebookInfo nb = (NotebookInfo) notebookCombo.getSelectedItem();
+            if (nb != null) {
+                selectedNotebook = nb;
+                // Persist the selection
+                SettingsStore.get().setQuickEntryNotebookPath(nb.getFolder().getAbsolutePath());
+                try { SettingsStore.get().save(); } catch (Exception ignored) {}
+            }
+        });
+        toolbarPanel.add(notebookCombo);
+        toolbarPanel.add(Box.createHorizontalStrut(8));
+        
+        // Load notebooks
+        loadNotebooks();
         
         mainPanel.add(toolbarPanel, BorderLayout.NORTH);
         
@@ -450,6 +500,8 @@ public class QuickEntryDialog extends JDialog {
         saveIndicator.clear();
         isDirty = false;
         updateWordCount();
+        // Refresh notebooks in case new ones were created
+        loadNotebooks();
         setVisible(true);
         toFront();
         SwingUtilities.invokeLater(() -> contentArea.requestFocusInWindow());
@@ -477,10 +529,39 @@ public class QuickEntryDialog extends JDialog {
     
     private void submitEntry() {
         String text = contentArea.getText();
-        if (text != null && !text.isBlank()) {
-            saveIndicator.setSaving();
-            menuBarService.onEntrySubmitted(text.trim(), 0);
-            saveIndicator.setSaved(new java.util.Date());
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        
+        if (selectedNotebook == null) {
+            JOptionPane.showMessageDialog(this, 
+                "Please select a notebook first.", 
+                "No Notebook Selected", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        saveIndicator.setSaving();
+        
+        try {
+            File folder = selectedNotebook.getFolder();
+            if (folder != null && !folder.exists()) folder.mkdirs();
+            
+            // Generate timestamp-based filename (same format as EntryPanel)
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            String filename = timestamp + ".txt";
+            File outFile = new File(folder, filename);
+            
+            // Build entry content with header (same format as journal entries)
+            byte[] data = buildEntryContent("Quick Entry", text.trim());
+            
+            // Write file atomically
+            FileIO.ensureSpace(outFile.toPath(), data.length + 4096L, "quick entry");
+            FileIO.atomicWrite(outFile.toPath(), data, true, true);
+            
+            IoLog.info("menubar", "Quick entry saved to: " + outFile.getName());
+            
+            saveIndicator.setSaved(new Date());
             
             // Brief delay to show saved state before closing
             Timer closeTimer = new Timer(200, e -> {
@@ -490,6 +571,90 @@ public class QuickEntryDialog extends JDialog {
             });
             closeTimer.setRepeats(false);
             closeTimer.start();
+            
+        } catch (Exception ex) {
+            IoLog.warn("menubar", "Failed to save quick entry: " + ex.getMessage(), ex);
+            saveIndicator.setError("Save failed");
+            JOptionPane.showMessageDialog(this,
+                "Failed to save entry: " + ex.getMessage(),
+                "Save Error",
+                JOptionPane.ERROR_MESSAGE);
         }
+    }
+    
+    private byte[] buildEntryContent(String title, String body) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8));
+        
+        // Write header in same format as EntryFileFormat
+        writer.println("---");
+        writer.println("title: " + (title != null ? title : "Quick Entry"));
+        writer.println("saved: " + System.currentTimeMillis());
+        writer.println("---");
+        writer.println();
+        writer.println(body);
+        writer.flush();
+        
+        return baos.toByteArray();
+    }
+    
+    private void loadNotebooks() {
+        notebookCombo.removeAllItems();
+        selectedNotebook = null;
+        
+        try {
+            NotebookStore store = new NotebookStore();
+            List<NotebookInfo> all = store.list();
+            List<NotebookInfo> journals = new ArrayList<>();
+            
+            // Filter to only JOURNAL type notebooks
+            for (NotebookInfo nb : all) {
+                if (nb.getType() == NotebookInfo.Type.JOURNAL) {
+                    journals.add(nb);
+                }
+            }
+            
+            if (journals.isEmpty()) {
+                notebookLabel.setText("No journals");
+                notebookCombo.setVisible(false);
+                return;
+            }
+            
+            notebookCombo.setVisible(true);
+            notebookLabel.setText("Save to:");
+            
+            // Add notebooks to combo
+            for (NotebookInfo nb : journals) {
+                notebookCombo.addItem(nb);
+            }
+            
+            // Try to restore previously selected notebook
+            String savedPath = SettingsStore.get().getQuickEntryNotebookPath();
+            if (savedPath != null && !savedPath.isEmpty()) {
+                for (NotebookInfo nb : journals) {
+                    if (nb.getFolder().getAbsolutePath().equals(savedPath)) {
+                        notebookCombo.setSelectedItem(nb);
+                        selectedNotebook = nb;
+                        break;
+                    }
+                }
+            }
+            
+            // Default to first if none selected
+            if (selectedNotebook == null && !journals.isEmpty()) {
+                notebookCombo.setSelectedIndex(0);
+                selectedNotebook = journals.get(0);
+            }
+            
+        } catch (Exception ex) {
+            IoLog.warn("menubar", "Failed to load notebooks: " + ex.getMessage(), ex);
+            notebookLabel.setText("Error loading");
+            notebookCombo.setVisible(false);
+        }
+    }
+    
+    /** Refresh notebooks list (call when dialog is shown) */
+    public void refreshNotebooks() {
+        loadNotebooks();
     }
 }
