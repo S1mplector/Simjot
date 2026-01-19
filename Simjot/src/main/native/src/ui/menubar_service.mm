@@ -420,21 +420,33 @@ static SimjotQuickEntryPanel* g_quickEntryPanel = nil;
 }
 
 - (void)setupStatusItem {
+    NSLog(@"[MENUBAR] setupStatusItem called");
     _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
+    NSLog(@"[MENUBAR] statusItem created: %@", _statusItem);
     
     // Use SF Symbol for the icon
     NSImage* icon = [NSImage imageWithSystemSymbolName:@"book.closed.fill" 
                                 accessibilityDescription:@"Simjot Quick Entry"];
-    [icon setTemplate:YES];
+    NSLog(@"[MENUBAR] SF Symbol icon: %@", icon);
     
-    _statusItem.button.image = icon;
+    if (!icon) {
+        // Fallback to a simple text if SF Symbol fails
+        NSLog(@"[MENUBAR] SF Symbol failed, using text fallback");
+        _statusItem.button.title = @"📓";
+    } else {
+        [icon setTemplate:YES];
+        _statusItem.button.image = icon;
+    }
+    
     _statusItem.button.toolTip = @"Simjot Quick Entry";
     _statusItem.button.target = self;
     _statusItem.button.action = @selector(statusItemClicked:);
+    NSLog(@"[MENUBAR] statusItem button configured: %@", _statusItem.button);
     
     // Create the panel
     _panel = [[SimjotQuickEntryPanel alloc] init];
     g_quickEntryPanel = _panel;
+    NSLog(@"[MENUBAR] panel created");
 }
 
 - (void)statusItemClicked:(id)sender {
@@ -485,7 +497,8 @@ int32_t simjot_menubar_init(void) {
     
     __block int32_t result = 0;
     
-    dispatch_sync(dispatch_get_main_queue(), ^{
+    // Check if we're already on the main thread to avoid deadlock
+    if ([NSThread isMainThread]) {
         @autoreleasepool {
             @try {
                 g_statusController = [[SimjotStatusItemController alloc] init];
@@ -497,7 +510,21 @@ int32_t simjot_menubar_init(void) {
                 result = 0;
             }
         }
-    });
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            @autoreleasepool {
+                @try {
+                    g_statusController = [[SimjotStatusItemController alloc] init];
+                    g_statusItem = g_statusController.statusItem;
+                    g_menubar_initialized.store(true);
+                    result = 1;
+                } @catch (NSException* e) {
+                    NSLog(@"Simjot menubar init failed: %@", e);
+                    result = 0;
+                }
+            }
+        });
+    }
     
     return result;
 }
@@ -507,7 +534,7 @@ void simjot_menubar_shutdown(void) {
     
     if (!g_menubar_initialized.load()) return;
     
-    dispatch_sync(dispatch_get_main_queue(), ^{
+    void (^shutdownBlock)(void) = ^{
         @autoreleasepool {
             if (g_quickEntryPanel) {
                 [g_quickEntryPanel close];
@@ -519,7 +546,13 @@ void simjot_menubar_shutdown(void) {
             }
             g_statusController = nil;
         }
-    });
+    };
+    
+    if ([NSThread isMainThread]) {
+        shutdownBlock();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), shutdownBlock);
+    }
     
     g_menubar_initialized.store(false);
 }
@@ -552,11 +585,18 @@ int32_t simjot_menubar_is_panel_visible(void) {
     if (!g_menubar_initialized.load()) return 0;
     
     __block int32_t visible = 0;
-    dispatch_sync(dispatch_get_main_queue(), ^{
+    
+    if ([NSThread isMainThread]) {
         @autoreleasepool {
             visible = (g_quickEntryPanel && g_quickEntryPanel.isVisible) ? 1 : 0;
         }
-    });
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            @autoreleasepool {
+                visible = (g_quickEntryPanel && g_quickEntryPanel.isVisible) ? 1 : 0;
+            }
+        });
+    }
     return visible;
 }
 
@@ -607,7 +647,8 @@ int32_t simjot_menubar_get_panel_text(char* buffer, int32_t buffer_size) {
     if (!g_menubar_initialized.load() || !buffer || buffer_size <= 0) return 0;
     
     __block int32_t length = 0;
-    dispatch_sync(dispatch_get_main_queue(), ^{
+    
+    void (^getTextBlock)(void) = ^{
         @autoreleasepool {
             if (g_quickEntryPanel) {
                 NSString* text = g_quickEntryPanel.textView.string;
@@ -625,7 +666,13 @@ int32_t simjot_menubar_get_panel_text(char* buffer, int32_t buffer_size) {
                 }
             }
         }
-    });
+    };
+    
+    if ([NSThread isMainThread]) {
+        getTextBlock();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), getTextBlock);
+    }
     return length;
 }
 

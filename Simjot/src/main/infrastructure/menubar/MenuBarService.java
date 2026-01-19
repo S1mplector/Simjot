@@ -78,32 +78,43 @@ public final class MenuBarService {
      * Should be called on app startup if the feature is enabled.
      */
     public synchronized boolean initialize() {
+        System.err.println("[MENUBAR] initialize() called, initialized=" + initialized.get());
         if (initialized.get()) return true;
         if (!isMacOS()) {
+            System.err.println("[MENUBAR] Not macOS, skipping");
             IoLog.info("menubar", "Menu bar service only available on macOS");
             return false;
         }
         
+        System.err.println("[MENUBAR] Getting symbol lookup...");
         lookup = NativeAccess.symbolLookup();
         if (lookup == null) {
+            System.err.println("[MENUBAR] Symbol lookup is NULL - native library not loaded");
             IoLog.warn("menubar", "Native library not available", null);
             return false;
         }
+        System.err.println("[MENUBAR] Symbol lookup acquired");
         
         // Initialize method handles
+        System.err.println("[MENUBAR] Initializing handles...");
         if (!initializeHandles()) {
+            System.err.println("[MENUBAR] Failed to initialize handles");
             IoLog.warn("menubar", "Failed to initialize native handles - native library may need recompilation", null);
             return false;
         }
+        System.err.println("[MENUBAR] Handles initialized, initHandle=" + (initHandle != null));
         
         IoLog.info("menubar", "Native handles initialized, calling native init...");
         
         // Initialize native menu bar
+        System.err.println("[MENUBAR] Calling nativeInit()...");
         if (!nativeInit()) {
+            System.err.println("[MENUBAR] nativeInit() returned false");
             IoLog.warn("menubar", "Failed to initialize native menu bar - simjot_menubar_init returned false", null);
             return false;
         }
         
+        System.err.println("[MENUBAR] Native init succeeded!");
         IoLog.info("menubar", "Native menu bar initialized successfully");
         
         // Set up the callback bridge
@@ -277,7 +288,9 @@ public final class MenuBarService {
         if (lookup == null) return false;
         
         try {
-            initHandle = lookup.find("simjot_menubar_init")
+            var initSym = lookup.find("simjot_menubar_init");
+            System.err.println("[MENUBAR] simjot_menubar_init symbol found: " + initSym.isPresent());
+            initHandle = initSym
                 .map(s -> linker.downcallHandle(s, FunctionDescriptor.of(ValueLayout.JAVA_INT)))
                 .orElse(null);
             shutdownHandle = lookup.find("simjot_menubar_shutdown")
@@ -315,8 +328,11 @@ public final class MenuBarService {
                 .map(s -> linker.downcallHandle(s, FunctionDescriptor.ofVoid()))
                 .orElse(null);
             
+            System.err.println("[MENUBAR] initHandle=" + (initHandle != null));
             return initHandle != null;
         } catch (Throwable t) {
+            System.err.println("[MENUBAR] initializeHandles exception: " + t.getMessage());
+            t.printStackTrace();
             IoLog.warn("menubar", "Failed to initialize handles: " + t.getMessage(), t);
             return false;
         }

@@ -342,17 +342,11 @@ public final class AppConfig {
             IcloudSyncService.initializeSyncManager(root);
         } catch (Throwable ignored) {}
         
-        // Initialize menu bar service if enabled (macOS only)
+        // Initialize menu bar service (macOS only) - always register
         try {
-            boolean menuBarEnabled = main.core.service.SettingsStore.get().isMenuBarServiceEnabled();
-            main.infrastructure.io.IoLog.info("menubar", "Menu bar setting check: enabled=" + menuBarEnabled);
-            if (menuBarEnabled) {
-                main.infrastructure.io.IoLog.info("menubar", "About to call initMenuBarService()...");
-                initMenuBarService();
-                main.infrastructure.io.IoLog.info("menubar", "initMenuBarService() completed");
-            }
+            initMenuBarService();
         } catch (Throwable t) {
-            main.infrastructure.io.IoLog.warn("menubar", "Menu bar check failed: " + t.getMessage(), t);
+            main.infrastructure.io.IoLog.warn("menubar", "Menu bar init failed: " + t.getMessage(), t);
         }
     }
     

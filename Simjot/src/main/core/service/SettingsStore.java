@@ -677,7 +677,7 @@ public final class SettingsStore {
 
     // Menu Bar Service (macOS quick entry)
     public boolean isMenuBarServiceEnabled(){
-        return Boolean.parseBoolean(props.getProperty(KEY_MENUBAR_ENABLED, "false"));
+        return Boolean.parseBoolean(props.getProperty(KEY_MENUBAR_ENABLED, "true"));
     }
     public void setMenuBarServiceEnabled(boolean b){ props.setProperty(KEY_MENUBAR_ENABLED, String.valueOf(b)); }
 
