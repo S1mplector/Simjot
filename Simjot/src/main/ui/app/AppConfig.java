@@ -344,17 +344,27 @@ public final class AppConfig {
         
         // Initialize menu bar service if enabled (macOS only)
         try {
-            if (main.core.service.SettingsStore.get().isMenuBarServiceEnabled()) {
+            boolean menuBarEnabled = main.core.service.SettingsStore.get().isMenuBarServiceEnabled();
+            main.infrastructure.io.IoLog.info("menubar", "Menu bar setting check: enabled=" + menuBarEnabled);
+            if (menuBarEnabled) {
+                main.infrastructure.io.IoLog.info("menubar", "About to call initMenuBarService()...");
                 initMenuBarService();
+                main.infrastructure.io.IoLog.info("menubar", "initMenuBarService() completed");
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            main.infrastructure.io.IoLog.warn("menubar", "Menu bar check failed: " + t.getMessage(), t);
+        }
     }
     
     public static void initMenuBarService() {
+        main.infrastructure.io.IoLog.info("menubar", "initMenuBarService() called");
         try {
             main.infrastructure.menubar.MenuBarService menuBar = 
                 main.infrastructure.menubar.MenuBarService.getInstance();
-            if (menuBar.initialize()) {
+            main.infrastructure.io.IoLog.info("menubar", "Got MenuBarService instance, calling initialize()...");
+            boolean result = menuBar.initialize();
+            main.infrastructure.io.IoLog.info("menubar", "initialize() returned: " + result);
+            if (result) {
                 // Set up entry listener to save quick entries
                 menuBar.addEntryListener((text, formatFlags) -> {
                     try {
@@ -363,9 +373,11 @@ public final class AppConfig {
                         main.infrastructure.io.IoLog.warn("menubar", "Failed to save quick entry", t);
                     }
                 });
+                main.infrastructure.io.IoLog.info("menubar", "Entry listener added");
             }
         } catch (Throwable t) {
             main.infrastructure.io.IoLog.warn("menubar", "Menu bar init failed: " + t.getMessage(), t);
+            t.printStackTrace();
         }
     }
     
