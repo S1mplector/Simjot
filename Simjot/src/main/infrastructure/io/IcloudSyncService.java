@@ -9,6 +9,7 @@
 package main.infrastructure.io;
 
 import java.io.File;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -17,6 +18,7 @@ import main.infrastructure.ffi.NativeAccess;
 
 /**
  * Background iCloud warm-up for seamless cross-Mac sync.
+ * Now integrates with CloudSyncManager for advanced sync capabilities.
  */
 public final class IcloudSyncService {
     private static final long WARMUP_COOLDOWN_MS = 15000L;
@@ -31,6 +33,7 @@ public final class IcloudSyncService {
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
     private static volatile long lastWarmupMs = 0L;
     private static volatile long lastConflictScanMs = 0L;
+    private static volatile boolean syncManagerInitialized = false;
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "IcloudPrefetch");
         t.setDaemon(true);
@@ -39,6 +42,166 @@ public final class IcloudSyncService {
     });
 
     private IcloudSyncService() {}
+    
+    /**
+     * Initialize the advanced cloud sync manager for the given root.
+     * Should be called once during app startup.
+     */
+    public static void initializeSyncManager(File root) {
+        if (root == null) return;
+        if (!AppDirectories.isIcloudRoot(root)) return;
+        if (syncManagerInitialized) return;
+        
+        CloudSyncManager manager = CloudSyncManager.getInstance();
+        boolean lowPower = isLowPowerMode();
+        manager.setLowPowerMode(lowPower);
+        
+        if (manager.initialize(root)) {
+            syncManagerInitialized = true;
+            IoLog.info("icloud-sync", "Advanced cloud sync manager initialized");
+            
+            // Add listener for conflict notifications
+            manager.addListener(new CloudSyncManager.SyncListener() {
+                @Override
+                public void onConflictDetected(CloudSyncManager.ConflictInfo conflict) {
+                    IoLog.warn("icloud-conflict", "Conflict detected: " + conflict.path, null);
+                }
+                
+                @Override
+                public void onSyncComplete(boolean success) {
+                    if (success) {
+                        IoLog.info("icloud-sync", "Sync completed successfully");
+                    } else {
+                        IoLog.warn("icloud-sync", "Sync completed with errors", null);
+                    }
+                }
+            });
+        }
+    }
+    
+    /**
+     * Shutdown the cloud sync manager. Call during app shutdown.
+     */
+    public static void shutdownSyncManager() {
+        if (!syncManagerInitialized) return;
+        CloudSyncManager.getInstance().shutdown();
+        syncManagerInitialized = false;
+    }
+    
+    /**
+     * Check if the sync manager is initialized.
+     */
+    public static boolean isSyncManagerInitialized() {
+        return syncManagerInitialized;
+    }
+    
+    /**
+     * Get the cloud sync manager instance.
+     */
+    public static CloudSyncManager getSyncManager() {
+        return CloudSyncManager.getInstance();
+    }
+    
+    /**
+     * Trigger an immediate sync if the manager is initialized.
+     */
+    public static void triggerSync() {
+        if (syncManagerInitialized) {
+            CloudSyncManager.getInstance().triggerSync();
+        }
+    }
+    
+    /**
+     * Get current sync state.
+     */
+    public static int getSyncState() {
+        if (!syncManagerInitialized) return CloudSyncManager.STATE_IDLE;
+        return CloudSyncManager.getInstance().getState();
+    }
+    
+    /**
+     * Get sync progress percentage.
+     */
+    public static float getSyncProgress() {
+        if (!syncManagerInitialized) return 0f;
+        return CloudSyncManager.getInstance().getProgressPercent();
+    }
+    
+    /**
+     * Get pending conflict count.
+     */
+    public static int getConflictCount() {
+        if (!syncManagerInitialized) return 0;
+        return CloudSyncManager.getInstance().getConflictCount();
+    }
+    
+    /**
+     * Get list of pending conflicts.
+     */
+    public static List<CloudSyncManager.ConflictInfo> getConflicts() {
+        if (!syncManagerInitialized) return List.of();
+        return CloudSyncManager.getInstance().getConflicts();
+    }
+    
+    /**
+     * Resolve all conflicts by keeping local versions.
+     */
+    public static int resolveAllConflictsKeepLocal() {
+        if (!syncManagerInitialized) return 0;
+        CloudSyncManager manager = CloudSyncManager.getInstance();
+        List<CloudSyncManager.ConflictInfo> conflicts = manager.getConflicts();
+        int resolved = 0;
+        for (CloudSyncManager.ConflictInfo c : conflicts) {
+            if (manager.resolveConflictKeepLocal(c.path)) {
+                resolved++;
+            }
+        }
+        return resolved;
+    }
+    
+    /**
+     * Queue a file for sync.
+     */
+    public static void queueFileSync(String path, boolean upload) {
+        if (!syncManagerInitialized || path == null) return;
+        CloudSyncManager manager = CloudSyncManager.getInstance();
+        if (upload) {
+            manager.queueUpload(path);
+        } else {
+            manager.queueDownload(path);
+        }
+    }
+    
+    /**
+     * Get iCloud account status.
+     */
+    public static int getAccountStatus() {
+        if (!syncManagerInitialized) return 0;
+        return CloudSyncManager.getInstance().getAccountStatus();
+    }
+    
+    /**
+     * Check if connected to network.
+     */
+    public static boolean isConnected() {
+        if (!syncManagerInitialized) return true;
+        return CloudSyncManager.getInstance().isConnected();
+    }
+    
+    /**
+     * Get sync metrics: [avgLatency, successRate, totalBytesSynced]
+     */
+    public static Object[] getSyncMetrics() {
+        if (!syncManagerInitialized) {
+            return new Object[]{0L, 100f, 0L};
+        }
+        CloudSyncManager m = CloudSyncManager.getInstance();
+        return new Object[]{
+            m.getAvgLatency(),
+            m.getSuccessRate(),
+            m.getTotalBytesSynced()
+        };
+    }
 
     public static void warmupRoot(File root) {
         if (root == null) return;

@@ -183,6 +183,11 @@ public final class AppLifecycle {
      * Handle JVM shutdown hook.
      */
     private static void handleShutdownHook() {
+        // Shutdown cloud sync manager
+        try {
+            main.infrastructure.io.IcloudSyncService.shutdownSyncManager();
+        } catch (Throwable ignored) {}
+        
         // Notify listeners
         List<Runnable> listeners;
         synchronized (exitListeners) {

@@ -338,5 +338,8 @@ public final class AppConfig {
         try {
             IcloudSyncService.warmupRoot(root);
         } catch (Throwable ignored) {}
+        try {
+            IcloudSyncService.initializeSyncManager(root);
+        } catch (Throwable ignored) {}
     }
 }

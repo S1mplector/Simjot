@@ -252,6 +252,13 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
                 icloudBody.add(icloudPath);
             }
 
+            // Sync status section (uses CloudSyncManager)
+            if (rootInIcloud) {
+                icloudBody.add(Box.createVerticalStrut(12));
+                JPanel syncStatusPanel = createSyncStatusPanel();
+                icloudBody.add(syncStatusPanel);
+            }
+
             if (icloudAvailable && !rootInIcloud) {
                 icloudBody.add(Box.createVerticalStrut(8));
                 RoundedButton moveBtn = new RoundedButton("Move to iCloud");
@@ -987,6 +994,130 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             // while preserving any inner padding set via borders.
             super.paintComponent(g);
         }
+    }
+
+    // ---- Cloud Sync Status Panel ----
+    private JPanel createSyncStatusPanel() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0, 0, 0, 30)),
+            BorderFactory.createEmptyBorder(8, 0, 0, 0)
+        ));
+
+        JLabel syncTitle = new JLabel("Sync Status");
+        syncTitle.setFont(syncTitle.getFont().deriveFont(Font.BOLD, 11f));
+        syncTitle.setForeground(new Color(0, 0, 0, 180));
+        panel.add(syncTitle);
+        panel.add(Box.createVerticalStrut(6));
+
+        // Status labels
+        JLabel stateLabel = new JLabel("State: Idle");
+        stateLabel.setFont(stateLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        stateLabel.setForeground(new Color(0, 0, 0, 140));
+        panel.add(stateLabel);
+
+        JLabel networkLabel = new JLabel("Network: Unknown");
+        networkLabel.setFont(networkLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        networkLabel.setForeground(new Color(0, 0, 0, 140));
+        panel.add(networkLabel);
+
+        JLabel conflictLabel = new JLabel("Conflicts: 0");
+        conflictLabel.setFont(conflictLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        conflictLabel.setForeground(new Color(0, 0, 0, 140));
+        panel.add(conflictLabel);
+
+        JLabel metricsLabel = new JLabel("Success rate: --");
+        metricsLabel.setFont(metricsLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        metricsLabel.setForeground(new Color(0, 0, 0, 140));
+        panel.add(metricsLabel);
+
+        // Buttons
+        panel.add(Box.createVerticalStrut(8));
+        JPanel buttons = new JPanel();
+        buttons.setOpaque(false);
+        buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
+
+        RoundedButton syncNowBtn = new RoundedButton("Sync Now");
+        syncNowBtn.addActionListener(e -> {
+            main.infrastructure.io.IcloudSyncService.triggerSync();
+            main.ui.components.toast.ToastOverlay.info("Sync triggered");
+        });
+        buttons.add(syncNowBtn);
+
+        buttons.add(Box.createHorizontalStrut(8));
+
+        RoundedButton resolveBtn = new RoundedButton("Resolve Conflicts");
+        resolveBtn.addActionListener(e -> {
+            int resolved = main.infrastructure.io.IcloudSyncService.resolveAllConflictsKeepLocal();
+            if (resolved > 0) {
+                main.ui.components.toast.ToastOverlay.success("Resolved " + resolved + " conflicts");
+            } else {
+                main.ui.components.toast.ToastOverlay.info("No conflicts to resolve");
+            }
+        });
+        buttons.add(resolveBtn);
+        panel.add(buttons);
+
+        // Timer to update status periodically
+        Timer updateTimer = new Timer(2000, e -> {
+            main.infrastructure.io.CloudSyncManager mgr = main.infrastructure.io.CloudSyncManager.getInstance();
+            if (!mgr.isInitialized()) {
+                stateLabel.setText("State: Not initialized");
+                return;
+            }
+
+            int state = mgr.getState();
+            String stateStr = switch (state) {
+                case main.infrastructure.io.CloudSyncManager.STATE_IDLE -> "Idle";
+                case main.infrastructure.io.CloudSyncManager.STATE_SCANNING -> "Scanning...";
+                case main.infrastructure.io.CloudSyncManager.STATE_SYNCING -> "Syncing...";
+                case main.infrastructure.io.CloudSyncManager.STATE_RESOLVING -> "Resolving...";
+                case main.infrastructure.io.CloudSyncManager.STATE_ERROR -> "Error";
+                default -> "Unknown";
+            };
+            stateLabel.setText("State: " + stateStr);
+
+            int net = mgr.getNetworkState();
+            String netStr = switch (net) {
+                case main.infrastructure.io.CloudSyncManager.NETWORK_DISCONNECTED -> "Disconnected";
+                case main.infrastructure.io.CloudSyncManager.NETWORK_WIFI -> "WiFi";
+                case main.infrastructure.io.CloudSyncManager.NETWORK_CELLULAR -> "Cellular";
+                case main.infrastructure.io.CloudSyncManager.NETWORK_WIRED -> "Wired";
+                default -> "Unknown";
+            };
+            networkLabel.setText("Network: " + netStr);
+
+            int conflicts = mgr.getConflictCount();
+            conflictLabel.setText("Conflicts: " + conflicts);
+            conflictLabel.setForeground(conflicts > 0 ? new Color(200, 100, 0) : new Color(0, 0, 0, 140));
+
+            float successRate = mgr.getSuccessRate();
+            long totalBytes = mgr.getTotalBytesSynced();
+            String bytesStr = formatBytes(totalBytes);
+            metricsLabel.setText(String.format("Success: %.1f%% | Synced: %s", successRate, bytesStr));
+        });
+        updateTimer.setInitialDelay(100);
+        updateTimer.start();
+
+        // Stop timer when panel is removed
+        panel.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.DISPLAYABILITY_CHANGED) != 0) {
+                if (!panel.isDisplayable()) {
+                    updateTimer.stop();
+                }
+            }
+        });
+
+        return panel;
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
     // ---- Vector icon drawing ----
