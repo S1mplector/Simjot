@@ -8,6 +8,7 @@
 
 package main.ui.features.home;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -30,9 +31,15 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.Path2D;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,6 +51,7 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
+import main.core.analytics.MoodAnalyticsEngine;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
@@ -78,7 +86,28 @@ public class ModernMoodChartPanel extends JPanel {
     private final String[] ranges = {"7 Days", "30 Days", "90 Days", "1 Year", "All Time"};
     
     private Integer hoverIndex = null;
+    private Integer hoverDisplayIndex = null;
     private Point mousePoint = null;
+    private float hoverAlpha = 0f;
+    private float hoverTargetAlpha = 0f;
+    private Timer hoverFadeTimer;
+    private HoverInfo hoverInfo;
+
+    private static final class HoverInfo {
+        private final LocalDate day;
+        private final String dateText;
+        private final String moodText;
+        private final String entryText;
+        private final List<Integer> sampleValues;
+
+        private HoverInfo(LocalDate day, String dateText, String moodText, String entryText, List<Integer> sampleValues) {
+            this.day = day;
+            this.dateText = dateText;
+            this.moodText = moodText;
+            this.entryText = entryText;
+            this.sampleValues = sampleValues;
+        }
+    }
     
     // Animated values
     private float animatedAvg = 0;
@@ -115,6 +144,8 @@ public class ModernMoodChartPanel extends JPanel {
             }
             repaint();
         });
+
+        hoverFadeTimer = new Timer(16, e -> updateHoverFade());
         
         // Refresh on show
         addComponentListener(new ComponentAdapter() {
@@ -345,7 +376,7 @@ public class ModernMoodChartPanel extends JPanel {
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseExited(MouseEvent e) {
-                    hoverIndex = null;
+                    setHoverIndex(null);
                     mousePoint = null;
                     repaint();
                 }
@@ -354,54 +385,68 @@ public class ModernMoodChartPanel extends JPanel {
                 public void mouseClicked(MouseEvent e) {
                     if (hoverIndex != null && hoverIndex >= 0 && hoverIndex < model.getDays().size()) {
                         LocalDate d = model.getDays().get(hoverIndex);
-                        List<File> files = model.getEntriesByDate().get(d);
-                        if (files != null && !files.isEmpty()) {
-                            openEntry(files.get(0));
+                        File nearest = findNearestEntry(d, getMoodAnchorForDay(d));
+                        if (nearest != null) {
+                            openEntry(nearest);
                         }
                     }
                 }
             });
         }
-        
+
         private void updateHoverIndex() {
             if (mousePoint == null || model.getDays().isEmpty()) {
-                hoverIndex = null;
+                setHoverIndex(null);
                 return;
             }
-            
+
             int chartW = getWidth() - MARGIN_LEFT - MARGIN_RIGHT;
+            int chartH = getHeight() - MARGIN_TOP - MARGIN_BOTTOM;
             int n = model.getDays().size();
-            if (n <= 1 || chartW <= 0) {
-                hoverIndex = null;
+            if (n <= 1 || chartW <= 0 || chartH <= 0) {
+                setHoverIndex(null);
                 return;
             }
-            
+
             float step = (float) chartW / (n - 1);
             int idx = Math.round((mousePoint.x - MARGIN_LEFT) / step);
-            if (idx >= 0 && idx < n) {
-                hoverIndex = idx;
+            if (idx < 0 || idx >= n) {
+                setHoverIndex(null);
+                return;
+            }
+
+            Double v = model.getValues().get(idx);
+            if (v == null) {
+                setHoverIndex(null);
+                return;
+            }
+
+            float x = MARGIN_LEFT + (n > 1 ? idx * (float) chartW / (n - 1) : chartW / 2f);
+            float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
+            if (mousePoint.distance(x, y) <= 16) {
+                setHoverIndex(idx);
             } else {
-                hoverIndex = null;
+                setHoverIndex(null);
             }
         }
-        
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            
+
             int w = getWidth();
             int h = getHeight();
             int chartW = w - MARGIN_LEFT - MARGIN_RIGHT;
             int chartH = h - MARGIN_TOP - MARGIN_BOTTOM;
-            
+
             // Card background
             g2.setColor(CARD_SHADOW);
             g2.fillRoundRect(2, 4, w - 4, h - 4, 20, 20);
             g2.setColor(CARD_BG);
             g2.fillRoundRect(0, 0, w - 4, h - 6, 20, 20);
-            
+
             if (model.getDays().isEmpty() || model.getValues().stream().allMatch(Objects::isNull)) {
                 g2.setFont(new Font("SF Pro Text", Font.PLAIN, 16));
                 g2.setColor(TEXT_SECONDARY);
@@ -411,18 +456,18 @@ public class ModernMoodChartPanel extends JPanel {
                 g2.dispose();
                 return;
             }
-            
+
             List<LocalDate> days = model.getDays();
             List<Double> values = model.getValues();
             int n = days.size();
-            
+
             // Draw grid lines
             g2.setColor(new Color(230, 235, 240));
             g2.setStroke(new BasicStroke(1f));
             for (int i = 0; i <= 4; i++) {
                 int y = MARGIN_TOP + (int) ((4 - i) / 4.0 * chartH);
                 g2.drawLine(MARGIN_LEFT, y, w - MARGIN_RIGHT, y);
-                
+
                 // Y-axis labels
                 g2.setFont(new Font("SF Pro Text", Font.PLAIN, 11));
                 g2.setColor(TEXT_SECONDARY);
@@ -431,20 +476,20 @@ public class ModernMoodChartPanel extends JPanel {
                 g2.drawString(label, MARGIN_LEFT - fm.stringWidth(label) - 8, y + 4);
                 g2.setColor(new Color(230, 235, 240));
             }
-            
+
             // Build path
             Path2D.Float linePath = new Path2D.Float();
             Path2D.Float fillPath = new Path2D.Float();
             boolean started = false;
             int firstX = 0, lastX = 0;
-            
+
             for (int i = 0; i < n; i++) {
                 Double v = values.get(i);
                 if (v == null) continue;
-                
+
                 float x = MARGIN_LEFT + (n > 1 ? i * (float) chartW / (n - 1) : chartW / 2f);
                 float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
-                
+
                 if (!started) {
                     linePath.moveTo(x, y);
                     fillPath.moveTo(x, MARGIN_TOP + chartH);
@@ -457,12 +502,12 @@ public class ModernMoodChartPanel extends JPanel {
                 }
                 lastX = (int) x;
             }
-            
+
             if (started) {
                 fillPath.lineTo(lastX, MARGIN_TOP + chartH);
                 fillPath.lineTo(firstX, MARGIN_TOP + chartH);
                 fillPath.closePath();
-                
+
                 // Fill gradient
                 GradientPaint fillGradient = new GradientPaint(
                     0, MARGIN_TOP, new Color(ACCENT_BLUE.getRed(), ACCENT_BLUE.getGreen(), ACCENT_BLUE.getBlue(), 60),
@@ -470,32 +515,38 @@ public class ModernMoodChartPanel extends JPanel {
                 );
                 g2.setPaint(fillGradient);
                 g2.fill(fillPath);
-                
+
                 // Line
                 g2.setColor(ACCENT_BLUE);
                 g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.draw(linePath);
-                
+
                 // Data points
                 for (int i = 0; i < n; i++) {
                     Double v = values.get(i);
                     if (v == null) continue;
-                    
+
                     float x = MARGIN_LEFT + (n > 1 ? i * (float) chartW / (n - 1) : chartW / 2f);
                     float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
-                    
-                    boolean isHovered = hoverIndex != null && hoverIndex == i;
-                    int radius = isHovered ? 6 : 4;
-                    
+
+                    boolean isHovered = hoverDisplayIndex != null && hoverDisplayIndex == i && hoverAlpha > 0.01f;
+                    int radius = isHovered ? (int) Math.round(4 + 2 * hoverAlpha) : 4;
+
                     // Point
                     g2.setColor(getMoodColor(v));
                     g2.fillOval((int) x - radius, (int) y - radius, radius * 2, radius * 2);
+                    if (isHovered) {
+                        int ringRadius = radius + 3;
+                        g2.setColor(new Color(255, 255, 255, (int) (160 * hoverAlpha)));
+                        g2.setStroke(new BasicStroke(2f));
+                        g2.drawOval((int) x - ringRadius, (int) y - ringRadius, ringRadius * 2, ringRadius * 2);
+                    }
                     g2.setColor(Color.WHITE);
                     g2.setStroke(new BasicStroke(2f));
                     g2.drawOval((int) x - radius, (int) y - radius, radius * 2, radius * 2);
                 }
             }
-            
+
             // X-axis date labels
             g2.setFont(new Font("SF Pro Text", Font.PLAIN, 10));
             g2.setColor(TEXT_SECONDARY);
@@ -507,46 +558,80 @@ public class ModernMoodChartPanel extends JPanel {
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(label, x - fm.stringWidth(label) / 2f, h - MARGIN_BOTTOM + 20);
             }
-            
+
             // Hover tooltip
-            if (hoverIndex != null && hoverIndex >= 0 && hoverIndex < n) {
-                Double v = values.get(hoverIndex);
-                if (v != null) {
-                    float x = MARGIN_LEFT + (n > 1 ? hoverIndex * (float) chartW / (n - 1) : chartW / 2f);
+            if (hoverDisplayIndex != null && hoverDisplayIndex >= 0 && hoverDisplayIndex < n && hoverAlpha > 0.01f) {
+                Double v = values.get(hoverDisplayIndex);
+                if (v != null && hoverInfo != null) {
+                    float x = MARGIN_LEFT + (n > 1 ? hoverDisplayIndex * (float) chartW / (n - 1) : chartW / 2f);
                     float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
-                    
-                    // Vertical line
-                    g2.setColor(new Color(0, 0, 0, 30));
-                    g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 
+
+                    Graphics2D hoverG = (Graphics2D) g2.create();
+                    hoverG.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, hoverAlpha)));
+
+                    hoverG.setColor(new Color(0, 0, 0, 30));
+                    hoverG.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
                         10f, new float[]{4f, 4f}, 0f));
-                    g2.drawLine((int) x, MARGIN_TOP, (int) x, MARGIN_TOP + chartH);
-                    
-                    // Tooltip
-                    String dateStr = DateTimeFormatter.ofPattern("EEEE, MMM d").format(days.get(hoverIndex));
-                    String moodStr = String.format("%.0f/100", v);
-                    
-                    g2.setFont(new Font("SF Pro Text", Font.BOLD, 12));
-                    FontMetrics fm = g2.getFontMetrics();
-                    int tw = Math.max(fm.stringWidth(dateStr), fm.stringWidth(moodStr)) + 20;
-                    int th = 48;
-                    
-                    int tx = (int) Math.min(Math.max(x - tw / 2, 10), w - tw - 10);
+                    hoverG.drawLine((int) x, MARGIN_TOP, (int) x, MARGIN_TOP + chartH);
+
+                    Font dateFont = new Font("SF Pro Text", Font.PLAIN, 11);
+                    Font moodFont = new Font("SF Pro Text", Font.BOLD, 13);
+                    Font entryFont = new Font("SF Pro Text", Font.PLAIN, 10);
+
+                    hoverG.setFont(dateFont);
+                    FontMetrics fmDate = hoverG.getFontMetrics();
+                    int dateW = fmDate.stringWidth(hoverInfo.dateText);
+
+                    String moodLine = "Mood: " + hoverInfo.moodText;
+                    hoverG.setFont(moodFont);
+                    FontMetrics fmMood = hoverG.getFontMetrics();
+                    int moodW = fmMood.stringWidth(moodLine);
+
+                    String entryLine = hoverInfo.entryText;
+                    hoverG.setFont(entryFont);
+                    FontMetrics fmEntry = hoverG.getFontMetrics();
+                    int entryW = entryLine != null ? fmEntry.stringWidth(entryLine) : 0;
+
+                    int graphW = Math.max(120, Math.max(dateW, Math.max(moodW, entryW)));
+                    int graphH = 28;
+                    int padding = 10;
+
+                    int textH = fmDate.getHeight() + fmMood.getHeight() + (entryLine != null ? fmEntry.getHeight() : 0) + 4;
+                    int th = padding * 2 + textH + graphH + 6;
+                    int tw = graphW + padding * 2;
+
+                    int tx = (int) Math.min(Math.max(x - tw / 2f, 10), w - tw - 10);
                     int ty = (int) y - th - 15;
                     if (ty < 10) ty = (int) y + 15;
-                    
-                    // Tooltip background
-                    g2.setColor(new Color(0, 0, 0, 180));
-                    g2.fillRoundRect(tx, ty, tw, th, 10, 10);
-                    
-                    // Tooltip text
-                    g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("SF Pro Text", Font.PLAIN, 11));
-                    g2.drawString(dateStr, tx + 10, ty + 18);
-                    g2.setFont(new Font("SF Pro Text", Font.BOLD, 14));
-                    g2.drawString(moodStr, tx + 10, ty + 36);
+
+                    hoverG.setColor(new Color(12, 12, 18, 200));
+                    hoverG.fillRoundRect(tx, ty, tw, th, 12, 12);
+
+                    int textX = tx + padding;
+                    int textY = ty + padding + fmDate.getAscent();
+                    hoverG.setColor(Color.WHITE);
+                    hoverG.setFont(dateFont);
+                    hoverG.drawString(hoverInfo.dateText, textX, textY);
+
+                    textY += fmDate.getHeight();
+                    hoverG.setFont(moodFont);
+                    hoverG.drawString(moodLine, textX, textY);
+
+                    textY += fmMood.getHeight();
+                    if (entryLine != null) {
+                        hoverG.setFont(entryFont);
+                        hoverG.setColor(new Color(230, 230, 235));
+                        hoverG.drawString(entryLine, textX, textY);
+                    }
+
+                    int graphX = tx + padding;
+                    int graphY = ty + padding + textH + 4;
+                    drawMiniGraph(hoverG, graphX, graphY, graphW, graphH, hoverInfo.sampleValues);
+
+                    hoverG.dispose();
                 }
             }
-            
+
             g2.dispose();
         }
     }
@@ -565,7 +650,186 @@ public class ModernMoodChartPanel extends JPanel {
     
     private void loadData() {
         model.load(selectedRangeIndex);
+        if (hoverFadeTimer != null) {
+            hoverFadeTimer.stop();
+        }
+        hoverIndex = null;
+        hoverDisplayIndex = null;
+        hoverInfo = null;
+        hoverAlpha = 0f;
+        hoverTargetAlpha = 0f;
         repaint();
+    }
+
+    private void setHoverIndex(Integer idx) {
+        if (Objects.equals(idx, hoverIndex)) {
+            return;
+        }
+        hoverIndex = idx;
+        if (idx != null) {
+            hoverDisplayIndex = idx;
+            hoverInfo = buildHoverInfo(idx);
+            hoverTargetAlpha = 1f;
+        } else {
+            hoverTargetAlpha = 0f;
+        }
+        if (hoverFadeTimer != null && !hoverFadeTimer.isRunning()) {
+            hoverFadeTimer.start();
+        }
+    }
+
+    private void updateHoverFade() {
+        hoverAlpha += (hoverTargetAlpha - hoverAlpha) * 0.2f;
+        if (Math.abs(hoverTargetAlpha - hoverAlpha) < 0.02f) {
+            hoverAlpha = hoverTargetAlpha;
+            if (hoverAlpha <= 0.01f && hoverIndex == null) {
+                hoverDisplayIndex = null;
+                hoverInfo = null;
+            }
+            hoverFadeTimer.stop();
+        }
+        repaint();
+    }
+
+    private HoverInfo buildHoverInfo(int idx) {
+        if (idx < 0 || idx >= model.getDays().size()) return null;
+        LocalDate day = model.getDays().get(idx);
+        Double value = model.getValues().get(idx);
+        String dateText = DateTimeFormatter.ofPattern("EEEE, MMM d").format(day);
+        String moodText = value != null ? String.format("%.0f/100", value) : "--";
+        List<Integer> sampleValues = getDailySampleValues(day, value);
+        String entryText = buildEntryText(day);
+        return new HoverInfo(day, dateText, moodText, entryText, sampleValues);
+    }
+
+    private List<Integer> getDailySampleValues(LocalDate day, Double dailyAverage) {
+        List<Integer> values = new ArrayList<>();
+        MoodAnalyticsEngine.AnalyticsResult analytics = model.getAnalytics();
+        if (analytics != null) {
+            MoodAnalyticsEngine.DailyStats stats = analytics.dailyStats.get(day);
+            if (stats != null) {
+                if (!stats.samples.isEmpty()) {
+                    for (MoodAnalyticsEngine.MoodSample sample : stats.samples) {
+                        values.add(sample.composite);
+                    }
+                } else if (stats.sampleCount > 0) {
+                    int min = stats.min;
+                    int max = stats.max;
+                    int avg = (int) Math.round(stats.average);
+                    values.add(min);
+                    if (avg != min) values.add(avg);
+                    if (max != min && max != avg) values.add(max);
+                }
+            }
+        }
+        if (values.isEmpty() && dailyAverage != null) {
+            values.add((int) Math.round(dailyAverage));
+        }
+        return values;
+    }
+
+    private void drawMiniGraph(Graphics2D g2, int x, int y, int w, int h, List<Integer> values) {
+        if (values == null || values.isEmpty()) return;
+        g2.setColor(new Color(255, 255, 255, 26));
+        g2.fillRoundRect(x, y, w, h, 8, 8);
+
+        g2.setColor(new Color(255, 255, 255, 60));
+        g2.setStroke(new BasicStroke(1f));
+        g2.drawRoundRect(x, y, w, h, 8, 8);
+
+        int count = values.size();
+        g2.setColor(new Color(120, 200, 255, 220));
+        g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+        if (count == 1) {
+            float cx = x + w / 2f;
+            float cy = y + h - (values.get(0) / 100f * h);
+            g2.fillOval((int) (cx - 3), (int) (cy - 3), 6, 6);
+            return;
+        }
+
+        Path2D.Float path = new Path2D.Float();
+        for (int i = 0; i < count; i++) {
+            float t = count == 1 ? 0.5f : (float) i / (float) (count - 1);
+            float px = x + t * w;
+            float py = y + h - (values.get(i) / 100f * h);
+            if (i == 0) {
+                path.moveTo(px, py);
+            } else {
+                path.lineTo(px, py);
+            }
+        }
+        g2.draw(path);
+        for (int i = 0; i < count; i++) {
+            float t = count == 1 ? 0.5f : (float) i / (float) (count - 1);
+            float px = x + t * w;
+            float py = y + h - (values.get(i) / 100f * h);
+            g2.fillOval((int) (px - 2), (int) (py - 2), 4, 4);
+        }
+    }
+
+    private LocalDateTime getMoodAnchorForDay(LocalDate day) {
+        List<LocalDateTime> moodTimes = model.getMoodTimesByDate().get(day);
+        if (moodTimes != null && !moodTimes.isEmpty()) {
+            return moodTimes.get(moodTimes.size() - 1);
+        }
+        return day.atStartOfDay();
+    }
+
+    private File findNearestEntry(LocalDate day, LocalDateTime anchor) {
+        List<MoodChartModel.EntryRef> refs = model.getEntryTimesByDate().get(day);
+        if (refs == null || refs.isEmpty()) return null;
+        if (anchor == null) {
+            anchor = day.atStartOfDay();
+        }
+        File target = null;
+        long best = Long.MAX_VALUE;
+        for (MoodChartModel.EntryRef ref : refs) {
+            if (ref.ts == null) continue;
+            long diff = Math.abs(ChronoUnit.SECONDS.between(anchor, ref.ts));
+            if (diff < best) {
+                best = diff;
+                target = ref.file;
+            }
+        }
+        if (target == null) {
+            target = refs.get(0).file;
+        }
+        return target;
+    }
+
+    private String buildEntryText(LocalDate day) {
+        List<File> files = model.getEntriesByDate().get(day);
+        if (files == null || files.isEmpty()) return null;
+        File nearest = findNearestEntry(day, getMoodAnchorForDay(day));
+        String title = safeTitle(nearest != null ? nearest : files.get(0));
+        if (files.size() == 1) {
+            return "Entry: " + title;
+        }
+        if (title != null && !title.isBlank()) {
+            return "Entry: " + title + " +" + (files.size() - 1);
+        }
+        return "Entries: " + files.size();
+    }
+
+    private String safeTitle(File f) {
+        if (f == null) return "Entry";
+        String title = null;
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String first = br.readLine();
+            if (first != null && !first.isBlank()) {
+                title = first.trim();
+            }
+        } catch (IOException ignored) {}
+        if (title == null || title.isBlank()) {
+            String name = f.getName();
+            int dot = name.lastIndexOf('.');
+            title = dot > 0 ? name.substring(0, dot) : name;
+        }
+        if (title.length() > 32) {
+            title = title.substring(0, 29) + "...";
+        }
+        return title;
     }
     
     private void openEntry(File f) {
