@@ -36,6 +36,7 @@ import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.RichTextStyler;
+import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.features.entries.BackgroundPainter;
@@ -47,6 +48,7 @@ import main.ui.theme.aero.AeroTheme;
  */
 public class QuickEntryDialog extends JDialog {
     
+    private final TitleDividerField titleField;
     private final CustomFontTextPane contentArea;
     private final SaveIndicatorPanel saveIndicator;
     private final JLabel wordCountLabel;
@@ -157,12 +159,24 @@ public class QuickEntryDialog extends JDialog {
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         
+        // Title field at top (same as EntryPanel)
+        String fontFamily = SettingsStore.get().getEditorFontFamily();
+        int savedFontSize = SettingsStore.get().getJournalFontSize();
+        
+        titleField = new TitleDividerField(20);
+        titleField.setPlaceholder("Title...");
+        titleField.setFont(CustomFontApplier.resolveUiFont(fontFamily, savedFontSize));
+        titleField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { onTextChanged(); }
+            @Override public void removeUpdate(DocumentEvent e) { onTextChanged(); }
+            @Override public void changedUpdate(DocumentEvent e) { onTextChanged(); }
+        });
+        textWrapper.add(titleField, BorderLayout.NORTH);
+        
         contentArea = new CustomFontTextPane();
         contentArea.setDoubleBuffered(true);
         
         // Load font settings from Appearance settings (same as EntryPanel)
-        String fontFamily = SettingsStore.get().getEditorFontFamily();
-        int savedFontSize = SettingsStore.get().getJournalFontSize();
         CustomFontApplier.applyToTextPane(contentArea, fontFamily, savedFontSize);
         
         contentArea.setOpaque(false);
@@ -530,8 +544,10 @@ public class QuickEntryDialog extends JDialog {
             String filename = timestamp + ".txt";
             File outFile = new File(folder, filename);
             
-            // Build entry content with header (same format as journal entries)
-            byte[] data = buildEntryContent("Quick Entry", text.trim());
+            // Build entry content (title + body)
+            String title = titleField.getText();
+            if (title == null || title.isBlank()) title = "Quick Entry";
+            byte[] data = buildEntryContent(title.trim(), text.trim());
             
             // Write file atomically
             FileIO.ensureSpace(outFile.toPath(), data.length + 4096L, "quick entry");
@@ -543,6 +559,7 @@ public class QuickEntryDialog extends JDialog {
             
             // Brief delay to show saved state before closing
             Timer closeTimer = new Timer(200, e -> {
+                titleField.setText("");
                 contentArea.setText("");
                 isDirty = false;
                 hideDialog();
@@ -564,11 +581,8 @@ public class QuickEntryDialog extends JDialog {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8));
         
-        // Write header in same format as EntryFileFormat
-        writer.println("---");
-        writer.println("title: " + (title != null ? title : "Quick Entry"));
-        writer.println("saved: " + System.currentTimeMillis());
-        writer.println("---");
+        // Simple format: title on first line, blank line, then body
+        writer.println(title != null ? title : "Quick Entry");
         writer.println();
         writer.println(body);
         writer.flush();
