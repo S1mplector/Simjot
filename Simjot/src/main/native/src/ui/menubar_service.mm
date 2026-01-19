@@ -422,8 +422,8 @@ static SimjotQuickEntryPanel* g_quickEntryPanel = nil;
 - (void)setupStatusItem {
     NSLog(@"[MENUBAR] setupStatusItem called");
     
-    // Use variable length to ensure visibility
-    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
+    // Use fixed length for guaranteed visibility
+    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:28.0];
     NSLog(@"[MENUBAR] statusItem created: %@", _statusItem);
     
     if (!_statusItem || !_statusItem.button) {
@@ -431,20 +431,9 @@ static SimjotQuickEntryPanel* g_quickEntryPanel = nil;
         return;
     }
     
-    // Try text first for debugging - this is most reliable
-    _statusItem.button.title = @"Simjot";
-    
-    // Also try SF Symbol
-    NSImage* icon = [NSImage imageWithSystemSymbolName:@"book.closed.fill" 
-                                accessibilityDescription:@"Simjot Quick Entry"];
-    NSLog(@"[MENUBAR] SF Symbol icon: %@", icon);
-    
-    if (icon) {
-        [icon setTemplate:YES];
-        // Set both - title as fallback, image as primary
-        _statusItem.button.image = icon;
-        _statusItem.button.imagePosition = NSImageLeft;
-    }
+    // Use a simple emoji as the most reliable cross-platform icon
+    _statusItem.button.title = @"📔";
+    _statusItem.button.font = [NSFont systemFontOfSize:14];
     
     _statusItem.button.toolTip = @"Simjot Quick Entry";
     _statusItem.button.target = self;
@@ -453,7 +442,17 @@ static SimjotQuickEntryPanel* g_quickEntryPanel = nil;
     // Make sure it's visible
     _statusItem.visible = YES;
     
-    NSLog(@"[MENUBAR] statusItem button configured: %@", _statusItem.button);
+    // Add a menu as fallback (sometimes required for visibility)
+    NSMenu* menu = [[NSMenu alloc] init];
+    [menu addItemWithTitle:@"Open Simjot" action:@selector(statusItemClicked:) keyEquivalent:@""];
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItemWithTitle:@"Quick Entry..." action:@selector(statusItemClicked:) keyEquivalent:@"n"];
+    menu.itemArray[0].target = self;
+    menu.itemArray[2].target = self;
+    _statusItem.menu = menu;
+    
+    NSLog(@"[MENUBAR] statusItem button: %@", _statusItem.button);
+    NSLog(@"[MENUBAR] statusItem menu: %@", _statusItem.menu);
     NSLog(@"[MENUBAR] statusItem visible: %d", _statusItem.visible);
     NSLog(@"[MENUBAR] statusItem length: %f", _statusItem.length);
     
@@ -509,38 +508,45 @@ int32_t simjot_menubar_init(void) {
         return 1; // Already initialized
     }
     
-    __block int32_t result = 0;
+    // Mark as initialized early to prevent re-entry
+    g_menubar_initialized.store(true);
     
-    // Check if we're already on the main thread to avoid deadlock
-    if ([NSThread isMainThread]) {
+    // Delay creation to ensure Java UI is fully initialized
+    // This is necessary because Java AWT has its own event loop
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         @autoreleasepool {
             @try {
+                NSLog(@"[MENUBAR] Delayed init starting...");
+                
+                // Force NSApplication to exist - critical for JVM apps
+                NSApplication* app = [NSApplication sharedApplication];
+                NSLog(@"[MENUBAR] NSApplication: %@", app);
+                
                 g_statusController = [[SimjotStatusItemController alloc] init];
                 g_statusItem = g_statusController.statusItem;
-                g_menubar_initialized.store(true);
-                result = 1;
+                
+                NSLog(@"[MENUBAR] g_statusController retained: %@", g_statusController);
+                NSLog(@"[MENUBAR] g_statusItem: %@", g_statusItem);
+                
+                // Force UI update - needed for Java AWT integration
+                [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+                [app updateWindows];
+                
+                // Also try to force status bar to redraw
+                if (g_statusItem.button) {
+                    [g_statusItem.button setNeedsDisplay:YES];
+                    [g_statusItem.button displayIfNeeded];
+                }
+                
+                NSLog(@"[MENUBAR] Delayed init complete, forced UI update");
             } @catch (NSException* e) {
-                NSLog(@"Simjot menubar init failed: %@", e);
-                result = 0;
+                NSLog(@"Simjot menubar delayed init failed: %@", e);
+                g_menubar_initialized.store(false);
             }
         }
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            @autoreleasepool {
-                @try {
-                    g_statusController = [[SimjotStatusItemController alloc] init];
-                    g_statusItem = g_statusController.statusItem;
-                    g_menubar_initialized.store(true);
-                    result = 1;
-                } @catch (NSException* e) {
-                    NSLog(@"Simjot menubar init failed: %@", e);
-                    result = 0;
-                }
-            }
-        });
-    }
+    });
     
-    return result;
+    return 1;
 }
 
 void simjot_menubar_shutdown(void) {
