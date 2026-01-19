@@ -1080,6 +1080,10 @@ public final class ImagePasteManager {
                 doc.remove(startOffset, 1);
                 doc.insertString(startOffset, " ", attrs);
                 
+                // Force layout update so click detection works immediately
+                editor.revalidate();
+                editor.repaint();
+                
                 // Restore scroll position after resize to prevent jumping
                 if (vp != null && savedScrollPos != null) {
                     SwingUtilities.invokeLater(() -> {
