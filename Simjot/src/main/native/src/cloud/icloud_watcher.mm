@@ -67,7 +67,8 @@ static void simjot_fsevents_callback(ConstFSEventStreamRef streamRef,
     (void)clientCallBackInfo;
     (void)eventIds;
     
-    char** paths = (char**)eventPaths;
+    // eventPaths is CFArrayRef when using kFSEventStreamCreateFlagUseCFTypes
+    CFArrayRef pathArray = (CFArrayRef)eventPaths;
     int64_t now = watcher_time_ms();
     
     std::lock_guard<std::mutex> lock(g_watcherMutex);
@@ -77,8 +78,18 @@ static void simjot_fsevents_callback(ConstFSEventStreamRef streamRef,
             g_pendingEvents.erase(g_pendingEvents.begin());
         }
         
+        // Get CFStringRef from array
+        CFStringRef cfPath = (CFStringRef)CFArrayGetValueAtIndex(pathArray, (CFIndex)i);
+        if (!cfPath) continue;
+        
+        // Convert to C string
+        char pathBuffer[PATH_MAX];
+        if (!CFStringGetCString(cfPath, pathBuffer, sizeof(pathBuffer), kCFStringEncodingUTF8)) {
+            continue;
+        }
+        
         FileChangeEvent evt;
-        evt.path = paths[i];
+        evt.path = pathBuffer;
         evt.timestampMs = now;
         evt.flags = (int32_t)eventFlags[i];
         
