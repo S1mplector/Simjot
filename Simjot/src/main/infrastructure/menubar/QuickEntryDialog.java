@@ -51,7 +51,7 @@ public class QuickEntryDialog extends JDialog {
     private final SaveIndicatorPanel saveIndicator;
     private final JLabel wordCountLabel;
     private final JLabel notebookLabel;
-    private final JComboBox<NotebookInfo> notebookCombo;
+    private final NotebookSelectorButton notebookButton;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private NotebookInfo selectedNotebook;
     private HandStyleToggleButton boldBtn;
@@ -139,30 +139,8 @@ public class QuickEntryDialog extends JDialog {
         toolbarPanel.add(notebookLabel);
         toolbarPanel.add(Box.createHorizontalStrut(6));
         
-        notebookCombo = new JComboBox<>();
-        notebookCombo.setFont(AeroTheme.defaultFont().deriveFont(12f));
-        notebookCombo.setPreferredSize(new Dimension(140, 28));
-        notebookCombo.setMaximumSize(new Dimension(160, 28));
-        notebookCombo.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof NotebookInfo nb) {
-                    setText(nb.getName());
-                }
-                return this;
-            }
-        });
-        notebookCombo.addActionListener(e -> {
-            NotebookInfo nb = (NotebookInfo) notebookCombo.getSelectedItem();
-            if (nb != null) {
-                selectedNotebook = nb;
-                // Persist the selection
-                SettingsStore.get().setQuickEntryNotebookPath(nb.getFolder().getAbsolutePath());
-                try { SettingsStore.get().save(); } catch (Exception ignored) {}
-            }
-        });
-        toolbarPanel.add(notebookCombo);
+        notebookButton = new NotebookSelectorButton();
+        toolbarPanel.add(notebookButton);
         toolbarPanel.add(Box.createHorizontalStrut(8));
         
         // Load notebooks
@@ -599,7 +577,6 @@ public class QuickEntryDialog extends JDialog {
     }
     
     private void loadNotebooks() {
-        notebookCombo.removeAllItems();
         selectedNotebook = null;
         
         try {
@@ -616,24 +593,20 @@ public class QuickEntryDialog extends JDialog {
             
             if (journals.isEmpty()) {
                 notebookLabel.setText("No journals");
-                notebookCombo.setVisible(false);
+                notebookButton.setVisible(false);
                 return;
             }
             
-            notebookCombo.setVisible(true);
+            notebookButton.setVisible(true);
             notebookLabel.setText("Save to:");
-            
-            // Add notebooks to combo
-            for (NotebookInfo nb : journals) {
-                notebookCombo.addItem(nb);
-            }
+            notebookButton.setNotebooks(journals);
             
             // Try to restore previously selected notebook
             String savedPath = SettingsStore.get().getQuickEntryNotebookPath();
             if (savedPath != null && !savedPath.isEmpty()) {
                 for (NotebookInfo nb : journals) {
                     if (nb.getFolder().getAbsolutePath().equals(savedPath)) {
-                        notebookCombo.setSelectedItem(nb);
+                        notebookButton.setSelectedNotebook(nb);
                         selectedNotebook = nb;
                         break;
                     }
@@ -642,19 +615,175 @@ public class QuickEntryDialog extends JDialog {
             
             // Default to first if none selected
             if (selectedNotebook == null && !journals.isEmpty()) {
-                notebookCombo.setSelectedIndex(0);
+                notebookButton.setSelectedNotebook(journals.get(0));
                 selectedNotebook = journals.get(0);
             }
             
         } catch (Exception ex) {
             IoLog.warn("menubar", "Failed to load notebooks: " + ex.getMessage(), ex);
             notebookLabel.setText("Error loading");
-            notebookCombo.setVisible(false);
+            notebookButton.setVisible(false);
         }
     }
     
     /** Refresh notebooks list (call when dialog is shown) */
     public void refreshNotebooks() {
         loadNotebooks();
+    }
+    
+    /** Styled notebook selector button with dropdown popup */
+    private class NotebookSelectorButton extends JButton {
+        private List<NotebookInfo> notebooks = new ArrayList<>();
+        private NotebookInfo selected;
+        private boolean hovered = false;
+        
+        NotebookSelectorButton() {
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+            setPreferredSize(new Dimension(140, 26));
+            setMaximumSize(new Dimension(180, 26));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    hovered = true;
+                    repaint();
+                }
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    hovered = false;
+                    repaint();
+                }
+            });
+            
+            addActionListener(e -> showPopup());
+        }
+        
+        void setNotebooks(List<NotebookInfo> list) {
+            this.notebooks = list;
+        }
+        
+        void setSelectedNotebook(NotebookInfo nb) {
+            this.selected = nb;
+            repaint();
+        }
+        
+        private void showPopup() {
+            if (notebooks.isEmpty()) return;
+            
+            JPopupMenu popup = new JPopupMenu();
+            popup.setBackground(new Color(252, 253, 255));
+            popup.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 205, 215), 1),
+                BorderFactory.createEmptyBorder(4, 4, 4, 4)
+            ));
+            
+            for (NotebookInfo nb : notebooks) {
+                JMenuItem item = new JMenuItem(nb.getName()) {
+                    private boolean itemHover = false;
+                    {
+                        setOpaque(false);
+                        setFont(AeroTheme.defaultFont().deriveFont(12f));
+                        setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+                        addMouseListener(new MouseAdapter() {
+                            @Override
+                            public void mouseEntered(MouseEvent e) { itemHover = true; repaint(); }
+                            @Override
+                            public void mouseExited(MouseEvent e) { itemHover = false; repaint(); }
+                        });
+                    }
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        
+                        if (itemHover) {
+                            g2.setColor(new Color(235, 240, 250));
+                            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        }
+                        
+                        // Check mark for selected
+                        if (nb == selected) {
+                            g2.setColor(new Color(100, 149, 237));
+                            g2.setFont(getFont());
+                            g2.drawString("✓", 4, getHeight() / 2 + 4);
+                        }
+                        
+                        g2.dispose();
+                        super.paintComponent(g);
+                    }
+                };
+                item.addActionListener(ev -> {
+                    selected = nb;
+                    selectedNotebook = nb;
+                    SettingsStore.get().setQuickEntryNotebookPath(nb.getFolder().getAbsolutePath());
+                    try { SettingsStore.get().save(); } catch (Exception ignored) {}
+                    repaint();
+                });
+                popup.add(item);
+            }
+            
+            popup.show(this, 0, getHeight());
+        }
+        
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            int w = getWidth();
+            int h = getHeight();
+            int arc = 10;
+            
+            // Background
+            if (hovered) {
+                g2.setColor(new Color(240, 242, 248));
+            } else {
+                g2.setColor(new Color(250, 251, 253));
+            }
+            g2.fillRoundRect(0, 0, w, h, arc, arc);
+            
+            // Border
+            g2.setColor(hovered ? new Color(180, 185, 195) : new Color(210, 215, 225));
+            g2.setStroke(new BasicStroke(1f));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            
+            // Text
+            String text = selected != null ? selected.getName() : "Select...";
+            g2.setColor(new Color(50, 55, 65));
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            int textWidth = fm.stringWidth(text);
+            int maxTextWidth = w - 24; // Leave room for dropdown arrow
+            
+            // Truncate if needed
+            if (textWidth > maxTextWidth) {
+                while (textWidth > maxTextWidth && text.length() > 3) {
+                    text = text.substring(0, text.length() - 1);
+                    textWidth = fm.stringWidth(text + "…");
+                }
+                text = text + "…";
+            }
+            
+            int textX = 10;
+            int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+            g2.drawString(text, textX, textY);
+            
+            // Dropdown arrow
+            g2.setColor(new Color(120, 125, 135));
+            int arrowX = w - 16;
+            int arrowY = h / 2 - 2;
+            g2.fillPolygon(
+                new int[]{arrowX, arrowX + 8, arrowX + 4},
+                new int[]{arrowY, arrowY, arrowY + 5},
+                3
+            );
+            
+            g2.dispose();
+        }
     }
 }
