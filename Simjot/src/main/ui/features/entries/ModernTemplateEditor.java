@@ -47,7 +47,7 @@ public class ModernTemplateEditor extends JDialog {
         });
         add(editorPanel, BorderLayout.CENTER);
         
-        setSize(580, 560);
+        setSize(620, 600);
         setLocationRelativeTo(parent);
         
         // ESC to close

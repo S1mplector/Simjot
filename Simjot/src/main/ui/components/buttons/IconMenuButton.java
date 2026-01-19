@@ -48,6 +48,7 @@ public class IconMenuButton extends JButton {
     private long hoverLastNs = 0L;
     private Timer hoverTimer;
     private boolean aeroGlowEnabled = false;
+    private boolean floatAnimationEnabled = true;
     private Font cachedCaptionFont;
     private int cachedCaptionWidth = -1;
     private int cachedCaptionAscent = 0;
@@ -84,6 +85,13 @@ public class IconMenuButton extends JButton {
         return this;
     }
 
+    /** Enable or disable the float/lift animation on hover. Default is true (main menu style). */
+    public IconMenuButton setFloatAnimationEnabled(boolean enabled) {
+        this.floatAnimationEnabled = enabled;
+        repaint();
+        return this;
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
@@ -104,7 +112,7 @@ public class IconMenuButton extends JButton {
         // Icon
         int iconSize = Math.min(w - 18, 56);
         int iconX = (w - iconSize) / 2;
-        float lift = 5f * (1f - te);
+        float lift = floatAnimationEnabled ? 5f * (1f - te) : 0f;
         int iconY = 14; // base position; lift applied via transform
 
         if (aeroGlowEnabled && enabled && te > 0.01f) {

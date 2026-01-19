@@ -146,7 +146,7 @@ public final class MenuBarService {
         );
         
         // Draw the S with a nice stroke
-        g2.setColor(new java.awt.Color(60, 60, 60)); // Dark gray for visibility in light/dark modes
+        g2.setColor(java.awt.Color.WHITE); // White for menu bar visibility
         g2.setStroke(new java.awt.BasicStroke(2.2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
         g2.draw(sPath);
         

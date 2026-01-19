@@ -46,7 +46,7 @@ import javax.swing.border.EmptyBorder;
 
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.input.AeroTextField;
 import main.ui.dialog.message.UIMessage;
 
@@ -87,8 +87,8 @@ public class ModernTemplateEditorPanel extends JPanel {
         setOpaque(false);
         setLayout(new BorderLayout());
         
-        FrostedGlassPanel main = new FrostedGlassPanel(new BorderLayout(0, 0), 18);
-        main.setBorder(new EmptyBorder(0, 0, 0, 0));
+        ShadowedDialogPanel main = new ShadowedDialogPanel(new BorderLayout(0, 0), 18);
+        main.setBorder(new EmptyBorder(12, 12, 12, 12));
         
         // ═══════════════════════════════════════════════════════════════════
         // HEADER
