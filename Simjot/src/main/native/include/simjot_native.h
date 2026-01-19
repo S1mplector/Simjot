@@ -2350,6 +2350,59 @@ int32_t simjot_icloud_discover_containers(char* out, int32_t out_len);
 int32_t simjot_icloud_get_quota(int64_t* total_bytes, int64_t* available_bytes);
 int32_t simjot_icloud_account_status(void);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MENU BAR SERVICE - Quick Entry Panel (macOS)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Callback type for quick entry submission */
+typedef void (*simjot_quick_entry_callback)(const char* text, int32_t format_flags);
+
+/* Format flags for quick entry */
+#define SIMJOT_FORMAT_BOLD      (1 << 0)
+#define SIMJOT_FORMAT_ITALIC    (1 << 1)
+#define SIMJOT_FORMAT_UNDERLINE (1 << 2)
+#define SIMJOT_FORMAT_BULLET    (1 << 3)
+#define SIMJOT_FORMAT_HEADER    (1 << 4)
+
+/* Initialize the menu bar status item with quick entry panel */
+int32_t simjot_menubar_init(void);
+
+/* Shutdown and remove the menu bar status item */
+void simjot_menubar_shutdown(void);
+
+/* Check if menu bar service is initialized */
+int32_t simjot_menubar_is_initialized(void);
+
+/* Show the quick entry panel */
+void simjot_menubar_show_panel(void);
+
+/* Hide the quick entry panel */
+void simjot_menubar_hide_panel(void);
+
+/* Check if quick entry panel is visible */
+int32_t simjot_menubar_is_panel_visible(void);
+
+/* Set callback for when entry is submitted */
+void simjot_menubar_set_callback(simjot_quick_entry_callback callback);
+
+/* Set the status item icon (SF Symbol name) */
+void simjot_menubar_set_icon(const char* symbol_name);
+
+/* Set the status item tooltip */
+void simjot_menubar_set_tooltip(const char* tooltip);
+
+/* Set a badge count on the status item (0 to hide) */
+void simjot_menubar_set_badge(int32_t count);
+
+/* Get current text from the quick entry panel */
+int32_t simjot_menubar_get_panel_text(char* buffer, int32_t buffer_size);
+
+/* Set text in the quick entry panel */
+void simjot_menubar_set_panel_text(const char* text);
+
+/* Clear the quick entry panel */
+void simjot_menubar_clear_panel(void);
+
 #ifdef __cplusplus
 }
 #endif

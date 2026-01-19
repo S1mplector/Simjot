@@ -341,5 +341,63 @@ public final class AppConfig {
         try {
             IcloudSyncService.initializeSyncManager(root);
         } catch (Throwable ignored) {}
+        
+        // Initialize menu bar service if enabled (macOS only)
+        try {
+            if (main.core.service.SettingsStore.get().isMenuBarServiceEnabled()) {
+                initializeMenuBarService();
+            }
+        } catch (Throwable ignored) {}
+    }
+    
+    private static void initializeMenuBarService() {
+        try {
+            main.infrastructure.menubar.MenuBarService menuBar = 
+                main.infrastructure.menubar.MenuBarService.getInstance();
+            if (menuBar.initialize()) {
+                // Set up entry listener to save quick entries
+                menuBar.addEntryListener((text, formatFlags) -> {
+                    try {
+                        saveQuickEntry(text, formatFlags);
+                    } catch (Throwable t) {
+                        main.infrastructure.io.IoLog.warn("menubar", "Failed to save quick entry", t);
+                    }
+                });
+            }
+        } catch (Throwable t) {
+            main.infrastructure.io.IoLog.warn("menubar", "Menu bar init failed: " + t.getMessage(), t);
+        }
+    }
+    
+    private static void saveQuickEntry(String text, int formatFlags) {
+        if (text == null || text.isBlank()) return;
+        
+        // Create a quick entry file in the root/quick directory
+        java.io.File quickDir = new java.io.File(main.infrastructure.io.AppDirectories.getRoot(), "quick");
+        if (!quickDir.exists()) quickDir.mkdirs();
+        
+        // Generate timestamp-based filename
+        String timestamp = java.time.LocalDateTime.now()
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+        java.io.File entryFile = new java.io.File(quickDir, "quick_" + timestamp + ".txt");
+        
+        try {
+            // Add format metadata as header
+            StringBuilder content = new StringBuilder();
+            if (formatFlags != 0) {
+                content.append("<!-- format:").append(formatFlags).append(" -->\n");
+            }
+            content.append(text);
+            
+            java.nio.file.Files.writeString(entryFile.toPath(), content.toString());
+            main.infrastructure.io.IoLog.info("menubar", "Quick entry saved: " + entryFile.getName());
+            
+            // Queue for sync if iCloud is enabled
+            if (IcloudSyncService.isSyncManagerInitialized()) {
+                IcloudSyncService.queueFileSync(entryFile.getAbsolutePath(), true);
+            }
+        } catch (java.io.IOException e) {
+            main.infrastructure.io.IoLog.warn("menubar", "Failed to save quick entry file", e);
+        }
     }
 }

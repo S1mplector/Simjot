@@ -183,6 +183,11 @@ public final class AppLifecycle {
      * Handle JVM shutdown hook.
      */
     private static void handleShutdownHook() {
+        // Shutdown menu bar service
+        try {
+            main.infrastructure.menubar.MenuBarService.getInstance().shutdown();
+        } catch (Throwable ignored) {}
+        
         // Shutdown cloud sync manager
         try {
             main.infrastructure.io.IcloudSyncService.shutdownSyncManager();
