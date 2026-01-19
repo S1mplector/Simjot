@@ -43,7 +43,7 @@ static QuickEntryCallback g_submitCallback = nullptr;
 @property (nonatomic, strong) NSVisualEffectView* blurView;
 @property (nonatomic, strong) NSTextView* textView;
 @property (nonatomic, strong) NSScrollView* scrollView;
-@property (nonatomic, strong) NSStackView* toolbar;
+@property (nonatomic, strong) NSStackView* formatBar;
 @property (nonatomic, assign) int currentFormatFlags;
 @property (nonatomic, strong) NSButton* boldBtn;
 @property (nonatomic, strong) NSButton* italicBtn;
@@ -117,11 +117,11 @@ static QuickEntryCallback g_submitCallback = nullptr;
     [container addSubview:closeBtn];
     
     // Formatting toolbar
-    _toolbar = [[NSStackView alloc] initWithFrame:NSMakeRect(0, 200, 336, 28)];
-    _toolbar.orientation = NSUserInterfaceLayoutOrientationHorizontal;
-    _toolbar.spacing = 4;
-    _toolbar.distribution = NSStackViewDistributionFillEqually;
-    [container addSubview:_toolbar];
+    _formatBar = [[NSStackView alloc] initWithFrame:NSMakeRect(0, 200, 336, 28)];
+    _formatBar.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    _formatBar.spacing = 4;
+    _formatBar.distribution = NSStackViewDistributionFillEqually;
+    [container addSubview:_formatBar];
     
     // Create toolbar buttons
     _boldBtn = [self createToolbarButton:@"bold" tooltip:@"Bold (⌘B)" action:@selector(toggleBold:)];
@@ -130,11 +130,11 @@ static QuickEntryCallback g_submitCallback = nullptr;
     _bulletBtn = [self createToolbarButton:@"list.bullet" tooltip:@"Bullet List" action:@selector(toggleBullet:)];
     _headerBtn = [self createToolbarButton:@"textformat.size.larger" tooltip:@"Header" action:@selector(toggleHeader:)];
     
-    [_toolbar addArrangedSubview:_boldBtn];
-    [_toolbar addArrangedSubview:_italicBtn];
-    [_toolbar addArrangedSubview:_underlineBtn];
-    [_toolbar addArrangedSubview:_bulletBtn];
-    [_toolbar addArrangedSubview:_headerBtn];
+    [_formatBar addArrangedSubview:_boldBtn];
+    [_formatBar addArrangedSubview:_italicBtn];
+    [_formatBar addArrangedSubview:_underlineBtn];
+    [_formatBar addArrangedSubview:_bulletBtn];
+    [_formatBar addArrangedSubview:_headerBtn];
     
     // Add separator
     NSBox* separator = [[NSBox alloc] initWithFrame:NSMakeRect(0, 195, 336, 1)];
@@ -334,12 +334,7 @@ static QuickEntryCallback g_submitCallback = nullptr;
     _currentFormatFlags = 0;
     [self orderOut:nil];
     
-    // Show confirmation
-    NSUserNotification* notification = [[NSUserNotification alloc] init];
-    notification.title = @"Simjot";
-    notification.informativeText = @"Entry added successfully";
-    notification.soundName = nil;
-    [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+    // No notification - just close silently
 }
 
 - (void)discardEntry {

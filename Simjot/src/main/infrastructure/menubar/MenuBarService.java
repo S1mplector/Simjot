@@ -92,15 +92,19 @@ public final class MenuBarService {
         
         // Initialize method handles
         if (!initializeHandles()) {
-            IoLog.warn("menubar", "Failed to initialize native handles", null);
+            IoLog.warn("menubar", "Failed to initialize native handles - native library may need recompilation", null);
             return false;
         }
         
+        IoLog.info("menubar", "Native handles initialized, calling native init...");
+        
         // Initialize native menu bar
         if (!nativeInit()) {
-            IoLog.warn("menubar", "Failed to initialize native menu bar", null);
+            IoLog.warn("menubar", "Failed to initialize native menu bar - simjot_menubar_init returned false", null);
             return false;
         }
+        
+        IoLog.info("menubar", "Native menu bar initialized successfully");
         
         // Set up the callback bridge
         setupCallbackBridge();

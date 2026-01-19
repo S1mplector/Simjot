@@ -68,6 +68,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox spellChk;
     private final JCheckBox journalAutocorrectChk;
     private final JCheckBox poetryAutocorrectChk;
+    private final JCheckBox menuBarChk;
     
 
     GeneralSettingsPage() {
@@ -241,8 +242,40 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         openLastChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
         openLastChk.setBackground(new Color(0, 0, 0, 0));
         gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(openLastChk, gc);
+        row++;
+
+        // Menu Bar Service section (macOS only)
+        if (isMacOS()) {
+            gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2;
+            gc.insets = new Insets(16, 5, 5, 5);
+            add(SettingsUi.header("Menu Bar Quick Entry", "Quick access from the macOS menu bar"), gc);
+            row++;
+
+            gc.insets = new Insets(5, 5, 5, 5);
+            gc.gridwidth = 2;
+
+            menuBarChk = new JCheckBox("Enable menu bar quick entry", store.isMenuBarServiceEnabled());
+            menuBarChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+            menuBarChk.setBackground(new Color(0, 0, 0, 0));
+            menuBarChk.setToolTipText("Add a Simjot icon to the menu bar for quick journal entries");
+            gc.gridx = 0; gc.gridy = row; add(menuBarChk, gc);
+            row++;
+
+            JLabel menuBarDesc = new JLabel("<html><div style='width:280px;color:#666;font-size:11px;'>" +
+                "When enabled, a Simjot icon appears in the menu bar. Click it to open a quick entry panel " +
+                "with a minimal formatting toolbar. Entries are saved to the 'quick' folder.</div></html>");
+            menuBarDesc.setFont(menuBarDesc.getFont().deriveFont(11f));
+            gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(menuBarDesc, gc);
+        } else {
+            menuBarChk = null;
+        }
 
         // Backup settings moved to Storage section
+    }
+    
+    private static boolean isMacOS() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        return os.contains("mac");
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -274,6 +307,22 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setSpellCheckEnabled(spellChk.isSelected());
         store.setJournalAutocorrectEnabled(journalAutocorrectChk.isSelected());
         store.setPoetryAutocorrectEnabled(poetryAutocorrectChk.isSelected());
+        
+        // Menu bar service (macOS only)
+        if (menuBarChk != null) {
+            boolean wasEnabled = store.isMenuBarServiceEnabled();
+            boolean nowEnabled = menuBarChk.isSelected();
+            store.setMenuBarServiceEnabled(nowEnabled);
+            
+            // Initialize or shutdown based on change
+            if (nowEnabled && !wasEnabled) {
+                main.ui.app.AppConfig.initMenuBarService();
+            } else if (!nowEnabled && wasEnabled) {
+                try {
+                    main.infrastructure.menubar.MenuBarService.getInstance().shutdown();
+                } catch (Throwable ignored) {}
+            }
+        }
     }
 
     private void updateFontPreview() {

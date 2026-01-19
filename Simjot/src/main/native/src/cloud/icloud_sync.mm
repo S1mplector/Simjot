@@ -18,6 +18,9 @@
 #import <os/lock.h>
 #import <copyfile.h>
 #import <sys/stat.h>
+#import <sys/socket.h>
+#import <netinet/in.h>
+#import <arpa/inet.h>
 #import <fcntl.h>
 #import <unistd.h>
 #include <atomic>
@@ -178,12 +181,13 @@ static void simjot_reachability_callback(SCNetworkReachabilityRef target,
         return;
     }
     
-    if (flags & kSCNetworkReachabilityFlagsIsWWAN) {
-        g_networkState.store(NETWORK_STATE_CELLULAR);
-    } else if (flags & kSCNetworkReachabilityFlagsConnectionOnDemand) {
+    // On macOS, we don't have WWAN - use connection type heuristics
+    if (flags & kSCNetworkReachabilityFlagsConnectionOnDemand) {
         g_networkState.store(NETWORK_STATE_WIFI);
-    } else {
+    } else if (flags & kSCNetworkReachabilityFlagsIsLocalAddress) {
         g_networkState.store(NETWORK_STATE_WIRED);
+    } else {
+        g_networkState.store(NETWORK_STATE_WIFI);
     }
 }
 

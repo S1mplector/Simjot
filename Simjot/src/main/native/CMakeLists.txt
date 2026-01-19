@@ -36,6 +36,7 @@ if(APPLE)
         "-framework Cocoa"
         "-framework CoreVideo"
         "-framework IOKit"
+        "-framework SystemConfiguration"
     )
 elseif(WIN32)
     target_link_libraries(simjot_native PRIVATE Shcore)

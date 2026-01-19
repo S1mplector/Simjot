@@ -345,12 +345,12 @@ public final class AppConfig {
         // Initialize menu bar service if enabled (macOS only)
         try {
             if (main.core.service.SettingsStore.get().isMenuBarServiceEnabled()) {
-                initializeMenuBarService();
+                initMenuBarService();
             }
         } catch (Throwable ignored) {}
     }
     
-    private static void initializeMenuBarService() {
+    public static void initMenuBarService() {
         try {
             main.infrastructure.menubar.MenuBarService menuBar = 
                 main.infrastructure.menubar.MenuBarService.getInstance();
