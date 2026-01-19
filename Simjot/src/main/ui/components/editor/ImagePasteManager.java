@@ -11,8 +11,8 @@ package main.ui.components.editor;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -29,8 +29,9 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.image.BufferedImage;
+import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -85,6 +86,11 @@ public final class ImagePasteManager {
     
     // Track active overlay to prevent duplicates
     private static JWindow activeOverlay = null;
+    private static float overlayAlpha = 0f;
+    private static Timer overlayFadeTimer = null;
+    private static Timer hoverShowTimer = null;
+    private static Rectangle lastHoveredImageBounds = null;
+    private static int lastHoveredOffset = -1;
     
     // Native image cache settings
     private static final int CACHE_MAX_ENTRIES = 48;
@@ -123,6 +129,16 @@ public final class ImagePasteManager {
                 if (e.getClickCount() == 1) {
                     handleImageClick(editor, e, attachmentsDirSupplier, maxWidthPx);
                 }
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                cancelHoverShow();
+            }
+        });
+
+        // Hover detection for showing toolbar
+        editor.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseMoved(MouseEvent e) {
+                handleImageHover(editor, e, attachmentsDirSupplier, maxWidthPx);
             }
         });
     }
@@ -170,6 +186,298 @@ public final class ImagePasteManager {
                 }
             }
         } catch (Throwable ignored) {}
+    }
+
+    private static void handleImageHover(JTextPane editor, MouseEvent e,
+                                         Supplier<File> attachmentsDirSupplier, int maxWidthPx) {
+        // Skip if toolbar is already showing
+        if (activeOverlay != null && activeOverlay.isVisible()) {
+            return;
+        }
+
+        try {
+            int pos = editor.viewToModel2D(e.getPoint());
+            if (pos < 0) pos = 0;
+            StyledDocument doc = editor.getStyledDocument();
+            int len = doc.getLength();
+
+            // Search for icon element near mouse position
+            for (int d = 0; d <= 3; d++) {
+                for (int sign : new int[]{0, -1, 1}) {
+                    int idx = Math.max(0, Math.min(len, pos + sign * d));
+                    javax.swing.text.Element el = doc.getCharacterElement(idx);
+                    if (el == null) continue;
+
+                    javax.swing.text.AttributeSet as = el.getAttributes();
+                    Object ico = StyleConstants.getIcon(as);
+                    if (ico instanceof ImageIcon icon) {
+                        Rectangle bounds = null;
+                        try {
+                            java.awt.geom.Rectangle2D r2 = editor.modelToView2D(el.getStartOffset());
+                            if (r2 != null) {
+                                bounds = r2.getBounds();
+                                bounds.width = icon.getIconWidth();
+                                bounds.height = icon.getIconHeight();
+                            }
+                        } catch (Throwable ignored) {}
+
+                        if (bounds == null) {
+                            bounds = new Rectangle(e.getX(), e.getY(), icon.getIconWidth(), icon.getIconHeight());
+                        }
+
+                        // Check if mouse is actually over the image
+                        if (bounds.contains(e.getPoint())) {
+                            int offset = el.getStartOffset();
+                            // Same image as before? Skip to avoid re-triggering
+                            if (offset == lastHoveredOffset) {
+                                return;
+                            }
+
+                            lastHoveredOffset = offset;
+                            lastHoveredImageBounds = bounds;
+
+                            // Cancel any pending show timer
+                            cancelHoverShow();
+
+                            // Show toolbar after a short delay
+                            File srcFile = null;
+                            Object src = as.getAttribute("imageSourceFile");
+                            if (src instanceof File) srcFile = (File) src;
+
+                            final File finalSrcFile = srcFile;
+                            final Rectangle finalBounds = bounds;
+                            hoverShowTimer = new Timer(300, ev -> {
+                                showMinimalToolbarWithFade(editor, offset, finalSrcFile, icon, finalBounds,
+                                    attachmentsDirSupplier, maxWidthPx);
+                            });
+                            hoverShowTimer.setRepeats(false);
+                            hoverShowTimer.start();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Mouse not over any image - reset hover state
+            if (lastHoveredOffset >= 0) {
+                cancelHoverShow();
+                lastHoveredOffset = -1;
+                lastHoveredImageBounds = null;
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void cancelHoverShow() {
+        if (hoverShowTimer != null) {
+            hoverShowTimer.stop();
+            hoverShowTimer = null;
+        }
+    }
+
+    private static void showMinimalToolbarWithFade(JTextPane editor,
+                                                   int startOffset,
+                                                   File sourceFile,
+                                                   ImageIcon currentIcon,
+                                                   Rectangle imageBounds,
+                                                   Supplier<File> attachmentsDirSupplier,
+                                                   int defaultMaxWidth) {
+        // Dismiss any existing overlay
+        dismissActiveOverlay();
+
+        int currentW = currentIcon.getIconWidth();
+        int minW = 60;
+        int maxW = Math.max(defaultMaxWidth * 2, Math.max(currentW * 2, editor.getWidth()));
+
+        final File[] srcRef = new File[]{sourceFile};
+
+        JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
+        toolbar.setBackground(new Color(0, 0, 0, 0));
+        toolbar.setAlwaysOnTop(true);
+        activeOverlay = toolbar;
+        overlayAlpha = 0f;
+
+        FrostedGlassPanel content = new FrostedGlassPanel(new java.awt.BorderLayout(10, 0), 16) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setComposite(AlphaComposite.SrcOver.derive(overlayAlpha));
+                super.paintComponent(g2);
+                g2.dispose();
+            }
+        };
+        content.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+
+        MoodSlider sizeSlider = new MoodSlider();
+        sizeSlider.setMinimum(minW);
+        sizeSlider.setMaximum(maxW);
+        sizeSlider.setValue(currentW);
+        sizeSlider.setPreferredSize(new Dimension(180, 28));
+        sizeSlider.setFocusable(false);
+
+        JLabel sizeLabel = new JLabel(currentW + "px");
+        sizeLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        sizeLabel.setForeground(new Color(90, 95, 105));
+        sizeLabel.setPreferredSize(new Dimension(45, 20));
+
+        ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
+        deleteBtn.setPreferredSize(new Dimension(30, 30));
+        deleteBtn.setMinimumSize(new Dimension(30, 30));
+        deleteBtn.setMaximumSize(new Dimension(30, 30));
+        deleteBtn.setToolTipText("Delete image");
+
+        ToolbarIconButton floatBtn = new ToolbarIconButton("image");
+        floatBtn.setPreferredSize(new Dimension(30, 30));
+        floatBtn.setMinimumSize(new Dimension(30, 30));
+        floatBtn.setMaximumSize(new Dimension(30, 30));
+        floatBtn.setToolTipText("Float image (free placement)");
+        NotetakingPanel notetakingPanel = (NotetakingPanel) SwingUtilities.getAncestorOfClass(NotetakingPanel.class, editor);
+        floatBtn.setVisible(notetakingPanel != null);
+
+        final Timer[] resizeTimer = new Timer[1];
+        sizeSlider.addChangeListener(e -> {
+            int newW = sizeSlider.getValue();
+            sizeLabel.setText(newW + "px");
+
+            if (resizeTimer[0] != null) resizeTimer[0].stop();
+            if (!sizeSlider.getValueIsAdjusting()) {
+                resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
+                repositionToolbar(toolbar, editor, startOffset);
+            } else {
+                resizeTimer[0] = new Timer(150, ev -> {
+                    resizeImage(editor, startOffset, srcRef, sizeSlider.getValue(), attachmentsDirSupplier);
+                    repositionToolbar(toolbar, editor, startOffset);
+                });
+                resizeTimer[0].setRepeats(false);
+                resizeTimer[0].start();
+            }
+        });
+
+        deleteBtn.addActionListener(e -> {
+            try {
+                StyledDocument doc = editor.getStyledDocument();
+                doc.remove(startOffset, 1);
+            } catch (BadLocationException ignored) {}
+            fadeOutAndDismiss(toolbar);
+        });
+
+        floatBtn.addActionListener(e -> {
+            if (notetakingPanel == null) return;
+            try {
+                StyledDocument doc = editor.getStyledDocument();
+                javax.swing.text.Element el = doc.getCharacterElement(startOffset);
+                if (el == null) return;
+                Object ico = StyleConstants.getIcon(el.getAttributes());
+                if (!(ico instanceof ImageIcon icon)) return;
+                File srcFile = srcRef[0];
+                Object srcAttr = el.getAttributes().getAttribute("imageSourceFile");
+                if (srcAttr instanceof File) srcFile = (File) srcAttr;
+
+                Rectangle bounds = imageBounds;
+                try {
+                    java.awt.geom.Rectangle2D r2 = editor.modelToView2D(startOffset);
+                    if (r2 != null) {
+                        bounds = r2.getBounds();
+                        bounds.width = icon.getIconWidth();
+                        bounds.height = icon.getIconHeight();
+                    }
+                } catch (Throwable ignored) {}
+
+                if (notetakingPanel.promoteInlineImage(editor, startOffset, icon, srcFile, bounds)) {
+                    fadeOutAndDismiss(toolbar);
+                }
+            } catch (Throwable ignored) {}
+        });
+
+        JPanel sliderPanel = new JPanel(new java.awt.BorderLayout(6, 0));
+        sliderPanel.setOpaque(false);
+        sliderPanel.add(sizeSlider, java.awt.BorderLayout.CENTER);
+        sliderPanel.add(sizeLabel, java.awt.BorderLayout.EAST);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        actions.setOpaque(false);
+        if (floatBtn.isVisible()) actions.add(floatBtn);
+        actions.add(deleteBtn);
+        content.add(sliderPanel, java.awt.BorderLayout.CENTER);
+        content.add(actions, java.awt.BorderLayout.EAST);
+
+        toolbar.setContentPane(content);
+        toolbar.pack();
+
+        positionToolbar(toolbar, editor, imageBounds);
+        toolbar.setVisible(true);
+
+        // Fade in animation
+        overlayFadeTimer = new Timer(16, null);
+        overlayFadeTimer.addActionListener(e -> {
+            overlayAlpha += 0.15f;
+            if (overlayAlpha >= 1f) {
+                overlayAlpha = 1f;
+                overlayFadeTimer.stop();
+            }
+            content.repaint();
+        });
+        overlayFadeTimer.start();
+
+        // Auto-dismiss when clicking elsewhere or mouse leaves
+        editor.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) {
+                Point screenPoint = e.getLocationOnScreen();
+                Rectangle toolbarBounds = toolbar.getBounds();
+                if (!toolbarBounds.contains(screenPoint)) {
+                    fadeOutAndDismiss(toolbar);
+                    editor.removeMouseListener(this);
+                }
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                // Check if mouse went to toolbar
+                Timer checkTimer = new Timer(150, ev -> {
+                    Point mousePos = java.awt.MouseInfo.getPointerInfo().getLocation();
+                    Rectangle toolbarBounds = toolbar.getBounds();
+                    if (!toolbarBounds.contains(mousePos)) {
+                        fadeOutAndDismiss(toolbar);
+                    }
+                });
+                checkTimer.setRepeats(false);
+                checkTimer.start();
+            }
+        });
+
+        editor.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusLost(java.awt.event.FocusEvent e) {
+                Timer timer = new Timer(200, ev -> {
+                    Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+                    if (focused != toolbar) {
+                        fadeOutAndDismiss(toolbar);
+                    }
+                });
+                timer.setRepeats(false);
+                timer.start();
+                editor.removeFocusListener(this);
+            }
+        });
+    }
+
+    private static void fadeOutAndDismiss(JWindow toolbar) {
+        if (toolbar == null || !toolbar.isVisible()) {
+            dismissActiveOverlay();
+            return;
+        }
+
+        if (overlayFadeTimer != null) {
+            overlayFadeTimer.stop();
+        }
+
+        overlayFadeTimer = new Timer(16, null);
+        overlayFadeTimer.addActionListener(e -> {
+            overlayAlpha -= 0.2f;
+            if (overlayAlpha <= 0f) {
+                overlayAlpha = 0f;
+                overlayFadeTimer.stop();
+                dismissActiveOverlay();
+            }
+            toolbar.repaint();
+        });
+        overlayFadeTimer.start();
     }
 
     private static boolean tryPasteFromClipboard(JTextPane editor, Supplier<File> dirSupplier, int maxWidthPx) {
