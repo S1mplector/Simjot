@@ -421,27 +421,41 @@ static SimjotQuickEntryPanel* g_quickEntryPanel = nil;
 
 - (void)setupStatusItem {
     NSLog(@"[MENUBAR] setupStatusItem called");
-    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
+    
+    // Use variable length to ensure visibility
+    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     NSLog(@"[MENUBAR] statusItem created: %@", _statusItem);
     
-    // Use SF Symbol for the icon
+    if (!_statusItem || !_statusItem.button) {
+        NSLog(@"[MENUBAR] ERROR: Failed to create status item or button!");
+        return;
+    }
+    
+    // Try text first for debugging - this is most reliable
+    _statusItem.button.title = @"Simjot";
+    
+    // Also try SF Symbol
     NSImage* icon = [NSImage imageWithSystemSymbolName:@"book.closed.fill" 
                                 accessibilityDescription:@"Simjot Quick Entry"];
     NSLog(@"[MENUBAR] SF Symbol icon: %@", icon);
     
-    if (!icon) {
-        // Fallback to a simple text if SF Symbol fails
-        NSLog(@"[MENUBAR] SF Symbol failed, using text fallback");
-        _statusItem.button.title = @"📓";
-    } else {
+    if (icon) {
         [icon setTemplate:YES];
+        // Set both - title as fallback, image as primary
         _statusItem.button.image = icon;
+        _statusItem.button.imagePosition = NSImageLeft;
     }
     
     _statusItem.button.toolTip = @"Simjot Quick Entry";
     _statusItem.button.target = self;
     _statusItem.button.action = @selector(statusItemClicked:);
+    
+    // Make sure it's visible
+    _statusItem.visible = YES;
+    
     NSLog(@"[MENUBAR] statusItem button configured: %@", _statusItem.button);
+    NSLog(@"[MENUBAR] statusItem visible: %d", _statusItem.visible);
+    NSLog(@"[MENUBAR] statusItem length: %f", _statusItem.length);
     
     // Create the panel
     _panel = [[SimjotQuickEntryPanel alloc] init];
