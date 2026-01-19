@@ -2683,6 +2683,410 @@ public final class NativeAccess {
         try { return lib.isMacIcloudPath(path); } catch (Throwable e) { return false; }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ADVANCED ICLOUD SYNC API
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Network states for iCloud sync */
+    public static final int NETWORK_UNKNOWN = 0;
+    public static final int NETWORK_DISCONNECTED = 1;
+    public static final int NETWORK_WIFI = 2;
+    public static final int NETWORK_CELLULAR = 3;
+    public static final int NETWORK_WIRED = 4;
+
+    /** Sync states */
+    public static final int SYNC_STATE_IDLE = 0;
+    public static final int SYNC_STATE_SCANNING = 1;
+    public static final int SYNC_STATE_UPLOADING = 2;
+    public static final int SYNC_STATE_DOWNLOADING = 3;
+    public static final int SYNC_STATE_RESOLVING = 4;
+    public static final int SYNC_STATE_ERROR = 5;
+
+    /** Initialize the advanced sync module */
+    public static boolean syncInit() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.syncInit(); } catch (Throwable e) { return false; }
+    }
+
+    /** Shutdown the sync module */
+    public static void syncShutdown() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncShutdown(); } catch (Throwable ignored) {}
+    }
+
+    /** Get current network state */
+    public static int syncGetNetworkState() {
+        NativeLibrary lib = library();
+        if (lib == null) return NETWORK_UNKNOWN;
+        try { return lib.syncGetNetworkState(); } catch (Throwable e) { return NETWORK_UNKNOWN; }
+    }
+
+    /** Check if network is connected */
+    public static boolean syncIsConnected() {
+        NativeLibrary lib = library();
+        if (lib == null) return true; // Assume connected if native unavailable
+        try { return lib.syncIsConnected(); } catch (Throwable e) { return true; }
+    }
+
+    /** Enable/disable sync */
+    public static void syncSetEnabled(boolean enabled) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncSetEnabled(enabled); } catch (Throwable ignored) {}
+    }
+
+    /** Check if sync is enabled */
+    public static boolean syncIsEnabled() {
+        NativeLibrary lib = library();
+        if (lib == null) return true;
+        try { return lib.syncIsEnabled(); } catch (Throwable e) { return true; }
+    }
+
+    /** Set low power mode for reduced sync activity */
+    public static void syncSetLowPower(boolean lowPower) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncSetLowPower(lowPower); } catch (Throwable ignored) {}
+    }
+
+    /** Compute SHA-256 hash of a file with caching */
+    public static byte[] syncComputeHash(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return null;
+        try { return lib.syncComputeHash(path); } catch (Throwable e) { return null; }
+    }
+
+    /** Check if two files are identical by hash comparison */
+    public static Boolean syncFilesIdentical(String path1, String path2) {
+        NativeLibrary lib = library();
+        if (lib == null || path1 == null || path2 == null) return null;
+        try { return lib.syncFilesIdentical(path1, path2); } catch (Throwable e) { return null; }
+    }
+
+    /** Invalidate cached hash for a path */
+    public static void syncInvalidateHash(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return;
+        try { lib.syncInvalidateHash(path); } catch (Throwable ignored) {}
+    }
+
+    /** Clear entire hash cache */
+    public static void syncClearHashCache() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncClearHashCache(); } catch (Throwable ignored) {}
+    }
+
+    /** Scan for file changes since a timestamp */
+    public static int syncDeltaScan(String rootPath, long sinceMs) {
+        NativeLibrary lib = library();
+        if (lib == null || rootPath == null) return -1;
+        try { return lib.syncDeltaScan(rootPath, sinceMs); } catch (Throwable e) { return -1; }
+    }
+
+    /** Get count of pending delta changes */
+    public static int syncDeltaCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncDeltaCount(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Clear delta log */
+    public static void syncDeltaClear() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncDeltaClear(); } catch (Throwable ignored) {}
+    }
+
+    /** Add item to sync batch queue */
+    public static boolean syncBatchAdd(String path, int operation, int priority) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try { return lib.syncBatchAdd(path, operation, priority); } catch (Throwable e) { return false; }
+    }
+
+    /** Get count of items in batch queue */
+    public static int syncBatchCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncBatchCount(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Clear batch queue */
+    public static void syncBatchClear() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncBatchClear(); } catch (Throwable ignored) {}
+    }
+
+    /** Sort batch by priority */
+    public static void syncBatchSortPriority() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncBatchSortPriority(); } catch (Throwable ignored) {}
+    }
+
+    /** Execute batch operations */
+    public static int[] syncBatchExecute(int maxItems, int timeoutMs) {
+        NativeLibrary lib = library();
+        if (lib == null) return new int[]{0, 0, 0};
+        try { return lib.syncBatchExecute(maxItems, timeoutMs); } catch (Throwable e) { return new int[]{0, 0, 0}; }
+    }
+
+    /** Check if batch is in progress */
+    public static boolean syncBatchInProgress() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.syncBatchInProgress(); } catch (Throwable e) { return false; }
+    }
+
+    /** Check if operations should be throttled */
+    public static boolean syncShouldThrottle() {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.syncShouldThrottle(); } catch (Throwable e) { return false; }
+    }
+
+    /** Get recommended throttle delay in ms */
+    public static int syncGetThrottleDelayMs() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncGetThrottleDelayMs(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Scan for conflicts */
+    public static int conflictScan(String rootPath, int maxConflicts) {
+        NativeLibrary lib = library();
+        if (lib == null || rootPath == null) return -1;
+        try { return lib.conflictScan(rootPath, maxConflicts); } catch (Throwable e) { return -1; }
+    }
+
+    /** Get conflict count */
+    public static int conflictCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.conflictCount(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Resolve conflict by keeping local version */
+    public static boolean conflictResolveKeepLocal(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try { return lib.conflictResolveKeepLocal(path); } catch (Throwable e) { return false; }
+    }
+
+    /** Resolve conflict by keeping cloud version */
+    public static boolean conflictResolveKeepCloud(String path, int versionIndex) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try { return lib.conflictResolveKeepCloud(path, versionIndex); } catch (Throwable e) { return false; }
+    }
+
+    /** Resolve conflict by keeping both versions */
+    public static boolean conflictResolveKeepBoth(String path, String suffix) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return false;
+        try { return lib.conflictResolveKeepBoth(path, suffix); } catch (Throwable e) { return false; }
+    }
+
+    /** Clear resolved conflicts */
+    public static void conflictClearResolved() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.conflictClearResolved(); } catch (Throwable ignored) {}
+    }
+
+    /** Reset sync progress */
+    public static void syncProgressReset() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncProgressReset(); } catch (Throwable ignored) {}
+    }
+
+    /** Start progress tracking */
+    public static void syncProgressStart(int totalFiles, long totalBytes) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncProgressStart(totalFiles, totalBytes); } catch (Throwable ignored) {}
+    }
+
+    /** Increment progress */
+    public static void syncProgressIncrement(long bytes) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncProgressIncrement(bytes); } catch (Throwable ignored) {}
+    }
+
+    /** Mark progress complete */
+    public static void syncProgressComplete(boolean success) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.syncProgressComplete(success); } catch (Throwable ignored) {}
+    }
+
+    /** Get progress state */
+    public static int syncProgressGetState() {
+        NativeLibrary lib = library();
+        if (lib == null) return SYNC_STATE_IDLE;
+        try { return lib.syncProgressGetState(); } catch (Throwable e) { return SYNC_STATE_IDLE; }
+    }
+
+    /** Get progress percentage */
+    public static float syncProgressGetPercent() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0f;
+        try { return lib.syncProgressGetPercent(); } catch (Throwable e) { return 0f; }
+    }
+
+    /** Get elapsed time */
+    public static long syncProgressGetElapsedMs() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncProgressGetElapsedMs(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Estimate remaining time */
+    public static long syncProgressEstimateRemainingMs() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncProgressEstimateRemainingMs(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Get sync speed in bytes per second */
+    public static long syncProgressGetSpeedBps() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncProgressGetSpeedBps(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Get average latency */
+    public static long syncMetricsGetAvgLatency() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncMetricsGetAvgLatency(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Get success rate percentage */
+    public static float syncMetricsGetSuccessRate() {
+        NativeLibrary lib = library();
+        if (lib == null) return 100f;
+        try { return lib.syncMetricsGetSuccessRate(); } catch (Throwable e) { return 100f; }
+    }
+
+    /** Get total bytes synced */
+    public static long syncMetricsTotalBytesSynced() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.syncMetricsTotalBytesSynced(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Get retry delay with exponential backoff */
+    public static long syncGetRetryDelayMs(int attempt) {
+        NativeLibrary lib = library();
+        if (lib == null) return 100L * (1L << Math.min(attempt, 8));
+        try { return lib.syncGetRetryDelayMs(attempt); } catch (Throwable e) { return 100L * (1L << Math.min(attempt, 8)); }
+    }
+
+    /** Check if operation should be retried */
+    public static boolean syncShouldRetry(int currentAttempt, int errorCode) {
+        NativeLibrary lib = library();
+        if (lib == null) return currentAttempt < 5;
+        try { return lib.syncShouldRetry(currentAttempt, errorCode); } catch (Throwable e) { return currentAttempt < 5; }
+    }
+
+    /** Start file watcher */
+    public static int watcherStart(String path) {
+        NativeLibrary lib = library();
+        if (lib == null || path == null) return -1;
+        try { return lib.watcherStart(path); } catch (Throwable e) { return -1; }
+    }
+
+    /** Stop file watcher */
+    public static boolean watcherStop(int watcherId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.watcherStop(watcherId); } catch (Throwable e) { return false; }
+    }
+
+    /** Stop all file watchers */
+    public static void watcherStopAll() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.watcherStopAll(); } catch (Throwable ignored) {}
+    }
+
+    /** Get active watcher count */
+    public static int watcherActiveCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.watcherActiveCount(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Get pending event count */
+    public static int watcherEventCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.watcherEventCount(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Clear watcher events */
+    public static void watcherClearEvents() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.watcherClearEvents(); } catch (Throwable ignored) {}
+    }
+
+    /** Add sync schedule entry */
+    public static int schedulerAdd(String rootPath, long intervalMs, int priority) {
+        NativeLibrary lib = library();
+        if (lib == null || rootPath == null) return -1;
+        try { return lib.schedulerAdd(rootPath, intervalMs, priority); } catch (Throwable e) { return -1; }
+    }
+
+    /** Remove sync schedule entry */
+    public static boolean schedulerRemove(int entryId) {
+        NativeLibrary lib = library();
+        if (lib == null) return false;
+        try { return lib.schedulerRemove(entryId); } catch (Throwable e) { return false; }
+    }
+
+    /** Mark scheduled entry as completed */
+    public static void schedulerMarkCompleted(int entryId) {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.schedulerMarkCompleted(entryId); } catch (Throwable ignored) {}
+    }
+
+    /** Get scheduler entry count */
+    public static int schedulerEntryCount() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.schedulerEntryCount(); } catch (Throwable e) { return 0; }
+    }
+
+    /** Clear scheduler */
+    public static void schedulerClear() {
+        NativeLibrary lib = library();
+        if (lib == null) return;
+        try { lib.schedulerClear(); } catch (Throwable ignored) {}
+    }
+
+    /** Discover iCloud containers */
+    public static String icloudDiscoverContainers() {
+        NativeLibrary lib = library();
+        if (lib == null) return null;
+        try { return lib.icloudDiscoverContainers(); } catch (Throwable e) { return null; }
+    }
+
+    /** Get iCloud account status (0=unavailable, 1=signed in no container, 2=readonly, 3=full) */
+    public static int icloudAccountStatus() {
+        NativeLibrary lib = library();
+        if (lib == null) return 0;
+        try { return lib.icloudAccountStatus(); } catch (Throwable e) { return 0; }
+    }
+
     /** Invalidate cached display scale values (call when displays change) */
     public static void invalidateDisplayCache() {
         cachedPrimaryScale = -1f;

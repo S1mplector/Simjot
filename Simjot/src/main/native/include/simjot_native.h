@@ -2231,6 +2231,125 @@ int32_t simjot_optimizer_render_visible(int64_t handle,
                                          uint32_t* pixels, int32_t width, int32_t height,
                                          float viewX, float viewY, float viewW, float viewH);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ICLOUD SYNC - Advanced cloud synchronization (macOS)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Sync initialization and network state */
+int32_t simjot_sync_init(void);
+void simjot_sync_shutdown(void);
+int32_t simjot_sync_get_network_state(void);
+int32_t simjot_sync_is_connected(void);
+void simjot_sync_set_enabled(int32_t enabled);
+int32_t simjot_sync_is_enabled(void);
+void simjot_sync_set_low_power(int32_t lowPower);
+
+/* Hash computation and caching */
+int32_t simjot_sync_compute_hash(const char* path, uint8_t* out32);
+int32_t simjot_sync_files_identical(const char* path1, const char* path2);
+void simjot_sync_invalidate_hash(const char* path);
+void simjot_sync_clear_hash_cache(void);
+
+/* Delta tracking */
+int32_t simjot_sync_delta_scan(const char* root_path, int64_t since_ms);
+int32_t simjot_sync_delta_count(void);
+int32_t simjot_sync_delta_get(int32_t index, char* path_out, int32_t path_len,
+                               int64_t* mod_time, int64_t* size, int32_t* change_type);
+void simjot_sync_delta_clear(void);
+
+/* Batch queue management */
+int32_t simjot_sync_batch_add(const char* path, int32_t operation, int32_t priority);
+int32_t simjot_sync_batch_count(void);
+int32_t simjot_sync_batch_peek(int32_t index, char* path_out, int32_t path_len,
+                                int32_t* operation, int32_t* priority);
+void simjot_sync_batch_clear(void);
+void simjot_sync_batch_sort_priority(void);
+int32_t simjot_sync_batch_execute(int32_t max_items, int32_t timeout_ms,
+                                   int32_t* out_succeeded, int32_t* out_failed);
+int32_t simjot_sync_batch_in_progress(void);
+
+/* Throttling */
+int32_t simjot_sync_should_throttle(void);
+void simjot_sync_record_operation(void);
+int32_t simjot_sync_get_throttle_delay_ms(void);
+
+/* Conflict detection and resolution */
+int32_t simjot_conflict_scan(const char* root_path, int32_t max_conflicts);
+int32_t simjot_conflict_count(void);
+int32_t simjot_conflict_get_path(int32_t index, char* path_out, int32_t path_len);
+int32_t simjot_conflict_version_count(const char* path);
+int32_t simjot_conflict_get_version(const char* path, int32_t version_index,
+                                     char* version_path, int32_t path_len,
+                                     int64_t* mod_time, int64_t* size);
+int32_t simjot_conflict_resolve_keep_local(const char* path);
+int32_t simjot_conflict_resolve_keep_cloud(const char* path, int32_t version_index);
+int32_t simjot_conflict_resolve_keep_both(const char* path, const char* renamed_suffix);
+void simjot_conflict_clear_resolved(void);
+void simjot_conflict_clear_all(void);
+
+/* Progress tracking */
+void simjot_sync_progress_reset(void);
+void simjot_sync_progress_start(int32_t total_files, int64_t total_bytes);
+void simjot_sync_progress_update(int32_t processed_files, int64_t processed_bytes);
+void simjot_sync_progress_increment(int64_t bytes);
+void simjot_sync_progress_fail(void);
+void simjot_sync_progress_skip(void);
+void simjot_sync_progress_complete(int32_t success);
+void simjot_sync_progress_set_batch(int32_t batch_size, int32_t batch_progress);
+int32_t simjot_sync_progress_get_state(void);
+float simjot_sync_progress_get_percent(void);
+float simjot_sync_progress_get_bytes_percent(void);
+int32_t simjot_sync_progress_get_stats(int32_t* total, int32_t* processed,
+                                        int32_t* failed, int32_t* skipped);
+int64_t simjot_sync_progress_get_elapsed_ms(void);
+int64_t simjot_sync_progress_estimate_remaining_ms(void);
+int64_t simjot_sync_progress_get_speed_bps(void);
+
+/* Performance metrics */
+void simjot_sync_metrics_reset(void);
+void simjot_sync_metrics_record_upload(int64_t bytes, int64_t latency_ms);
+void simjot_sync_metrics_record_download(int64_t bytes, int64_t latency_ms);
+void simjot_sync_metrics_record_conflict(void);
+void simjot_sync_metrics_record_retry(void);
+int32_t simjot_sync_metrics_get_summary(uint8_t* out, int32_t out_len);
+int64_t simjot_sync_metrics_get_avg_latency(void);
+int64_t simjot_sync_metrics_get_p95_latency(void);
+float simjot_sync_metrics_get_success_rate(void);
+int64_t simjot_sync_metrics_total_bytes_synced(void);
+
+/* Retry with exponential backoff */
+int64_t simjot_sync_get_retry_delay_ms(int32_t attempt);
+int32_t simjot_sync_should_retry(int32_t current_attempt, int32_t error_code);
+void simjot_sync_record_retry_attempt(void);
+int32_t simjot_sync_get_retry_count(void);
+void simjot_sync_reset_retry_count(void);
+
+/* File system watcher */
+int32_t simjot_watcher_start(const char* path);
+int32_t simjot_watcher_stop(int32_t watcher_id);
+void simjot_watcher_stop_all(void);
+int32_t simjot_watcher_active_count(void);
+int32_t simjot_watcher_event_count(void);
+int32_t simjot_watcher_pop_event(char* path_out, int32_t path_len,
+                                  int64_t* timestamp, int32_t* event_type);
+int32_t simjot_watcher_drain_events(int32_t max_events,
+                                     char* paths_out, int32_t paths_len);
+void simjot_watcher_clear_events(void);
+
+/* Background sync scheduler */
+int32_t simjot_scheduler_add(const char* root_path, int64_t interval_ms, int32_t priority);
+int32_t simjot_scheduler_remove(int32_t entry_id);
+int32_t simjot_scheduler_get_next_due(char* path_out, int32_t path_len,
+                                       int64_t* next_run_ms);
+void simjot_scheduler_mark_completed(int32_t entry_id);
+int32_t simjot_scheduler_entry_count(void);
+void simjot_scheduler_clear(void);
+
+/* iCloud container discovery and status */
+int32_t simjot_icloud_discover_containers(char* out, int32_t out_len);
+int32_t simjot_icloud_get_quota(int64_t* total_bytes, int64_t* available_bytes);
+int32_t simjot_icloud_account_status(void);
+
 #ifdef __cplusplus
 }
 #endif
