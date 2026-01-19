@@ -14,8 +14,6 @@ import java.awt.MenuItem;
 import java.awt.PopupMenu;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
-import java.awt.Toolkit;
-import java.net.URL;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -23,7 +21,6 @@ import java.util.function.BiConsumer;
 import javax.swing.SwingUtilities;
 
 import main.infrastructure.io.IoLog;
-import main.infrastructure.io.ResourceLoader;
 
 /**
  * Menu bar service using Java's built-in SystemTray API.
@@ -98,57 +95,61 @@ public final class MenuBarService {
     }
     
     private Image loadTrayIcon() {
-        try {
-            // Try to load simjot.icns from resources (primary icon)
-            URL iconUrl = ResourceLoader.getResource("img/icons/original/simjot.icns");
-            if (iconUrl != null) {
-                Image img = Toolkit.getDefaultToolkit().getImage(iconUrl);
-                if (img != null) {
-                    IoLog.info("menubar", "Loaded tray icon from img/icons/original/simjot.icns");
-                    return img;
-                }
-            }
-            
-            // Try PNG version in background folder
-            iconUrl = ResourceLoader.getResource("img/background/simjot.icns");
-            if (iconUrl != null) {
-                Image img = Toolkit.getDefaultToolkit().getImage(iconUrl);
-                if (img != null) {
-                    IoLog.info("menubar", "Loaded tray icon from img/background/simjot.icns");
-                    return img;
-                }
-            }
-            
-            // Try legacy paths
-            iconUrl = ResourceLoader.getResource("icons/tray-icon.png");
-            if (iconUrl != null) {
-                return Toolkit.getDefaultToolkit().getImage(iconUrl);
-            }
-            
-            iconUrl = ResourceLoader.getResource("simjot-icon-16.png");
-            if (iconUrl != null) {
-                return Toolkit.getDefaultToolkit().getImage(iconUrl);
-            }
-            
-            // Create a simple fallback icon programmatically
-            IoLog.info("menubar", "Using fallback tray icon");
-            return createFallbackIcon();
-        } catch (Throwable t) {
-            IoLog.warn("menubar", "Error loading tray icon: " + t.getMessage(), t);
-            return createFallbackIcon();
-        }
+        return createVectorSIcon();
     }
     
-    private Image createFallbackIcon() {
-        // Create a simple 16x16 icon
-        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+    private Image createVectorSIcon() {
+        // Create a crisp 18x18 vector-style "S" icon for the menu bar
+        int size = 18;
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         java.awt.Graphics2D g2 = img.createGraphics();
+        
+        // High-quality rendering
         g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(new java.awt.Color(100, 100, 100));
-        g2.fillRoundRect(1, 1, 14, 14, 4, 4);
-        g2.setColor(java.awt.Color.WHITE);
-        g2.setFont(new java.awt.Font("SansSerif", java.awt.Font.BOLD, 10));
-        g2.drawString("S", 4, 12);
+        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(java.awt.RenderingHints.KEY_STROKE_CONTROL, java.awt.RenderingHints.VALUE_STROKE_PURE);
+        
+        // Draw a stylish "S" using paths for crisp vector look
+        java.awt.geom.Path2D.Float sPath = new java.awt.geom.Path2D.Float();
+        
+        // Elegant S curve - top arc curves right, bottom arc curves left
+        float cx = size / 2f;
+        float cy = size / 2f;
+        float w = size * 0.6f;
+        float h = size * 0.8f;
+        
+        // Start from top-right, curve down to middle, then curve to bottom-left
+        sPath.moveTo(cx + w * 0.35f, cy - h * 0.35f);
+        // Top arc (curving left)
+        sPath.curveTo(
+            cx + w * 0.35f, cy - h * 0.48f,  // control 1
+            cx - w * 0.1f, cy - h * 0.5f,    // control 2
+            cx - w * 0.35f, cy - h * 0.32f   // end top-left
+        );
+        // Middle connection curving to center
+        sPath.curveTo(
+            cx - w * 0.45f, cy - h * 0.15f,  // control 1
+            cx - w * 0.3f, cy + h * 0.05f,   // control 2
+            cx, cy                            // center
+        );
+        // Bottom arc (curving right)
+        sPath.curveTo(
+            cx + w * 0.3f, cy - h * 0.05f,   // control 1
+            cx + w * 0.45f, cy + h * 0.15f,  // control 2
+            cx + w * 0.35f, cy + h * 0.32f   // right side
+        );
+        // Finish at bottom-left
+        sPath.curveTo(
+            cx + w * 0.1f, cy + h * 0.5f,    // control 1
+            cx - w * 0.35f, cy + h * 0.48f,  // control 2
+            cx - w * 0.35f, cy + h * 0.35f   // end bottom-left
+        );
+        
+        // Draw the S with a nice stroke
+        g2.setColor(new java.awt.Color(60, 60, 60)); // Dark gray for visibility in light/dark modes
+        g2.setStroke(new java.awt.BasicStroke(2.2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+        g2.draw(sPath);
+        
         g2.dispose();
         return img;
     }
