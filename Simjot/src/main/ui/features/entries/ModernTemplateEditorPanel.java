@@ -89,6 +89,8 @@ public class ModernTemplateEditorPanel extends JPanel {
         
         ShadowedDialogPanel main = new ShadowedDialogPanel(new BorderLayout(0, 0), 18);
         main.setBorder(new EmptyBorder(12, 12, 12, 12));
+        main.setFlat(true);
+        main.setFlatColor(Color.WHITE);
         
         // ═══════════════════════════════════════════════════════════════════
         // HEADER
@@ -206,7 +208,7 @@ public class ModernTemplateEditorPanel extends JPanel {
             }
         });
         
-        RoundedButton addBtn = new RoundedButton("+ Add");
+        RoundedButton addBtn = createActionButton("Quick Add", "new");
         addBtn.setPreferredSize(new Dimension(80, 36));
         addBtn.addActionListener(e -> {
             String text = quickAddField.getText().trim();
@@ -252,7 +254,7 @@ public class ModernTemplateEditorPanel extends JPanel {
         leftButtons.setOpaque(false);
         
         if (!isNew) {
-            RoundedButton dupBtn = new RoundedButton("Duplicate");
+            RoundedButton dupBtn = createActionButton("Duplicate", "new");
             dupBtn.setPreferredSize(new Dimension(100, 38));
             dupBtn.addActionListener(e -> duplicateTemplate());
             leftButtons.add(dupBtn);
@@ -262,7 +264,7 @@ public class ModernTemplateEditorPanel extends JPanel {
         JPanel rightButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         rightButtons.setOpaque(false);
         
-        RoundedButton cancelBtn = new RoundedButton("Cancel");
+        RoundedButton cancelBtn = createActionButton("Cancel", "exit");
         cancelBtn.setPreferredSize(new Dimension(100, 38));
         cancelBtn.addActionListener(e -> {
             if (onCancel != null) {
@@ -270,7 +272,7 @@ public class ModernTemplateEditorPanel extends JPanel {
             }
         });
         
-        RoundedButton saveBtn = new RoundedButton(isNew ? "Create" : "Save");
+        RoundedButton saveBtn = createActionButton(isNew ? "Create" : "Save", "save");
         saveBtn.setPreferredSize(new Dimension(100, 38));
         saveBtn.addActionListener(e -> save());
         
@@ -302,6 +304,12 @@ public class ModernTemplateEditorPanel extends JPanel {
     public boolean isSaved() { return saved; }
     
     public JournalTemplateManager.JournalTemplate getTemplate() { return template; }
+    
+    private RoundedButton createActionButton(String text, String iconId) {
+        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+        btn.setFlat(true);
+        return btn;
+    }
     
     private JPanel createFieldRow(String label, String placeholder) {
         JPanel row = new JPanel(new BorderLayout(0, 4));

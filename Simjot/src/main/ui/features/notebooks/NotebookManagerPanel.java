@@ -20,9 +20,9 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Frame;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -51,6 +51,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,10 +59,12 @@ import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.imageio.ImageIO;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -77,6 +80,7 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.IconMenuButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.ShadowedDialogPanel;
@@ -1030,12 +1034,12 @@ public class NotebookManagerPanel extends JPanel {
             JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
             btns.setOpaque(false);
             IconMenuButton cancel = new IconMenuButton("Cancel", "exit");
-            cancel.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+            cancel.setFloatAnimationEnabled(false).setAeroGlowEnabled(true).setHoverOverlayOpacity(1.35f);
             cancel.setToolTipText("Cancel");
             cancel.setPreferredSize(new Dimension(84, 80));
             cancel.addActionListener(e -> { accepted = false; setVisible(false); dispose(); });
             IconMenuButton okBtn = new IconMenuButton("Create", "save");
-            okBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+            okBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true).setHoverOverlayOpacity(1.35f);
             okBtn.setToolTipText("Create");
             okBtn.setPreferredSize(new Dimension(84, 80));
             okBtn.setEnabled(false);
@@ -1204,6 +1208,8 @@ public class NotebookManagerPanel extends JPanel {
 
             ShadowedDialogPanel panel = new ShadowedDialogPanel(new BorderLayout(12,12), 16);
             panel.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
+            panel.setFlat(true);
+            panel.setFlatColor(Color.WHITE);
 
             // Title with notebook info (match entry/poem title styling)
             JPanel header = new JPanel();
@@ -1286,16 +1292,14 @@ public class NotebookManagerPanel extends JPanel {
             iconRow.add(iconPreview);
             
             // Change icon button
-            IconMenuButton changeIconBtn = new IconMenuButton("Change Icon", "backgroundoptions");
-            changeIconBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+            RoundedButton changeIconBtn = createDialogButton("Change Icon", "backgroundoptions");
             changeIconBtn.setToolTipText("Upload custom icon");
             changeIconBtn.addActionListener(e -> chooseCustomIcon());
             iconRow.add(changeIconBtn);
             
             // Remove custom icon button (only if custom icon is set)
             if (customIconPath != null && !customIconPath.isEmpty()) {
-                IconMenuButton removeIconBtn = new IconMenuButton("Reset", "close");
-                removeIconBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+                RoundedButton removeIconBtn = createDialogButton("Reset", "close");
                 removeIconBtn.setToolTipText("Reset to default icon");
                 removeIconBtn.addActionListener(e -> {
                     customIconPath = null;
@@ -1317,11 +1321,10 @@ public class NotebookManagerPanel extends JPanel {
 
             panel.add(center, BorderLayout.CENTER);
 
-            // Buttons (IconMenuButton style)
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 8));
+            // Buttons
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
             btns.setOpaque(false);
-            IconMenuButton saveBtn = new IconMenuButton("Save", "save");
-            saveBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+            RoundedButton saveBtn = createDialogButton("Save", "save");
             saveBtn.setToolTipText("Save changes");
             saveBtn.addActionListener(e->{ 
                 String newName = titleField.getText() == null ? "" : titleField.getText().trim();
@@ -1354,8 +1357,7 @@ public class NotebookManagerPanel extends JPanel {
                 setVisible(false); 
                 dispose(); 
             });
-            IconMenuButton deleteBtn = new IconMenuButton("Delete", "delete_notebook");
-            deleteBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+            RoundedButton deleteBtn = createDialogButton("Delete", "delete_notebook");
             deleteBtn.setToolTipText("Delete this notebook");
             deleteBtn.addActionListener(e->{ 
                 boolean confirm = CustomConfirmDialog.confirm(this, 
@@ -1368,8 +1370,7 @@ public class NotebookManagerPanel extends JPanel {
                     dispose();
                 }
             });
-            IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
-            cancelBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true);
+            RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
             cancelBtn.setToolTipText("Cancel and close");
             cancelBtn.addActionListener(e->{ setVisible(false); dispose(); });
             btns.add(saveBtn); btns.add(deleteBtn); btns.add(cancelBtn);
@@ -1390,18 +1391,37 @@ public class NotebookManagerPanel extends JPanel {
             }
             return null;
         }
-        
+
         private void chooseCustomIcon() {
-            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Choose Notebook Icon");
-            chooser.setMode(SimjotFileChooser.Mode.OPEN);
-            chooser.addFileFilter("Images", "png", "jpg", "jpeg", "gif");
-            File selected = chooser.showDialog();
-            if (selected != null) {
-                customIconPath = selected.getAbsolutePath();
-                iconPreview.repaint();
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Select Notebook Icon");
+            chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            chooser.setAcceptAllFileFilterUsed(true);
+
+            if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                File selected = chooser.getSelectedFile();
+                if (selected != null && selected.exists()) {
+                    try {
+                        BufferedImage img = ImageIO.read(selected);
+                        if (img != null) {
+                            customIconPath = selected.getAbsolutePath();
+                            iconPreview.repaint();
+                        }
+                    } catch (IOException ex) {
+                        CustomConfirmDialog.confirm(this, "Icon Load Failed", "Could not load selected image.");
+                    }
+                }
             }
         }
-        
+
+        private RoundedButton createDialogButton(String text, String iconId) {
+                RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+                btn.setPreferredSize(new Dimension(132, 40));
+                btn.setFlat(true);
+                btn.setFocusPainted(false);
+                return btn;
+            }
+
         boolean wasModified(){ return modified; }
     }
 

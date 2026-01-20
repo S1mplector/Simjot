@@ -38,6 +38,8 @@ public class ShadowedDialogPanel extends JPanel {
     private final int shadowSize;
     private final int arc;
     private float opacityScale = 1.0f;
+    private boolean flat = false;
+    private Color flatColor = Color.WHITE;
     
     public ShadowedDialogPanel() {
         this(new BorderLayout(), DEFAULT_ARC, DEFAULT_SHADOW_SIZE);
@@ -63,6 +65,19 @@ public class ShadowedDialogPanel extends JPanel {
     public void setOpacityScale(float scale) {
         if (Float.isNaN(scale)) return;
         this.opacityScale = Math.max(0f, Math.min(1f, scale));
+        repaint();
+    }
+
+    /** Enable flat (solid) background rendering instead of frosted glass. */
+    public void setFlat(boolean flat) {
+        this.flat = flat;
+        repaint();
+    }
+
+    /** Set the solid background color used when flat mode is enabled. */
+    public void setFlatColor(Color color) {
+        if (color == null) return;
+        this.flatColor = color;
         repaint();
     }
     
@@ -98,8 +113,12 @@ public class ShadowedDialogPanel extends JPanel {
         // Paint multi-layer drop shadow
         paintShadow(g2, contentX, contentY, contentW, contentH, opacity);
         
-        // Paint frosted glass background
-        paintFrostedBackground(g2, contentX, contentY, contentW, contentH, opacity);
+        // Paint background
+        if (flat) {
+            paintFlatBackground(g2, contentX, contentY, contentW, contentH, opacity);
+        } else {
+            paintFrostedBackground(g2, contentX, contentY, contentW, contentH, opacity);
+        }
         
         g2.dispose();
     }
@@ -161,6 +180,19 @@ public class ShadowedDialogPanel extends JPanel {
         
         // Outer border
         g2.setColor(scaleAlpha(new Color(0, 0, 0, 30), opacity));
+        g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, rArc, rArc));
+    }
+
+    private void paintFlatBackground(Graphics2D g2, int x, int y, int w, int h, float opacity) {
+        int rArc = Math.max(arc, 6);
+        RoundRectangle2D fillShape = new RoundRectangle2D.Float(x, y, w, h, rArc, rArc);
+        Color base = flatColor != null ? flatColor : Color.WHITE;
+        g2.setColor(scaleAlpha(base, opacity));
+        g2.fill(fillShape);
+
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, 200), opacity));
+        g2.draw(new RoundRectangle2D.Float(x + 1.5f, y + 1.5f, w - 3f, h - 3f, Math.max(rArc - 2, 2), Math.max(rArc - 2, 2)));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, 35), opacity));
         g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, rArc, rArc));
     }
 }

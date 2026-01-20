@@ -17,6 +17,7 @@ import main.ui.theme.Theme;
 
 public class RoundedButton extends JButton {
     private boolean flat = false; // if true, paint solid fill without gradients
+    private String iconId = null;
 
     public RoundedButton(String text){
         super(text);
@@ -27,6 +28,13 @@ public class RoundedButton extends JButton {
         setForeground(AeroTheme.TEXT_PRIMARY);
         setFont(AeroTheme.defaultBoldFont(12f));
         setPreferredSize(new Dimension(140,32));
+    }
+
+    /** Configure an icon (via ImageIconRenderer id) to display left of the text. */
+    public RoundedButton withIcon(String iconId) {
+        this.iconId = iconId == null ? null : iconId.toLowerCase();
+        repaint();
+        return this;
     }
 
     /** Enable or disable flat painting (no gradients/glass overlay). */
@@ -67,7 +75,13 @@ public class RoundedButton extends JButton {
         FontMetrics fm = g2.getFontMetrics();
 
         String text = getText() == null ? "" : getText();
-        String iconId = (String) getClientProperty("iconId");
+        String iconKey = iconId;
+        if (iconKey == null) {
+            Object legacy = getClientProperty("iconId");
+            if (legacy instanceof String legacyId) {
+                iconKey = legacyId.toLowerCase();
+            }
+        }
         int gap = 6;
         int paddingX = 10;
         int contentW = fm.stringWidth(text);
@@ -81,9 +95,9 @@ public class RoundedButton extends JButton {
         if (swingIcon != null) {
             iconW = swingIcon.getIconWidth();
             iconH = swingIcon.getIconHeight();
-        } else if (iconId != null && !iconId.isBlank()) {
+        } else if (iconKey != null && !iconKey.isBlank()) {
             int target = Math.max(14, getHeight() - 12);
-            iconPath = ImageIconRenderer.mapIdToResource(iconId);
+            iconPath = ImageIconRenderer.mapIdToResource(iconKey);
             if (iconPath != null) {
                 iconSize = target;
                 iconW = target;

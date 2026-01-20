@@ -49,6 +49,7 @@ public class IconMenuButton extends JButton {
     private Timer hoverTimer;
     private boolean aeroGlowEnabled = false;
     private boolean floatAnimationEnabled = true;
+    private float hoverOverlayOpacity = 1.0f;
     private Font cachedCaptionFont;
     private int cachedCaptionWidth = -1;
     private int cachedCaptionAscent = 0;
@@ -92,6 +93,14 @@ public class IconMenuButton extends JButton {
         return this;
     }
 
+    /** Adjust hover overlay opacity. Values > 1.0 make the overlay more opaque. */
+    public IconMenuButton setHoverOverlayOpacity(float opacity) {
+        if (Float.isNaN(opacity)) return this;
+        this.hoverOverlayOpacity = Math.max(0f, Math.min(2f, opacity));
+        repaint();
+        return this;
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
@@ -119,23 +128,26 @@ public class IconMenuButton extends JButton {
             int arc = 16;
             int overlayH = Math.max(1, h - 9);
             RoundRectangle2D overlay = new RoundRectangle2D.Float(1, 1, w - 3f, overlayH, arc, arc);
-            float alpha = 0.35f + 0.45f * te;
+            float overlayScale = hoverOverlayOpacity;
+            float alpha = (0.35f + 0.45f * te) * overlayScale;
+            alpha = Math.min(1f, Math.max(0f, alpha));
             Composite oldComposite = g2.getComposite();
             Stroke oldStroke = g2.getStroke();
 
             g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
-            g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 220), 0, overlayH,
-                    new Color(224, 232, 244, 210)));
+            g2.setPaint(new GradientPaint(0, 1,
+                    scaleAlpha(new Color(255, 255, 255, 220), overlayScale), 0, overlayH,
+                    scaleAlpha(new Color(224, 232, 244, 210), overlayScale)));
             g2.fill(overlay);
-            g2.setComposite(AlphaComposite.SrcOver.derive(0.25f * te));
-            g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 200),
-                    0, overlayH * 0.5f, new Color(255, 255, 255, 0)));
+            g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, 0.25f * te * overlayScale)));
+            g2.setPaint(new GradientPaint(0, 1, scaleAlpha(new Color(255, 255, 255, 200), overlayScale),
+                    0, overlayH * 0.5f, scaleAlpha(new Color(255, 255, 255, 0), overlayScale)));
             g2.fill(overlay);
             g2.setComposite(oldComposite);
 
-            g2.setColor(new Color(255, 255, 255, Math.round(130 * te)));
+            g2.setColor(scaleAlpha(new Color(255, 255, 255, Math.round(130 * te)), overlayScale));
             g2.drawRoundRect(2, 2, w - 5, overlayH - 2, arc - 2, arc - 2);
-            g2.setColor(new Color(0, 0, 0, Math.round(50 * te)));
+            g2.setColor(scaleAlpha(new Color(0, 0, 0, Math.round(50 * te)), overlayScale));
             g2.setStroke(new BasicStroke(1.4f));
             g2.drawRoundRect(1, 1, w - 3, overlayH, arc, arc);
 
@@ -258,6 +270,13 @@ public class IconMenuButton extends JButton {
     private static float smoothStep(float t) {
         float clamped = Math.max(0f, Math.min(1f, t));
         return clamped * clamped * (3f - 2f * clamped);
+    }
+
+    private static Color scaleAlpha(Color color, float scale) {
+        if (scale <= 0f) return new Color(color.getRed(), color.getGreen(), color.getBlue(), 0);
+        int alpha = Math.round(color.getAlpha() * scale);
+        alpha = Math.max(0, Math.min(255, alpha));
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
     }
 
 }

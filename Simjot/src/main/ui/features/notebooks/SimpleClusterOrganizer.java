@@ -43,12 +43,13 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.KeyStroke;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.border.EmptyBorder;
 
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.theme.aero.AeroTheme;
 
@@ -69,9 +70,12 @@ public class SimpleClusterOrganizer extends JDialog {
         super(parent, "Organize Notebooks", true);
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
+        setLayout(new BorderLayout());
         
-        FrostedGlassPanel main = new FrostedGlassPanel(new BorderLayout(0, 0), 20);
-        main.setBorder(new EmptyBorder(0, 0, 0, 0));
+        ShadowedDialogPanel main = new ShadowedDialogPanel(new BorderLayout(0, 0), 20);
+        main.setBorder(new EmptyBorder(20, 20, 20, 20));
+        main.setFlat(true);
+        main.setFlatColor(Color.WHITE);
         
         // Header
         JPanel header = new JPanel(new BorderLayout());
@@ -97,7 +101,15 @@ public class SimpleClusterOrganizer extends JDialog {
         main.add(header, BorderLayout.NORTH);
         
         // Content area
-        contentPanel = new JPanel();
+        contentPanel = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(Color.WHITE);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setOpaque(false);
         contentPanel.setBorder(new EmptyBorder(0, 16, 8, 16));
@@ -106,6 +118,7 @@ public class SimpleClusterOrganizer extends JDialog {
         scroll.setBorder(null);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         try {
             scroll.getVerticalScrollBar().setUI(new main.ui.components.scrollbar.ModernScrollBarUI());
@@ -119,20 +132,20 @@ public class SimpleClusterOrganizer extends JDialog {
         footer.setOpaque(false);
         footer.setBorder(new EmptyBorder(12, 24, 20, 24));
         
-        RoundedButton newClusterBtn = new RoundedButton("+ New Cluster");
-        newClusterBtn.setPreferredSize(new Dimension(120, 32));
+        RoundedButton newClusterBtn = createDialogButton("New Cluster", "new");
+        newClusterBtn.setPreferredSize(new Dimension(140, 38));
         newClusterBtn.addActionListener(e -> createNewCluster());
         
-        RoundedButton doneBtn = new RoundedButton("Done");
-        doneBtn.setPreferredSize(new Dimension(80, 32));
+        RoundedButton doneBtn = createDialogButton("Done", "save");
+        doneBtn.setPreferredSize(new Dimension(120, 38));
         doneBtn.addActionListener(e -> dispose());
         
         footer.add(newClusterBtn, BorderLayout.WEST);
         footer.add(doneBtn, BorderLayout.EAST);
         main.add(footer, BorderLayout.SOUTH);
         
-        setContentPane(main);
-        setSize(500, 450);
+        add(main, BorderLayout.CENTER);
+        setSize(620, 500);
         setLocationRelativeTo(parent);
         
         // ESC to close
@@ -236,17 +249,24 @@ public class SimpleClusterOrganizer extends JDialog {
         row.add(headerRow, BorderLayout.NORTH);
         
         // Notebook chips
-        JPanel chipsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        JPanel chipsPanel = new JPanel();
         chipsPanel.setOpaque(false);
+        chipsPanel.setLayout(new BoxLayout(chipsPanel, BoxLayout.Y_AXIS));
+        chipsPanel.setAlignmentX(LEFT_ALIGNMENT);
         
         if (notebooks.isEmpty()) {
             JLabel empty = new JLabel("Drop notebooks here");
             empty.setFont(AeroTheme.defaultFont().deriveFont(Font.ITALIC, 11f));
             empty.setForeground(TEXT_MUTED);
-            chipsPanel.add(empty);
+            chipsPanel.add(createChipRow(empty));
         } else {
+            boolean first = true;
             for (NotebookInfo nb : notebooks) {
-                chipsPanel.add(createNotebookChip(nb));
+                if (!first) {
+                    chipsPanel.add(Box.createVerticalStrut(4));
+                }
+                chipsPanel.add(createChipRow(createNotebookChip(nb)));
+                first = false;
             }
         }
         row.add(chipsPanel, BorderLayout.CENTER);
@@ -295,17 +315,24 @@ public class SimpleClusterOrganizer extends JDialog {
         namePanel.add(countLabel);
         row.add(namePanel, BorderLayout.NORTH);
         
-        JPanel chipsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        JPanel chipsPanel = new JPanel();
         chipsPanel.setOpaque(false);
+        chipsPanel.setLayout(new BoxLayout(chipsPanel, BoxLayout.Y_AXIS));
+        chipsPanel.setAlignmentX(LEFT_ALIGNMENT);
         
         if (notebooks.isEmpty()) {
             JLabel empty = new JLabel("All notebooks are organized!");
             empty.setFont(AeroTheme.defaultFont().deriveFont(Font.ITALIC, 11f));
             empty.setForeground(new Color(100, 180, 100));
-            chipsPanel.add(empty);
+            chipsPanel.add(createChipRow(empty));
         } else {
+            boolean first = true;
             for (NotebookInfo nb : notebooks) {
-                chipsPanel.add(createNotebookChip(nb));
+                if (!first) {
+                    chipsPanel.add(Box.createVerticalStrut(4));
+                }
+                chipsPanel.add(createChipRow(createNotebookChip(nb)));
+                first = false;
             }
         }
         row.add(chipsPanel, BorderLayout.CENTER);
@@ -424,6 +451,21 @@ public class SimpleClusterOrganizer extends JDialog {
     
     private void notifyChange() {
         if (onChangeCallback != null) onChangeCallback.run();
+    }
+
+    private RoundedButton createDialogButton(String text, String iconId) {
+        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+        btn.setFlat(true);
+        btn.setFocusPainted(false);
+        return btn;
+    }
+
+    private JPanel createChipRow(JComponent component) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.add(component);
+        return row;
     }
     
     public static void show(Frame parent, Runnable onChangeCallback) {
