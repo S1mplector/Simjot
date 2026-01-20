@@ -246,6 +246,31 @@ public final class AppDirectories {
     }
 
     /**
+     * Resolve the preferred Simjot root, restricting selection to iCloud Drive.
+     * Attempts (in order): provided config path if it is inside iCloud, an existing
+     * iCloud Simjot folder, or the suggested iCloud location (creating directories
+     * if necessary).
+     */
+    public static File resolveIcloudRoot(File preferredConfig) {
+        if (preferredConfig != null && isIcloudRoot(preferredConfig)) {
+            return preferredConfig;
+        }
+        File existing = findExistingIcloudRoot();
+        if (existing != null) {
+            return existing;
+        }
+        File suggested = suggestedIcloudRoot();
+        if (suggested == null) {
+            return null;
+        }
+        if (!suggested.exists()) {
+            // best effort to create the folder structure so we can initialize later
+            suggested.mkdirs();
+        }
+        return suggested.exists() && suggested.isDirectory() ? suggested : null;
+    }
+
+    /**
      * Default Simjot root in the user's home folder.
      */
     public static File defaultLocalRoot() {

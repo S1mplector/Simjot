@@ -4,7 +4,7 @@
   <groupId>com.simjot</groupId>
   <artifactId>simjot</artifactId>
   <name>Simjot</name>
-  <version>1.0.0</version>
+  <version>0.1.1</version>
   <description>Simjot Journal Application</description>
   <licenses>
     <license>

@@ -118,7 +118,7 @@ import main.ui.util.AccentColorUtil;
  * 
  * @author S1mplector
  * @see ui, infrastructure and core submodules
- * @version 0.1.0
+ * @version 0.1.1
  */
 public class JournalApp extends JFrame {
     /**
@@ -466,7 +466,6 @@ public class JournalApp extends JFrame {
      */
     private void loadOrChooseRootFolder() {
         configFile = new File(System.getProperty("user.home"), CONFIG_FILENAME);
-        File icloudExisting = AppDirectories.findExistingIcloudRoot();
         File configRoot = null;
 
         String nativePath = main.infrastructure.ffi.NativeAccess.readConfig(configFile.getAbsolutePath());
@@ -491,31 +490,18 @@ public class JournalApp extends JFrame {
             }
         }
 
-        File local = AppDirectories.defaultLocalRoot();
-        File docs = AppDirectories.defaultDocumentsRoot();
-        File best = AppDirectories.chooseBestRoot(configRoot, icloudExisting, local, docs);
-        if (best != null) {
+        File icloudOnly = AppDirectories.resolveIcloudRoot(configRoot);
+        if (icloudOnly != null) {
             int configScore = AppDirectories.estimateDataScore(configRoot);
-            int icloudScore = AppDirectories.estimateDataScore(icloudExisting);
-            int localScore = AppDirectories.estimateDataScore(local);
-            int docsScore = AppDirectories.estimateDataScore(docs);
-            int bestScore = AppDirectories.estimateDataScore(best);
+            int icloudScore = AppDirectories.estimateDataScore(icloudOnly);
             main.infrastructure.io.IoLog.info("root-select", "config=" + pathOrNull(configRoot) +
-                    " score=" + configScore + ", icloud=" + pathOrNull(icloudExisting) +
-                    " score=" + icloudScore + ", local=" + pathOrNull(local) +
-                    " score=" + localScore + ", docs=" + pathOrNull(docs) +
-                    " score=" + docsScore + ", selected=" + best.getAbsolutePath() +
-                    " score=" + bestScore);
-            if (configRoot != null && !configRoot.equals(best)) {
-                main.infrastructure.io.IoLog.warn("root-select", "Config root seems empty; switching to " +
-                        best.getAbsolutePath(), null);
-                configureRootFolder(best, true);
-            } else {
-                configureRootFolder(best, configRoot == null);
+                    " score=" + configScore + ", icloud=" + pathOrNull(icloudOnly) +
+                    " score=" + icloudScore + ", selected=iCloud");
+            if (configRoot != null && !AppDirectories.isIcloudRoot(configRoot)) {
+                main.infrastructure.io.IoLog.warn("root-select", "Config root not in iCloud; switching to " +
+                        icloudOnly.getAbsolutePath(), null);
             }
-            if (configRoot != null && configRoot.equals(best)) {
-                maybePromptIcloudSwitch(icloudExisting);
-            }
+            configureRootFolder(icloudOnly, !icloudOnly.equals(configRoot));
             return;
         }
         

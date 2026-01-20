@@ -44,6 +44,22 @@ log_ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+sanitize_version_for_mac() {
+    local version="$1"
+    local IFS='.'
+    read -r -a parts <<< "$version"
+    if [[ ${#parts[@]} -eq 0 ]]; then
+        echo "1"
+        return
+    fi
+    if (( parts[0] <= 0 )); then
+        parts[0]=1
+        version="${parts[*]}"
+        version="${version// /.}"
+    fi
+    echo "$version"
+}
+
 check_command() {
     if ! command -v "$1" &>/dev/null; then
         log_error "Required command not found: $1"
@@ -355,6 +371,10 @@ mkdir -p "$BUILD_DIR" "$ICONSET_DIR" "$DIST_DIR"
 
 # Get version from pom.xml
 VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version 2>/dev/null || echo "1.0.0")"
+APP_VERSION_SAFE="$(sanitize_version_for_mac "$VERSION")"
+if [[ "$APP_VERSION_SAFE" != "$VERSION" ]]; then
+    log_warn "Sanitizing app-version for macOS bundler: $VERSION -> $APP_VERSION_SAFE"
+fi
 log_info "Building $APP_NAME version $VERSION"
 
 # ============================================================================
@@ -501,7 +521,7 @@ log_info "Creating macOS application bundle..."
 JPKG_BASE_ARGS=(
     --type app-image
     --name "$APP_NAME"
-    --app-version "$VERSION"
+    --app-version "$APP_VERSION_SAFE"
     --vendor "$VENDOR"
     --input "$ROOT_DIR/target"
     --main-jar "$SHADED_JAR"
@@ -684,7 +704,7 @@ EOF
 pkgbuild \
     --root "$BUILD_DIR" \
     --identifier "$BUNDLE_ID" \
-    --version "$VERSION" \
+    --version "$APP_VERSION_SAFE" \
     --install-location "/Applications" \
     --component-plist "$COMPONENT_PLIST" \
     "$COMPONENT_PKG"
@@ -732,7 +752,7 @@ cat > "$DIST_XML" <<EOF
         <pkg-ref id="$BUNDLE_ID"/>
     </choice>
     
-    <pkg-ref id="$BUNDLE_ID" version="$VERSION" onConclusion="none">component.pkg</pkg-ref>
+    <pkg-ref id="$BUNDLE_ID" version="$APP_VERSION_SAFE" onConclusion="none">component.pkg</pkg-ref>
 </installer-gui-script>
 EOF
 

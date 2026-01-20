@@ -74,7 +74,6 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
         sectionModel.addElement("Security");
-        sectionModel.addElement("About");
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setSelectedIndex(0);
@@ -116,9 +115,7 @@ public class SettingsPanel extends JPanel {
         SecuritySettingsPage security = new SecuritySettingsPage();
         addPage("Security", security);
 
-        // About (comprehensive information page)
-        AboutSettingsPage aboutPage = new AboutSettingsPage();
-        addPage("About", aboutPage);
+        // About page temporarily disabled
 
         cardsPanel.setOpaque(true);
         cardsPanel.setBackground(Color.WHITE);

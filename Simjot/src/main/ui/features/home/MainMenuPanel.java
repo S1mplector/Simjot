@@ -43,6 +43,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
+import main.core.AppInfo;
 import main.core.service.LastSaveTracker;
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
@@ -563,7 +564,7 @@ public class MainMenuPanel extends JPanel {
         aboutIcon.setOpaque(false);
         left.add(aboutIcon);
         
-        JLabel versionLabel = new JLabel("v.0.1.0");
+        JLabel versionLabel = new JLabel(AppInfo.versionString());
         versionLabel.setForeground(AeroTheme.TEXT_PRIMARY);
         versionLabel.setFont(bradleyHand);
         left.add(versionLabel);

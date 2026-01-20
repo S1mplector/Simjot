@@ -97,22 +97,20 @@ public final class AppConfig {
             }
         }
 
-        File icloud = AppDirectories.findExistingIcloudRoot();
-        File local = AppDirectories.defaultLocalRoot();
-        File docs = AppDirectories.defaultDocumentsRoot();
+        File icloud = AppDirectories.resolveIcloudRoot(configRoot);
 
-        File best = AppDirectories.chooseBestRoot(configRoot, icloud, local, docs);
-        if (best != null) {
+        if (icloud != null) {
             int configScore = AppDirectories.estimateDataScore(configRoot);
-            int bestScore = AppDirectories.estimateDataScore(best);
-            if (configRoot != null && !configRoot.equals(best)) {
-                IoLog.warn("root-select", "Config root seems empty; switching to " + best.getAbsolutePath() +
-                        " (score=" + bestScore + ", configScore=" + configScore + ")", null);
-                saveRootFolder(best);
+            int icloudScore = AppDirectories.estimateDataScore(icloud);
+            if (configRoot != null && !configRoot.equals(icloud)) {
+                IoLog.warn("root-select", "Config root not in iCloud or empty; switching to " + icloud.getAbsolutePath() +
+                        " (icloudScore=" + icloudScore + ", configScore=" + configScore + ")", null);
+                saveRootFolder(icloud);
             } else {
-                IoLog.info("root-select", "Using root: " + best.getAbsolutePath() + " (score=" + bestScore + ")");
+                IoLog.info("root-select", "Using iCloud root: " + icloud.getAbsolutePath() +
+                        " (score=" + icloudScore + ")");
             }
-            rootFolder = best;
+            rootFolder = icloud;
             AppDirectories.setRoot(rootFolder);
             preflightIcloudRoot(rootFolder);
             return rootFolder;
