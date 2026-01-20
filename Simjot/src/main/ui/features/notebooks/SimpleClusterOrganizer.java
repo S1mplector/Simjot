@@ -101,23 +101,17 @@ public class SimpleClusterOrganizer extends JDialog {
         main.add(header, BorderLayout.NORTH);
         
         // Content area
-        contentPanel = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(Color.WHITE);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
+        contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setOpaque(false);
+        contentPanel.setOpaque(true);
+        contentPanel.setBackground(Color.WHITE);
         contentPanel.setBorder(new EmptyBorder(0, 16, 8, 16));
         
         JScrollPane scroll = new JScrollPane(contentPanel);
         scroll.setBorder(null);
         scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
+        scroll.getViewport().setOpaque(true);
+        scroll.getViewport().setBackground(Color.WHITE);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         try {
