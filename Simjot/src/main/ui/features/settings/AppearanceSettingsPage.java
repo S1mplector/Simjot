@@ -47,20 +47,17 @@ import main.ui.components.calendars.StampCalendar;
 import main.ui.components.calendars.TornPageCalendar;
 import main.ui.components.calendars.VerticalCalendar;
 import main.ui.components.checkbox.ModernCheckBoxUI;
-import main.ui.components.clocks.BinaryClock;
-import main.ui.components.clocks.FlipClock;
 import main.ui.components.clocks.MinimalistClock;
 import main.ui.components.clocks.NeonClock;
 import main.ui.components.clocks.OrbitalClock;
 import main.ui.components.clocks.PolarClock;
-import main.ui.components.clocks.RadarClock;
 import main.ui.components.clocks.SegmentClock;
 import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
-import main.ui.components.slider.MoodSlider;
 import main.ui.components.fields.ModernTextField;
+import main.ui.components.slider.MoodSlider;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.TodayCalendarPanel;
@@ -80,7 +77,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     // Clock and Calendar style selection
     private String selectedClockStyle;
     private String selectedCalendarStyle;
-    private static final String[] CLOCK_STYLES = {"Classic", "Minimalist", "Neon", "Swiss", "Sunburst", "Segment", "Polar", "Binary", "Flip", "Orbital", "Radar", "Word"};
+    private static final String[] CLOCK_STYLES = {"Classic", "Minimalist", "Neon", "Swiss", "Sunburst", "Segment", "Polar", "Orbital", "Word"};
     private static final String[] CALENDAR_STYLES = {"Classic", "Minimalist", "TornPage", "Circular", "PostIt", "Glass", "Vertical", "DotMatrix", "Stamp", "Retro", "Neon", "Clannad"};
 
     AppearanceSettingsPage() {
@@ -232,10 +229,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             case "Sunburst" -> new SunburstClock();
             case "Segment" -> new SegmentClock();
             case "Polar" -> new PolarClock();
-            case "Binary" -> new BinaryClock();
-            case "Flip" -> new FlipClock();
             case "Orbital" -> new OrbitalClock();
-            case "Radar" -> new RadarClock();
             case "Word" -> new WordClock();
             default -> new AnalogClockPanel();
         };

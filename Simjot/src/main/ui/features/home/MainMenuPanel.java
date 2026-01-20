@@ -65,13 +65,10 @@ import main.ui.components.calendars.RetroCalendar;
 import main.ui.components.calendars.StampCalendar;
 import main.ui.components.calendars.TornPageCalendar;
 import main.ui.components.calendars.VerticalCalendar;
-import main.ui.components.clocks.BinaryClock;
-import main.ui.components.clocks.FlipClock;
 import main.ui.components.clocks.MinimalistClock;
 import main.ui.components.clocks.NeonClock;
 import main.ui.components.clocks.OrbitalClock;
 import main.ui.components.clocks.PolarClock;
-import main.ui.components.clocks.RadarClock;
 import main.ui.components.clocks.SegmentClock;
 import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
@@ -690,11 +687,9 @@ public class MainMenuPanel extends JPanel {
             case "Sunburst" -> new SunburstClock(accent);
             case "Segment" -> new SegmentClock(accent);
             case "Polar" -> new PolarClock(accent);
-            case "Binary" -> new BinaryClock(accent);
-            case "Flip" -> new FlipClock(accent);
             case "Orbital" -> new OrbitalClock(accent);
-            case "Radar" -> new RadarClock(accent);
             case "Word" -> new WordClock(accent);
+            case "Binary", "Flip", "Radar" -> new AnalogClockPanel();
             default -> new AnalogClockPanel();
         };
     }
