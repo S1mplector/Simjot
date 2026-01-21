@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
 #include <mutex>
 #include <unordered_map>
 #include <atomic>

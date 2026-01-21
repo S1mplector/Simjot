@@ -14,6 +14,7 @@
 #include "simjot_native.h"
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>

@@ -231,7 +231,7 @@ int64_t simjot_simd_sum_i32(const int32_t* arr, int32_t len) {
     int64_t temp[4];
     _mm256_storeu_si256((__m256i*)temp, vsum);
     sum = temp[0] + temp[1] + temp[2] + temp[3];
-#elif defined(SIMJOT_SSE2)
+#elif defined(SIMJOT_SSE41)
     __m128i vsum_lo = _mm_setzero_si128();
     __m128i vsum_hi = _mm_setzero_si128();
     
