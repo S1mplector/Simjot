@@ -15,10 +15,13 @@
 #import <objc/message.h>
 #import <IOKit/ps/IOPowerSources.h>
 #import <IOKit/ps/IOPSKeys.h>
+#import <IOKit/IOKitLib.h>
 #include <copyfile.h>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/sysctl.h>
+#include <dlfcn.h>
 #endif
 
 #ifdef __APPLE__
@@ -947,6 +950,326 @@ extern "C" int32_t simjot_macos_icloud_coordinated_move(const char* src_path, co
 #else
     (void)src_path;
     (void)dst_path;
+    return 0;
+#endif
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HARDWARE DETECTION - CPU/GPU/Memory profiling for performance optimization
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+extern "C" int32_t simjot_hw_get_architecture(void) {
+#ifdef __APPLE__
+    #if defined(__aarch64__) || defined(__arm64__)
+        return 1; // Apple Silicon (ARM64)
+    #elif defined(__x86_64__)
+        return 2; // Intel 64-bit
+    #elif defined(__i386__)
+        return 3; // Intel 32-bit
+    #else
+        return 0; // Unknown
+    #endif
+#else
+    #if defined(__aarch64__) || defined(__arm64__)
+        return 1;
+    #elif defined(__x86_64__) || defined(_M_X64)
+        return 2;
+    #elif defined(__i386__) || defined(_M_IX86)
+        return 3;
+    #else
+        return 0;
+    #endif
+#endif
+}
+
+extern "C" int64_t simjot_hw_get_total_memory_mb(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSProcessInfo* info = [NSProcessInfo processInfo];
+        uint64_t physMem = [info physicalMemory];
+        return (int64_t)(physMem / (1024 * 1024));
+    }
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_get_cpu_brand(char* out, int32_t out_len) {
+#ifdef __APPLE__
+    if (!out || out_len <= 0) return 0;
+    
+    char brand[256] = {0};
+    size_t size = sizeof(brand);
+    
+    // Try machdep.cpu.brand_string first (Intel)
+    if (sysctlbyname("machdep.cpu.brand_string", brand, &size, NULL, 0) == 0 && brand[0]) {
+        int32_t len = (int32_t)strlen(brand);
+        int32_t copy_len = (len < out_len - 1) ? len : out_len - 1;
+        memcpy(out, brand, copy_len);
+        out[copy_len] = '\0';
+        return copy_len;
+    }
+    
+    // For Apple Silicon, construct from chip info
+    #if defined(__aarch64__) || defined(__arm64__)
+    {
+        char chip[64] = {0};
+        size = sizeof(chip);
+        if (sysctlbyname("machdep.cpu.brand", chip, &size, NULL, 0) == 0 && chip[0]) {
+            int32_t len = (int32_t)strlen(chip);
+            int32_t copy_len = (len < out_len - 1) ? len : out_len - 1;
+            memcpy(out, chip, copy_len);
+            out[copy_len] = '\0';
+            return copy_len;
+        }
+        
+        // Fallback: check for Apple Silicon
+        const char* as_name = "Apple Silicon";
+        int32_t len = (int32_t)strlen(as_name);
+        int32_t copy_len = (len < out_len - 1) ? len : out_len - 1;
+        memcpy(out, as_name, copy_len);
+        out[copy_len] = '\0';
+        return copy_len;
+    }
+    #endif
+    
+    return 0;
+#else
+    (void)out;
+    (void)out_len;
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_get_cpu_core_count(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSProcessInfo* info = [NSProcessInfo processInfo];
+        return (int32_t)[info processorCount];
+    }
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_get_active_core_count(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        NSProcessInfo* info = [NSProcessInfo processInfo];
+        return (int32_t)[info activeProcessorCount];
+    }
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_has_discrete_gpu(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        // On Apple Silicon, there's no discrete GPU (unified memory)
+        #if defined(__aarch64__) || defined(__arm64__)
+            return 0;
+        #else
+            // Intel Mac: check for multiple GPUs via IOKit
+            io_iterator_t iterator;
+            kern_return_t result = IOServiceGetMatchingServices(
+                kIOMasterPortDefault,
+                IOServiceMatching("IOPCIDevice"),
+                &iterator
+            );
+            
+            if (result != KERN_SUCCESS) return 0;
+            
+            int gpu_count = 0;
+            io_service_t service;
+            while ((service = IOIteratorNext(iterator)) != 0) {
+                CFTypeRef classCode = IORegistryEntryCreateCFProperty(
+                    service, CFSTR("class-code"), kCFAllocatorDefault, 0
+                );
+                if (classCode) {
+                    if (CFGetTypeID(classCode) == CFDataGetTypeID()) {
+                        const UInt8* data = CFDataGetBytePtr((CFDataRef)classCode);
+                        // PCI class code 0x03 = display controller
+                        if (data && (data[2] == 0x03 || data[3] == 0x03)) {
+                            gpu_count++;
+                        }
+                    }
+                    CFRelease(classCode);
+                }
+                IOObjectRelease(service);
+            }
+            IOObjectRelease(iterator);
+            
+            // More than 1 GPU suggests discrete + integrated
+            return (gpu_count > 1) ? 1 : 0;
+        #endif
+    }
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_supports_metal(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        // Check if Metal framework is available and has devices
+        Class mtlClass = NSClassFromString(@"MTLCreateSystemDefaultDevice");
+        if (!mtlClass) {
+            // Try direct function check
+            void* metalLib = dlopen("/System/Library/Frameworks/Metal.framework/Metal", RTLD_LAZY);
+            if (metalLib) {
+                typedef id (*MTLCreateFunc)(void);
+                MTLCreateFunc createDevice = (MTLCreateFunc)dlsym(metalLib, "MTLCreateSystemDefaultDevice");
+                if (createDevice) {
+                    id device = createDevice();
+                    dlclose(metalLib);
+                    return device ? 1 : 0;
+                }
+                dlclose(metalLib);
+            }
+        }
+        
+        // Apple Silicon always supports Metal
+        #if defined(__aarch64__) || defined(__arm64__)
+            return 1;
+        #else
+            // Intel Macs from 2012+ support Metal
+            return 1;
+        #endif
+    }
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_get_gpu_memory_mb(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        #if defined(__aarch64__) || defined(__arm64__)
+            // Apple Silicon: unified memory, return total system memory
+            NSProcessInfo* info = [NSProcessInfo processInfo];
+            uint64_t physMem = [info physicalMemory];
+            return (int32_t)(physMem / (1024 * 1024));
+        #else
+            // Intel Mac: try to get VRAM size via IOKit
+            io_iterator_t iterator;
+            kern_return_t result = IOServiceGetMatchingServices(
+                kIOMasterPortDefault,
+                IOServiceMatching("IOPCIDevice"),
+                &iterator
+            );
+            
+            if (result != KERN_SUCCESS) return 0;
+            
+            int64_t max_vram = 0;
+            io_service_t service;
+            while ((service = IOIteratorNext(iterator)) != 0) {
+                CFTypeRef vramSize = IORegistryEntryCreateCFProperty(
+                    service, CFSTR("VRAM,totalMB"), kCFAllocatorDefault, 0
+                );
+                if (vramSize) {
+                    if (CFGetTypeID(vramSize) == CFNumberGetTypeID()) {
+                        int64_t vram = 0;
+                        CFNumberGetValue((CFNumberRef)vramSize, kCFNumberSInt64Type, &vram);
+                        if (vram > max_vram) max_vram = vram;
+                    }
+                    CFRelease(vramSize);
+                }
+                IOObjectRelease(service);
+            }
+            IOObjectRelease(iterator);
+            
+            return (int32_t)max_vram;
+        #endif
+    }
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_is_apple_silicon(void) {
+#if defined(__aarch64__) || defined(__arm64__)
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_is_rosetta(void) {
+#ifdef __APPLE__
+    int ret = 0;
+    size_t size = sizeof(ret);
+    // sysctl.proc_translated indicates Rosetta translation
+    if (sysctlbyname("sysctl.proc_translated", &ret, &size, NULL, 0) == 0) {
+        return ret;
+    }
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+extern "C" int32_t simjot_hw_get_performance_tier(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        int32_t arch = simjot_hw_get_architecture();
+        int64_t memMB = simjot_hw_get_total_memory_mb();
+        int32_t cores = simjot_hw_get_cpu_core_count();
+        int32_t discreteGpu = simjot_hw_has_discrete_gpu();
+        
+        // Apple Silicon: HIGH or MEDIUM
+        if (arch == 1) {
+            if (cores >= 8 && memMB >= 16000) return 0; // HIGH
+            return 1; // MEDIUM
+        }
+        
+        // Intel Mac
+        if (arch == 2) {
+            // High: discrete GPU with 16GB+ RAM
+            if (discreteGpu && memMB >= 16000) return 0; // HIGH
+            // Medium: 8GB+ RAM and 4+ cores
+            if (memMB >= 8000 && cores >= 4) return 1; // MEDIUM
+            // Low: 4GB+ RAM
+            if (memMB >= 4000) return 2; // LOW
+            return 3; // VERY_LOW
+        }
+        
+        // Intel 32-bit or unknown
+        return 3; // VERY_LOW
+    }
+#else
+    return 2; // LOW for non-macOS
+#endif
+}
+
+extern "C" int32_t simjot_hw_get_recommended_fps(void) {
+#ifdef __APPLE__
+    @autoreleasepool {
+        int32_t tier = simjot_hw_get_performance_tier();
+        float refreshRate = simjot_macos_get_primary_refresh_rate();
+        
+        switch (tier) {
+            case 0: // HIGH
+                return (refreshRate > 60.5f) ? 120 : 60;
+            case 1: // MEDIUM
+                return 60;
+            case 2: // LOW
+                return 30;
+            case 3: // VERY_LOW
+            default:
+                return 20;
+        }
+    }
+#else
+    return 60;
+#endif
+}
+
+extern "C" int32_t simjot_hw_supports_promotion(void) {
+#ifdef __APPLE__
+    float refreshRate = simjot_macos_get_primary_refresh_rate();
+    return (refreshRate > 60.5f) ? 1 : 0;
+#else
     return 0;
 #endif
 }

@@ -5205,4 +5205,163 @@ public final class NativeAccess {
         }
         return pattern;
     }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HARDWARE DETECTION - CPU/GPU/Memory profiling for performance optimization
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Get CPU architecture.
+     * @return 1=Apple Silicon, 2=Intel 64-bit, 3=Intel 32-bit, 0=Unknown
+     */
+    public static int getArchitecture() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                int arch = lib.getArchitecture();
+                if (arch > 0) return arch;
+            } catch (Throwable ignored) {}
+        }
+        
+        // Java fallback
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        if (arch.contains("aarch64") || arch.contains("arm64")) {
+            return 1; // Apple Silicon
+        } else if (arch.contains("amd64") || arch.contains("x86_64")) {
+            return 2; // Intel 64-bit
+        } else if (arch.contains("x86") || arch.contains("i386") || arch.contains("i686")) {
+            return 3; // Intel 32-bit
+        }
+        return 0; // Unknown
+    }
+    
+    /**
+     * Get total system memory in MB.
+     */
+    public static long getTotalSystemMemoryMB() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                long mem = lib.getTotalSystemMemoryMB();
+                if (mem > 0) return mem;
+            } catch (Throwable ignored) {}
+        }
+        
+        // Java fallback: estimate from JVM max memory (typically ~25% of system RAM)
+        return Runtime.getRuntime().maxMemory() / (1024 * 1024) * 4;
+    }
+    
+    /**
+     * Get CPU brand string.
+     */
+    public static String getCpuBrand() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                String brand = lib.getCpuBrand();
+                if (brand != null && !brand.isBlank()) return brand;
+            } catch (Throwable ignored) {}
+        }
+        
+        // Java fallback
+        String arch = System.getProperty("os.arch", "");
+        if (arch.contains("aarch64") || arch.contains("arm64")) {
+            return "Apple Silicon";
+        }
+        return "Intel (unknown model)";
+    }
+    
+    /**
+     * Get SIMD support level.
+     * @return 0=scalar, 1=SSE2, 2=SSE4.1, 3=AVX2, 4=NEON
+     */
+    public static int getSimdSupportLevel() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                return lib.getSimdSupportLevel();
+            } catch (Throwable ignored) {}
+        }
+        
+        // Java fallback: estimate based on architecture
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        if (arch.contains("aarch64") || arch.contains("arm64")) {
+            return 4; // NEON
+        } else if (arch.contains("amd64") || arch.contains("x86_64")) {
+            return 1; // Assume at least SSE2 on 64-bit Intel
+        }
+        return 0;
+    }
+    
+    /**
+     * Check if system has a discrete GPU.
+     */
+    public static boolean hasDiscreteGpu() {
+        NativeLibrary lib = library();
+        if (lib != null) {
+            try {
+                return lib.hasDiscreteGpu();
+            } catch (Throwable ignored) {}
+        }
+        return false; // Conservative default
+    }
+    
+    /**
+     * Check if running on Apple Silicon.
+     */
+    public static boolean isAppleSilicon() {
+        return getArchitecture() == 1;
+    }
+    
+    /**
+     * Check if running on Intel Mac.
+     */
+    public static boolean isIntelMac() {
+        if (!isMacOS()) return false;
+        int arch = getArchitecture();
+        return arch == 2 || arch == 3;
+    }
+    
+    /**
+     * Check if running on macOS.
+     */
+    public static boolean isMacOS() {
+        String os = System.getProperty("os.name", "");
+        return os != null && os.toLowerCase(Locale.ROOT).contains("mac");
+    }
+    
+    /**
+     * Get recommended FPS based on hardware capabilities.
+     */
+    public static int getRecommendedFps() {
+        if (isAppleSilicon()) {
+            float refresh = getPrimaryDisplayRefreshRate();
+            return refresh > 60.5f ? 120 : 60;
+        }
+        
+        // Intel Macs
+        if (isIntelMac()) {
+            if (hasDiscreteGpu()) {
+                return 60;
+            }
+            long memMB = getTotalSystemMemoryMB();
+            if (memMB >= 8000) {
+                return 45;
+            }
+            return 30;
+        }
+        
+        return 60;
+    }
+    
+    /**
+     * Check if hardware supports high-quality rendering.
+     */
+    public static boolean supportsHighQualityRendering() {
+        if (isAppleSilicon()) return true;
+        if (isIntelMac()) {
+            return hasDiscreteGpu() || getTotalSystemMemoryMB() >= 8000;
+        }
+        return true;
+    }
 }

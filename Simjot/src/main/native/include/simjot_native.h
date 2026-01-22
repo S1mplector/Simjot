@@ -474,6 +474,37 @@ int32_t simjot_macos_icloud_coordinated_write(const char* path, const uint8_t* d
 int32_t simjot_macos_icloud_coordinated_copy(const char* src_path, const char* dst_path, int32_t copy_attributes);
 int32_t simjot_macos_icloud_coordinated_move(const char* src_path, const char* dst_path);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HARDWARE DETECTION - CPU/GPU/Memory profiling for performance optimization
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Get CPU architecture: 1=Apple Silicon, 2=Intel 64-bit, 3=Intel 32-bit, 0=Unknown */
+int32_t simjot_hw_get_architecture(void);
+
+/* Get total system memory in MB */
+int64_t simjot_hw_get_total_memory_mb(void);
+
+/* Get CPU brand string */
+int32_t simjot_hw_get_cpu_brand(char* out, int32_t out_len);
+
+/* Get CPU core counts */
+int32_t simjot_hw_get_cpu_core_count(void);
+int32_t simjot_hw_get_active_core_count(void);
+
+/* GPU detection */
+int32_t simjot_hw_has_discrete_gpu(void);
+int32_t simjot_hw_supports_metal(void);
+int32_t simjot_hw_get_gpu_memory_mb(void);
+
+/* Platform detection */
+int32_t simjot_hw_is_apple_silicon(void);
+int32_t simjot_hw_is_rosetta(void);
+
+/* Performance profiling */
+int32_t simjot_hw_get_performance_tier(void);  /* 0=HIGH, 1=MEDIUM, 2=LOW, 3=VERY_LOW */
+int32_t simjot_hw_get_recommended_fps(void);
+int32_t simjot_hw_supports_promotion(void);    /* ProMotion (120Hz) display */
+
 /* Scaling utilities */
 int32_t simjot_scale_dimension(int32_t value, float scale);
 float simjot_scale_value(float value, float scale);

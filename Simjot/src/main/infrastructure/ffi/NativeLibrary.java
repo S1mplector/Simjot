@@ -4181,6 +4181,214 @@ public final class NativeLibrary implements AutoCloseable {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // HARDWARE DETECTION API - CPU/GPU/Memory profiling for performance optimization
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get CPU architecture.
+     * @return 1=Apple Silicon, 2=Intel 64-bit, 3=Intel 32-bit, 0=Unknown
+     */
+    public int getArchitecture() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_architecture",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get total system memory in MB.
+     */
+    public long getTotalSystemMemoryMB() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_total_memory_mb",
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG));
+            if (handle == null) return 0;
+            return (long) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get CPU brand string.
+     */
+    public String getCpuBrand() {
+        try (Arena tempArena = Arena.ofConfined()) {
+            MethodHandle handle = optionalHandle("simjot_hw_get_cpu_brand",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+            if (handle == null) return null;
+            MemorySegment buf = tempArena.allocate(256);
+            int len = (int) handle.invokeExact(buf, 256);
+            if (len <= 0) return null;
+            byte[] bytes = new byte[Math.min(len, 255)];
+            MemorySegment.copy(buf, ValueLayout.JAVA_BYTE, 0, bytes, 0, bytes.length);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get CPU core count.
+     */
+    public int getCpuCoreCount() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_cpu_core_count",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return Runtime.getRuntime().availableProcessors();
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return Runtime.getRuntime().availableProcessors();
+        }
+    }
+
+    /**
+     * Get active CPU core count.
+     */
+    public int getActiveCpuCoreCount() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_active_core_count",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return Runtime.getRuntime().availableProcessors();
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return Runtime.getRuntime().availableProcessors();
+        }
+    }
+
+    /**
+     * Check if system has a discrete GPU.
+     */
+    public boolean hasDiscreteGpu() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_has_discrete_gpu",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if Metal is supported.
+     */
+    public boolean supportsMetal() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_supports_metal",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get GPU memory in MB (unified memory on Apple Silicon).
+     */
+    public int getGpuMemoryMB() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_gpu_memory_mb",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Check if running on Apple Silicon.
+     */
+    public boolean isAppleSilicon() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_is_apple_silicon",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if running under Rosetta translation.
+     */
+    public boolean isRosetta() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_is_rosetta",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get performance tier.
+     * @return 0=HIGH, 1=MEDIUM, 2=LOW, 3=VERY_LOW
+     */
+    public int getPerformanceTier() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_performance_tier",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 2; // Default to LOW
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 2;
+        }
+    }
+
+    /**
+     * Get recommended FPS for animations based on hardware.
+     */
+    public int getRecommendedFps() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_get_recommended_fps",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 60;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 60;
+        }
+    }
+
+    /**
+     * Check if display supports ProMotion (120Hz).
+     */
+    public boolean supportsProMotion() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_hw_supports_promotion",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return false;
+            return ((int) handle.invokeExact()) != 0;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get SIMD support level.
+     * @return 0=scalar, 1=SSE2, 2=SSE4.1, 3=AVX2, 4=NEON
+     */
+    public int getSimdSupportLevel() {
+        try {
+            MethodHandle handle = optionalHandle("simjot_simd_support_level",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            if (handle == null) return 0;
+            return (int) handle.invokeExact();
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // UI SCALING API - Native DPI-aware scaling
     // ═══════════════════════════════════════════════════════════════════════════
 
