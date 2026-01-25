@@ -1417,7 +1417,6 @@ public class NotebookManagerPanel extends JPanel {
         private RoundedButton createDialogButton(String text, String iconId) {
                 RoundedButton btn = new RoundedButton(text).withIcon(iconId);
                 btn.setPreferredSize(new Dimension(132, 40));
-                btn.setFlat(true);
                 btn.setFocusPainted(false);
                 return btn;
             }

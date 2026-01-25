@@ -449,7 +449,6 @@ public class SimpleClusterOrganizer extends JDialog {
 
     private RoundedButton createDialogButton(String text, String iconId) {
         RoundedButton btn = new RoundedButton(text).withIcon(iconId);
-        btn.setFlat(true);
         btn.setFocusPainted(false);
         return btn;
     }

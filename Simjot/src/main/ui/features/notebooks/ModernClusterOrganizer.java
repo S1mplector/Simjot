@@ -454,7 +454,6 @@ public class ModernClusterOrganizer extends JDialog {
             btn.setFont(AeroTheme.defaultBoldFont(11f));
             btn.setForeground(TEXT_MUTED);
             btn.setPreferredSize(new Dimension(28, 28));
-            btn.setFlat(true);
             btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             btn.setToolTipText(tooltip);
             btn.addMouseListener(new MouseAdapter() {

@@ -10,13 +10,10 @@ package main.ui.components.buttons;
 
 import java.awt.*;
 import javax.swing.*;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.components.icons.ImageIconRenderer;
-import main.ui.theme.Theme;
 
 public class RoundedButton extends JButton {
-    private boolean flat = false; // if true, paint solid fill without gradients
     private String iconId = null;
 
     public RoundedButton(String text){
@@ -37,34 +34,19 @@ public class RoundedButton extends JButton {
         return this;
     }
 
-    /** Enable or disable flat painting (no gradients/glass overlay). */
-    public void setFlat(boolean flat) {
-        this.flat = flat;
-        repaint();
-    }
-
     @Override
     protected void paintComponent(Graphics g){
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Determine gradient by state
+        // Solid fill based on state (flat style)
         boolean pressed = getModel().isPressed();
         boolean hover = getModel().isRollover();
-        if (flat || Theme.isPlainWhite()) {
-            // Solid fill based on state
-            Color fill = pressed
-                    ? new Color(220, 220, 220)
-                    : (hover ? new Color(235, 235, 235) : new Color(245, 245, 245));
-            g2.setColor(fill);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-        } else {
-            Color top = pressed ? AeroTheme.BUTTON_PRESS_TOP : (hover ? AeroTheme.BUTTON_HOVER_TOP : AeroTheme.BUTTON_BG_TOP);
-            Color bottom = pressed ? AeroTheme.BUTTON_PRESS_BOTTOM : (hover ? AeroTheme.BUTTON_HOVER_BOTTOM : AeroTheme.BUTTON_BG_BOTTOM);
-            Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
-            AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
-            AeroPainters.paintGlassOverlay(g2, r, 10);
-        }
+        Color fill = pressed
+                ? new Color(220, 220, 220)
+                : (hover ? new Color(235, 235, 235) : new Color(245, 245, 245));
+        g2.setColor(fill);
+        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
 
         // Soft border
         g2.setColor(new Color(180, 180, 180));

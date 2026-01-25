@@ -307,7 +307,6 @@ public class ModernTemplateEditorPanel extends JPanel {
     
     private RoundedButton createActionButton(String text, String iconId) {
         RoundedButton btn = new RoundedButton(text).withIcon(iconId);
-        btn.setFlat(true);
         return btn;
     }
     
