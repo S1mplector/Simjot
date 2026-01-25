@@ -96,6 +96,7 @@ public final class SettingsStore {
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
     // Menu bar service (macOS)
     private static final String KEY_MENUBAR_ENABLED = "menuBarServiceEnabled";
+    private static final String KEY_LAUNCH_ON_LOGIN = "launchOnLogin";
     private static final String KEY_QUICK_ENTRY_NOTEBOOK = "quickEntryNotebookPath";
     // Header quotes settings
     private static final String KEY_HEADER_QUOTES = "header.quotes"; // multi-line string
@@ -378,6 +379,11 @@ public final class SettingsStore {
 
     private static File safeRoot() {
         try { return AppDirectories.getRoot(); } catch (Throwable ignored) { return null; }
+    }
+
+    private static boolean isMacOS() {
+        String os = System.getProperty("os.name", "");
+        return os.toLowerCase().contains("mac");
     }
 
     private static boolean isUnderRoot(File folder, File root) {
@@ -681,6 +687,15 @@ public final class SettingsStore {
         return Boolean.parseBoolean(props.getProperty(KEY_MENUBAR_ENABLED, "true"));
     }
     public void setMenuBarServiceEnabled(boolean b){ props.setProperty(KEY_MENUBAR_ENABLED, String.valueOf(b)); }
+
+    public boolean isLaunchOnLoginEnabled(){
+        String v = props.getProperty(KEY_LAUNCH_ON_LOGIN, null);
+        if (v == null) {
+            return isMacOS() && isMenuBarServiceEnabled();
+        }
+        return Boolean.parseBoolean(v);
+    }
+    public void setLaunchOnLoginEnabled(boolean b){ props.setProperty(KEY_LAUNCH_ON_LOGIN, String.valueOf(b)); }
     
     // Quick Entry Notebook (for menu bar quick entries)
     public String getQuickEntryNotebookPath(){ return props.getProperty(KEY_QUICK_ENTRY_NOTEBOOK, ""); }

@@ -340,9 +340,11 @@ public final class AppConfig {
             IcloudSyncService.initializeSyncManager(root);
         } catch (Throwable ignored) {}
         
-        // Initialize menu bar service (macOS only) - always register
+        // Initialize menu bar service (macOS only) when enabled
         try {
-            initMenuBarService();
+            if (main.core.service.SettingsStore.get().isMenuBarServiceEnabled()) {
+                initMenuBarService();
+            }
         } catch (Throwable t) {
             main.infrastructure.io.IoLog.warn("menubar", "Menu bar init failed: " + t.getMessage(), t);
         }

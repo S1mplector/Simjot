@@ -40,6 +40,7 @@ import main.core.font.CustomFont;
 import main.core.service.SettingsStore;
 import main.infrastructure.font.CustomFontRenderer;
 import main.infrastructure.font.CustomFontSupport;
+import main.infrastructure.startup.MacLoginItem;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.combobox.ModernComboBoxUI;
@@ -69,6 +70,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox journalAutocorrectChk;
     private final JCheckBox poetryAutocorrectChk;
     private final JCheckBox menuBarChk;
+    private final JCheckBox launchOnLoginChk;
     
 
     GeneralSettingsPage() {
@@ -266,8 +268,17 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
                 "with a minimal formatting toolbar. Entries are saved to the 'quick' folder.</div></html>");
             menuBarDesc.setFont(menuBarDesc.getFont().deriveFont(11f));
             gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(menuBarDesc, gc);
+            row++;
+
+            launchOnLoginChk = new JCheckBox("Start Simjot at login", store.isLaunchOnLoginEnabled());
+            launchOnLoginChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+            launchOnLoginChk.setBackground(new Color(0, 0, 0, 0));
+            launchOnLoginChk.setToolTipText("Launches Simjot automatically when you sign in");
+            gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(launchOnLoginChk, gc);
+            row++;
         } else {
             menuBarChk = null;
+            launchOnLoginChk = null;
         }
 
         // Backup settings moved to Storage section
@@ -309,10 +320,12 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setPoetryAutocorrectEnabled(poetryAutocorrectChk.isSelected());
         
         // Menu bar service (macOS only)
+        boolean menuBarEnabled = store.isMenuBarServiceEnabled();
         if (menuBarChk != null) {
             boolean wasEnabled = store.isMenuBarServiceEnabled();
             boolean nowEnabled = menuBarChk.isSelected();
             store.setMenuBarServiceEnabled(nowEnabled);
+            menuBarEnabled = nowEnabled;
             
             // Initialize or shutdown based on change
             if (nowEnabled && !wasEnabled) {
@@ -322,6 +335,12 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
                     main.infrastructure.menubar.MenuBarService.getInstance().shutdown();
                 } catch (Throwable ignored) {}
             }
+            updateMacQuitStrategy(nowEnabled);
+        }
+
+        if (launchOnLoginChk != null) {
+            store.setLaunchOnLoginEnabled(launchOnLoginChk.isSelected());
+            MacLoginItem.sync(store.isLaunchOnLoginEnabled(), menuBarEnabled);
         }
     }
 
@@ -360,6 +379,17 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         g2.setFont(new Font(family, Font.PLAIN, size));
         g2.setColor(Color.BLACK);
         g2.drawString(sampleText, x, y);
+    }
+
+    private static void updateMacQuitStrategy(boolean keepRunningInTray) {
+        try {
+            if (!java.awt.Desktop.isDesktopSupported()) return;
+            java.awt.Desktop d = java.awt.Desktop.getDesktop();
+            java.awt.desktop.QuitStrategy qs = keepRunningInTray
+                ? java.awt.desktop.QuitStrategy.NORMAL_EXIT
+                : java.awt.desktop.QuitStrategy.CLOSE_ALL_WINDOWS;
+            d.setQuitStrategy(qs);
+        } catch (Throwable ignored) {}
     }
 
     private void reloadFontFamilyOptions(String preferredSelection) {

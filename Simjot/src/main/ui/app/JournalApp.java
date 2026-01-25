@@ -61,6 +61,7 @@ import main.infrastructure.io.FileIO;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
 import main.infrastructure.monitoring.AppPerf;
+import main.infrastructure.startup.MacLoginItem;
 import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
@@ -189,6 +190,8 @@ public class JournalApp extends JFrame {
      * Used for relaunch functionality and debugging.
      */
     private static String[] launchArgs = new String[0];
+    private static final String START_IN_TRAY_ARG = "--start-in-tray";
+    private static boolean startInTrayOnLaunch = false;
 
     // ====================
     // CARD IDENTIFIERS
@@ -678,16 +681,31 @@ public class JournalApp extends JFrame {
             logWarn("enableSimFeatures", t);
         }
 
+        boolean keepInTray = shouldKeepRunningInTray();
+        if (keepInTray) {
+            try { AppConfig.initMenuBarService(); } catch (Throwable t) { logWarn("Menu bar init", t); }
+        }
+        try { syncMacLaunchOnLogin(keepInTray); } catch (Throwable t) { logWarn("Launch on login sync", t); }
+
         // Start maximized before showing to avoid small initial window
         try { setExtendedState(JFrame.MAXIMIZED_BOTH); } catch (Throwable ignored) {}
+        boolean startHidden = keepInTray && startInTrayOnLaunch;
         setVisible(true);
-        try { toFront(); requestFocus(); } catch (Throwable ignored) {}
+        if (!startHidden) {
+            try { toFront(); requestFocus(); } catch (Throwable ignored) {}
+        }
         switchCard(MAIN_MENU);
+        if (startHidden) {
+            hideToTray();
+        }
 
         try {
             if (java.awt.Desktop.isDesktopSupported()) {
                 java.awt.Desktop d = java.awt.Desktop.getDesktop();
-                try { d.setQuitStrategy(java.awt.desktop.QuitStrategy.CLOSE_ALL_WINDOWS); } catch (Throwable ignored) {}
+                java.awt.desktop.QuitStrategy qs = keepInTray
+                    ? java.awt.desktop.QuitStrategy.NORMAL_EXIT
+                    : java.awt.desktop.QuitStrategy.CLOSE_ALL_WINDOWS;
+                try { d.setQuitStrategy(qs); } catch (Throwable ignored) {}
                 if (d.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
                     d.setQuitHandler((e, response) -> {
                         try { exitGracefully(); } catch (Throwable t) { logWarn("App quit handler", t); }
@@ -747,6 +765,11 @@ public class JournalApp extends JFrame {
         try {
             this.addWindowListener(new WindowAdapter(){
                 @Override public void windowClosing(WindowEvent e) {
+                    if (shouldKeepRunningInTray()) {
+                        try { AppConfig.initMenuBarService(); } catch (Throwable ignored) {}
+                        hideToTray();
+                        return;
+                    }
                     // Unified graceful shutdown (shows exiting splash, closes resources, exits)
                     exitGracefully();
                 }
@@ -924,6 +947,30 @@ public class JournalApp extends JFrame {
     public void updateWidgetPanelVisibility() {
         if (mainMenuPanel instanceof MainMenuPanel) {
             ((MainMenuPanel) mainMenuPanel).updateWidgetPanelVisibility();
+        }
+    }
+
+    private boolean shouldKeepRunningInTray() {
+        if (!AppLifecycle.isMacOS()) return false;
+        try {
+            return SettingsStore.get().isMenuBarServiceEnabled();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private void hideToTray() {
+        try { setVisible(false); } catch (Throwable ignored) {}
+    }
+
+    private void syncMacLaunchOnLogin(boolean keepInTray) {
+        if (!AppLifecycle.isMacOS()) return;
+        try {
+            SettingsStore store = SettingsStore.get();
+            boolean enabled = store.isLaunchOnLoginEnabled();
+            MacLoginItem.sync(enabled, keepInTray);
+        } catch (Throwable t) {
+            logWarn("Launch on login", t);
         }
     }
 
@@ -1413,6 +1460,7 @@ public class JournalApp extends JFrame {
 
     public static void main(String[] args) {
         launchArgs = (args == null) ? new String[0] : args.clone();
+        startInTrayOnLaunch = hasArg(args, START_IN_TRAY_ARG);
         try { CrashReporter.install(); } catch (Throwable ignored) {}
         try { AppPerf.applySystemHints(); } catch (Throwable ignored) {}
         SwingUtilities.invokeLater(() -> {
@@ -1661,6 +1709,14 @@ public class JournalApp extends JFrame {
                 }
             }.execute();
         });
+    }
+
+    private static boolean hasArg(String[] args, String flag) {
+        if (args == null || flag == null) return false;
+        for (String a : args) {
+            if (flag.equalsIgnoreCase(a)) return true;
+        }
+        return false;
     }
 
 
