@@ -21,6 +21,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
@@ -39,10 +41,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -80,6 +83,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
 import main.ui.dialog.file.SimjotFileChooser;
+import main.core.service.SettingsStore;
 
 /**
  * Notetaking editor: extends the standard EntryPanel with
@@ -117,6 +121,15 @@ public class NotetakingPanel extends EntryPanel {
     private Color currentTextColor = Color.BLACK;
     private EditingMode editingMode = EditingMode.TEXT;
     private final java.util.Deque<Color> recentColors = new java.util.ArrayDeque<>();
+    private boolean awaitingTextColorCode = false;
+    private Timer textColorCodeTimer;
+    private KeyEventDispatcher textColorCodeDispatcher;
+    private boolean textColorDispatcherInstalled = false;
+
+    private static final int TEXT_COLOR_CODE_TIMEOUT_MS = 5000;
+    private static final String TEXT_COLOR_CODE_PREF_KEY = "notetaking.textColorCodeMap";
+    private static final String DEFAULT_TEXT_COLOR_CODE_MAP =
+            "B=#2196F3,R=#F44336,G=#4CAF50,Y=#FFEB3B,O=#FF9800,P=#9C27B0,K=#212121,W=#FFFFFF";
 
     public NotetakingPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -158,6 +171,7 @@ public class NotetakingPanel extends EntryPanel {
     @Override
     public void removeNotify() {
         try { if (drawingOverlay != null) drawingOverlay.shutdown(); } catch (Throwable ignored) {}
+        cancelTextColorCode(false);
         super.removeNotify();
     }
 
@@ -264,8 +278,7 @@ public class NotetakingPanel extends EntryPanel {
             if (targetWidth < 320) targetWidth = 520;
             targetWidth = Math.min(780, targetWidth);
             int targetHeight = DateDividerPainter.DEFAULT_HEIGHT;
-            String label = DateDividerPainter.formatDate(LocalDate.now());
-            BufferedImage img = DateDividerPainter.renderImage(targetWidth, targetHeight, label);
+            BufferedImage img = DateDividerPainter.renderImage(targetWidth, targetHeight, "");
 
             File dir = new File(journalFolder, "attachments");
             if (!dir.exists()) dir.mkdirs();
@@ -367,14 +380,7 @@ public class NotetakingPanel extends EntryPanel {
     
     private void showTextColorPicker() {
         Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(this, "Text Color", currentTextColor);
-        if (picked != null) {
-            currentTextColor = picked;
-            if (textColorBtn != null) {
-                textColorBtn.setTextColor(currentTextColor);
-            }
-            // Apply color to selection or set typing color
-            RichTextStyler.applyColor(contentArea, currentTextColor);
-        }
+        applyTextColor(picked);
     }
 
     private JPanel buildColorPopupContent() {
@@ -621,6 +627,192 @@ public class NotetakingPanel extends EntryPanel {
         am.put("ntk-h2", new AbstractAction(){ @Override public void actionPerformed(java.awt.event.ActionEvent e){ applyFontSizeToSelection(18f, true); }});
         am.put("ntk-h3", new AbstractAction(){ @Override public void actionPerformed(java.awt.event.ActionEvent e){ applyFontSizeToSelection(16f, true); }});
         am.put("ntk-p",  new AbstractAction(){ @Override public void actionPerformed(java.awt.event.ActionEvent e){ applyFontSizeToSelection(14f, false); }});
+
+        // Text color quick code: Cmd/Ctrl+Shift+C then a single-letter code (e.g., B/R/G)
+        im.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "ntk-text-color-code");
+        am.put("ntk-text-color-code", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) { beginTextColorCodeCapture(); }
+        });
+    }
+
+    private void beginTextColorCodeCapture() {
+        if (awaitingTextColorCode) return;
+        awaitingTextColorCode = true;
+        ensureTextColorDispatcherInstalled();
+        try { contentArea.requestFocusInWindow(); } catch (Throwable ignored) {}
+        if (textColorCodeTimer != null) textColorCodeTimer.stop();
+        textColorCodeTimer = new Timer(TEXT_COLOR_CODE_TIMEOUT_MS, e -> cancelTextColorCode(true));
+        textColorCodeTimer.setRepeats(false);
+        textColorCodeTimer.start();
+        main.ui.components.toast.ToastOverlay.info(buildTextColorCodeHint());
+    }
+
+    private void cancelTextColorCode(boolean timedOut) {
+        if (!awaitingTextColorCode) return;
+        awaitingTextColorCode = false;
+        if (textColorCodeTimer != null) {
+            textColorCodeTimer.stop();
+            textColorCodeTimer = null;
+        }
+        removeTextColorDispatcher();
+        if (timedOut) {
+            main.ui.components.toast.ToastOverlay.info("Text color code timed out.");
+        }
+    }
+
+    private void ensureTextColorDispatcherInstalled() {
+        if (textColorCodeDispatcher == null) {
+            textColorCodeDispatcher = e -> {
+                if (!awaitingTextColorCode) return false;
+                Component focus = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+                if (focus == null || !SwingUtilities.isDescendingFrom(focus, contentArea)) {
+                    cancelTextColorCode(false);
+                    return false;
+                }
+                if (e.getID() == java.awt.event.KeyEvent.KEY_PRESSED) {
+                    if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE) {
+                        cancelTextColorCode(false);
+                        e.consume();
+                        return true;
+                    }
+                    return false;
+                }
+                if (e.getID() == java.awt.event.KeyEvent.KEY_TYPED) {
+                    char ch = e.getKeyChar();
+                    if (Character.isISOControl(ch)) {
+                        e.consume();
+                        return true;
+                    }
+                    handleTextColorCodeChar(ch);
+                    e.consume();
+                    return true;
+                }
+                return false;
+            };
+        }
+        if (!textColorDispatcherInstalled) {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(textColorCodeDispatcher);
+            textColorDispatcherInstalled = true;
+        }
+    }
+
+    private void removeTextColorDispatcher() {
+        if (textColorDispatcherInstalled && textColorCodeDispatcher != null) {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(textColorCodeDispatcher);
+            textColorDispatcherInstalled = false;
+        }
+    }
+
+    private void handleTextColorCodeChar(char ch) {
+        char key = Character.toUpperCase(ch);
+        Map<Character, Color> map = resolveTextColorCodeMap();
+        Color color = map.get(key);
+        if (color != null) {
+            applyTextColor(color);
+        } else {
+            main.ui.components.toast.ToastOverlay.info("Unknown text color code: " + key);
+        }
+        cancelTextColorCode(false);
+    }
+
+    private void applyTextColor(Color color) {
+        if (color == null) return;
+        currentTextColor = color;
+        if (textColorBtn != null) {
+            textColorBtn.setTextColor(currentTextColor);
+        }
+        RichTextStyler.applyColor(contentArea, currentTextColor);
+    }
+
+    private Map<Character, Color> resolveTextColorCodeMap() {
+        String raw = null;
+        try {
+            raw = SettingsStore.get().getValue(TEXT_COLOR_CODE_PREF_KEY, DEFAULT_TEXT_COLOR_CODE_MAP);
+        } catch (Throwable ignored) {}
+        Map<Character, Color> map = parseTextColorCodeMap(raw);
+        if (map.isEmpty()) {
+            map = parseTextColorCodeMap(DEFAULT_TEXT_COLOR_CODE_MAP);
+        }
+        return map;
+    }
+
+    private Map<Character, Color> parseTextColorCodeMap(String raw) {
+        Map<Character, Color> map = new LinkedHashMap<>();
+        if (raw == null) return map;
+        String[] tokens = raw.split("[,;]");
+        for (String token : tokens) {
+            if (token == null) continue;
+            String t = token.trim();
+            if (t.isEmpty()) continue;
+            int idx = t.indexOf('=');
+            if (idx < 0) idx = t.indexOf(':');
+            if (idx <= 0 || idx >= t.length() - 1) continue;
+            char key = Character.toUpperCase(t.substring(0, idx).trim().charAt(0));
+            String colorRaw = t.substring(idx + 1).trim();
+            Color color = parseColorString(colorRaw);
+            if (color != null) {
+                map.put(key, color);
+            }
+        }
+        return map;
+    }
+
+    private Color parseColorString(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (s.isEmpty()) return null;
+        switch (s) {
+            case "black": return new Color(33, 33, 33);
+            case "white": return Color.WHITE;
+            case "red": return new Color(244, 67, 54);
+            case "green": return new Color(76, 175, 80);
+            case "blue": return new Color(33, 150, 243);
+            case "yellow": return new Color(255, 235, 59);
+            case "orange": return new Color(255, 152, 0);
+            case "purple": return new Color(156, 39, 176);
+            case "pink": return new Color(233, 30, 99);
+            case "brown": return new Color(121, 85, 72);
+            case "gray":
+            case "grey": return new Color(120, 120, 120);
+            case "cyan": return new Color(0, 188, 212);
+            case "teal": return new Color(0, 150, 136);
+            case "magenta": return new Color(156, 39, 176);
+            default: break;
+        }
+        String hex = s;
+        if (hex.startsWith("#")) hex = hex.substring(1);
+        if (hex.startsWith("0x")) hex = hex.substring(2);
+        if (hex.length() == 6 || hex.length() == 8) {
+            try {
+                long val = Long.parseLong(hex, 16);
+                if (hex.length() == 8) {
+                    return new Color((int) val, true);
+                }
+                return new Color((int) val);
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
+    private String buildTextColorCodeHint() {
+        Map<Character, Color> map = resolveTextColorCodeMap();
+        if (map.isEmpty()) {
+            return "Text color: type a code (Esc to cancel)";
+        }
+        StringBuilder sb = new StringBuilder("Text color code: ");
+        int count = 0;
+        for (Map.Entry<Character, Color> entry : map.entrySet()) {
+            if (count > 0) sb.append("  ");
+            sb.append(entry.getKey()).append("=").append(toHex(entry.getValue()));
+            if (++count >= 6 && map.size() > 6) { sb.append("  ..."); break; }
+        }
+        sb.append("  (Esc to cancel)");
+        return sb.toString();
+    }
+
+    private static String toHex(Color color) {
+        if (color == null) return "#000000";
+        return String.format("#%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
     }
 
     private void applyFontSizeToSelection(float size, boolean bold) {

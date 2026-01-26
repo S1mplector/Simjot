@@ -76,6 +76,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -120,6 +121,13 @@ public class NotebookManagerPanel extends JPanel {
     private SwingWorker<Void, GlobalSearchEngine.SearchResult> searchWorker;
     private final Map<String, Integer> searchHitCounts = new HashMap<>();
     private final Map<String, GlobalSearchEngine.SearchResult> primarySearchHits = new HashMap<>();
+    private JToggleButton searchToggle;
+    private JComponent searchPanel;
+    private JComponent searchContainer;
+    private int searchExpandedHeight = 0;
+    private int searchAnimHeight = 0;
+    private int searchTargetHeight = 0;
+    private Timer searchExpandTimer;
 
     public NotebookManagerPanel(JournalApp app){
         this.app = app;
@@ -141,6 +149,11 @@ public class NotebookManagerPanel extends JPanel {
         // Right side - organize button
         JPanel rightButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         rightButtons.setOpaque(false);
+        searchToggle = new AccentIconToggleButton("search");
+        searchToggle.setToolTipText("Search notebooks");
+        searchToggle.addActionListener(e -> setSearchExpanded(searchToggle.isSelected(), true));
+        rightButtons.add(searchToggle);
+        rightButtons.add(Box.createHorizontalStrut(4));
         ToolbarMenuIconButton organizeBtn = new ToolbarMenuIconButton("", "settings");
         organizeBtn.setToolTipText("Organize Clusters");
         organizeBtn.addActionListener(e -> {
@@ -157,14 +170,16 @@ public class NotebookManagerPanel extends JPanel {
         headerStack.setOpaque(false);
         headerStack.setLayout(new BoxLayout(headerStack, BoxLayout.Y_AXIS));
         headerStack.add(topBar);
-        headerStack.add(Box.createVerticalStrut(6));
-        headerStack.add(buildSearchPanel());
+        searchPanel = buildSearchPanel();
+        searchContainer = buildSearchContainer(searchPanel);
+        headerStack.add(searchContainer);
 
         add(headerStack, BorderLayout.NORTH);
 
         searchDebounce = new Timer(200, e -> runSearch());
         searchDebounce.setRepeats(false);
         installSearchHandlers();
+        setSearchExpanded(false, false);
 
         gallery.setOpaque(false);
         gallery.setLayout(new BoxLayout(gallery, BoxLayout.Y_AXIS));
@@ -209,23 +224,8 @@ public class NotebookManagerPanel extends JPanel {
         searchField.setFont(AeroTheme.defaultFont().deriveFont(14f));
         searchField.setPreferredSize(new Dimension(420, 32));
 
-        RoundedButton searchBtn = new RoundedButton("Search").withIcon("search");
-        searchBtn.setPreferredSize(new Dimension(110, 32));
-        searchBtn.setToolTipText("Run search now");
-        searchBtn.addActionListener(e -> runSearch());
-
-        RoundedButton clearBtn = new RoundedButton("Clear").withIcon("close");
-        clearBtn.setPreferredSize(new Dimension(96, 32));
-        clearBtn.setToolTipText("Clear all filters");
-        clearBtn.addActionListener(e -> clearSearch());
-
-        JPanel searchActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        searchActions.setOpaque(false);
-        searchActions.add(clearBtn);
-        searchActions.add(searchBtn);
-
         searchBar.add(searchField, BorderLayout.CENTER);
-        searchBar.add(searchActions, BorderLayout.EAST);
+        searchBar.add(Box.createHorizontalStrut(8), BorderLayout.EAST);
 
         RoundedPanel filterCard = new RoundedPanel(12);
         filterCard.setFlat(true);
@@ -278,7 +278,89 @@ public class NotebookManagerPanel extends JPanel {
         stack.add(statusRow);
 
         searchPanel.add(stack, BorderLayout.CENTER);
+        searchExpandedHeight = searchPanel.getPreferredSize().height;
         return searchPanel;
+    }
+
+    private JComponent buildSearchContainer(JComponent content) {
+        JComponent container = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension pref = content.getPreferredSize();
+                return new Dimension(pref.width, searchAnimHeight);
+            }
+
+            @Override
+            public Dimension getMinimumSize() {
+                return new Dimension(0, searchAnimHeight);
+            }
+
+            @Override
+            public Dimension getMaximumSize() {
+                return new Dimension(Integer.MAX_VALUE, searchAnimHeight);
+            }
+        };
+        container.setOpaque(false);
+        container.setAlignmentX(Component.LEFT_ALIGNMENT);
+        container.add(content, BorderLayout.CENTER);
+        return container;
+    }
+
+    private void setSearchExpanded(boolean expanded, boolean animate) {
+        if (expanded && searchPanel != null) {
+            searchExpandedHeight = searchPanel.getPreferredSize().height;
+        }
+        int target = expanded ? searchExpandedHeight : 0;
+        searchTargetHeight = target;
+        if (searchToggle != null && searchToggle.isSelected() != expanded) {
+            searchToggle.setSelected(expanded);
+        }
+        if (!expanded) {
+            if (searchWorker != null && !searchWorker.isDone()) {
+                searchWorker.cancel(true);
+            }
+        }
+        if (!animate) {
+            searchAnimHeight = target;
+            if (searchExpandTimer != null) searchExpandTimer.stop();
+            updateSearchContainerHeight();
+            return;
+        }
+        if (searchExpandTimer == null) {
+            searchExpandTimer = new Timer(AppPerf.getAnimationDelay(), e -> animateSearchHeight());
+        }
+        if (!searchExpandTimer.isRunning()) {
+            searchExpandTimer.start();
+        }
+        if (expanded && searchField != null) {
+            SwingUtilities.invokeLater(() -> searchField.requestFocusInWindow());
+        }
+    }
+
+    private void animateSearchHeight() {
+        int diff = searchTargetHeight - searchAnimHeight;
+        if (Math.abs(diff) <= 2) {
+            searchAnimHeight = searchTargetHeight;
+            updateSearchContainerHeight();
+            if (searchExpandTimer != null) searchExpandTimer.stop();
+            return;
+        }
+        int step = Math.max(2, Math.round(Math.abs(diff) * 0.2f));
+        if (diff > 0) {
+            searchAnimHeight = Math.min(searchTargetHeight, searchAnimHeight + step);
+        } else {
+            searchAnimHeight = Math.max(searchTargetHeight, searchAnimHeight - step);
+        }
+        updateSearchContainerHeight();
+    }
+
+    private void updateSearchContainerHeight() {
+        if (searchContainer != null) {
+            searchContainer.revalidate();
+            searchContainer.repaint();
+        }
+        revalidate();
+        repaint();
     }
 
     private void installSearchHandlers() {
@@ -636,6 +718,75 @@ public class NotebookManagerPanel extends JPanel {
             }
             if (max <= 0) return "";
             return input.substring(0, max).trim() + ellipsis;
+        }
+    }
+
+    private static final class AccentIconToggleButton extends JToggleButton {
+        private final String iconId;
+
+        private AccentIconToggleButton(String iconId) {
+            this.iconId = iconId == null ? "" : iconId.toLowerCase();
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setOpaque(false);
+            setRolloverEnabled(true);
+            Dimension d = new Dimension(48, 36);
+            setPreferredSize(d);
+            setMinimumSize(d);
+            setMaximumSize(new Dimension(72, 40));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            boolean pressed = getModel().isArmed() && getModel().isPressed();
+            boolean hover = getModel().isRollover();
+            boolean active = isSelected();
+
+            Color top = active ? new Color(255, 235, 205, 230) : new Color(247, 248, 250, 225);
+            Color bot = active ? new Color(253, 218, 160, 220) : new Color(229, 232, 238, 220);
+            if (pressed) {
+                top = top.darker();
+                bot = bot.darker();
+            }
+            RoundRectangle2D plate = new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, 10, 10);
+            g2.setPaint(new GradientPaint(0, 0, top, 0, h, bot));
+            g2.fill(plate);
+
+            g2.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 140),
+                    0, h / 2f, new Color(255, 255, 255, 20)));
+            g2.fill(new RoundRectangle2D.Float(1, 1, w - 2, h / 2f + 4, 9, 9));
+
+            g2.setColor(new Color(170, 175, 185, 200));
+            g2.draw(plate);
+
+            if (active || hover) {
+                g2.setColor(new Color(255, 180, 90, active ? 120 : 70));
+                g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, 9, 9));
+            }
+
+            int iconSize = Math.min(w, h) - 16;
+            int ix = (w - iconSize) / 2;
+            int iy = (h - iconSize) / 2;
+            String res = ImageIconRenderer.mapIdToResource(iconId);
+            if (res != null && ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true)) {
+                g2.dispose();
+                return;
+            }
+
+            g2.setColor(new Color(60, 60, 60, 220));
+            g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int r = Math.max(5, iconSize / 3);
+            int cx = w / 2 - 2;
+            int cy = h / 2 - 2;
+            g2.drawOval(cx - r, cy - r, r * 2, r * 2);
+            g2.drawLine(cx + r - 1, cy + r - 1, cx + r + 6, cy + r + 6);
+
+            g2.dispose();
         }
     }
 
