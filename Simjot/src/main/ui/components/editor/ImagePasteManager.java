@@ -10,6 +10,7 @@ package main.ui.components.editor;
 
 import java.awt.AWTEvent;
 import java.awt.AlphaComposite;
+import java.awt.Component;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -489,14 +490,17 @@ public final class ImagePasteManager {
                 if (!(event instanceof MouseEvent me)) return;
                 if (me.getID() != MouseEvent.MOUSE_PRESSED) return;
                 if (activeOverlay == null || !activeOverlay.isVisible()) return;
-                Point screenPoint = null;
-                try {
-                    screenPoint = me.getLocationOnScreen();
-                } catch (Throwable ignored) {}
-                if (screenPoint == null) return;
-                if (!isMouseOverAnyOverlay(screenPoint)) {
-                    fadeOutAndDismiss(activeOverlay);
+                Window srcWindow = null;
+                Object src = me.getSource();
+                if (src instanceof Component) {
+                    try {
+                        srcWindow = SwingUtilities.getWindowAncestor((Component) src);
+                    } catch (Throwable ignored) {}
                 }
+                if (srcWindow == activeOverlay || srcWindow == imageEditOverlay || srcWindow == sizePreviewOverlay) {
+                    return;
+                }
+                fadeOutAndDismiss(activeOverlay);
             };
         }
         if (!globalMouseListenerInstalled) {
