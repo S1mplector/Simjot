@@ -474,7 +474,7 @@ public class JournalApp extends JFrame {
         String nativePath = main.infrastructure.ffi.NativeAccess.readConfig(configFile.getAbsolutePath());
         if (nativePath != null && !nativePath.isBlank()) {
             File folder = new File(nativePath.trim());
-            if (folder.exists() && folder.isDirectory()) {
+            if (AppDirectories.isDirectoryOrNoPermission(folder)) {
                 configRoot = folder;
             }
         }
@@ -484,7 +484,7 @@ public class JournalApp extends JFrame {
                 String path = reader.readLine();
                 if (path != null && !path.isBlank()) {
                     File folder = new File(path.trim());
-                    if (folder.exists() && folder.isDirectory()) {
+                    if (AppDirectories.isDirectoryOrNoPermission(folder)) {
                         configRoot = folder;
                     }
                 }

@@ -9,6 +9,11 @@
 package main.infrastructure.io;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import main.infrastructure.ffi.NativeAccess;
 
 /**
@@ -231,6 +236,23 @@ public final class AppDirectories {
             if (f.exists()) return true;
         }
         return new File(folder, "notebooks.json").exists();
+    }
+
+    /**
+     * Returns true if the folder is a directory, or if it exists but access is denied.
+     * This helps recover user data locations when macOS privacy permissions are revoked.
+     */
+    public static boolean isDirectoryOrNoPermission(File folder) {
+        if (folder == null) return false;
+        Path path = folder.toPath();
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+            return attrs.isDirectory();
+        } catch (AccessDeniedException e) {
+            return true;
+        } catch (IOException | SecurityException e) {
+            return false;
+        }
     }
 
     /**
@@ -464,7 +486,7 @@ public final class AppDirectories {
                 String path = reader.readLine();
                 if (path == null || path.isBlank()) return;
                 File folder = new File(path.trim());
-                if (folder.exists() && folder.isDirectory()) {
+                if (isDirectoryOrNoPermission(folder)) {
                     root = folder;
                 }
             }

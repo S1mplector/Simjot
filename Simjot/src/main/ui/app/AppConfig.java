@@ -78,7 +78,7 @@ public final class AppConfig {
         String nativePath = NativeAccess.readConfig(configFile.getAbsolutePath());
         if (nativePath != null && !nativePath.isBlank()) {
             File folder = new File(nativePath.trim());
-            if (folder.exists() && folder.isDirectory()) {
+            if (AppDirectories.isDirectoryOrNoPermission(folder)) {
                 configRoot = folder;
             }
         }
@@ -88,7 +88,7 @@ public final class AppConfig {
                 String path = reader.readLine();
                 if (path != null && !path.isBlank()) {
                     File folder = new File(path.trim());
-                    if (folder.exists() && folder.isDirectory()) {
+                    if (AppDirectories.isDirectoryOrNoPermission(folder)) {
                         configRoot = folder;
                     }
                 }
@@ -182,7 +182,7 @@ public final class AppConfig {
      */
     public static boolean hasValidRootFolder() {
         File root = getRootFolder();
-        return root != null && root.exists() && root.isDirectory();
+        return root != null && AppDirectories.isDirectoryOrNoPermission(root);
     }
     
     /**
