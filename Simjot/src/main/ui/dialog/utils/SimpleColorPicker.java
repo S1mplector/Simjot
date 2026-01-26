@@ -34,9 +34,11 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
+import main.core.service.SettingsStore;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
 
@@ -52,9 +54,14 @@ public class SimpleColorPicker extends JDialog {
     private Color selectedColor;
     private Color initialColor;
     private boolean confirmed = false;
+
+    private final String mappingPrefKey;
+    private final String mappingDefault;
     
     private JPanel previewPanel;
     private JPanel recentPanel;
+    private JTextField mappingField;
+    private JTextField mappingKeyField;
     
     // Base hues for the palette
     private static final Color[] BASE_COLORS = {
@@ -77,10 +84,16 @@ public class SimpleColorPicker extends JDialog {
     };
     
     public SimpleColorPicker(Component parent, Color initial) {
+        this(parent, initial, null, null);
+    }
+
+    public SimpleColorPicker(Component parent, Color initial, String mappingPrefKey, String mappingDefault) {
         super(parent instanceof Window ? (Window) parent : SwingUtilities.getWindowAncestor(parent),
               "Pick Color", ModalityType.APPLICATION_MODAL);
         this.initialColor = initial != null ? initial : Color.BLACK;
         this.selectedColor = this.initialColor;
+        this.mappingPrefKey = mappingPrefKey;
+        this.mappingDefault = mappingDefault;
         
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
@@ -179,7 +192,6 @@ public class SimpleColorPicker extends JDialog {
         
         // Grayscale row at bottom
         JPanel grayscaleRow = createGrayscaleRow();
-        content.add(grayscaleRow, BorderLayout.SOUTH);
         
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
@@ -196,6 +208,7 @@ public class SimpleColorPicker extends JDialog {
         okBtn.setPreferredSize(new Dimension(70, 34));
         okBtn.addActionListener(e -> {
             confirmed = true;
+            saveTextColorMappingFromField();
             addToRecent(selectedColor);
             dispose();
         });
@@ -208,10 +221,13 @@ public class SimpleColorPicker extends JDialog {
         bottomPanel.setBorder(new EmptyBorder(20, 0, 0, 0));
         bottomPanel.add(buttonPanel, BorderLayout.EAST);
         
-        // Combine grayscale and buttons in south area
+        // Combine grayscale, shortcut map, and buttons in south area
         JPanel southArea = new JPanel(new BorderLayout(0, 12));
         southArea.setOpaque(false);
         southArea.add(grayscaleRow, BorderLayout.NORTH);
+        if (mappingPrefKey != null && !mappingPrefKey.isBlank()) {
+            southArea.add(buildShortcutMapPanel(), BorderLayout.CENTER);
+        }
         southArea.add(bottomPanel, BorderLayout.SOUTH);
         content.add(southArea, BorderLayout.SOUTH);
         
@@ -220,6 +236,114 @@ public class SimpleColorPicker extends JDialog {
         // ESC to cancel
         getRootPane().registerKeyboardAction(e -> { confirmed = false; dispose(); },
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+    }
+
+    private JPanel buildShortcutMapPanel() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(6, 0, 0, 0));
+
+        JLabel label = new JLabel("Shortcut map (Cmd/Ctrl+Shift+C)");
+        label.setFont(label.getFont().deriveFont(11f));
+        label.setForeground(new Color(100, 100, 100));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(4));
+
+        JPanel mapRow = new JPanel(new BorderLayout(6, 0));
+        mapRow.setOpaque(false);
+        mapRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        mappingField = new JTextField(loadTextColorMapping());
+        mappingField.setToolTipText("Format: B=#2196F3,R=#F44336,G=#4CAF50");
+        mappingField.addActionListener(e -> saveTextColorMappingFromField());
+        mapRow.add(mappingField, BorderLayout.CENTER);
+
+        RoundedButton saveBtn = new RoundedButton("Save");
+        saveBtn.setPreferredSize(new Dimension(70, 28));
+        saveBtn.addActionListener(e -> saveTextColorMappingFromField());
+        mapRow.add(saveBtn, BorderLayout.EAST);
+        panel.add(mapRow);
+
+        JPanel bindRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        bindRow.setOpaque(false);
+        bindRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel bindLabel = new JLabel("Bind key:");
+        bindLabel.setFont(bindLabel.getFont().deriveFont(11f));
+        bindLabel.setForeground(new Color(110, 110, 110));
+        mappingKeyField = new JTextField();
+        mappingKeyField.setPreferredSize(new Dimension(28, 24));
+        mappingKeyField.setHorizontalAlignment(JTextField.CENTER);
+        mappingKeyField.addActionListener(e -> bindKeyToSelectedColor());
+        RoundedButton bindBtn = new RoundedButton("Set");
+        bindBtn.setPreferredSize(new Dimension(54, 24));
+        bindBtn.addActionListener(e -> bindKeyToSelectedColor());
+        bindRow.add(bindLabel);
+        bindRow.add(mappingKeyField);
+        bindRow.add(bindBtn);
+        panel.add(Box.createVerticalStrut(6));
+        panel.add(bindRow);
+
+        return panel;
+    }
+
+    private String loadTextColorMapping() {
+        if (mappingPrefKey == null || mappingPrefKey.isBlank()) return "";
+        String raw = null;
+        try { raw = SettingsStore.get().getValue(mappingPrefKey, mappingDefault); } catch (Throwable ignored) {}
+        if (raw == null || raw.isBlank()) raw = mappingDefault;
+        return raw == null ? "" : raw.trim();
+    }
+
+    private void saveTextColorMappingFromField() {
+        if (mappingField == null) return;
+        saveTextColorMapping(mappingField.getText());
+    }
+
+    private void saveTextColorMapping(String raw) {
+        if (mappingPrefKey == null || mappingPrefKey.isBlank()) return;
+        String value = raw == null ? "" : raw.trim();
+        try { SettingsStore.get().setValue(mappingPrefKey, value); } catch (Throwable ignored) {}
+    }
+
+    private void bindKeyToSelectedColor() {
+        if (mappingField == null || mappingKeyField == null) return;
+        String rawKey = mappingKeyField.getText();
+        if (rawKey == null || rawKey.isBlank()) return;
+        char key = Character.toUpperCase(rawKey.trim().charAt(0));
+        String updated = upsertMapping(mappingField.getText(), key, selectedColor);
+        mappingField.setText(updated);
+        saveTextColorMapping(updated);
+        mappingKeyField.setText("");
+    }
+
+    private static String upsertMapping(String raw, char key, Color color) {
+        java.util.LinkedHashMap<Character, String> map = new java.util.LinkedHashMap<>();
+        if (raw != null) {
+            String[] tokens = raw.split("[,;]");
+            for (String token : tokens) {
+                if (token == null) continue;
+                String t = token.trim();
+                if (t.isEmpty()) continue;
+                int idx = t.indexOf('=');
+                if (idx < 0) idx = t.indexOf(':');
+                if (idx <= 0 || idx >= t.length() - 1) continue;
+                String keyStr = t.substring(0, idx).trim();
+                if (keyStr.isEmpty()) continue;
+                char k = Character.toUpperCase(keyStr.charAt(0));
+                if (!map.containsKey(k)) {
+                    map.put(k, t.substring(idx + 1).trim());
+                }
+            }
+        }
+        map.put(Character.toUpperCase(key), toHex(color));
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<Character, String> entry : map.entrySet()) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        return sb.toString();
     }
     
     private JPanel createColorGrid() {
@@ -401,6 +525,15 @@ public class SimpleColorPicker extends JDialog {
      */
     public static Color showDialog(Component parent, String title, Color initialColor) {
         SimpleColorPicker picker = new SimpleColorPicker(parent, initialColor);
+        if (title != null && !title.isEmpty()) {
+            picker.setTitle(title);
+        }
+        picker.setVisible(true);
+        return picker.isConfirmed() ? picker.getSelectedColor() : null;
+    }
+
+    public static Color showDialog(Component parent, String title, Color initialColor, String mappingPrefKey, String mappingDefault) {
+        SimpleColorPicker picker = new SimpleColorPicker(parent, initialColor, mappingPrefKey, mappingDefault);
         if (title != null && !title.isEmpty()) {
             picker.setTitle(title);
         }

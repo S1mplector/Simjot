@@ -379,7 +379,8 @@ public class NotetakingPanel extends EntryPanel {
     }
     
     private void showTextColorPicker() {
-        Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(this, "Text Color", currentTextColor);
+        Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(
+                this, "Text Color", currentTextColor, TEXT_COLOR_CODE_PREF_KEY, DEFAULT_TEXT_COLOR_CODE_MAP);
         applyTextColor(picked);
     }
 
