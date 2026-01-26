@@ -45,7 +45,7 @@ public final class SimDataGateway {
     }
 
     public File getMoodLogFile(){
-        return MoodFile.getPrimaryFile();
+        return MoodFile.getMoodsFile();
     }
 
     // ---- Entries API ----
