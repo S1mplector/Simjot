@@ -38,8 +38,6 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -97,6 +95,7 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
+import main.infrastructure.io.MoodFile;
 import main.infrastructure.io.IoLog;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
@@ -196,39 +195,26 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void prefillDetailedMoodFromLogToday() {
         if (detailedMoodPanel == null) return;
-        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        if (!moodFile.exists()) return;
-        final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
         LocalDate today = LocalDate.now();
         DetailedMoodPanel.DetailedMoodSnapshot bestSnap = null;
         Integer bestComposite = null;
         LocalDateTime bestTs = null;
-        try (BufferedReader br = new BufferedReader(new FileReader(moodFile))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 10) {
-                    try {
-                        LocalDateTime ts = LocalDateTime.parse(parts[0].trim(), TS);
-                        if (!ts.toLocalDate().equals(today)) continue;
-                        int composite = Integer.parseInt(parts[1].trim());
-                        int joy = Integer.parseInt(parts[2].trim());
-                        int calm = Integer.parseInt(parts[3].trim());
-                        int gratitude = Integer.parseInt(parts[4].trim());
-                        int energy = Integer.parseInt(parts[5].trim());
-                        int sadness = Integer.parseInt(parts[6].trim());
-                        int anger = Integer.parseInt(parts[7].trim());
-                        int anxiety = Integer.parseInt(parts[8].trim());
-                        int stress = Integer.parseInt(parts[9].trim());
-                        if (bestTs == null || ts.isAfter(bestTs)) {
-                            bestTs = ts;
-                            bestComposite = composite;
-                            bestSnap = new DetailedMoodPanel.DetailedMoodSnapshot(joy, calm, gratitude, energy, sadness, anger, anxiety, stress);
-                        }
-                    } catch (Throwable ignored) {}
+        try {
+            List<MoodFile.MoodRecord> records = MoodFile.readAllRecords();
+            for (MoodFile.MoodRecord rec : records) {
+                if (rec == null || rec.timestamp == null || rec.details == null || rec.details.length < 8) continue;
+                LocalDateTime ts = rec.timestamp;
+                if (!ts.toLocalDate().equals(today)) continue;
+                if (bestTs == null || ts.isAfter(bestTs)) {
+                    bestTs = ts;
+                    bestComposite = rec.composite;
+                    bestSnap = new DetailedMoodPanel.DetailedMoodSnapshot(
+                            rec.details[0], rec.details[1], rec.details[2], rec.details[3],
+                            rec.details[4], rec.details[5], rec.details[6], rec.details[7]
+                    );
                 }
             }
-        } catch (IOException ignored) {}
+        } catch (Throwable ignored) {}
         if (bestSnap != null) {
             detailedMoodPanel.applySnapshot(bestSnap);
             try { if (bestComposite != null) moodSlider.setValue(bestComposite); } catch (Throwable ignored) {}
@@ -1977,36 +1963,25 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private void recordMood(int moodValue) {
-        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        try (PrintWriter writer = new PrintWriter(new FileWriter(moodFile, true))) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String timestamp = sdf.format(new Date());
-            writer.println(timestamp + "," + moodValue);
-        } catch (IOException ex) {
+        try {
+            MoodFile.appendNow(moodValue);
+        } catch (Throwable ex) {
             ex.printStackTrace();
         }
     }
 
     private void recordMood(int composite,
                              DetailedMoodPanel.DetailedMoodSnapshot details) {
-        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        try (PrintWriter writer = new PrintWriter(new FileWriter(moodFile, true))) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String timestamp = sdf.format(new Date());
-            // CSV: ts,composite,joy,calm,gratitude,energy,sadness,anger,anxiety,stress
-            writer.println(String.join(",",
-                timestamp,
-                String.valueOf(composite),
-                String.valueOf(details.joy),
-                String.valueOf(details.calm),
-                String.valueOf(details.gratitude),
-                String.valueOf(details.energy),
-                String.valueOf(details.sadness),
-                String.valueOf(details.anger),
-                String.valueOf(details.anxiety),
-                String.valueOf(details.stress)
-            ));
-        } catch (IOException ex) {
+        int[] det = null;
+        if (details != null) {
+            det = new int[] {
+                details.joy, details.calm, details.gratitude, details.energy,
+                details.sadness, details.anger, details.anxiety, details.stress
+            };
+        }
+        try {
+            MoodFile.appendNow(composite, det);
+        } catch (Throwable ex) {
             ex.printStackTrace();
         }
     }

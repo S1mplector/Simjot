@@ -19,11 +19,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import main.infrastructure.ffi.NativeAccess;
-import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.MoodFile;
 
 /**
  * Mood analytics engine providing robust parsing, daily aggregation,
@@ -330,6 +331,7 @@ public final class MoodAnalyticsEngine {
 
     private AnalyticsResult tryNativeAnalyze(File moodFile, int daysBack, int smoothingWindow) {
         if (moodFile == null || !moodFile.exists()) return null;
+        if (!moodFile.getName().toLowerCase(Locale.ROOT).endsWith(".txt")) return null;
         int parsed = NativeAccess.moodLoad(moodFile.getAbsolutePath());
         if (parsed < 0) return null;
         int daily = NativeAccess.moodComputeDaily(daysBack);
@@ -413,17 +415,34 @@ public final class MoodAnalyticsEngine {
     // ========== Parsing ==========
 
     private File getMoodFile() {
-        try {
-            return new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        } catch (Throwable t) {
-            return new File(System.getProperty("user.home"), ".simjot_mood_log.txt");
-        }
+        File moods = MoodFile.getMoodsFile();
+        if (moods.exists()) return moods;
+        return MoodFile.getLegacyFile();
     }
 
     private List<MoodSample> parseAllSamples() {
         List<MoodSample> samples = new ArrayList<>();
         File moodFile = getMoodFile();
         if (!moodFile.exists()) return samples;
+
+        List<MoodFile.MoodRecord> records = MoodFile.readAllRecords();
+        if (!records.isEmpty()) {
+            for (MoodFile.MoodRecord rec : records) {
+                if (rec == null || rec.timestamp == null) continue;
+                if (rec.details != null && rec.details.length >= 8) {
+                    MoodSample s = new MoodSample(
+                            rec.timestamp,
+                            rec.composite,
+                            rec.details[0], rec.details[1], rec.details[2], rec.details[3],
+                            rec.details[4], rec.details[5], rec.details[6], rec.details[7]
+                    );
+                    samples.add(s);
+                } else {
+                    samples.add(new MoodSample(rec.timestamp, rec.composite));
+                }
+            }
+            return samples;
+        }
 
         try (BufferedReader br = new BufferedReader(new FileReader(moodFile))) {
             String line;

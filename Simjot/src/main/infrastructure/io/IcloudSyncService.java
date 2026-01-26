@@ -228,7 +228,8 @@ public final class IcloudSyncService {
     private static void prefetchRoot(File root, boolean lowPower) {
         requestDownload(new File(root, "notebooks.json"));
         requestDownload(new File(new File(root, "settings"), "preferences.properties"));
-        requestDownload(new File(new File(root, "mood"), "mood_log.txt"));
+        requestDownload(new File(new File(root, "mood"), MoodFile.MOODS_FILENAME));
+        requestDownload(new File(new File(root, "mood"), MoodFile.LEGACY_FILENAME));
         requestDownload(new File(root, ".simjot_setup"));
 
         int notebookItems = lowPower ? 512 : PREFETCH_MAX_ITEMS;
@@ -306,7 +307,8 @@ public final class IcloudSyncService {
         File[] keyFiles = new File[] {
             new File(root, "notebooks.json"),
             new File(new File(root, "settings"), "preferences.properties"),
-            new File(new File(root, "mood"), "mood_log.txt"),
+            new File(new File(root, "mood"), MoodFile.MOODS_FILENAME),
+            new File(new File(root, "mood"), MoodFile.LEGACY_FILENAME),
             new File(root, ".simjot_setup")
         };
         if (NativeAccess.isAvailable()) {

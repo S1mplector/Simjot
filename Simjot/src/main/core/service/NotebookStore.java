@@ -10,10 +10,7 @@ package main.core.service;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -27,6 +24,7 @@ import java.util.regex.Pattern;
 
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.MoodFile;
 import main.infrastructure.io.FileIO;
 import main.infrastructure.io.IoLog;
 import main.infrastructure.io.NativeJson;
@@ -406,11 +404,6 @@ public final class NotebookStore {
             return; // Only journal notebooks have mood data
         }
         
-        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        if (!moodFile.exists()) {
-            return;
-        }
-        
         // Collect timestamps of all journal entries in this notebook
         Set<String> entryTimestamps = new HashSet<>();
         File[] entries = nb.getFolder().listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
@@ -428,34 +421,9 @@ public final class NotebookStore {
         if (entryTimestamps.isEmpty()) {
             return;
         }
-        
-        // Read existing mood data and filter out entries matching deleted notebook
-        List<String> remainingMoodEntries = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(moodFile))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2) {
-                    String moodTimestamp = parts[0].trim();
-                    // Check if this mood entry matches any of the deleted notebook's entries
-                    if (!entryTimestamps.contains(moodTimestamp)) {
-                        remainingMoodEntries.add(line);
-                    }
-                }
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return;
-        }
-        
-        // Write back the filtered mood data
-        try (PrintWriter pw = new PrintWriter(new FileWriter(moodFile))) {
-            for (String entry : remainingMoodEntries) {
-                pw.println(entry);
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        try {
+            MoodFile.removeRecordsByTimestamp(entryTimestamps);
+        } catch (Throwable ignored) {}
     }
 
     /**

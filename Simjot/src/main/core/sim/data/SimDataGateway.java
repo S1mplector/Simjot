@@ -8,9 +8,7 @@
 
 package main.core.sim.data;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,7 +21,7 @@ import java.util.Objects;
 
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
-import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.MoodFile;
 
 /**
  * Provides Sim read-only access to notebooks, entries and mood data.
@@ -47,7 +45,7 @@ public final class SimDataGateway {
     }
 
     public File getMoodLogFile(){
-        return new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
+        return MoodFile.getPrimaryFile();
     }
 
     // ---- Entries API ----
@@ -118,26 +116,15 @@ public final class SimDataGateway {
     }
 
     /**
-     * Reads mood samples from mood_log.txt. Expected CSV per line: timestamp,value[,extra]
-     * Returns most-recent-first when limit > 0.
+     * Reads mood samples from mood_log.moods (binary). Returns most-recent-first when limit > 0.
      */
     public List<MoodSample> readMoodSamples(int limit) {
-        File f = getMoodLogFile();
-        if (!f.exists()) return Collections.emptyList();
         List<MoodSample> out = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2) {
-                    String ts = parts[0].trim();
-                    try {
-                        double val = Double.parseDouble(parts[1].trim());
-                        out.add(new MoodSample(ts, val));
-                    } catch (NumberFormatException ignored) {}
-                }
-            }
-        } catch (IOException ignored) {}
+        List<MoodFile.MoodRecord> records = MoodFile.readAllRecords();
+        for (MoodFile.MoodRecord rec : records) {
+            if (rec == null || rec.timestamp == null) continue;
+            out.add(new MoodSample(rec.legacyTimestampKey(), rec.composite));
+        }
 
         // Sort by timestamp descending if it matches the entry filename style; otherwise by insertion order
         out.sort((a, b) -> Objects.compare(b.timestamp, a.timestamp, String::compareTo));

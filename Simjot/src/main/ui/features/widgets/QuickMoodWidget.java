@@ -12,21 +12,14 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
-import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.MoodFile;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.slider.MoodSlider;
 
 /**
- * A compact widget to quickly log mood to mood_log.txt without opening an editor.
+ * A compact widget to quickly log mood to mood_log.moods without opening an editor.
  * Provides 5 preset buttons and a small slider for custom value.
  */
 public class QuickMoodWidget implements Widget {
@@ -138,13 +131,10 @@ public class QuickMoodWidget implements Widget {
     }
 
     private void logMood(int moodValue) {
-        File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-        try (PrintWriter writer = new PrintWriter(new FileWriter(moodFile, true))) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String timestamp = sdf.format(new Date());
-            writer.println(timestamp + "," + moodValue);
+        try {
+            MoodFile.appendNow(moodValue);
             showStatus("Logged " + moodValue);
-        } catch (IOException ex) {
+        } catch (Throwable ignored) {
             showStatus("Failed to log");
         }
     }

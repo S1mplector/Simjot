@@ -90,8 +90,8 @@ import main.core.service.SettingsStore;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
-import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
+import main.infrastructure.io.MoodFile;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarMenuIconButton;
@@ -1274,48 +1274,7 @@ public class NotebookEntriesPanel extends JPanel {
     private void cleanupMoodLogEntries(Map<String, Set<Integer>> moodKeys) {
         if (moodKeys == null || moodKeys.isEmpty()) return;
         try {
-            File moodFile = new File(AppDirectories.folder(AppDirectories.Type.MOOD_DATA), "mood_log.txt");
-            if (!moodFile.exists()) return;
-            List<String> remaining = new ArrayList<>();
-            boolean removed = false;
-            try (BufferedReader br = Files.newBufferedReader(moodFile.toPath(), StandardCharsets.UTF_8)) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    if (line.isBlank()) {
-                        remaining.add(line);
-                        continue;
-                    }
-                    String[] parts = line.split(",", -1);
-                    if (parts.length < 2) {
-                        remaining.add(line);
-                        continue;
-                    }
-                    String stamp = parts[0].trim();
-                    Set<Integer> moods = moodKeys.get(stamp);
-                    if (moods == null || moods.isEmpty()) {
-                        remaining.add(line);
-                        continue;
-                    }
-                    int value;
-                    try {
-                        value = Integer.parseInt(parts[1].trim());
-                    } catch (NumberFormatException ex) {
-                        remaining.add(line);
-                        continue;
-                    }
-                    if (moods.contains(value)) {
-                        removed = true;
-                        continue;
-                    }
-                    remaining.add(line);
-                }
-            }
-            if (!removed) return;
-            StringBuilder sb = new StringBuilder(Math.max(64, remaining.size() * 24));
-            for (String line : remaining) {
-                sb.append(line).append('\n');
-            }
-            FileIO.atomicWrite(moodFile.toPath(), sb.toString(), StandardCharsets.UTF_8, true, true);
+            MoodFile.removeRecordsByTimestampAndValue(moodKeys);
         } catch (Throwable ignored) {}
     }
 
