@@ -8,6 +8,7 @@
 
 package main.ui.components.editor;
 
+import java.awt.AWTEvent;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -27,6 +28,7 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
+import java.awt.event.AWTEventListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
@@ -90,6 +92,8 @@ public final class ImagePasteManager {
     private static Timer overlayFadeTimer = null;
     private static MouseAdapter activeMouseListener = null;
     private static java.awt.event.FocusAdapter activeFocusListener = null;
+    private static AWTEventListener activeGlobalMouseListener = null;
+    private static boolean globalMouseListenerInstalled = false;
     private static JTextPane activeEditor = null;
     
     // Native image cache settings
@@ -294,6 +298,7 @@ public final class ImagePasteManager {
         // Track editor and remove any previous listeners
         activeEditor = editor;
         removeActiveListeners(editor);
+        installGlobalMouseListener();
 
         // Auto-dismiss when clicking elsewhere or mouse leaves
         activeMouseListener = new MouseAdapter() {
@@ -475,6 +480,35 @@ public final class ImagePasteManager {
         if (activeFocusListener != null) {
             editor.removeFocusListener(activeFocusListener);
             activeFocusListener = null;
+        }
+    }
+
+    private static void installGlobalMouseListener() {
+        if (activeGlobalMouseListener == null) {
+            activeGlobalMouseListener = event -> {
+                if (!(event instanceof MouseEvent me)) return;
+                if (me.getID() != MouseEvent.MOUSE_PRESSED) return;
+                if (activeOverlay == null || !activeOverlay.isVisible()) return;
+                Point screenPoint = null;
+                try {
+                    screenPoint = me.getLocationOnScreen();
+                } catch (Throwable ignored) {}
+                if (screenPoint == null) return;
+                if (!isMouseOverAnyOverlay(screenPoint)) {
+                    fadeOutAndDismiss(activeOverlay);
+                }
+            };
+        }
+        if (!globalMouseListenerInstalled) {
+            Toolkit.getDefaultToolkit().addAWTEventListener(activeGlobalMouseListener, AWTEvent.MOUSE_EVENT_MASK);
+            globalMouseListenerInstalled = true;
+        }
+    }
+
+    private static void removeGlobalMouseListener() {
+        if (globalMouseListenerInstalled && activeGlobalMouseListener != null) {
+            Toolkit.getDefaultToolkit().removeAWTEventListener(activeGlobalMouseListener);
+            globalMouseListenerInstalled = false;
         }
     }
 
@@ -885,6 +919,7 @@ public final class ImagePasteManager {
         // Track editor and remove any previous listeners
         activeEditor = editor;
         removeActiveListeners(editor);
+        installGlobalMouseListener();
         
         // Auto-dismiss when clicking elsewhere
         activeMouseListener = new MouseAdapter() {
@@ -954,6 +989,7 @@ public final class ImagePasteManager {
         if (activeEditor != null) {
             removeActiveListeners(activeEditor);
         }
+        removeGlobalMouseListener();
         if (activeOverlay != null) {
             activeOverlay.dispose();
             activeOverlay = null;
