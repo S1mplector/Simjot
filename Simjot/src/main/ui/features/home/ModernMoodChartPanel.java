@@ -34,14 +34,18 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
@@ -49,6 +53,7 @@ import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarMenuIconButton;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -79,9 +84,17 @@ public class ModernMoodChartPanel extends JPanel {
     private Integer hoverIndex = null;
     private Integer hoverDisplayIndex = null;
     private Point mousePoint = null;
+    private Point hoverDotPoint = null;
     private float hoverAlpha = 0f;
     private float hoverTargetAlpha = 0f;
     private Timer hoverFadeTimer;
+
+    private static final int POPUP_HIDE_DELAY_MS = 260;
+    private final JPopupMenu entryPopup = new JPopupMenu();
+    private final Timer entryPopupHideTimer = new Timer(POPUP_HIDE_DELAY_MS, e -> hideEntryPopupNow());
+    private boolean entryPopupHovered = false;
+    private LocalDate entryPopupDay = null;
+    private Icon fountainPenIcon;
     
     // Animated values
     private float animatedAvg = 0;
@@ -117,6 +130,13 @@ public class ModernMoodChartPanel extends JPanel {
         });
 
         hoverFadeTimer = new Timer(16, e -> updateHoverFade());
+
+        entryPopup.setOpaque(false);
+        entryPopup.setBorder(new EmptyBorder(0, 0, 0, 0));
+        entryPopup.setBorderPainted(false);
+        entryPopup.setFocusable(false);
+        entryPopupHideTimer.setRepeats(false);
+        fountainPenIcon = loadFountainPenIcon();
         
         // Refresh on show
         addComponentListener(new ComponentAdapter() {
@@ -328,7 +348,7 @@ public class ModernMoodChartPanel extends JPanel {
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseExited(MouseEvent e) {
-                    setHoverIndex(null);
+                    clearHover(ChartPanel.this);
                     mousePoint = null;
                     repaint();
                 }
@@ -339,6 +359,8 @@ public class ModernMoodChartPanel extends JPanel {
                         LocalDate d = model.getDays().get(hoverIndex);
                         File nearest = findNearestEntry(d, getMoodAnchorForDay(d));
                         if (nearest != null) {
+                            entryPopupHideTimer.stop();
+                            hideEntryPopupNow();
                             openEntry(nearest);
                         }
                     }
@@ -348,7 +370,7 @@ public class ModernMoodChartPanel extends JPanel {
 
         private void updateHoverIndex() {
             if (mousePoint == null || model.getDays().isEmpty()) {
-                setHoverIndex(null);
+                clearHover(this);
                 return;
             }
 
@@ -356,29 +378,35 @@ public class ModernMoodChartPanel extends JPanel {
             int chartH = getHeight() - MARGIN_TOP - MARGIN_BOTTOM;
             int n = model.getDays().size();
             if (n <= 1 || chartW <= 0 || chartH <= 0) {
-                setHoverIndex(null);
+                clearHover(this);
                 return;
             }
 
             float step = (float) chartW / (n - 1);
             int idx = Math.round((mousePoint.x - MARGIN_LEFT) / step);
             if (idx < 0 || idx >= n) {
-                setHoverIndex(null);
+                clearHover(this);
                 return;
             }
 
             Double v = model.getValues().get(idx);
             if (v == null) {
-                setHoverIndex(null);
+                clearHover(this);
                 return;
             }
 
             float x = MARGIN_LEFT + (n > 1 ? idx * (float) chartW / (n - 1) : chartW / 2f);
             float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
             if (mousePoint.distance(x, y) <= 16) {
+                hoverDotPoint = new Point(Math.round(x), Math.round(y));
+                entryPopupHideTimer.stop();
+                boolean hoverChanged = !Objects.equals(idx, hoverIndex);
                 setHoverIndex(idx);
+                if (hoverChanged || !entryPopup.isVisible()) {
+                    updateEntryPopup(this);
+                }
             } else {
-                setHoverIndex(null);
+                clearHover(this);
             }
         }
 
@@ -516,11 +544,156 @@ public class ModernMoodChartPanel extends JPanel {
         if (hoverFadeTimer != null) {
             hoverFadeTimer.stop();
         }
+        entryPopupHideTimer.stop();
+        hideEntryPopupNow();
         hoverIndex = null;
         hoverDisplayIndex = null;
+        hoverDotPoint = null;
+        entryPopupHovered = false;
+        entryPopupDay = null;
         hoverAlpha = 0f;
         hoverTargetAlpha = 0f;
         repaint();
+    }
+
+    private void clearHover(ChartPanel chartPanel) {
+        hoverDotPoint = null;
+        setHoverIndex(null);
+        updateEntryPopup(chartPanel);
+    }
+
+    private Icon loadFountainPenIcon() {
+        String resPath = ImageIconRenderer.mapIdToResource("fountain_pen");
+        return resPath != null ? ImageIconRenderer.icon(resPath, 14, false) : null;
+    }
+
+    private void updateEntryPopup(ChartPanel chartPanel) {
+        if (chartPanel == null || !chartPanel.isShowing()) {
+            scheduleEntryPopupHide();
+            return;
+        }
+        if (hoverIndex == null || hoverDotPoint == null) {
+            scheduleEntryPopupHide();
+            return;
+        }
+        if (hoverIndex < 0 || hoverIndex >= model.getDays().size()) {
+            scheduleEntryPopupHide();
+            return;
+        }
+
+        LocalDate day = model.getDays().get(hoverIndex);
+        List<MoodChartModel.EntryRef> refs = model.getEntryTimesByDate().get(day);
+        if (refs == null || refs.isEmpty()) {
+            scheduleEntryPopupHide();
+            return;
+        }
+
+        entryPopupHideTimer.stop();
+
+        if (!day.equals(entryPopupDay) || !entryPopup.isVisible()) {
+            entryPopup.removeAll();
+            JPanel content = new JPanel();
+            content.setOpaque(true);
+            content.setBackground(PANEL_BG);
+            content.setBorder(new EmptyBorder(6, 6, 6, 6));
+            content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+            content.addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { markEntryPopupHovered(true); }
+                @Override public void mouseExited(MouseEvent e) { markEntryPopupHovered(false); }
+            });
+
+            List<MoodChartModel.EntryRef> ordered = new ArrayList<>(refs);
+            ordered.sort((a, b) -> {
+                if (a.ts != null && b.ts != null) return b.ts.compareTo(a.ts);
+                if (a.ts != null) return -1;
+                if (b.ts != null) return 1;
+                return a.file.getName().compareToIgnoreCase(b.file.getName());
+            });
+
+            for (int i = 0; i < ordered.size(); i++) {
+                JButton btn = createEntryPopupButton(ordered.get(i));
+                content.add(btn);
+                if (i < ordered.size() - 1) {
+                    content.add(Box.createVerticalStrut(2));
+                }
+            }
+
+            entryPopup.add(content);
+            entryPopupDay = day;
+        }
+
+        Dimension pref = entryPopup.getPreferredSize();
+        int x = hoverDotPoint.x + 12;
+        int y = hoverDotPoint.y - pref.height - 10;
+        int minX = 8;
+        int maxX = Math.max(minX, chartPanel.getWidth() - pref.width - 8);
+        x = clamp(x, minX, maxX);
+        if (y < 8) {
+            y = hoverDotPoint.y + 12;
+        }
+        int maxY = Math.max(8, chartPanel.getHeight() - pref.height - 8);
+        y = clamp(y, 8, maxY);
+
+        entryPopup.show(chartPanel, x, y);
+    }
+
+    private JButton createEntryPopupButton(MoodChartModel.EntryRef ref) {
+        String title = ref.title;
+        if (title == null || title.isBlank()) {
+            title = fallbackTitle(ref.file);
+        }
+        JButton btn = new JButton(title);
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setIcon(fountainPenIcon);
+        btn.setIconTextGap(8);
+        btn.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12.5f));
+        btn.setBorder(new EmptyBorder(6, 8, 6, 10));
+        btn.setFocusPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setOpaque(true);
+        btn.setBackground(PANEL_BG);
+        btn.setForeground(TEXT_PRIMARY);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.addActionListener(e -> {
+            entryPopupHideTimer.stop();
+            hideEntryPopupNow();
+            openEntry(ref.file);
+        });
+        btn.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { markEntryPopupHovered(true); }
+            @Override public void mouseExited(MouseEvent e) { markEntryPopupHovered(false); }
+        });
+        return btn;
+    }
+
+    private void markEntryPopupHovered(boolean hovered) {
+        entryPopupHovered = hovered;
+        if (hovered) {
+            entryPopupHideTimer.stop();
+        } else if (hoverIndex == null) {
+            scheduleEntryPopupHide();
+        }
+    }
+
+    private void scheduleEntryPopupHide() {
+        if (entryPopupHovered || !entryPopup.isVisible()) return;
+        entryPopupHideTimer.restart();
+    }
+
+    private void hideEntryPopupNow() {
+        entryPopup.setVisible(false);
+        entryPopupDay = null;
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private String fallbackTitle(File file) {
+        if (file == null) return "";
+        String nm = file.getName();
+        int dot = nm.lastIndexOf('.');
+        return dot > 0 ? nm.substring(0, dot) : nm;
     }
 
     private void setHoverIndex(Integer idx) {

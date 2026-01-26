@@ -8,21 +8,40 @@
 
 package main.ui.features.home;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 import main.core.analytics.MoodAnalyticsEngine;
 import main.core.analytics.MoodAnalyticsEngine.AnalyticsResult;
 import main.core.analytics.MoodAnalyticsEngine.DailyStats;
 import main.core.analytics.MoodAnalyticsEngine.MoodSample;
+import main.core.security.EncryptionManager;
+import main.core.security.crypto.EncryptedMetadata;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.NativeJson;
 
 final class MoodChartModel {
-    static final class EntryRef { final File file; final LocalDateTime ts; EntryRef(File f, LocalDateTime t){ this.file=f; this.ts=t; } }
+    private static final String META_PREFIX = "SJMETA:";
+    static final class EntryRef {
+        final File file;
+        final LocalDateTime ts;
+        final String title;
+        EntryRef(File f, LocalDateTime t, String title){
+            this.file = f;
+            this.ts = t;
+            this.title = title;
+        }
+    }
     static final class Details { final LocalDateTime ts; final int joy, calm, gratitude, energy, sadness, anger, anxiety, stress; Details(LocalDateTime ts,int joy,int calm,int gratitude,int energy,int sadness,int anger,int anxiety,int stress){ this.ts=ts; this.joy=joy; this.calm=calm; this.gratitude=gratitude; this.energy=energy; this.sadness=sadness; this.anger=anger; this.anxiety=anxiety; this.stress=stress; } }
 
     private final java.util.List<LocalDate> dayList = new ArrayList<>();
@@ -94,6 +113,8 @@ final class MoodChartModel {
 
     private void loadJournalEntries() {
         try {
+            Set<LocalDate> relevantDates = new HashSet<>(dayList);
+            if (relevantDates.isEmpty()) return;
             NotebookStore store = new NotebookStore();
             java.util.List<NotebookInfo> nbs = store.list();
             for (NotebookInfo nb : nbs) {
@@ -116,11 +137,67 @@ final class MoodChartModel {
                             d = ts.toLocalDate();
                         }
                     } catch (Throwable ignored) { continue; }
+                    if (!relevantDates.contains(d)) continue;
+                    String title = extractTitle(f);
                     entriesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(f);
-                    entryTimesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(new EntryRef(f, ts));
+                    entryTimesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(new EntryRef(f, ts, title));
                 }
             }
         } catch (Throwable ignored) {}
+    }
+
+    private String extractTitle(File f) {
+        if (f == null || !f.exists()) return "";
+        try {
+            if (EncryptionManager.isEncrypted(f)) {
+                EncryptedMetadata.Meta meta = EncryptionManager.readMetadata(f);
+                String title = meta != null && meta.title != null ? meta.title.trim() : "";
+                return title.isBlank() ? fallbackTitle(f) : title;
+            }
+            try (BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)) {
+                String first = br.readLine();
+                if (first != null) {
+                    String metaTitle = parseMetaTitle(first);
+                    if (metaTitle != null) {
+                        String title = metaTitle;
+                        if (title.isBlank()) {
+                            String next = br.readLine();
+                            if (next != null && next.isBlank()) next = br.readLine();
+                            if (next != null && !next.isBlank()) title = next.trim();
+                        }
+                        return title.isBlank() ? fallbackTitle(f) : title;
+                    }
+                    if (!first.isBlank()) {
+                        return first.trim();
+                    }
+                }
+            }
+            // Native fallback keeps behavior consistent with entry listing panels.
+            String nativeTitle = NativeAccess.extractTitle(f.getAbsolutePath());
+            if (nativeTitle != null && !nativeTitle.isBlank()) {
+                String metaTitle = parseMetaTitle(nativeTitle);
+                if (metaTitle != null) {
+                    return metaTitle.isBlank() ? fallbackTitle(f) : metaTitle;
+                }
+                return nativeTitle.trim();
+            }
+        } catch (Throwable ignored) {
+            // Fall through to filename-based fallback.
+        }
+        return fallbackTitle(f);
+    }
+
+    private String parseMetaTitle(String line) {
+        if (line == null || !line.startsWith(META_PREFIX)) return null;
+        String json = line.substring(META_PREFIX.length()).trim();
+        String title = NativeJson.getString(json, "title");
+        return title == null ? "" : title.trim();
+    }
+
+    private String fallbackTitle(File f) {
+        String nm = f.getName();
+        int dot = nm.lastIndexOf('.');
+        return dot > 0 ? nm.substring(0, dot) : nm;
     }
 
     java.util.List<LocalDate> getDays(){ return dayList; }

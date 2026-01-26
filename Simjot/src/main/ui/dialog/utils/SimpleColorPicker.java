@@ -33,8 +33,8 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.KeyStroke;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
@@ -236,7 +236,7 @@ public class SimpleColorPicker extends JDialog {
         // ESC to cancel
         getRootPane().registerKeyboardAction(e -> { confirmed = false; dispose(); },
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
-    }
+     }
 
     private JPanel buildShortcutMapPanel() {
         JPanel panel = new JPanel();

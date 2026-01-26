@@ -34,7 +34,7 @@ public final class MoodAnalyticsEngine {
 
     private static MoodAnalyticsEngine instance;
 
-    // Cache key → computed data
+    // Cache key -> computed data
     private final Map<String, CachedResult> cache = new ConcurrentHashMap<>();
     private long lastFileModified = 0L;
     private long lastFileSize = 0L;
