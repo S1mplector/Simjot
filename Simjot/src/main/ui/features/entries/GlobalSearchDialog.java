@@ -14,33 +14,23 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.Frame;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
-import java.awt.RenderingHints;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -48,25 +38,18 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
-import javax.swing.text.StyledDocument;
-import javax.swing.text.rtf.RTFEditorKit;
-
-import main.core.security.EncryptionManager;
-import main.core.security.crypto.CryptoException;
-import main.core.service.NotebookStore;
-import main.infrastructure.backup.NotebookInfo;
-import main.infrastructure.ffi.NativeAccess;
-import main.infrastructure.io.FileIO;
+import javax.swing.border.EmptyBorder;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.IconMenuButton;
-import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.RoundedPanel;
+import main.ui.components.fields.ModernTextField;
 import main.ui.components.spinner.ModernSpinnerUI;
-import main.ui.theme.Theme;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -74,61 +57,94 @@ import main.ui.theme.aero.AeroTheme;
  */
 public class GlobalSearchDialog extends JDialog {
     private final JournalApp app;
-    private final AeroSearchField queryField;
-    private final AeroSearchField tagField;
-    private final AeroSearchField fromDateField;
-    private final AeroSearchField toDateField;
+    private final ModernTextField queryField;
+    private final ModernTextField tagField;
+    private final ModernTextField fromDateField;
+    private final ModernTextField toDateField;
     private final JSpinner moodMin;
     private final JSpinner moodMax;
     private final JLabel statusLabel;
-    private final DefaultListModel<SearchResult> model = new DefaultListModel<>();
-    private final JList<SearchResult> list = new JList<>(model);
-    private SwingWorker<Void, SearchResult> worker;
+    private final DefaultListModel<GlobalSearchEngine.SearchResult> model = new DefaultListModel<>();
+    private final JList<GlobalSearchEngine.SearchResult> list = new JList<>(model);
+    private SwingWorker<Void, GlobalSearchEngine.SearchResult> worker;
     private final Timer debounce;
 
     public GlobalSearchDialog(Frame owner, JournalApp app) {
         super(owner, "Search", false);
         this.app = app;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setPreferredSize(new Dimension(840, 520));
+        setPreferredSize(new Dimension(880, 560));
 
-        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(12, 12), 18);
-        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        RoundedPanel root = new RoundedPanel(20);
+        root.setFlat(true);
+        root.setBackground(new Color(245, 247, 250));
+        root.setBorder(new EmptyBorder(16, 16, 16, 16));
+        root.setLayout(new BorderLayout(12, 12));
 
-        FrostedGlassPanel filters = new FrostedGlassPanel(new BorderLayout(10, 10), 14);
-        filters.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        JLabel title = new JLabel("Search");
+        title.setFont(AeroTheme.defaultBoldFont(18f));
+        title.setForeground(new Color(30, 36, 46));
+        statusLabel = new JLabel("Type to search.");
+        statusLabel.setForeground(new Color(120, 130, 145));
+        statusLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        header.add(title, BorderLayout.WEST);
+        header.add(statusLabel, BorderLayout.EAST);
 
-        FrostedGlassPanel topRow = new FrostedGlassPanel(new BorderLayout(10, 0), 12);
-        topRow.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
-        queryField = new AeroSearchField(30);
-        queryField.setPlaceholder("Search across notebooks...");
+        RoundedPanel searchBar = new RoundedPanel(12);
+        searchBar.setFlat(true);
+        searchBar.setBackground(Color.WHITE);
+        searchBar.setLayout(new BorderLayout(10, 0));
+        searchBar.setBorder(new EmptyBorder(6, 10, 6, 10));
+
+        queryField = new ModernTextField(30);
+        queryField.setPlaceholder("Search across notebooks");
+        queryField.setFont(AeroTheme.defaultFont().deriveFont(15f));
         queryField.setPreferredSize(new Dimension(520, 32));
-        topRow.add(queryField, BorderLayout.CENTER);
-        IconMenuButton searchBtn = new IconMenuButton("Search", "search");
-        searchBtn.setToolTipText("Search notebooks");
-        searchBtn.addActionListener(e -> runSearch());
-        topRow.add(searchBtn, BorderLayout.EAST);
 
-        JPanel secondRow = new JPanel(new GridLayout(2, 1, 6, 6));
-        secondRow.setOpaque(false);
+        RoundedButton searchBtn = new RoundedButton("Search").withIcon("search");
+        searchBtn.setPreferredSize(new Dimension(110, 32));
+        searchBtn.setToolTipText("Run search now");
+        searchBtn.addActionListener(e -> runSearch());
+
+        RoundedButton clearBtn = new RoundedButton("Clear").withIcon("close");
+        clearBtn.setPreferredSize(new Dimension(96, 32));
+        clearBtn.setToolTipText("Clear all filters");
+        clearBtn.addActionListener(e -> clearFilters());
+
+        JPanel searchActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        searchActions.setOpaque(false);
+        searchActions.add(clearBtn);
+        searchActions.add(searchBtn);
+
+        searchBar.add(queryField, BorderLayout.CENTER);
+        searchBar.add(searchActions, BorderLayout.EAST);
+
+        RoundedPanel filterCard = new RoundedPanel(12);
+        filterCard.setFlat(true);
+        filterCard.setBackground(new Color(250, 250, 252));
+        filterCard.setBorder(new EmptyBorder(6, 10, 6, 10));
+        filterCard.setLayout(new GridLayout(2, 1, 0, 6));
+
         JPanel rowA = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         rowA.setOpaque(false);
-        rowA.add(makeLabel("Tags:"));
-        tagField = new AeroSearchField(18);
+        rowA.add(makeLabel("Tags"));
+        tagField = new ModernTextField(18);
         tagField.setPlaceholder("tag1, tag2");
         rowA.add(tagField);
-        rowA.add(makeLabel("Date:"));
-        fromDateField = new AeroSearchField(10);
-        fromDateField.setPlaceholder("from yyyy-mm-dd");
-        toDateField = new AeroSearchField(10);
-        toDateField.setPlaceholder("to yyyy-mm-dd");
+        rowA.add(makeLabel("From"));
+        fromDateField = new ModernTextField(10);
+        fromDateField.setPlaceholder("YYYY-MM-DD");
         rowA.add(fromDateField);
-        rowA.add(makeLabel("to"));
+        rowA.add(makeLabel("To"));
+        toDateField = new ModernTextField(10);
+        toDateField.setPlaceholder("YYYY-MM-DD");
         rowA.add(toDateField);
 
         JPanel rowB = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         rowB.setOpaque(false);
-        rowB.add(makeLabel("Mood:"));
+        rowB.add(makeLabel("Mood"));
         moodMin = new JSpinner(new SpinnerNumberModel(0, 0, 100, 1));
         moodMax = new JSpinner(new SpinnerNumberModel(100, 0, 100, 1));
         moodMin.setUI(new ModernSpinnerUI());
@@ -139,29 +155,59 @@ public class GlobalSearchDialog extends JDialog {
         rowB.add(makeLabel("to"));
         rowB.add(moodMax);
 
-        secondRow.add(rowA);
-        secondRow.add(rowB);
+        filterCard.add(rowA);
+        filterCard.add(rowB);
 
-        filters.add(topRow, BorderLayout.NORTH);
-        filters.add(secondRow, BorderLayout.CENTER);
-        root.add(filters, BorderLayout.NORTH);
+        JPanel topStack = new JPanel();
+        topStack.setOpaque(false);
+        topStack.setLayout(new BoxLayout(topStack, BoxLayout.Y_AXIS));
+        topStack.add(header);
+        topStack.add(javax.swing.Box.createVerticalStrut(10));
+        topStack.add(searchBar);
+        topStack.add(javax.swing.Box.createVerticalStrut(8));
+        topStack.add(filterCard);
+        root.add(topStack, BorderLayout.NORTH);
 
         list.setCellRenderer(new SearchResultRenderer());
         list.setOpaque(false);
+        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane scroll = new JScrollPane(list);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.setBorder(BorderFactory.createEmptyBorder());
-        FrostedGlassPanel resultsCard = new FrostedGlassPanel(new BorderLayout(), 16);
-        resultsCard.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        RoundedPanel resultsCard = new RoundedPanel(16);
+        resultsCard.setFlat(true);
+        resultsCard.setBackground(Color.WHITE);
+        resultsCard.setBorder(new EmptyBorder(10, 10, 10, 10));
+        resultsCard.setLayout(new BorderLayout());
         resultsCard.add(scroll, BorderLayout.CENTER);
         root.add(resultsCard, BorderLayout.CENTER);
 
-        statusLabel = new JLabel("Type to search.");
-        statusLabel.setForeground(new Color(80, 90, 105));
-        statusLabel.setFont(AeroTheme.defaultFont());
+        RoundedButton openBtn = new RoundedButton("Open").withIcon("analyze");
+        openBtn.setToolTipText("Open selected entry");
+        openBtn.setPreferredSize(new Dimension(110, 32));
+        openBtn.setEnabled(false);
+        openBtn.addActionListener(e -> openSelected());
+        RoundedButton closeBtn = new RoundedButton("Close").withIcon("exit");
+        closeBtn.setToolTipText("Close search");
+        closeBtn.setPreferredSize(new Dimension(110, 32));
+        closeBtn.addActionListener(e -> dispose());
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        btnRow.setOpaque(false);
+        btnRow.add(openBtn);
+        btnRow.add(closeBtn);
 
-        debounce = new Timer(250, e -> runSearch());
+        JLabel hint = new JLabel("Enter to open • Esc to close");
+        hint.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+        hint.setForeground(new Color(130, 140, 155));
+        JPanel bottomBar = new JPanel(new BorderLayout(8, 0));
+        bottomBar.setOpaque(false);
+        bottomBar.setBorder(new EmptyBorder(2, 2, 2, 2));
+        bottomBar.add(hint, BorderLayout.WEST);
+        bottomBar.add(btnRow, BorderLayout.EAST);
+        root.add(bottomBar, BorderLayout.SOUTH);
+
+        debounce = new Timer(200, e -> runSearch());
         debounce.setRepeats(false);
         attachDebounce(queryField);
         attachDebounce(tagField);
@@ -170,9 +216,19 @@ public class GlobalSearchDialog extends JDialog {
         moodMin.addChangeListener(e -> debounce.restart());
         moodMax.addChangeListener(e -> debounce.restart());
 
+        queryField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    runSearch();
+                }
+            }
+        });
+
         list.addListSelectionListener(e -> {
             int idx = list.getSelectedIndex();
             if (idx >= 0) list.ensureIndexIsVisible(idx);
+            openBtn.setEnabled(idx >= 0);
         });
         list.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mouseClicked(java.awt.event.MouseEvent e) {
@@ -180,25 +236,34 @@ public class GlobalSearchDialog extends JDialog {
             }
         });
 
-        IconMenuButton openBtn = new IconMenuButton("Open", "analyze");
-        openBtn.setToolTipText("Open selected entry");
-        openBtn.addActionListener(e -> openSelected());
-        IconMenuButton closeBtn = new IconMenuButton("Cancel", "exit");
-        closeBtn.setToolTipText("Cancel search");
-        closeBtn.addActionListener(e -> dispose());
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 18, 0));
-        btnRow.setOpaque(false);
-        btnRow.add(openBtn);
-        btnRow.add(closeBtn);
-        FrostedGlassPanel bottomBar = new FrostedGlassPanel(new BorderLayout(8, 0), 12);
-        bottomBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-        bottomBar.add(statusLabel, BorderLayout.WEST);
-        bottomBar.add(btnRow, BorderLayout.EAST);
-        root.add(bottomBar, BorderLayout.SOUTH);
+        list.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "open");
+        list.getActionMap().put("open", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) { openSelected(); }
+        });
+
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "closeOrClear");
+        getRootPane().getActionMap().put("closeOrClear", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) {
+                boolean hasFilters =
+                    !queryField.getText().isBlank()
+                    || !tagField.getText().isBlank()
+                    || !fromDateField.getText().isBlank()
+                    || !toDateField.getText().isBlank()
+                    || ((Integer) moodMin.getValue()) > 0
+                    || ((Integer) moodMax.getValue()) < 100;
+                if (hasFilters) {
+                    clearFilters();
+                } else {
+                    dispose();
+                }
+            }
+        });
 
         setContentPane(root);
         pack();
         setLocationRelativeTo(owner);
+        javax.swing.SwingUtilities.invokeLater(() -> queryField.requestFocusInWindow());
     }
 
     private void attachDebounce(JTextField field) {
@@ -209,13 +274,30 @@ public class GlobalSearchDialog extends JDialog {
         });
     }
 
+    private void clearFilters() {
+        if (worker != null && !worker.isDone()) {
+            worker.cancel(true);
+        }
+        queryField.setText("");
+        tagField.setText("");
+        fromDateField.setText("");
+        toDateField.setText("");
+        moodMin.setValue(0);
+        moodMax.setValue(100);
+        model.clear();
+        list.clearSelection();
+        statusLabel.setText("Type to search.");
+    }
+
     private void runSearch() {
         if (worker != null && !worker.isDone()) {
             worker.cancel(true);
         }
         model.clear();
+        list.clearSelection();
 
-        SearchQuery query = buildQuery();
+        GlobalSearchEngine.SearchQuery query = buildQuery();
+        if (query == null) return;
         if (query.isEmpty()) {
             statusLabel.setText("Type to search.");
             return;
@@ -224,52 +306,12 @@ public class GlobalSearchDialog extends JDialog {
         statusLabel.setText("Searching...");
         worker = new SwingWorker<>() {
             @Override protected Void doInBackground() {
-                List<NotebookInfo> notebooks = new NotebookStore().list();
-                
-                // Try native batch search first (much faster for text search)
-                if (!query.q.isEmpty() && NativeAccess.searchBatchReady()) {
-                    List<NativeAccess.BatchSearchResult> nativeResults = runNativeBatchSearch(query, notebooks);
-                    if (nativeResults != null && !nativeResults.isEmpty()) {
-                        for (NativeAccess.BatchSearchResult nr : nativeResults) {
-                            if (isCancelled()) break;
-                            SearchResult res = convertNativeResult(nr, notebooks, query);
-                            if (res != null) publish(res);
-                        }
-                        // If we have results from native, we're done unless there are encrypted files
-                        // Fall through to Java search for encrypted files only
-                    }
-                }
-                
-                // Fall back to Java search for encrypted files or if native unavailable
-                AtomicBoolean skipEncrypted = new AtomicBoolean(false);
-                Set<String> nativeFoundPaths = new HashSet<>();
-                for (int i = 0; i < model.size(); i++) {
-                    nativeFoundPaths.add(model.get(i).file.getAbsolutePath());
-                }
-                
-                for (NotebookInfo nb : notebooks) {
-                    if (isCancelled()) break;
-                    File[] files = listEntryFiles(nb);
-                    if (files == null) continue;
-                    for (File f : files) {
-                        if (isCancelled()) break;
-                        // Skip files already found by native search
-                        if (nativeFoundPaths.contains(f.getAbsolutePath())) continue;
-                        // Only process encrypted files in Java fallback if native was used
-                        if (!nativeFoundPaths.isEmpty() && !EncryptionManager.isEncrypted(f)) continue;
-                        
-                        EntryData data = readEntryData(f, GlobalSearchDialog.this, skipEncrypted);
-                        if (data == null) continue;
-                        if (!query.matches(data)) continue;
-                        SearchResult res = new SearchResult(nb, f, data);
-                        publish(res);
-                    }
-                }
+                GlobalSearchEngine.search(query, GlobalSearchDialog.this, result -> publish(result), this::isCancelled);
                 return null;
             }
 
-            @Override protected void process(List<SearchResult> chunks) {
-                for (SearchResult r : chunks) {
+            @Override protected void process(List<GlobalSearchEngine.SearchResult> chunks) {
+                for (GlobalSearchEngine.SearchResult r : chunks) {
                     model.addElement(r);
                 }
                 statusLabel.setText(model.size() + " result(s)");
@@ -284,59 +326,8 @@ public class GlobalSearchDialog extends JDialog {
         worker.execute();
     }
 
-    private List<NativeAccess.BatchSearchResult> runNativeBatchSearch(SearchQuery query, List<NotebookInfo> notebooks) {
-        List<String> dirs = new ArrayList<>();
-        for (NotebookInfo nb : notebooks) {
-            if (nb.getFolder() != null && nb.getFolder().exists()) {
-                dirs.add(nb.getFolder().getAbsolutePath());
-            }
-        }
-        if (dirs.isEmpty()) return null;
-        
-        return NativeAccess.searchBatch(query.q, dirs, ".note,.txt,.ntk,.poem,.rtf", 500);
-    }
-
-    private SearchResult convertNativeResult(NativeAccess.BatchSearchResult nr, List<NotebookInfo> notebooks, SearchQuery query) {
-        if (nr == null || nr.filePath == null) return null;
-        
-        File file = new File(nr.filePath);
-        if (!file.exists()) return null;
-        
-        // Find the matching notebook
-        NotebookInfo matchedNb = null;
-        String filePath = file.getAbsolutePath();
-        for (NotebookInfo nb : notebooks) {
-            if (nb.getFolder() != null && filePath.startsWith(nb.getFolder().getAbsolutePath())) {
-                matchedNb = nb;
-                break;
-            }
-        }
-        if (matchedNb == null) return null;
-        
-        // Convert to EntryData for additional filtering
-        EntryData data = new EntryData();
-        data.title = nr.title;
-        data.text = nr.snippet; // Use snippet for matching; full text not available
-        data.savedAt = nr.savedAt > 0 ? nr.savedAt : file.lastModified();
-        data.mood = nr.mood;
-        data.tags = new HashSet<>(nr.tags);
-        data.queryForSnippet = query.q;
-        
-        // Apply additional filters (date, mood, tags)
-        LocalDate date = Instant.ofEpochMilli(data.savedAt).atZone(ZoneId.systemDefault()).toLocalDate();
-        if (query.from != null && date.isBefore(query.from)) return null;
-        if (query.to != null && date.isAfter(query.to)) return null;
-        if (!query.tags.isEmpty() && !data.tags.containsAll(query.tags)) return null;
-        if (query.moodMin > 0 || query.moodMax < 100) {
-            if (data.mood < 0) return null;
-            if (data.mood < query.moodMin || data.mood > query.moodMax) return null;
-        }
-        
-        return new SearchResult(matchedNb, file, data, nr.snippet);
-    }
-
     private void openSelected() {
-        SearchResult selected = list.getSelectedValue();
+        GlobalSearchEngine.SearchResult selected = list.getSelectedValue();
         if (selected == null) return;
         if (app != null) {
             app.openExistingEntryEditor(selected.notebook, selected.file);
@@ -344,14 +335,38 @@ public class GlobalSearchDialog extends JDialog {
         }
     }
 
-    private SearchQuery buildQuery() {
+    private GlobalSearchEngine.SearchQuery buildQuery() {
         String q = queryField.getText() == null ? "" : queryField.getText().trim();
         String tagText = tagField.getText() == null ? "" : tagField.getText().trim();
-        LocalDate fromDate = parseDate(fromDateField.getText());
-        LocalDate toDate = parseDate(toDateField.getText());
+        String fromRaw = fromDateField.getText();
+        String toRaw = toDateField.getText();
+        LocalDate fromDate = parseDate(fromRaw);
+        LocalDate toDate = parseDate(toRaw);
+        if (fromRaw != null && !fromRaw.trim().isEmpty() && fromDate == null) {
+            statusLabel.setText("Invalid from date (use YYYY-MM-DD).");
+            return null;
+        }
+        if (toRaw != null && !toRaw.trim().isEmpty() && toDate == null) {
+            statusLabel.setText("Invalid to date (use YYYY-MM-DD).");
+            return null;
+        }
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            LocalDate tmp = fromDate;
+            fromDate = toDate;
+            toDate = tmp;
+            fromDateField.setText(fromDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
+            toDateField.setText(toDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
         int minMood = (Integer) moodMin.getValue();
         int maxMood = (Integer) moodMax.getValue();
-        return new SearchQuery(q, tagText, fromDate, toDate, minMood, maxMood, false);
+        if (minMood > maxMood) {
+            int tmp = minMood;
+            minMood = maxMood;
+            maxMood = tmp;
+            moodMin.setValue(minMood);
+            moodMax.setValue(maxMood);
+        }
+        return new GlobalSearchEngine.SearchQuery(q, tagText, fromDate, toDate, minMood, maxMood, false);
     }
 
     private static LocalDate parseDate(String raw) {
@@ -363,287 +378,52 @@ public class GlobalSearchDialog extends JDialog {
         }
     }
 
-    private static File[] listEntryFiles(NotebookInfo nb) {
-        if (nb == null || nb.getFolder() == null || !nb.getFolder().exists()) return null;
-        File folder = nb.getFolder();
-        String nativeResult = NativeAccess.fsListFiltered(
-                folder.getAbsolutePath(),
-                ".note,.txt,.ntk,.poem,.rtf",
-                false);
-        if (nativeResult != null && !nativeResult.isEmpty()) {
-            List<File> files = new ArrayList<>();
-            for (String line : nativeResult.split("\n")) {
-                if (line.isEmpty()) continue;
-                String[] parts = line.split("\\|", 4);
-                if (parts.length >= 4 && "f".equals(parts[0])) {
-                    files.add(new File(folder, parts[3]));
-                }
-            }
-            return files.toArray(new File[0]);
-        }
-        return folder.listFiles(f -> {
-            if (f == null || !f.isFile()) return false;
-            String name = f.getName().toLowerCase(Locale.ROOT);
-            return name.endsWith(".note") || name.endsWith(".txt")
-                    || name.endsWith(".ntk") || name.endsWith(".poem") || name.endsWith(".rtf");
-        });
-    }
-
-    private static EntryData readEntryData(File f, Component parent, AtomicBoolean skipEncrypted) {
-        if (f == null) return null;
-        String name = f.getName().toLowerCase(Locale.ROOT);
-        try {
-            byte[] raw;
-            if (EncryptionManager.isEncrypted(f)) {
-                if (skipEncrypted != null && skipEncrypted.get()) return null;
-                try {
-                    raw = EncryptionManager.readFileMaybeDecrypt(f, parent, true);
-                } catch (CryptoException ex) {
-                    if (skipEncrypted != null) skipEncrypted.set(true);
-                    return null;
-                }
-            } else {
-                raw = FileIO.readAllBytes(f.toPath());
-            }
-            if (raw == null) return null;
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8))) {
-                String first = br.readLine();
-                if (first == null) return null;
-                EntryData data = new EntryData();
-                data.savedAt = f.lastModified();
-                if (name.endsWith(".poem")) {
-                    data.title = first.trim();
-                    br.readLine();
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        sb.append(line).append('\n');
-                    }
-                    data.text = sb.toString();
-                    data.tags = extractTags(data.text);
-                    data.mood = -1;
-                    return data;
-                }
-
-                EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(first);
-                String title = "";
-                String firstContentLine;
-                if (meta != null) {
-                    title = meta.title == null ? "" : meta.title;
-                    data.mood = meta.mood;
-                    if (meta.savedAt > 0) data.savedAt = meta.savedAt;
-                    firstContentLine = br.readLine();
-                    if (firstContentLine != null && firstContentLine.isBlank()) {
-                        firstContentLine = br.readLine();
-                    }
-                } else {
-                    title = first.trim();
-                    br.readLine();
-                    firstContentLine = br.readLine();
-                }
-                data.title = title;
-
-                StringBuilder sb = new StringBuilder();
-                if (firstContentLine != null) sb.append(firstContentLine).append('\n');
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append('\n');
-                }
-                String body = stripImageManifest(sb.toString());
-                data.text = rtfToPlain(body);
-                data.tags = extractTags(data.text);
-                return data;
-            }
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private static String stripImageManifest(String body) {
-        if (body == null) return "";
-        String trimmed = body.stripLeading();
-        if (trimmed.startsWith("IMGMAP:")) {
-            int nl = trimmed.indexOf('\n');
-            if (nl >= 0) return trimmed.substring(nl + 1).stripLeading();
-            return "";
-        }
-        return body;
-    }
-
-    private static String rtfToPlain(String text) {
-        if (text == null) return "";
-        String trimmed = text.stripLeading();
-        if (!trimmed.startsWith("{\\rtf")) return text;
-        try {
-            RTFEditorKit kit = new RTFEditorKit();
-            StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
-            kit.read(new ByteArrayInputStream(trimmed.getBytes(StandardCharsets.UTF_8)), doc, 0);
-            return doc.getText(0, doc.getLength());
-        } catch (Exception e) {
-            return text;
-        }
-    }
-
-    private static class SearchResult {
-        final NotebookInfo notebook;
-        final File file;
-        final String title;
-        final String snippet;
-        final long savedAt;
-        final int mood;
-        final Set<String> tags;
-
-        SearchResult(NotebookInfo nb, File file, EntryData data) {
-            this.notebook = nb;
-            this.file = file;
-            this.title = data.title == null || data.title.isBlank() ? file.getName() : data.title;
-            this.snippet = buildSnippet(data.text, data.queryForSnippet);
-            this.savedAt = data.savedAt;
-            this.mood = data.mood;
-            this.tags = data.tags;
-        }
-
-        SearchResult(NotebookInfo nb, File file, EntryData data, String nativeSnippet) {
-            this.notebook = nb;
-            this.file = file;
-            this.title = data.title == null || data.title.isBlank() ? file.getName() : data.title;
-            this.snippet = nativeSnippet != null && !nativeSnippet.isEmpty() ? nativeSnippet : buildSnippet(data.text, data.queryForSnippet);
-            this.savedAt = data.savedAt;
-            this.mood = data.mood;
-            this.tags = data.tags;
-        }
-    }
-
-    private static class EntryData {
-        String title;
-        String text;
-        long savedAt;
-        int mood = -1;
-        Set<String> tags = new HashSet<>();
-        String queryForSnippet;
-    }
-
-    private static class SearchQuery {
-        final String q;
-        final String qLower;
-        final String[] tokens;
-        final String qCompact;
-        final Set<String> tags;
-        final LocalDate from;
-        final LocalDate to;
-        final int moodMin;
-        final int moodMax;
-        final boolean fuzzy;
-
-        SearchQuery(String q, String tagText, LocalDate from, LocalDate to, int moodMin, int moodMax, boolean fuzzy) {
-            this.q = q == null ? "" : q.trim();
-            this.qLower = this.q.toLowerCase(Locale.ROOT);
-            this.tokens = this.qLower.isEmpty() ? new String[0] : this.qLower.split("\\s+");
-            this.qCompact = stripSpaces(collapseSpaces(this.qLower));
-            this.tags = parseTagsFilter(tagText);
-            this.from = from;
-            this.to = to;
-            this.moodMin = moodMin;
-            this.moodMax = moodMax;
-            this.fuzzy = fuzzy;
-        }
-
-        boolean isEmpty() {
-            return q.isEmpty() && tags.isEmpty() && from == null && to == null;
-        }
-
-        boolean matches(EntryData data) {
-            if (data == null) return false;
-            LocalDate date = Instant.ofEpochMilli(data.savedAt).atZone(ZoneId.systemDefault()).toLocalDate();
-            if (from != null && date.isBefore(from)) return false;
-            if (to != null && date.isAfter(to)) return false;
-            if (!tags.isEmpty()) {
-                if (data.tags == null || data.tags.isEmpty()) {
-                    data.tags = extractTags(data.text);
-                }
-                if (!data.tags.containsAll(tags)) return false;
-            }
-            if (moodMin > 0 || moodMax < 100) {
-                if (data.mood < 0) return false;
-                if (data.mood < moodMin || data.mood > moodMax) return false;
-            }
-            data.queryForSnippet = q;
-            if (q.isEmpty()) return true;
-            
-            // Use native text utilities for faster processing
-            String combinedText = NativeAccess.textNormalize(
-                (data.title == null ? "" : data.title) + " " + (data.text == null ? "" : data.text)
-            );
-            
-            // Try native exact token matching first (fastest)
-            if (tokens.length > 0 && NativeAccess.stringContainsCi(combinedText, q)) {
-                return true;
-            }
-            
-            // Use native fuzzy matching for more flexible search
-            if (fuzzy) {
-                // Use native fuzzy match with optimized parameters
-                if (NativeAccess.textFuzzyMatch(combinedText, q)) {
-                    return true;
-                }
-                
-                // Try native fuzzy scoring as backup
-                int fuzzyScore = NativeAccess.textFuzzyScore(combinedText, q);
-                if (fuzzyScore >= q.length() * 0.7) { // 70% match threshold
-                    return true;
-                }
-            }
-            
-            return false;
-        }
-
-        
-        private static Set<String> parseTagsFilter(String raw) {
-            Set<String> out = new HashSet<>();
-            if (raw == null || raw.trim().isEmpty()) return out;
-            String[] parts = raw.split("[,\\s]+");
-            for (String p : parts) {
-                String t = p.trim().toLowerCase(Locale.ROOT);
-                if (!t.isEmpty()) out.add(t);
-            }
-            return out;
-        }
-    }
-
-    private static class SearchResultRenderer extends JPanel implements ListCellRenderer<SearchResult> {
+    private static class SearchResultRenderer extends JPanel implements ListCellRenderer<GlobalSearchEngine.SearchResult> {
         private final JLabel titleLine = new JLabel();
+        private final JLabel snippetLine = new JLabel();
         private final JLabel meta = new JLabel();
         private boolean selected;
 
         SearchResultRenderer() {
-            setLayout(new BorderLayout(4, 2));
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             setOpaque(false);
             titleLine.setFont(AeroTheme.defaultBoldFont(14f));
+            titleLine.setForeground(new Color(30, 36, 46));
+            snippetLine.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+            snippetLine.setForeground(new Color(105, 115, 130));
             meta.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
-            meta.setForeground(new Color(95, 105, 120));
-            add(titleLine, BorderLayout.CENTER);
-            add(meta, BorderLayout.SOUTH);
-            setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+            meta.setForeground(new Color(135, 145, 160));
+            add(titleLine);
+            add(snippetLine);
+            add(meta);
+            setBorder(new EmptyBorder(10, 12, 10, 12));
         }
 
         @Override
-        public Component getListCellRendererComponent(JList<? extends SearchResult> list, SearchResult value,
+        public Component getListCellRendererComponent(JList<? extends GlobalSearchEngine.SearchResult> list, GlobalSearchEngine.SearchResult value,
                                                       int index, boolean isSelected, boolean cellHasFocus) {
             if (value != null) {
-                // Format: "Entry Title" from 📓 Notebook Name
                 String entryTitle = value.title != null && !value.title.isEmpty() ? value.title : "Untitled";
                 String nbName = value.notebook.getName();
-                titleLine.setText("<html><b>" + escapeHtml(entryTitle) + "</b> <span style='color:#666;'>from</span> <span style='color:#4a7c9b;'>📓 " + escapeHtml(nbName) + "</span></html>");
-                
+                titleLine.setText(entryTitle);
+
+                String snippet = value.snippet == null ? "" : value.snippet.trim();
+                if (snippet.isEmpty()) {
+                    snippetLine.setText("");
+                    snippetLine.setVisible(false);
+                } else {
+                    snippetLine.setVisible(true);
+                    int wrap = list.getWidth() > 0 ? Math.max(320, list.getWidth() - 80) : 520;
+                    snippetLine.setText("<html><div style='width:" + wrap + "px;'>" + escapeHtml(snippet) + "</div></html>");
+                }
+
                 String date = DateTimeFormatter.ofPattern("yyyy-MM-dd")
                         .format(Instant.ofEpochMilli(value.savedAt).atZone(ZoneId.systemDefault()).toLocalDate());
-                String mood = value.mood >= 0 ? "Mood " + value.mood : "";
-                String tagText = (value.tags != null && !value.tags.isEmpty())
-                        ? "Tags: " + String.join(", ", value.tags)
-                        : "";
-                StringBuilder sb = new StringBuilder(date);
-                if (!mood.isEmpty()) sb.append("  •  ").append(mood);
-                if (!tagText.isEmpty()) sb.append("  •  ").append(tagText);
+                StringBuilder sb = new StringBuilder("📓 ").append(nbName).append("  •  ").append(date);
+                if (value.mood >= 0) sb.append("  •  Mood ").append(value.mood);
+                if (value.tags != null && !value.tags.isEmpty()) {
+                    sb.append("  •  #").append(String.join(" #", value.tags));
+                }
                 meta.setText(sb.toString());
             }
             this.selected = isSelected;
@@ -657,136 +437,19 @@ public class GlobalSearchDialog extends JDialog {
             int w = getWidth();
             int h = getHeight();
             int arc = 12;
-            java.awt.Rectangle r = new java.awt.Rectangle(0, 0, w, h);
-            Color top = selected ? new Color(235, 245, 255) : new Color(252, 253, 255);
-            Color bottom = selected ? new Color(217, 232, 248) : new Color(232, 239, 246);
-            AeroPainters.paintVerticalGradient(g2, r, top, bottom, arc);
-            AeroPainters.paintGlassOverlay(g2, r, arc);
-            if (selected) {
-                AeroPainters.paintOuterGlow(g2, r, arc, new Color(120, 170, 255), 4, 90);
-            }
-            g2.setColor(selected ? new Color(120, 170, 255, 140) : new Color(185, 195, 210));
+            Color fill = selected ? new Color(230, 243, 255) : new Color(255, 255, 255);
+            Color border = selected ? new Color(120, 170, 255) : new Color(220, 228, 236);
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(border);
             g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
             g2.dispose();
             super.paintComponent(g);
         }
-        
+
         private static String escapeHtml(String s) {
             return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         }
-    }
-
-    private static String buildSnippet(String text, String query) {
-        if (text == null) return "";
-        String flat = collapseSpaces(text);
-        if (flat.isEmpty()) return "";
-        if (query == null || query.isBlank()) {
-            return trimSnippet(flat, 160);
-        }
-        String q = query.trim();
-        int idx = findIndexCi(flat, q);
-        if (idx < 0) {
-            String[] parts = q.split("\\s+");
-            for (String p : parts) {
-                if (p.isBlank()) continue;
-                idx = findIndexCi(flat, p);
-                if (idx >= 0) {
-                    q = p;
-                    break;
-                }
-            }
-        }
-        if (idx < 0) return trimSnippet(flat, 160);
-        int start = Math.max(0, idx - 40);
-        int end = Math.min(flat.length(), idx + q.length() + 60);
-        String snippet = flat.substring(start, end).trim();
-        if (start > 0) snippet = "..." + snippet;
-        if (end < flat.length()) snippet = snippet + "...";
-        return snippet;
-    }
-
-    private static String collapseSpaces(String text) {
-        if (text == null || text.isEmpty()) return "";
-        String nativeCollapsed = NativeAccess.patternCollapseSpaces(text);
-        if (nativeCollapsed != null) return nativeCollapsed;
-        return text.replaceAll("\\s+", " ").trim();
-    }
-
-    private static String stripSpaces(String text) {
-        if (text == null || text.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder(text.length());
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (!Character.isWhitespace(c)) sb.append(c);
-        }
-        return sb.toString();
-    }
-
-    private static int findIndexCi(String text, String needle) {
-        if (text == null || needle == null || needle.isBlank()) return -1;
-        long idx = NativeAccess.searchFindCi(text, needle);
-        if (idx >= 0 && idx <= Integer.MAX_VALUE) return (int) idx;
-        String lower = text.toLowerCase(Locale.ROOT);
-        String qLower = needle.toLowerCase(Locale.ROOT);
-        return lower.indexOf(qLower);
-    }
-
-    private static String trimSnippet(String text, int max) {
-        if (text.length() <= max) return text;
-        return text.substring(0, max - 3).trim() + "...";
-    }
-
-    private static boolean containsAllTokens(String[] tokens, String text) {
-        if (tokens == null || tokens.length == 0) return true;
-        for (String p : tokens) {
-            if (p == null || p.isBlank()) continue;
-            if (!NativeAccess.searchContainsCi(text, p)) return false;
-        }
-        return true;
-    }
-
-    private static boolean fuzzyMatch(String query, String text) {
-        if (query.isEmpty()) return true;
-        
-        // Use native fuzzy matching with optimized distance calculation
-        int maxDistance = Math.max(1, query.length() / 4);
-        if (NativeAccess.searchFuzzyMatch(text, query, maxDistance)) return true;
-        
-        // Use native similarity scoring as secondary check
-        int similarity = NativeAccess.textSimilarity(text, query);
-        if (similarity >= 70) return true; // 70% similarity threshold
-        
-        // Use native Levenshtein distance as final fallback
-        Integer distance = NativeAccess.textLevenshtein(text, query);
-        if (distance != null) {
-            double ratio = (double) (query.length() - distance) / (double) query.length();
-            return ratio >= 0.7;
-        }
-        
-        return false;
-    }
-
-    private static Set<String> extractTags(String text) {
-        Set<String> tags = new HashSet<>();
-        if (text == null || text.isBlank()) return tags;
-        
-        // Use native tag extraction (much faster than regex)
-        List<String> nativeTags = NativeAccess.textExtractTags(text);
-        if (nativeTags != null && !nativeTags.isEmpty()) {
-            for (String tag : nativeTags) {
-                if (tag != null && !tag.isEmpty()) {
-                    tags.add(tag.toLowerCase(Locale.ROOT));
-                }
-            }
-            return tags;
-        }
-        
-        // Fallback to regex only if native fails
-        Matcher m = Pattern.compile("#([A-Za-z0-9_-]+)").matcher(text);
-        while (m.find()) {
-            tags.add(m.group(1).toLowerCase(Locale.ROOT));
-        }
-        return tags;
     }
 
     private static JLabel makeLabel(String text) {
@@ -796,64 +459,4 @@ public class GlobalSearchDialog extends JDialog {
         return label;
     }
 
-    private static final class AeroSearchField extends JTextField {
-        private String placeholder;
-
-        AeroSearchField(int columns) {
-            super(columns);
-            setOpaque(false);
-            setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-            setFont(AeroTheme.defaultFont());
-            setForeground(AeroTheme.TEXT_PRIMARY);
-            setCaretColor(AeroTheme.AERO_BLUE_DARK);
-        }
-
-        void setPlaceholder(String placeholder) {
-            this.placeholder = placeholder;
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = getWidth();
-            int h = getHeight();
-            if (Theme.isPlainWhite()) {
-                g2.setColor(Color.WHITE);
-                g2.fillRoundRect(0, 0, w, h, 10, 10);
-            } else {
-                GradientPaint gp = new GradientPaint(0, 0, new Color(252, 252, 252), 0, h, new Color(233, 236, 242));
-                g2.setPaint(gp);
-                g2.fillRoundRect(0, 0, w, h, 10, 10);
-                g2.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 170), 0, h / 2f, new Color(255, 255, 255, 0)));
-                g2.fillRoundRect(1, 1, w - 2, h / 2, 9, 9);
-            }
-            super.paintComponent(g2);
-
-            if ((getText() == null || getText().isEmpty()) && !isFocusOwner() && placeholder != null) {
-                g2.setFont(getFont());
-                g2.setColor(new Color(130, 130, 130));
-                FontMetrics fm = g2.getFontMetrics();
-                int textY = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
-                g2.drawString(placeholder, 12, textY);
-            }
-            g2.dispose();
-        }
-
-        @Override
-        protected void paintBorder(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = getWidth();
-            int h = getHeight();
-            g2.setColor(new Color(190, 190, 190));
-            g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
-            if (!Theme.isPlainWhite() && isFocusOwner()) {
-                g2.setColor(new Color(AeroTheme.AERO_BLUE.getRed(), AeroTheme.AERO_BLUE.getGreen(), AeroTheme.AERO_BLUE.getBlue(), 120));
-                g2.drawRoundRect(1, 1, w - 3, h - 3, 8, 8);
-            }
-            g2.dispose();
-        }
-    }
 }

@@ -47,13 +47,18 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionAdapter;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
@@ -70,9 +75,13 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.Timer;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.JTextField;
 
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
@@ -83,20 +92,34 @@ import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.containers.RoundedPanel;
 import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.editor.CustomFontApplier;
+import main.ui.components.fields.ModernTextField;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.ModernScrollBarUI;
+import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
+import main.ui.features.entries.GlobalSearchEngine;
 import main.ui.theme.aero.AeroTheme;
 
 public class NotebookManagerPanel extends JPanel {
     private final NotebookStore store = new NotebookStore();
     private final JPanel gallery = new JPanel();
     private final JournalApp app;
+    private ModernTextField searchField;
+    private ModernTextField tagField;
+    private ModernTextField fromDateField;
+    private ModernTextField toDateField;
+    private JSpinner moodMin;
+    private JSpinner moodMax;
+    private JLabel searchStatus;
+    private final Timer searchDebounce;
+    private SwingWorker<Void, GlobalSearchEngine.SearchResult> searchWorker;
+    private final Map<String, Integer> searchHitCounts = new HashMap<>();
+    private final Map<String, GlobalSearchEngine.SearchResult> primarySearchHits = new HashMap<>();
 
     public NotebookManagerPanel(JournalApp app){
         this.app = app;
@@ -130,7 +153,18 @@ public class NotebookManagerPanel extends JPanel {
         topBar.add(leftButtons, BorderLayout.WEST);
         topBar.add(rightButtons, BorderLayout.EAST);
 
-        add(topBar, BorderLayout.NORTH);
+        JPanel headerStack = new JPanel();
+        headerStack.setOpaque(false);
+        headerStack.setLayout(new BoxLayout(headerStack, BoxLayout.Y_AXIS));
+        headerStack.add(topBar);
+        headerStack.add(Box.createVerticalStrut(6));
+        headerStack.add(buildSearchPanel());
+
+        add(headerStack, BorderLayout.NORTH);
+
+        searchDebounce = new Timer(200, e -> runSearch());
+        searchDebounce.setRepeats(false);
+        installSearchHandlers();
 
         gallery.setOpaque(false);
         gallery.setLayout(new BoxLayout(gallery, BoxLayout.Y_AXIS));
@@ -151,6 +185,272 @@ public class NotebookManagerPanel extends JPanel {
         add(scroll,BorderLayout.CENTER);
 
         refresh();
+    }
+
+    private JComponent buildSearchPanel() {
+        RoundedPanel searchPanel = new RoundedPanel(16);
+        searchPanel.setFlat(true);
+        searchPanel.setBackground(new Color(245, 247, 250));
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+        searchPanel.setLayout(new BorderLayout());
+
+        JPanel stack = new JPanel();
+        stack.setOpaque(false);
+        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+
+        RoundedPanel searchBar = new RoundedPanel(12);
+        searchBar.setFlat(true);
+        searchBar.setBackground(Color.WHITE);
+        searchBar.setLayout(new BorderLayout(10, 0));
+        searchBar.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+
+        searchField = new ModernTextField(30);
+        searchField.setPlaceholder("Search across notebooks");
+        searchField.setFont(AeroTheme.defaultFont().deriveFont(14f));
+        searchField.setPreferredSize(new Dimension(420, 32));
+
+        RoundedButton searchBtn = new RoundedButton("Search").withIcon("search");
+        searchBtn.setPreferredSize(new Dimension(110, 32));
+        searchBtn.setToolTipText("Run search now");
+        searchBtn.addActionListener(e -> runSearch());
+
+        RoundedButton clearBtn = new RoundedButton("Clear").withIcon("close");
+        clearBtn.setPreferredSize(new Dimension(96, 32));
+        clearBtn.setToolTipText("Clear all filters");
+        clearBtn.addActionListener(e -> clearSearch());
+
+        JPanel searchActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        searchActions.setOpaque(false);
+        searchActions.add(clearBtn);
+        searchActions.add(searchBtn);
+
+        searchBar.add(searchField, BorderLayout.CENTER);
+        searchBar.add(searchActions, BorderLayout.EAST);
+
+        RoundedPanel filterCard = new RoundedPanel(12);
+        filterCard.setFlat(true);
+        filterCard.setBackground(new Color(250, 250, 252));
+        filterCard.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+        filterCard.setLayout(new java.awt.GridLayout(2, 1, 0, 6));
+
+        JPanel rowA = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        rowA.setOpaque(false);
+        rowA.add(makeLabel("Tags"));
+        tagField = new ModernTextField(18);
+        tagField.setPlaceholder("tag1, tag2");
+        rowA.add(tagField);
+        rowA.add(makeLabel("From"));
+        fromDateField = new ModernTextField(10);
+        fromDateField.setPlaceholder("YYYY-MM-DD");
+        rowA.add(fromDateField);
+        rowA.add(makeLabel("To"));
+        toDateField = new ModernTextField(10);
+        toDateField.setPlaceholder("YYYY-MM-DD");
+        rowA.add(toDateField);
+
+        JPanel rowB = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        rowB.setOpaque(false);
+        rowB.add(makeLabel("Mood"));
+        moodMin = new JSpinner(new SpinnerNumberModel(0, 0, 100, 1));
+        moodMax = new JSpinner(new SpinnerNumberModel(100, 0, 100, 1));
+        moodMin.setUI(new ModernSpinnerUI());
+        moodMax.setUI(new ModernSpinnerUI());
+        moodMin.setPreferredSize(new Dimension(64, 26));
+        moodMax.setPreferredSize(new Dimension(64, 26));
+        rowB.add(moodMin);
+        rowB.add(makeLabel("to"));
+        rowB.add(moodMax);
+
+        filterCard.add(rowA);
+        filterCard.add(rowB);
+
+        searchStatus = new JLabel("Type to search.");
+        searchStatus.setForeground(new Color(120, 130, 145));
+        searchStatus.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        JPanel statusRow = new JPanel(new BorderLayout());
+        statusRow.setOpaque(false);
+        statusRow.add(searchStatus, BorderLayout.EAST);
+
+        stack.add(searchBar);
+        stack.add(Box.createVerticalStrut(6));
+        stack.add(filterCard);
+        stack.add(Box.createVerticalStrut(4));
+        stack.add(statusRow);
+
+        searchPanel.add(stack, BorderLayout.CENTER);
+        return searchPanel;
+    }
+
+    private void installSearchHandlers() {
+        attachDebounce(searchField);
+        attachDebounce(tagField);
+        attachDebounce(fromDateField);
+        attachDebounce(toDateField);
+        moodMin.addChangeListener(e -> searchDebounce.restart());
+        moodMax.addChangeListener(e -> searchDebounce.restart());
+
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    runSearch();
+                }
+            }
+        });
+    }
+
+    private void attachDebounce(JTextField field) {
+        field.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { searchDebounce.restart(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { searchDebounce.restart(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { searchDebounce.restart(); }
+        });
+    }
+
+    private void clearSearch() {
+        if (searchWorker != null && !searchWorker.isDone()) {
+            searchWorker.cancel(true);
+        }
+        searchField.setText("");
+        tagField.setText("");
+        fromDateField.setText("");
+        toDateField.setText("");
+        moodMin.setValue(0);
+        moodMax.setValue(100);
+        clearSearchResults();
+        searchStatus.setText("Type to search.");
+    }
+
+    private void clearSearchResults() {
+        searchHitCounts.clear();
+        primarySearchHits.clear();
+        gallery.repaint();
+    }
+
+    private void runSearch() {
+        if (searchWorker != null && !searchWorker.isDone()) {
+            searchWorker.cancel(true);
+        }
+        clearSearchResults();
+
+        GlobalSearchEngine.SearchQuery query = buildSearchQuery();
+        if (query == null) return;
+        if (query.isEmpty()) {
+            searchStatus.setText("Type to search.");
+            return;
+        }
+
+        searchStatus.setText("Searching...");
+        searchWorker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                GlobalSearchEngine.search(query, NotebookManagerPanel.this, result -> publish(result), this::isCancelled);
+                return null;
+            }
+
+            @Override
+            protected void process(List<GlobalSearchEngine.SearchResult> chunks) {
+                for (GlobalSearchEngine.SearchResult result : chunks) {
+                    registerSearchHit(result);
+                }
+                searchStatus.setText(getTotalSearchHits() + " result(s)");
+                gallery.repaint();
+            }
+
+            @Override
+            protected void done() {
+                if (getTotalSearchHits() == 0) {
+                    searchStatus.setText("No results.");
+                }
+            }
+        };
+        searchWorker.execute();
+    }
+
+    private GlobalSearchEngine.SearchQuery buildSearchQuery() {
+        String q = searchField.getText() == null ? "" : searchField.getText().trim();
+        String tagText = tagField.getText() == null ? "" : tagField.getText().trim();
+        String fromRaw = fromDateField.getText();
+        String toRaw = toDateField.getText();
+        LocalDate fromDate = parseDate(fromRaw);
+        LocalDate toDate = parseDate(toRaw);
+        if (fromRaw != null && !fromRaw.trim().isEmpty() && fromDate == null) {
+            searchStatus.setText("Invalid from date (use YYYY-MM-DD).");
+            return null;
+        }
+        if (toRaw != null && !toRaw.trim().isEmpty() && toDate == null) {
+            searchStatus.setText("Invalid to date (use YYYY-MM-DD).");
+            return null;
+        }
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            LocalDate tmp = fromDate;
+            fromDate = toDate;
+            toDate = tmp;
+            fromDateField.setText(fromDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
+            toDateField.setText(toDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
+        int minMood = (Integer) moodMin.getValue();
+        int maxMood = (Integer) moodMax.getValue();
+        if (minMood > maxMood) {
+            int tmp = minMood;
+            minMood = maxMood;
+            maxMood = tmp;
+            moodMin.setValue(minMood);
+            moodMax.setValue(maxMood);
+        }
+        return new GlobalSearchEngine.SearchQuery(q, tagText, fromDate, toDate, minMood, maxMood, false);
+    }
+
+    private static LocalDate parseDate(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return null;
+        try {
+            return LocalDate.parse(raw.trim(), DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void registerSearchHit(GlobalSearchEngine.SearchResult result) {
+        if (result == null || result.notebook == null) return;
+        String key = notebookKey(result.notebook);
+        if (key.isEmpty()) return;
+        int next = searchHitCounts.getOrDefault(key, 0) + 1;
+        searchHitCounts.put(key, next);
+        GlobalSearchEngine.SearchResult current = primarySearchHits.get(key);
+        if (current == null || result.savedAt > current.savedAt) {
+            primarySearchHits.put(key, result);
+        }
+    }
+
+    private int getTotalSearchHits() {
+        int total = 0;
+        for (int count : searchHitCounts.values()) {
+            total += count;
+        }
+        return total;
+    }
+
+    private int getSearchHitCount(NotebookInfo nb) {
+        if (nb == null) return 0;
+        Integer count = searchHitCounts.get(notebookKey(nb));
+        return count == null ? 0 : count;
+    }
+
+    private GlobalSearchEngine.SearchResult getPrimarySearchHit(NotebookInfo nb) {
+        if (nb == null) return null;
+        return primarySearchHits.get(notebookKey(nb));
+    }
+
+    private static String notebookKey(NotebookInfo nb) {
+        if (nb == null || nb.getName() == null) return "";
+        return nb.getName().toLowerCase(Locale.ROOT);
+    }
+
+    private static JLabel makeLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(AeroTheme.defaultBoldFont(12f));
+        label.setForeground(new Color(55, 60, 70));
+        return label;
     }
 
     public void refresh(){
@@ -663,6 +963,11 @@ public class NotebookManagerPanel extends JPanel {
                 g2.setComposite(AlphaComposite.SrcOver);
             }
 
+            int hits = getSearchHitCount(nb);
+            if (hits > 0) {
+                paintSearchBadge(g2, w, h, arc, hits);
+            }
+
             g2.dispose();
         }
         @Override public void mouseEntered(MouseEvent e){ setHoverTarget(true); updateHandleTarget(e.getY()); }
@@ -677,6 +982,27 @@ public class NotebookManagerPanel extends JPanel {
         }
         @Override public void mousePressed(MouseEvent e){}
         @Override public void mouseReleased(MouseEvent e){}
+
+        private void paintSearchBadge(Graphics2D g2, int w, int h, int arc, int hits) {
+            g2.setColor(new Color(90, 160, 255, 180));
+            g2.setStroke(new BasicStroke(2f));
+            g2.drawRoundRect(1, 1, w - 3, h - 3, arc, arc);
+
+            String label = hits == 1 ? "Found" : hits + " found";
+            Font badgeFont = getFont().deriveFont(Font.BOLD, 10f);
+            FontMetrics fm = g2.getFontMetrics(badgeFont);
+            int padX = 6;
+            int padY = 2;
+            int badgeW = fm.stringWidth(label) + padX * 2;
+            int badgeH = fm.getAscent() + fm.getDescent() + padY * 2;
+            int bx = Math.max(6, w - badgeW - 6);
+            int by = 6;
+            g2.setColor(new Color(60, 130, 240, 220));
+            g2.fillRoundRect(bx, by, badgeW, badgeH, 10, 10);
+            g2.setColor(Color.WHITE);
+            g2.setFont(badgeFont);
+            g2.drawString(label, bx + padX, by + padY + fm.getAscent());
+        }
 
         private void updateHandleTarget(int mouseY) {
             int h = getHeight();
@@ -873,6 +1199,11 @@ public class NotebookManagerPanel extends JPanel {
     }
 
     private void openNotebook(NotebookInfo nb){
+        GlobalSearchEngine.SearchResult hit = getPrimarySearchHit(nb);
+        if (hit != null) {
+            app.openExistingEntryEditor(hit.notebook, hit.file);
+            return;
+        }
         app.openNotebookEntries(nb);
     }
 

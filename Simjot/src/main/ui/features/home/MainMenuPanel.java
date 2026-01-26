@@ -426,11 +426,6 @@ public class MainMenuPanel extends JPanel {
         notebooksButton.setToolTipText("Collect, draft, and manage your notebooks");
         iconRow.add(notebooksButton);
 
-        IconMenuButton searchButton = new IconMenuButton("Search", "search").setAeroGlowEnabled(true);
-        searchButton.setToolTipText("Search across all poems and notebooks");
-        searchButton.addActionListener(e -> app.showGlobalSearch());
-        iconRow.add(searchButton);
-
         if (SHOW_GALLERY) {
             IconMenuButton galleryButton = createIconButton("Gallery", JournalApp.GALLERY, "image");
             galleryButton.addActionListener(e -> app.switchCard(JournalApp.GALLERY));

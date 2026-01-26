@@ -22,6 +22,7 @@ import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Path2D;
 
 import javax.swing.JButton;
 import javax.swing.Timer;
@@ -162,7 +163,7 @@ public class ToolbarIconButton extends JButton {
     // Check if this icon should always use vector rendering (drawing tools)
     private static boolean isVectorOnlyIcon(String iconId) {
         return switch (iconId) {
-            case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text" -> true;
+            case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text", "text_divider" -> true;
             default -> false;
         };
     }
@@ -172,6 +173,41 @@ public class ToolbarIconButton extends JButton {
         int cx=w/2, cy=h/2;
         g2.setStroke(new BasicStroke(2f));
         switch(id){
+            case "text_divider": {
+                int pad = 6;
+                int lineY = cy + 1;
+                int lineStart = pad;
+                int lineEnd = w - pad;
+                int diamond = 8;
+                int innerGap = diamond + 6;
+                int leftLineEnd = cx - innerGap;
+                int rightLineStart = cx + innerGap;
+
+                g2.setColor(new Color(80, 80, 80));
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                if (leftLineEnd > lineStart) g2.drawLine(lineStart, lineY, leftLineEnd, lineY);
+                if (rightLineStart < lineEnd) g2.drawLine(rightLineStart, lineY, lineEnd, lineY);
+
+                int capW = 8;
+                int capH = 3;
+                g2.fillRoundRect(lineStart - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
+                g2.fillRoundRect(lineEnd - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
+
+                Path2D diamondShape = new Path2D.Float();
+                diamondShape.moveTo(cx, lineY - diamond / 2f);
+                diamondShape.lineTo(cx + diamond / 2f, lineY);
+                diamondShape.lineTo(cx, lineY + diamond / 2f);
+                diamondShape.lineTo(cx - diamond / 2f, lineY);
+                diamondShape.closePath();
+                g2.fill(diamondShape);
+
+                int leafW = 6;
+                int leafH = 2;
+                int leafOffset = diamond / 2 + 6;
+                g2.fillRoundRect(cx - leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
+                g2.fillRoundRect(cx + leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
+                break;
+            }
             case "new": { // Aero-styled pencil icon with gradients and gloss
                 AffineTransform old = g2.getTransform();
                 g2.translate(cx, cy);

@@ -18,7 +18,6 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
@@ -50,26 +49,24 @@ import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarMenuIconButton;
+import main.ui.theme.aero.AeroTheme;
 
 /**
- * Modern mood chart panel with beautiful gradients,
- * smooth animations, and insightful analytics cards.
- * 
- * @author S1mplector
+ * Minimal mood chart panel with clean stats and focused charting.
  */
 public class ModernMoodChartPanel extends JPanel {
     
-    private static final Color BG_GRADIENT_TOP = new Color(250, 252, 255);
-    private static final Color BG_GRADIENT_BOTTOM = new Color(235, 242, 250);
-    private static final Color CARD_BG = new Color(255, 255, 255, 240);
-    private static final Color CARD_SHADOW = new Color(0, 0, 0, 15);
+    private static final Color BG = new Color(245, 247, 250);
+    private static final Color PANEL_BG = new Color(255, 255, 255);
+    private static final Color BORDER = new Color(220, 226, 234);
     private static final Color ACCENT_GREEN = new Color(52, 199, 89);
     private static final Color ACCENT_ORANGE = new Color(255, 149, 0);
     private static final Color ACCENT_RED = new Color(255, 59, 48);
     private static final Color ACCENT_BLUE = new Color(0, 122, 255);
     private static final Color ACCENT_PURPLE = new Color(175, 82, 222);
-    private static final Color TEXT_PRIMARY = new Color(30, 30, 30);
-    private static final Color TEXT_SECONDARY = new Color(120, 120, 130);
+    private static final Color TEXT_PRIMARY = new Color(35, 40, 50);
+    private static final Color TEXT_SECONDARY = new Color(110, 120, 135);
+    private static final Color TEXT_MUTED = new Color(140, 150, 165);
     
     private final MoodChartModel model = new MoodChartModel();
     private final JournalApp app;
@@ -135,24 +132,16 @@ public class ModernMoodChartPanel extends JPanel {
         JPanel header = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                // Subtle gradient
-                GradientPaint gp = new GradientPaint(0, 0, new Color(255, 255, 255, 200),
-                    0, getHeight(), new Color(245, 248, 252, 200));
-                g2.setPaint(gp);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                
-                // Bottom border
-                g2.setColor(new Color(200, 210, 220));
+                g2.setColor(BORDER);
                 g2.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
-                
                 g2.dispose();
             }
         };
-        header.setOpaque(false);
-        header.setBorder(new EmptyBorder(20, 24, 16, 24));
+        header.setOpaque(true);
+        header.setBackground(BG);
+        header.setBorder(new EmptyBorder(16, 20, 12, 20));
         
         // Title section
         JPanel titleSection = new JPanel();
@@ -160,12 +149,12 @@ public class ModernMoodChartPanel extends JPanel {
         titleSection.setLayout(new BoxLayout(titleSection, BoxLayout.Y_AXIS));
         
         JLabel title = new JLabel("Mood Insights");
-        title.setFont(new Font("SF Pro Display", Font.BOLD, 28));
+        title.setFont(AeroTheme.defaultBoldFont(22f));
         title.setForeground(TEXT_PRIMARY);
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         
         JLabel subtitle = new JLabel("Track your emotional wellness over time");
-        subtitle.setFont(new Font("SF Pro Text", Font.PLAIN, 14));
+        subtitle.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 13f));
         subtitle.setForeground(TEXT_SECONDARY);
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         
@@ -187,7 +176,7 @@ public class ModernMoodChartPanel extends JPanel {
         header.add(leftContainer, BorderLayout.WEST);
         
         // Range selector
-        JPanel rangePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        JPanel rangePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rangePanel.setOpaque(false);
         
         for (int i = 0; i < ranges.length; i++) {
@@ -217,15 +206,16 @@ public class ModernMoodChartPanel extends JPanel {
                 boolean isSelected = getText().equals(ranges[selectedRangeIndex]);
                 if (getModel().isPressed() || isSelected) {
                     g2.setColor(ACCENT_BLUE);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
                     g2.setColor(Color.WHITE);
-                } else if (getModel().isRollover()) {
-                    g2.setColor(new Color(230, 235, 245));
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
-                    g2.setColor(TEXT_PRIMARY);
                 } else {
-                    g2.setColor(TEXT_SECONDARY);
+                    g2.setColor(getModel().isRollover() ? new Color(235, 240, 247) : PANEL_BG);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+                    g2.setColor(TEXT_PRIMARY);
                 }
+
+                g2.setColor(isSelected ? new Color(60, 120, 220) : BORDER);
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
                 
                 FontMetrics fm = g2.getFontMetrics();
                 int x = (getWidth() - fm.stringWidth(getText())) / 2;
@@ -235,8 +225,8 @@ public class ModernMoodChartPanel extends JPanel {
                 g2.dispose();
             }
         };
-        btn.setFont(new Font("SF Pro Text", Font.PLAIN, 13));
-        btn.setPreferredSize(new Dimension(75, 32));
+        btn.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        btn.setPreferredSize(new Dimension(76, 30));
         btn.setBorderPainted(false);
         btn.setContentAreaFilled(false);
         btn.setFocusPainted(false);
@@ -254,28 +244,14 @@ public class ModernMoodChartPanel extends JPanel {
     }
     
     private JPanel createChartArea() {
-        JPanel area = new JPanel(new BorderLayout(0, 16)) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                // Background gradient
-                GradientPaint gp = new GradientPaint(0, 0, BG_GRADIENT_TOP,
-                    0, getHeight(), BG_GRADIENT_BOTTOM);
-                g2.setPaint(gp);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                
-                g2.dispose();
-            }
-        };
+        JPanel area = new JPanel(new BorderLayout(0, 12));
         area.setOpaque(false);
-        area.setBorder(new EmptyBorder(16, 24, 16, 24));
+        area.setBorder(new EmptyBorder(12, 20, 20, 20));
         
         // Stats cards row
         JPanel statsRow = new JPanel(new GridLayout(1, 4, 16, 0));
         statsRow.setOpaque(false);
-        statsRow.setPreferredSize(new Dimension(0, 100));
+        statsRow.setPreferredSize(new Dimension(0, 72));
         
         statsRow.add(createStatCard("Overall", () -> String.format("%.0f", animatedAvg), 
             () -> getMoodIcon(animatedAvg), () -> getMoodColor(animatedAvg)));
@@ -303,37 +279,28 @@ public class ModernMoodChartPanel extends JPanel {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
-                
-                // Card shadow
-                g2.setColor(CARD_SHADOW);
-                g2.fillRoundRect(2, 4, getWidth() - 4, getHeight() - 4, 16, 16);
-                
-                // Card background
-                g2.setColor(CARD_BG);
-                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 6, 16, 16);
-                
-                // Icon circle
+                g2.setColor(PANEL_BG);
+                g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+                g2.setColor(BORDER);
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+
                 Color accent = colorSupplier.get();
-                g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 30));
-                g2.fillOval(16, 16, 40, 40);
-                
-                // Icon
-                g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+                g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 25));
+                g2.fillRoundRect(12, 18, 28, 28, 10, 10);
+                g2.setColor(accent);
+                g2.setFont(AeroTheme.defaultBoldFont(14f));
                 String icon = iconSupplier.get();
-                FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(icon, 36 - fm.stringWidth(icon) / 2, 42);
-                
-                // Value
-                g2.setFont(new Font("SF Pro Display", Font.BOLD, 24));
+                FontMetrics fmIcon = g2.getFontMetrics();
+                g2.drawString(icon, 26 - fmIcon.stringWidth(icon) / 2, 38);
+
                 g2.setColor(TEXT_PRIMARY);
+                g2.setFont(AeroTheme.defaultBoldFont(20f));
                 String value = valueSupplier.get();
-                g2.drawString(value, 68, 42);
-                
-                // Label
-                g2.setFont(new Font("SF Pro Text", Font.PLAIN, 12));
-                g2.setColor(TEXT_SECONDARY);
-                g2.drawString(label, 68, 60);
+                g2.drawString(value, 50, 38);
+
+                g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+                g2.setColor(TEXT_MUTED);
+                g2.drawString(label, 50, 56);
                 
                 g2.dispose();
             }
@@ -426,14 +393,14 @@ public class ModernMoodChartPanel extends JPanel {
             int chartW = w - MARGIN_LEFT - MARGIN_RIGHT;
             int chartH = h - MARGIN_TOP - MARGIN_BOTTOM;
 
-            // Card background
-            g2.setColor(CARD_SHADOW);
-            g2.fillRoundRect(2, 4, w - 4, h - 4, 20, 20);
-            g2.setColor(CARD_BG);
-            g2.fillRoundRect(0, 0, w - 4, h - 6, 20, 20);
+            // Panel background
+            g2.setColor(PANEL_BG);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, 18, 18);
+            g2.setColor(BORDER);
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 18, 18);
 
             if (model.getDays().isEmpty() || model.getValues().stream().allMatch(Objects::isNull)) {
-                g2.setFont(new Font("SF Pro Text", Font.PLAIN, 16));
+                g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 14f));
                 g2.setColor(TEXT_SECONDARY);
                 String msg = "No mood data yet. Start journaling to see insights!";
                 FontMetrics fm = g2.getFontMetrics();
@@ -447,19 +414,19 @@ public class ModernMoodChartPanel extends JPanel {
             int n = days.size();
 
             // Draw grid lines
-            g2.setColor(new Color(230, 235, 240));
+            g2.setColor(new Color(230, 236, 242));
             g2.setStroke(new BasicStroke(1f));
             for (int i = 0; i <= 4; i++) {
                 int y = MARGIN_TOP + (int) ((4 - i) / 4.0 * chartH);
                 g2.drawLine(MARGIN_LEFT, y, w - MARGIN_RIGHT, y);
 
                 // Y-axis labels
-                g2.setFont(new Font("SF Pro Text", Font.PLAIN, 11));
+                g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
                 g2.setColor(TEXT_SECONDARY);
                 String label = String.valueOf(i * 25);
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(label, MARGIN_LEFT - fm.stringWidth(label) - 8, y + 4);
-                g2.setColor(new Color(230, 235, 240));
+                g2.setColor(new Color(230, 236, 242));
             }
 
             // Build path
@@ -494,16 +461,12 @@ public class ModernMoodChartPanel extends JPanel {
                 fillPath.closePath();
 
                 // Fill gradient
-                GradientPaint fillGradient = new GradientPaint(
-                    0, MARGIN_TOP, new Color(ACCENT_BLUE.getRed(), ACCENT_BLUE.getGreen(), ACCENT_BLUE.getBlue(), 60),
-                    0, MARGIN_TOP + chartH, new Color(ACCENT_BLUE.getRed(), ACCENT_BLUE.getGreen(), ACCENT_BLUE.getBlue(), 10)
-                );
-                g2.setPaint(fillGradient);
+                g2.setColor(new Color(ACCENT_BLUE.getRed(), ACCENT_BLUE.getGreen(), ACCENT_BLUE.getBlue(), 40));
                 g2.fill(fillPath);
 
                 // Line
                 g2.setColor(ACCENT_BLUE);
-                g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.draw(linePath);
 
                 // Data points
@@ -533,8 +496,8 @@ public class ModernMoodChartPanel extends JPanel {
             }
 
             // X-axis date labels
-            g2.setFont(new Font("SF Pro Text", Font.PLAIN, 10));
-            g2.setColor(TEXT_SECONDARY);
+            g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10f));
+            g2.setColor(TEXT_MUTED);
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d");
             int labelStep = Math.max(1, n / 8);
             for (int i = 0; i < n; i += labelStep) {
@@ -712,16 +675,9 @@ public class ModernMoodChartPanel extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Full background gradient
-        GradientPaint gp = new GradientPaint(0, 0, BG_GRADIENT_TOP,
-            0, getHeight(), BG_GRADIENT_BOTTOM);
-        g2.setPaint(gp);
+        g2.setColor(BG);
         g2.fillRect(0, 0, getWidth(), getHeight());
-        
         g2.dispose();
-        
         super.paintComponent(g);
     }
 }

@@ -38,7 +38,10 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -109,6 +112,7 @@ public class NotetakingPanel extends EntryPanel {
     private main.ui.components.buttons.ToolbarIconButton highlighterBtn;
     private main.ui.components.buttons.ToolbarIconButton eraserBtn;
     private main.ui.components.buttons.ToolbarIconButton lassoBtn;
+    private main.ui.components.buttons.ToolbarIconButton dividerBtn;
     private main.ui.components.buttons.TextColorButton textColorBtn;
     private Color currentTextColor = Color.BLACK;
     private EditingMode editingMode = EditingMode.TEXT;
@@ -200,6 +204,13 @@ public class NotetakingPanel extends EntryPanel {
         lassoBtn.setToolTipText("Lasso Select (move strokes)");
         lassoBtn.addActionListener(e -> { currentDrawTool = DrawTool.LASSO; selectPaintMode(); updatePickersForCurrentTool(); });
         rightToolbar.add(lassoBtn);
+        rightToolbar.add(Box.createHorizontalStrut(4));
+
+        // Text divider (entry date separator)
+        dividerBtn = new main.ui.components.buttons.ToolbarIconButton("text_divider");
+        dividerBtn.setToolTipText("Insert text divider");
+        dividerBtn.addActionListener(e -> insertTextDivider());
+        rightToolbar.add(dividerBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
         // Stroke width spinner
@@ -244,6 +255,43 @@ public class NotetakingPanel extends EntryPanel {
             case LASSO -> "Lasso Select";
         };
         main.ui.components.toast.ToastOverlay.info(toolName + " mode");
+    }
+
+    private void insertTextDivider() {
+        try {
+            int targetWidth = Math.max(0, contentArea.getVisibleRect().width - 40);
+            if (targetWidth <= 0) targetWidth = contentArea.getWidth() - 40;
+            if (targetWidth < 320) targetWidth = 520;
+            targetWidth = Math.min(780, targetWidth);
+            int targetHeight = DateDividerPainter.DEFAULT_HEIGHT;
+            String label = DateDividerPainter.formatDate(LocalDate.now());
+            BufferedImage img = DateDividerPainter.renderImage(targetWidth, targetHeight, label);
+
+            File dir = new File(journalFolder, "attachments");
+            if (!dir.exists()) dir.mkdirs();
+            String name = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date()) + "_divider.png";
+            File out = new File(dir, name);
+            try { ImageIO.write(img, "PNG", out); } catch (IOException ignored) {}
+
+            javax.swing.ImageIcon icon = new javax.swing.ImageIcon(img);
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setIcon(attrs, icon);
+            attrs.addAttribute("imageSourceFile", out);
+            StyledDocument doc = contentArea.getStyledDocument();
+            int pos = contentArea.getCaretPosition();
+            if (pos > 0) {
+                String prev = doc.getText(pos - 1, 1);
+                if (!"\n".equals(prev)) {
+                    doc.insertString(pos, "\n", null);
+                    pos++;
+                }
+            }
+            doc.insertString(pos, " ", attrs);
+            doc.insertString(pos + 1, "\n", null);
+
+            contentArea.setCaretPosition(Math.min(doc.getLength(), pos + 2));
+            contentArea.requestFocusInWindow();
+        } catch (Exception ignored) {}
     }
 
     private void setEditingMode(EditingMode mode) {

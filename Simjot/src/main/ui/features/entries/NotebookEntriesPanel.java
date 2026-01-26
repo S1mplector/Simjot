@@ -16,7 +16,6 @@ import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -102,7 +101,6 @@ import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
-import main.ui.theme.aero.AeroTheme;
 
 public class NotebookEntriesPanel extends JPanel {
     private static final DateTimeFormatter ENTRY_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
@@ -621,7 +619,7 @@ public class NotebookEntriesPanel extends JPanel {
 
         private DateDividerRenderer() {
             setOpaque(false);
-            setFont(resolveClusterFont(16f));
+            setFont(DateDividerPainter.resolveFont(16f));
             setForeground(new Color(60, 60, 60));
             setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
         }
@@ -643,78 +641,8 @@ public class NotebookEntriesPanel extends JPanel {
             int w = getWidth();
             int h = getHeight();
             if (w <= 0 || h <= 0) { g2.dispose(); return; }
-
-            FontMetrics fm = g2.getFontMetrics(getFont());
-            int centerX = w / 2;
-            int lineY = h / 2 + 8;
-            int padX = 16;
-
-            String text = elideText(label, fm, Math.max(0, w - padX * 2 - 120));
-            int textW = text.isEmpty() ? 0 : fm.stringWidth(text);
-            int innerGap = textW > 0 ? (textW / 2 + 14) : 16;
-            int leftLineEnd = centerX - innerGap;
-            int rightLineStart = centerX + innerGap;
-
-            Color line = new Color(60, 60, 60, 170);
-            g2.setColor(line);
-            g2.setStroke(new java.awt.BasicStroke(1.6f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
-            int lineStart = padX;
-            int lineEnd = w - padX;
-            if (leftLineEnd > lineStart + 4) {
-                g2.drawLine(lineStart, lineY, leftLineEnd, lineY);
-            }
-            if (rightLineStart < lineEnd - 4) {
-                g2.drawLine(rightLineStart, lineY, lineEnd, lineY);
-            }
-
-            int capW = 12;
-            int capH = 4;
-            if (leftLineEnd > lineStart + 4) {
-                g2.fillRoundRect(lineStart - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
-            }
-            if (rightLineStart < lineEnd - 4) {
-                g2.fillRoundRect(lineEnd - capW / 2, lineY - capH / 2, capW, capH, capH, capH);
-            }
-
-            int diamond = 10;
-            java.awt.geom.Path2D diamondShape = new java.awt.geom.Path2D.Float();
-            diamondShape.moveTo(centerX, lineY - diamond / 2f);
-            diamondShape.lineTo(centerX + diamond / 2f, lineY);
-            diamondShape.lineTo(centerX, lineY + diamond / 2f);
-            diamondShape.lineTo(centerX - diamond / 2f, lineY);
-            diamondShape.closePath();
-            g2.fill(diamondShape);
-
-            int leafW = 8;
-            int leafH = 3;
-            int leafOffset = diamond / 2 + 8;
-            g2.fillRoundRect(centerX - leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
-            g2.fillRoundRect(centerX + leafOffset - leafW / 2, lineY - leafH / 2, leafW, leafH, leafH, leafH);
-
-            if (!text.isEmpty()) {
-                int textX = centerX - textW / 2;
-                int textY = lineY - 10;
-                if (textY < fm.getAscent()) textY = fm.getAscent();
-                if (textY > h - fm.getDescent()) textY = h - fm.getDescent();
-                g2.setColor(getForeground());
-                g2.setFont(getFont());
-                g2.drawString(text, textX, textY);
-            }
-
+            DateDividerPainter.paint(g2, w, h, label, getFont(), getForeground());
             g2.dispose();
-        }
-
-        private static String elideText(String input, FontMetrics fm, int maxWidth) {
-            if (input == null || input.isEmpty()) return "";
-            if (maxWidth <= 0) return "";
-            if (fm.stringWidth(input) <= maxWidth) return input;
-            String ellipsis = "...";
-            int max = input.length();
-            while (max > 0 && fm.stringWidth(input.substring(0, max) + ellipsis) > maxWidth) {
-                max--;
-            }
-            if (max <= 0) return "";
-            return input.substring(0, max).trim() + ellipsis;
         }
     }
 
@@ -2133,15 +2061,6 @@ public class NotebookEntriesPanel extends JPanel {
         } catch (RuntimeException ignored) {
             return -1L;
         }
-    }
-
-    private static Font resolveClusterFont(float size) {
-        String family = "Zapfino";
-        Font f = new Font(family, Font.PLAIN, Math.round(size));
-        if (!family.equalsIgnoreCase(f.getFamily())) {
-            f = AeroTheme.defaultBoldFont(size);
-        }
-        return f;
     }
 
     private static Color moodColorAt(int mood) {
