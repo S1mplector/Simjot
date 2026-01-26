@@ -21,14 +21,14 @@ import java.time.format.DateTimeFormatter;
 
 import main.ui.theme.aero.AeroTheme;
 
-final class DateDividerPainter {
+public final class DateDividerPainter {
     static final int DEFAULT_HEIGHT = 64;
     private static final Color LINE_COLOR = new Color(60, 60, 60, 170);
     private static final DateTimeFormatter LABEL_FORMAT = DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy");
 
     private DateDividerPainter() {}
 
-    static Font resolveFont(float size) {
+    public static Font resolveFont(float size) {
         String family = "Zapfino";
         Font f = new Font(family, Font.PLAIN, Math.round(size));
         if (!family.equalsIgnoreCase(f.getFamily())) {

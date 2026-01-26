@@ -52,6 +52,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 import javax.swing.Action;
@@ -600,7 +601,6 @@ public class EntryPanel extends AbstractEditorPanel {
             if (stamp != null && !stamp.isBlank()) {
                 headerStamp = new HandwrittenHeaderStrip();
                 headerStamp.setStampText(stamp);
-                headerStamp.setBorder(BorderFactory.createEmptyBorder(0, 52, 4, 12));
                 headerStamp.setAlignmentX(Component.LEFT_ALIGNMENT);
             }
         }
@@ -610,8 +610,12 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarGroup.setOpaque(false);
         toolbarGroup.setLayout(new BoxLayout(toolbarGroup, BoxLayout.Y_AXIS));
         if (headerStamp != null) {
-            toolbarGroup.add(headerStamp);
-            toolbarGroup.add(Box.createVerticalStrut(2));
+            JPanel stampRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            stampRow.setOpaque(false);
+            stampRow.setBorder(BorderFactory.createEmptyBorder(4, 52, 2, 12));
+            stampRow.add(headerStamp);
+            toolbarGroup.add(stampRow);
+            toolbarGroup.add(Box.createVerticalStrut(4));
         }
         toolbarGroup.add(toolbarContainer);
 

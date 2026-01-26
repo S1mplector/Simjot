@@ -345,6 +345,11 @@ public class SimpleColorPicker extends JDialog {
         }
         return sb.toString();
     }
+
+    private static String toHex(Color color) {
+        if (color == null) return "#000000";
+        return String.format("#%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
+    }
     
     private JPanel createColorGrid() {
         JPanel grid = new JPanel(new GridLayout(6, BASE_COLORS.length, 2, 2));
