@@ -111,6 +111,7 @@ public final class SettingsStore {
     private static final String KEY_WIDGET_PANEL_VISIBLE = "widgetPanel.visible";
     private static final String KEY_WIDGET_ENABLED_PREFIX = "widget.enabled.";
     private static final String KEY_STICKIES_PINNED = "stickies.pinned";
+    private static final String KEY_HIDDEN_CLUSTERS = "clusters.hidden";
     // General extensions
     private static final String KEY_DATE_FORMAT = "dateFormat";
     private static final String KEY_OPEN_LAST = "openLastOnStartup";
@@ -879,6 +880,54 @@ public final class SettingsStore {
         java.util.Set<String> s = getPinnedStickyIds();
         if (pinned) s.add(id); else s.remove(id);
         setPinnedStickyIds(s);
+    }
+
+    // -------------- Cluster visibility -------------- //
+    public java.util.Set<String> getHiddenClusterIds() {
+        String raw = props.getProperty(KEY_HIDDEN_CLUSTERS, "");
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+        if (raw == null || raw.isBlank()) return ids;
+        String[] parts = raw.split(",");
+        for (String part : parts) {
+            if (part == null) continue;
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) ids.add(trimmed);
+        }
+        return ids;
+    }
+
+    public void setHiddenClusterIds(java.util.Set<String> ids) {
+        if (ids == null || ids.isEmpty()) { props.remove(KEY_HIDDEN_CLUSTERS); return; }
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (String id : ids) {
+            if (id == null || id.isBlank()) continue;
+            if (!first) sb.append(',');
+            sb.append(id.trim());
+            first = false;
+        }
+        props.setProperty(KEY_HIDDEN_CLUSTERS, sb.toString());
+    }
+
+    public boolean isClusterHidden(String clusterId) {
+        if (clusterId == null || clusterId.isBlank()) return false;
+        return getHiddenClusterIds().contains(clusterId);
+    }
+
+    public void setClusterHidden(String clusterId, boolean hidden) {
+        if (clusterId == null || clusterId.isBlank()) return;
+        java.util.Set<String> ids = getHiddenClusterIds();
+        if (hidden) ids.add(clusterId.trim());
+        else ids.remove(clusterId.trim());
+        setHiddenClusterIds(ids);
+    }
+
+    public void pruneHiddenClusters(java.util.Collection<String> existingIds) {
+        if (existingIds == null || existingIds.isEmpty()) return;
+        java.util.Set<String> ids = getHiddenClusterIds();
+        if (ids.isEmpty()) return;
+        boolean changed = ids.removeIf(id -> id == null || !existingIds.contains(id));
+        if (changed) setHiddenClusterIds(ids);
     }
 
     // -------- Generic accessors (for feature modules like Sim) -------- //

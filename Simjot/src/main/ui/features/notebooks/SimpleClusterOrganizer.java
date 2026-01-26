@@ -47,6 +47,7 @@ import javax.swing.ScrollPaneConstants;
 import javax.swing.border.EmptyBorder;
 
 import main.core.service.NotebookStore;
+import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.ShadowedDialogPanel;
@@ -154,6 +155,7 @@ public class SimpleClusterOrganizer extends JDialog {
         store.reload();
         
         List<String> clusterIds = store.getClusterIds();
+        SettingsStore.get().pruneHiddenClusters(clusterIds);
         
         // Add clusters
         for (String clusterId : clusterIds) {
@@ -173,6 +175,7 @@ public class SimpleClusterOrganizer extends JDialog {
     }
     
     private JPanel createClusterRow(String clusterId, List<NotebookInfo> notebooks) {
+        boolean hidden = SettingsStore.get().isClusterHidden(clusterId);
         JPanel row = new JPanel(new BorderLayout(8, 8)) {
             private boolean highlight = false;
             {
@@ -210,7 +213,7 @@ public class SimpleClusterOrganizer extends JDialog {
         
         JLabel nameLabel = new JLabel(clusterId);
         nameLabel.setFont(AeroTheme.defaultBoldFont(13f));
-        nameLabel.setForeground(ACCENT);
+        nameLabel.setForeground(hidden ? TEXT_MUTED : ACCENT);
         
         JLabel countLabel = new JLabel(" (" + notebooks.size() + ")");
         countLabel.setFont(AeroTheme.defaultFont().deriveFont(11f));
@@ -220,6 +223,13 @@ public class SimpleClusterOrganizer extends JDialog {
         namePanel.setOpaque(false);
         namePanel.add(nameLabel);
         namePanel.add(countLabel);
+        if (hidden) {
+            JLabel hiddenLabel = new JLabel("hidden");
+            hiddenLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10f));
+            hiddenLabel.setForeground(TEXT_MUTED);
+            hiddenLabel.setBorder(new EmptyBorder(0, 6, 0, 0));
+            namePanel.add(hiddenLabel);
+        }
         
         // Actions
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
@@ -229,13 +239,24 @@ public class SimpleClusterOrganizer extends JDialog {
         renameBtn.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { renameCluster(clusterId, notebooks); }
         });
-        
+
+        JLabel toggleBtn = createActionLabel(hidden ? "Show" : "Hide", hidden ? "Show cluster" : "Hide cluster");
+        toggleBtn.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                SettingsStore.get().setClusterHidden(clusterId, !hidden);
+                SettingsStore.get().save();
+                refresh();
+                notifyChange();
+            }
+        });
+
         JLabel deleteBtn = createActionLabel("✕", "Remove cluster");
         deleteBtn.addMouseListener(new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) { disbandCluster(notebooks); }
+            @Override public void mouseClicked(MouseEvent e) { disbandCluster(clusterId, notebooks); }
         });
-        
+
         actions.add(renameBtn);
+        actions.add(toggleBtn);
         actions.add(deleteBtn);
         
         headerRow.add(namePanel, BorderLayout.WEST);
@@ -423,18 +444,26 @@ public class SimpleClusterOrganizer extends JDialog {
     private void renameCluster(String oldName, List<NotebookInfo> notebooks) {
         String newName = CustomInputDialog.prompt(this, "Rename Cluster", "Enter new name:", oldName);
         if (newName != null && !newName.trim().isEmpty() && !newName.equals(oldName)) {
+            boolean wasHidden = SettingsStore.get().isClusterHidden(oldName);
             for (NotebookInfo nb : notebooks) {
                 store.assignToCluster(nb, newName.trim());
+            }
+            if (wasHidden) {
+                SettingsStore.get().setClusterHidden(oldName, false);
+                SettingsStore.get().setClusterHidden(newName.trim(), true);
+                SettingsStore.get().save();
             }
             refresh();
             notifyChange();
         }
     }
     
-    private void disbandCluster(List<NotebookInfo> notebooks) {
+    private void disbandCluster(String clusterId, List<NotebookInfo> notebooks) {
         for (NotebookInfo nb : notebooks) {
             store.removeFromCluster(nb);
         }
+        SettingsStore.get().setClusterHidden(clusterId, false);
+        SettingsStore.get().save();
         refresh();
         notifyChange();
     }

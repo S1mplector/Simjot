@@ -47,9 +47,12 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.spinner.ModernSpinnerUI;
+import main.core.service.SettingsStore;
+import main.ui.features.entries.BackgroundPainter;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -57,6 +60,7 @@ import main.ui.theme.aero.AeroTheme;
  */
 public class GlobalSearchDialog extends JDialog {
     private final JournalApp app;
+    private final BackgroundPainter backgroundPainter = new BackgroundPainter();
     private final ModernTextField queryField;
     private final ModernTextField tagField;
     private final ModernTextField fromDateField;
@@ -75,11 +79,25 @@ public class GlobalSearchDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setPreferredSize(new Dimension(880, 560));
 
-        RoundedPanel root = new RoundedPanel(20);
-        root.setFlat(true);
-        root.setBackground(new Color(245, 247, 250));
+        JPanel backgroundPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                String bgPath = SettingsStore.get().getEntryBackgroundImage();
+                float opacity = SettingsStore.get().getEntryBackgroundOpacity();
+                backgroundPainter.paint(g, this, bgPath, opacity, true);
+            }
+        };
+        backgroundPanel.setOpaque(false);
+
+        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(12, 12), 16) {
+            @Override
+            protected float getOpacityScale() {
+                return SettingsStore.get().getEditorGlassOpacity();
+            }
+        };
         root.setBorder(new EmptyBorder(16, 16, 16, 16));
-        root.setLayout(new BorderLayout(12, 12));
+        backgroundPanel.add(root, BorderLayout.CENTER);
 
         JPanel header = new JPanel(new BorderLayout(8, 0));
         header.setOpaque(false);
@@ -260,7 +278,7 @@ public class GlobalSearchDialog extends JDialog {
             }
         });
 
-        setContentPane(root);
+        setContentPane(backgroundPanel);
         pack();
         setLocationRelativeTo(owner);
         javax.swing.SwingUtilities.invokeLater(() -> queryField.requestFocusInWindow());

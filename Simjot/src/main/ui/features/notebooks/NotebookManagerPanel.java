@@ -541,7 +541,10 @@ public class NotebookManagerPanel extends JPanel {
         
         // Display clusters first
         List<String> clusterIds = store.getClusterIds();
+        SettingsStore.get().pruneHiddenClusters(clusterIds);
+        java.util.Set<String> hiddenClusters = SettingsStore.get().getHiddenClusterIds();
         for (String clusterId : clusterIds) {
+            if (hiddenClusters.contains(clusterId)) continue;
             gallery.add(createClusterPanel(clusterId));
             gallery.add(Box.createVerticalStrut(10));
         }
@@ -590,6 +593,8 @@ public class NotebookManagerPanel extends JPanel {
                 "Disband cluster '" + clusterId + "'?<br>Notebooks will become unclustered.");
             if (confirm) {
                 store.disbandCluster(clusterId);
+                SettingsStore.get().setClusterHidden(clusterId, false);
+                SettingsStore.get().save();
                 refresh();
             }
         });

@@ -58,6 +58,7 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import main.core.service.NotebookStore;
+import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.buttons.IconMenuButton;
@@ -273,6 +274,7 @@ public class ModernClusterOrganizer extends JDialog {
         
         // Get all clusters
         List<String> clusterIds = store.getClusterIds();
+        SettingsStore.get().pruneHiddenClusters(clusterIds);
         
         // Add cluster panels
         for (String clusterId : clusterIds) {
@@ -347,11 +349,13 @@ public class ModernClusterOrganizer extends JDialog {
         private final List<NotebookInfo> notebooks;
         private boolean expanded = true;
         private boolean dropHighlight = false;
+        private final boolean hidden;
         private final main.ui.features.entries.BackgroundPainter bgPainter = new main.ui.features.entries.BackgroundPainter();
         
         ClusterPanel(String clusterId, List<NotebookInfo> notebooks) {
             this.clusterId = clusterId;
             this.notebooks = notebooks;
+            this.hidden = SettingsStore.get().isClusterHidden(clusterId);
             
             setLayout(new BorderLayout(0, 8));
             setOpaque(false);  // Allow background to show through
@@ -396,7 +400,7 @@ public class ModernClusterOrganizer extends JDialog {
             
             JLabel nameLabel = new JLabel(clusterId);
             nameLabel.setFont(AeroTheme.defaultBoldFont(15f));
-            nameLabel.setForeground(ACCENT);
+            nameLabel.setForeground(hidden ? TEXT_MUTED : ACCENT);
             
             JLabel countLabel = new JLabel("(" + notebooks.size() + ")");
             countLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
@@ -405,6 +409,13 @@ public class ModernClusterOrganizer extends JDialog {
             left.add(expandIcon);
             left.add(nameLabel);
             left.add(countLabel);
+            if (hidden) {
+                JLabel hiddenLabel = new JLabel("hidden");
+                hiddenLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10f));
+                hiddenLabel.setForeground(TEXT_MUTED);
+                hiddenLabel.setBorder(new EmptyBorder(0, 6, 0, 0));
+                left.add(hiddenLabel);
+            }
             
             // Right: actions
             JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
@@ -413,10 +424,19 @@ public class ModernClusterOrganizer extends JDialog {
             JButton renameBtn = createSmallButton("✎", "Rename cluster");
             renameBtn.addActionListener(e -> renameCluster());
             
+            JButton toggleBtn = createSmallButton(hidden ? "👁" : "🙈", hidden ? "Show cluster" : "Hide cluster");
+            toggleBtn.addActionListener(e -> {
+                SettingsStore.get().setClusterHidden(clusterId, !hidden);
+                SettingsStore.get().save();
+                refreshClusters();
+                notifyChange();
+            });
+
             JButton disbandBtn = createSmallButton("✕", "Disband cluster");
             disbandBtn.addActionListener(e -> disbandCluster());
             
             actions.add(renameBtn);
+            actions.add(toggleBtn);
             actions.add(disbandBtn);
             
             header.add(left, BorderLayout.WEST);
@@ -477,9 +497,15 @@ public class ModernClusterOrganizer extends JDialog {
                 clusterId
             );
             if (newName != null && !newName.trim().isEmpty() && !newName.equals(clusterId)) {
+                boolean wasHidden = SettingsStore.get().isClusterHidden(clusterId);
                 // Reassign all notebooks to new cluster name
                 for (NotebookInfo nb : notebooks) {
                     store.assignToCluster(nb, newName.trim());
+                }
+                if (wasHidden) {
+                    SettingsStore.get().setClusterHidden(clusterId, false);
+                    SettingsStore.get().setClusterHidden(newName.trim(), true);
+                    SettingsStore.get().save();
                 }
                 refreshClusters();
                 notifyChange();
@@ -490,6 +516,8 @@ public class ModernClusterOrganizer extends JDialog {
             for (NotebookInfo nb : notebooks) {
                 store.removeFromCluster(nb);
             }
+            SettingsStore.get().setClusterHidden(clusterId, false);
+            SettingsStore.get().save();
             refreshClusters();
             notifyChange();
         }
