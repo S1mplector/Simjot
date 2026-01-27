@@ -51,6 +51,7 @@ public class PoetryStyleToolbar extends JPanel {
     private HandStyleToggleButton strikeBtn;
     private BulletListButton bulletBtn;
     private NumberedListButton numberedBtn;
+    private ToolbarIconButton dividerBtn;
 
     public PoetryStyleToolbar(
             JournalApp app,
@@ -66,7 +67,8 @@ public class PoetryStyleToolbar extends JPanel {
             Consumer<String> onLineSpacing,
             JComponent rightToolbarControls,
             Runnable onBulletList,
-            Runnable onNumberedList
+            Runnable onNumberedList,
+            Runnable onTextDivider
     ) {
         super(new BorderLayout(0, 5));
         setOpaque(false);
@@ -117,8 +119,15 @@ public class PoetryStyleToolbar extends JPanel {
         // Numbered list button
         numberedBtn = new NumberedListButton();
         numberedBtn.addActionListener(e -> { if (onNumberedList != null) onNumberedList.run(); });
+
+        if (onTextDivider != null) {
+            dividerBtn = new ToolbarIconButton("text_divider");
+            dividerBtn.setToolTipText("Insert divider");
+            dividerBtn.addActionListener(e -> onTextDivider.run());
+        }
         
-        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn}) {
+        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn, dividerBtn}) {
+            if (btn == null) continue;
             alignCenter(btn);
         }
         row.add(Box.createHorizontalStrut(12));
@@ -133,6 +142,10 @@ public class PoetryStyleToolbar extends JPanel {
         row.add(bulletBtn);
         row.add(Box.createHorizontalStrut(6));
         row.add(numberedBtn);
+        if (dividerBtn != null) {
+            row.add(Box.createHorizontalStrut(8));
+            row.add(dividerBtn);
+        }
 
         row.add(Box.createHorizontalGlue());
 

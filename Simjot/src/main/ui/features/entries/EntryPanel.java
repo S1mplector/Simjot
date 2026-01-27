@@ -571,7 +571,8 @@ public class EntryPanel extends AbstractEditorPanel {
                 this::applyLineSpacing,
                 rightToolbar,
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(contentArea),
-                () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(contentArea)
+                () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(contentArea),
+                this::insertTextDivider
         );
 
         // Place fullscreen and background settings at the far right (after any child-provided buttons)
@@ -1075,6 +1076,42 @@ public class EntryPanel extends AbstractEditorPanel {
             contentArea.setCaretPosition(Math.min(doc.getLength(), pos + 2));
             contentArea.requestFocusInWindow();
         } catch (BadLocationException ignored) {}
+    }
+
+    private void insertTextDivider() {
+        try {
+            int targetWidth = Math.max(0, contentArea.getVisibleRect().width - 40);
+            if (targetWidth <= 0) targetWidth = contentArea.getWidth() - 40;
+            if (targetWidth < 320) targetWidth = 520;
+            targetWidth = Math.min(780, targetWidth);
+            int targetHeight = DateDividerPainter.DEFAULT_HEIGHT;
+            BufferedImage img = DateDividerPainter.renderImage(targetWidth, targetHeight, "");
+
+            File dir = new File(journalFolder, "attachments");
+            if (!dir.exists()) dir.mkdirs();
+            String name = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date()) + "_divider.png";
+            File out = new File(dir, name);
+            try { ImageIO.write(img, "PNG", out); } catch (IOException ignored) {}
+
+            ImageIcon icon = new ImageIcon(img);
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setIcon(attrs, icon);
+            attrs.addAttribute("imageSourceFile", out);
+            StyledDocument doc = contentArea.getStyledDocument();
+            int pos = contentArea.getCaretPosition();
+            if (pos > 0) {
+                String prev = doc.getText(pos - 1, 1);
+                if (!"\n".equals(prev)) {
+                    doc.insertString(pos, "\n", null);
+                    pos++;
+                }
+            }
+            doc.insertString(pos, " ", attrs);
+            doc.insertString(pos + 1, "\n", null);
+
+            contentArea.setCaretPosition(Math.min(doc.getLength(), pos + 2));
+            contentArea.requestFocusInWindow();
+        } catch (Exception ignored) {}
     }
 
     private static BufferedImage renderClock(int w, int h) {

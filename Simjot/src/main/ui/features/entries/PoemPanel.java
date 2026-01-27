@@ -366,7 +366,8 @@ public class PoemPanel extends AbstractEditorPanel {
                 this::applyLineSpacing,
                 rightToolbar,
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(poemEditor),
-                () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(poemEditor)
+                () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(poemEditor),
+                null
         );
         toolbarContainer = sharedToolbar.getContainer();
         poemTitleField = sharedToolbar.getTitleField();
