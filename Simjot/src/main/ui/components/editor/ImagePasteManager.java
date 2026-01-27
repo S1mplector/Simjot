@@ -169,6 +169,11 @@ public final class ImagePasteManager {
                         if (bounds == null) {
                             bounds = new Rectangle(e.getX(), e.getY(), icon.getIconWidth(), icon.getIconHeight());
                         }
+
+                        // Only treat this as an image click if the pointer is within the image bounds.
+                        if (bounds != null && !bounds.contains(e.getPoint())) {
+                            continue;
+                        }
                         
                         File srcFile = null;
                         Object src = as.getAttribute("imageSourceFile");
@@ -178,6 +183,18 @@ public final class ImagePasteManager {
                                           attachmentsDirSupplier, maxWidthPx);
                         return;
                     }
+                }
+            }
+
+            // If the click wasn't on an image, dismiss any active overlay for this editor.
+            if (activeEditor == editor && activeOverlay != null && activeOverlay.isVisible()) {
+                try {
+                    Point screenPoint = e.getLocationOnScreen();
+                    if (!isMouseOverAnyOverlay(screenPoint)) {
+                        fadeOutAndDismiss(activeOverlay);
+                    }
+                } catch (Throwable ignored) {
+                    fadeOutAndDismiss(activeOverlay);
                 }
             }
         } catch (Throwable ignored) {}
