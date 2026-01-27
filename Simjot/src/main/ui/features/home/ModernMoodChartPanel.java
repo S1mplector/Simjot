@@ -228,19 +228,21 @@ public class ModernMoodChartPanel extends JPanel {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
                 boolean isSelected = getText().equals(ranges[selectedRangeIndex]);
+                Color textColor;
                 if (getModel().isPressed() || isSelected) {
                     g2.setColor(ACCENT_BLUE);
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
-                    g2.setColor(Color.WHITE);
+                    textColor = Color.WHITE;
                 } else {
                     g2.setColor(getModel().isRollover() ? new Color(235, 240, 247) : PANEL_BG);
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
-                    g2.setColor(TEXT_PRIMARY);
+                    textColor = TEXT_PRIMARY;
                 }
 
                 g2.setColor(isSelected ? new Color(60, 120, 220) : BORDER);
                 g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
                 
+                g2.setColor(textColor);
                 FontMetrics fm = g2.getFontMetrics();
                 int x = (getWidth() - fm.stringWidth(getText())) / 2;
                 int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
