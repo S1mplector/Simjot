@@ -12,8 +12,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -32,6 +34,26 @@ import main.infrastructure.io.NativeJson;
 
 final class MoodChartModel {
     private static final String META_PREFIX = "SJMETA:";
+    private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
+
+    private static final class EntryInfo {
+        final LocalDateTime ts;
+        final String title;
+        EntryInfo(LocalDateTime ts, String title) {
+            this.ts = ts;
+            this.title = title;
+        }
+    }
+
+    private static final class MetaHeader {
+        final String title;
+        final long savedAt;
+        MetaHeader(String title, long savedAt) {
+            this.title = title;
+            this.savedAt = savedAt;
+        }
+    }
+
     static final class EntryRef {
         final File file;
         final LocalDateTime ts;
@@ -137,61 +159,79 @@ final class MoodChartModel {
                             d = ts.toLocalDate();
                         }
                     } catch (Throwable ignored) { continue; }
-                    if (!relevantDates.contains(d)) continue;
-                    String title = extractTitle(f);
-                    entriesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(f);
-                    entryTimesByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(new EntryRef(f, ts, title));
+                    EntryInfo info = readEntryInfo(f, ts);
+                    LocalDate entryDate = info.ts.toLocalDate();
+                    if (!relevantDates.contains(entryDate)) continue;
+                    entriesByDate.computeIfAbsent(entryDate, k -> new ArrayList<>()).add(f);
+                    entryTimesByDate.computeIfAbsent(entryDate, k -> new ArrayList<>()).add(new EntryRef(f, info.ts, info.title));
                 }
             }
         } catch (Throwable ignored) {}
     }
 
-    private String extractTitle(File f) {
-        if (f == null || !f.exists()) return "";
+    private EntryInfo readEntryInfo(File f, LocalDateTime fallbackTs) {
+        if (fallbackTs == null) {
+            fallbackTs = Instant.ofEpochMilli(f.lastModified()).atZone(SYSTEM_ZONE).toLocalDateTime();
+        }
+        String title = "";
+        LocalDateTime ts = fallbackTs;
         try {
             if (EncryptionManager.isEncrypted(f)) {
                 EncryptedMetadata.Meta meta = EncryptionManager.readMetadata(f);
-                String title = meta != null && meta.title != null ? meta.title.trim() : "";
-                return title.isBlank() ? fallbackTitle(f) : title;
+                if (meta != null && meta.savedAt > 0) {
+                    ts = Instant.ofEpochMilli(meta.savedAt).atZone(SYSTEM_ZONE).toLocalDateTime();
+                }
+                title = meta != null && meta.title != null ? meta.title.trim() : "";
+                return new EntryInfo(ts, title.isBlank() ? fallbackTitle(f) : title);
             }
             try (BufferedReader br = Files.newBufferedReader(f.toPath(), StandardCharsets.UTF_8)) {
                 String first = br.readLine();
                 if (first != null) {
-                    String metaTitle = parseMetaTitle(first);
-                    if (metaTitle != null) {
-                        String title = metaTitle;
+                    MetaHeader meta = parseMetaHeader(first);
+                    if (meta != null) {
+                        if (meta.savedAt > 0) {
+                            ts = Instant.ofEpochMilli(meta.savedAt).atZone(SYSTEM_ZONE).toLocalDateTime();
+                        }
+                        title = meta.title;
                         if (title.isBlank()) {
                             String next = br.readLine();
                             if (next != null && next.isBlank()) next = br.readLine();
                             if (next != null && !next.isBlank()) title = next.trim();
                         }
-                        return title.isBlank() ? fallbackTitle(f) : title;
+                        return new EntryInfo(ts, title.isBlank() ? fallbackTitle(f) : title);
                     }
                     if (!first.isBlank()) {
-                        return first.trim();
+                        title = first.trim();
+                        return new EntryInfo(ts, title);
                     }
                 }
             }
             // Native fallback keeps behavior consistent with entry listing panels.
             String nativeTitle = NativeAccess.extractTitle(f.getAbsolutePath());
             if (nativeTitle != null && !nativeTitle.isBlank()) {
-                String metaTitle = parseMetaTitle(nativeTitle);
-                if (metaTitle != null) {
-                    return metaTitle.isBlank() ? fallbackTitle(f) : metaTitle;
+                MetaHeader meta = parseMetaHeader(nativeTitle);
+                if (meta != null) {
+                    if (meta.savedAt > 0) {
+                        ts = Instant.ofEpochMilli(meta.savedAt).atZone(SYSTEM_ZONE).toLocalDateTime();
+                    }
+                    title = meta.title;
+                    return new EntryInfo(ts, title.isBlank() ? fallbackTitle(f) : title);
                 }
-                return nativeTitle.trim();
+                title = nativeTitle.trim();
+                return new EntryInfo(ts, title);
             }
         } catch (Throwable ignored) {
             // Fall through to filename-based fallback.
         }
-        return fallbackTitle(f);
+        return new EntryInfo(ts, fallbackTitle(f));
     }
 
-    private String parseMetaTitle(String line) {
+    private MetaHeader parseMetaHeader(String line) {
         if (line == null || !line.startsWith(META_PREFIX)) return null;
         String json = line.substring(META_PREFIX.length()).trim();
         String title = NativeJson.getString(json, "title");
-        return title == null ? "" : title.trim();
+        Long savedAt = NativeJson.getLong(json, "savedAt");
+        return new MetaHeader(title == null ? "" : title.trim(), savedAt == null ? 0L : savedAt);
     }
 
     private String fallbackTitle(File f) {

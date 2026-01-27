@@ -20,6 +20,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.MouseInfo;
 import java.awt.GridLayout;
 import java.awt.Point;
 import java.awt.RenderingHints;
@@ -45,7 +46,10 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
@@ -89,7 +93,7 @@ public class ModernMoodChartPanel extends JPanel {
     private float hoverTargetAlpha = 0f;
     private Timer hoverFadeTimer;
 
-    private static final int POPUP_HIDE_DELAY_MS = 260;
+    private static final int POPUP_HIDE_DELAY_MS = 420;
     private final JPopupMenu entryPopup = new JPopupMenu();
     private final Timer entryPopupHideTimer = new Timer(POPUP_HIDE_DELAY_MS, e -> hideEntryPopupNow());
     private boolean entryPopupHovered = false;
@@ -382,26 +386,28 @@ public class ModernMoodChartPanel extends JPanel {
                 return;
             }
 
-            float step = (float) chartW / (n - 1);
-            int idx = Math.round((mousePoint.x - MARGIN_LEFT) / step);
-            if (idx < 0 || idx >= n) {
-                clearHover(this);
-                return;
+            float hitRadius = 18f;
+            int bestIdx = -1;
+            float bestDist = Float.MAX_VALUE;
+            Point bestPoint = null;
+            for (int i = 0; i < n; i++) {
+                Double v = model.getValues().get(i);
+                if (v == null) continue;
+                float x = MARGIN_LEFT + (n > 1 ? i * (float) chartW / (n - 1) : chartW / 2f);
+                float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
+                float dist = (float) mousePoint.distance(x, y);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                    bestPoint = new Point(Math.round(x), Math.round(y));
+                }
             }
 
-            Double v = model.getValues().get(idx);
-            if (v == null) {
-                clearHover(this);
-                return;
-            }
-
-            float x = MARGIN_LEFT + (n > 1 ? idx * (float) chartW / (n - 1) : chartW / 2f);
-            float y = MARGIN_TOP + chartH - (float) (v / 100.0 * chartH);
-            if (mousePoint.distance(x, y) <= 16) {
-                hoverDotPoint = new Point(Math.round(x), Math.round(y));
+            if (bestIdx >= 0 && bestDist <= hitRadius && bestPoint != null) {
+                hoverDotPoint = bestPoint;
                 entryPopupHideTimer.stop();
-                boolean hoverChanged = !Objects.equals(idx, hoverIndex);
-                setHoverIndex(idx);
+                boolean hoverChanged = !Objects.equals(bestIdx, hoverIndex);
+                setHoverIndex(bestIdx);
                 if (hoverChanged || !entryPopup.isVisible()) {
                     updateEntryPopup(this);
                 }
@@ -596,11 +602,12 @@ public class ModernMoodChartPanel extends JPanel {
             content.setOpaque(true);
             content.setBackground(PANEL_BG);
             content.setBorder(new EmptyBorder(6, 6, 6, 6));
-            content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-            content.addMouseListener(new MouseAdapter() {
+            content.setLayout(new BorderLayout());
+            MouseAdapter hoverAdapter = new MouseAdapter() {
                 @Override public void mouseEntered(MouseEvent e) { markEntryPopupHovered(true); }
                 @Override public void mouseExited(MouseEvent e) { markEntryPopupHovered(false); }
-            });
+            };
+            content.addMouseListener(hoverAdapter);
 
             List<MoodChartModel.EntryRef> ordered = new ArrayList<>(refs);
             ordered.sort((a, b) -> {
@@ -610,14 +617,38 @@ public class ModernMoodChartPanel extends JPanel {
                 return a.file.getName().compareToIgnoreCase(b.file.getName());
             });
 
+            JPanel listPanel = new JPanel();
+            listPanel.setOpaque(false);
+            listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
+            listPanel.addMouseListener(hoverAdapter);
+
             for (int i = 0; i < ordered.size(); i++) {
                 JButton btn = createEntryPopupButton(ordered.get(i));
-                content.add(btn);
+                listPanel.add(btn);
                 if (i < ordered.size() - 1) {
-                    content.add(Box.createVerticalStrut(2));
+                    listPanel.add(Box.createVerticalStrut(2));
                 }
             }
 
+            JScrollPane scrollPane = new JScrollPane(listPanel);
+            scrollPane.setBorder(new EmptyBorder(0, 0, 0, 0));
+            scrollPane.setViewportBorder(null);
+            scrollPane.setOpaque(false);
+            scrollPane.getViewport().setOpaque(false);
+            scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+            Dimension listPref = listPanel.getPreferredSize();
+            int maxHeight = 220;
+            int prefHeight = Math.min(listPref.height, maxHeight);
+            int prefWidth = Math.max(listPref.width + 10, 200);
+            scrollPane.setPreferredSize(new Dimension(prefWidth, prefHeight));
+            scrollPane.setVerticalScrollBarPolicy(listPref.height > maxHeight
+                    ? ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+                    : ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+            scrollPane.addMouseListener(hoverAdapter);
+            scrollPane.getViewport().addMouseListener(hoverAdapter);
+
+            content.add(scrollPane, BorderLayout.CENTER);
             entryPopup.add(content);
             entryPopupDay = day;
         }
@@ -667,11 +698,25 @@ public class ModernMoodChartPanel extends JPanel {
     }
 
     private void markEntryPopupHovered(boolean hovered) {
-        entryPopupHovered = hovered;
-        if (hovered) {
+        boolean actualHovered = hovered || isPointerInsidePopup();
+        entryPopupHovered = actualHovered;
+        if (actualHovered) {
             entryPopupHideTimer.stop();
         } else if (hoverIndex == null) {
             scheduleEntryPopupHide();
+        }
+    }
+
+    private boolean isPointerInsidePopup() {
+        if (!entryPopup.isVisible()) return false;
+        try {
+            var info = MouseInfo.getPointerInfo();
+            if (info == null) return false;
+            Point p = info.getLocation();
+            SwingUtilities.convertPointFromScreen(p, entryPopup);
+            return p.x >= 0 && p.y >= 0 && p.x < entryPopup.getWidth() && p.y < entryPopup.getHeight();
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
