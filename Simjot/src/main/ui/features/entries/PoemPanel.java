@@ -22,6 +22,9 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.Window;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -51,6 +54,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.KeyStroke;
+import javax.swing.AbstractAction;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -367,6 +372,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 rightToolbar,
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(poemEditor),
                 () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(poemEditor),
+                () -> RichTextStyler.applyHeaderToSelection(poemEditor),
                 null
         );
         toolbarContainer = sharedToolbar.getContainer();
@@ -451,6 +457,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 () -> RichTextStyler.toggleItalic(poemEditor),
                 () -> RichTextStyler.toggleUnderline(poemEditor),
                 () -> RichTextStyler.toggleStrike(poemEditor));
+        installHeaderShortcut(poemEditor);
 
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(poemEditor);
@@ -1591,6 +1598,22 @@ public class PoemPanel extends AbstractEditorPanel {
         StyleConstants.setLineSpacing(attrs, spacing);
         applyParagraphRhythm(attrs);
         doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+    }
+
+    private void installHeaderShortcut(JComponent editor) {
+        try {
+            int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+            editor.getInputMap(JComponent.WHEN_FOCUSED)
+                    .put(KeyStroke.getKeyStroke(KeyEvent.VK_H, meta | InputEvent.SHIFT_DOWN_MASK), "header-selection");
+            editor.getActionMap().put("header-selection", new AbstractAction() {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    if (poemEditor.getSelectionStart() != poemEditor.getSelectionEnd()) {
+                        RichTextStyler.applyHeaderToSelection(poemEditor);
+                    }
+                }
+            });
+        } catch (Throwable ignored) {}
     }
 
     private float resolveLineSpacing(String val) {

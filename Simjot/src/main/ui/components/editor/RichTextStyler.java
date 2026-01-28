@@ -89,6 +89,31 @@ public final class RichTextStyler {
         }
     }
 
+    /**
+     * Apply a header style to the current selection only.
+     * Does nothing when there is no selection.
+     */
+    public static void applyHeaderToSelection(JTextPane pane) {
+        applyHeaderToSelection(pane, 18);
+    }
+
+    /**
+     * Apply a header style with a given font size to the current selection only.
+     * Does nothing when there is no selection.
+     */
+    public static void applyHeaderToSelection(JTextPane pane, int size) {
+        try {
+            int start = pane.getSelectionStart();
+            int end = pane.getSelectionEnd();
+            if (start == end) return;
+            StyledDocument doc = pane.getStyledDocument();
+            MutableAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setFontSize(attrs, Math.max(10, size));
+            StyleConstants.setBold(attrs, true);
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } catch (Throwable ignored) {}
+    }
+
     // --- Read current typing state ---
     public static StyleState getTypingState(JTextPane pane) {
         try {

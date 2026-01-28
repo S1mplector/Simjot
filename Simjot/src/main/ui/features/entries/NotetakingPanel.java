@@ -634,6 +634,16 @@ public class NotetakingPanel extends EntryPanel {
         am.put("ntk-h3", new AbstractAction(){ @Override public void actionPerformed(java.awt.event.ActionEvent e){ applyFontSizeToSelection(16f, true); }});
         am.put("ntk-p",  new AbstractAction(){ @Override public void actionPerformed(java.awt.event.ActionEvent e){ applyFontSizeToSelection(14f, false); }});
 
+        // Header: Cmd/Ctrl+Shift+H (selection only)
+        im.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_H, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "ntk-header");
+        am.put("ntk-header", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (contentArea.getSelectionStart() != contentArea.getSelectionEnd()) {
+                    RichTextStyler.applyHeaderToSelection(contentArea);
+                }
+            }
+        });
+
         // Text color quick code: Cmd/Ctrl+Shift+C then a single-letter code (e.g., B/R/G)
         im.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, meta | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "ntk-text-color-code");
         am.put("ntk-text-color-code", new AbstractAction() {

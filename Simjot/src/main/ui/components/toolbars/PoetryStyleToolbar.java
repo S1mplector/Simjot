@@ -51,6 +51,7 @@ public class PoetryStyleToolbar extends JPanel {
     private HandStyleToggleButton strikeBtn;
     private BulletListButton bulletBtn;
     private NumberedListButton numberedBtn;
+    private HandStyleToggleButton headerBtn;
     private ToolbarIconButton dividerBtn;
 
     public PoetryStyleToolbar(
@@ -68,6 +69,7 @@ public class PoetryStyleToolbar extends JPanel {
             JComponent rightToolbarControls,
             Runnable onBulletList,
             Runnable onNumberedList,
+            Runnable onHeaderSelection,
             Runnable onTextDivider
     ) {
         super(new BorderLayout(0, 5));
@@ -120,13 +122,22 @@ public class PoetryStyleToolbar extends JPanel {
         numberedBtn = new NumberedListButton();
         numberedBtn.addActionListener(e -> { if (onNumberedList != null) onNumberedList.run(); });
 
+        if (onHeaderSelection != null) {
+            headerBtn = new HandStyleToggleButton("H");
+            headerBtn.setToolTipText("Header (selection)");
+            headerBtn.addActionListener(e -> {
+                onHeaderSelection.run();
+                headerBtn.setSelected(false);
+            });
+        }
+
         if (onTextDivider != null) {
             dividerBtn = new ToolbarIconButton("text_divider");
             dividerBtn.setToolTipText("Insert divider");
             dividerBtn.addActionListener(e -> onTextDivider.run());
         }
         
-        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn, dividerBtn}) {
+        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn, headerBtn, dividerBtn}) {
             if (btn == null) continue;
             alignCenter(btn);
         }
@@ -142,6 +153,10 @@ public class PoetryStyleToolbar extends JPanel {
         row.add(bulletBtn);
         row.add(Box.createHorizontalStrut(6));
         row.add(numberedBtn);
+        if (headerBtn != null) {
+            row.add(Box.createHorizontalStrut(6));
+            row.add(headerBtn);
+        }
         if (dividerBtn != null) {
             row.add(Box.createHorizontalStrut(8));
             row.add(dividerBtn);

@@ -33,6 +33,9 @@ import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -67,6 +70,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JToggleButton;
+import javax.swing.KeyStroke;
+import javax.swing.AbstractAction;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.AttributeSet;
@@ -577,6 +582,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 rightToolbar,
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(contentArea),
                 () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(contentArea),
+                () -> RichTextStyler.applyHeaderToSelection(contentArea),
                 this::insertTextDivider
         );
 
@@ -711,6 +717,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 this::applyInlineStyleItalic,
                 this::applyInlineStyleUnderline,
                 this::applyInlineStyleStrike);
+        installHeaderShortcut(contentArea);
 
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(contentArea);
@@ -879,6 +886,22 @@ public class EntryPanel extends AbstractEditorPanel {
         } else {
             autosaveCoordinator = null; // autosave disabled
         }
+    }
+
+    private void installHeaderShortcut(JComponent editor) {
+        try {
+            int meta = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+            editor.getInputMap(JComponent.WHEN_FOCUSED)
+                    .put(KeyStroke.getKeyStroke(KeyEvent.VK_H, meta | InputEvent.SHIFT_DOWN_MASK), "header-selection");
+            editor.getActionMap().put("header-selection", new AbstractAction() {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    if (contentArea.getSelectionStart() != contentArea.getSelectionEnd()) {
+                        RichTextStyler.applyHeaderToSelection(contentArea);
+                    }
+                }
+            });
+        } catch (Throwable ignored) {}
     }
 
     // --- Sim helpers ---

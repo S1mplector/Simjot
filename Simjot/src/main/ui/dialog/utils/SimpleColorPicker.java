@@ -60,7 +60,8 @@ public class SimpleColorPicker extends JDialog {
     
     private JPanel previewPanel;
     private JPanel recentPanel;
-    private JTextField mappingField;
+    private java.util.LinkedHashMap<Character, Color> mappingMap;
+    private JPanel mappingChipsPanel;
     private JTextField mappingKeyField;
     
     // Base hues for the palette
@@ -208,7 +209,7 @@ public class SimpleColorPicker extends JDialog {
         okBtn.setPreferredSize(new Dimension(70, 34));
         okBtn.addActionListener(e -> {
             confirmed = true;
-            saveTextColorMappingFromField();
+            saveTextColorMapping(serializeMapping(mappingMap));
             addToRecent(selectedColor);
             dispose();
         });
@@ -251,20 +252,20 @@ public class SimpleColorPicker extends JDialog {
         panel.add(label);
         panel.add(Box.createVerticalStrut(4));
 
-        JPanel mapRow = new JPanel(new BorderLayout(6, 0));
-        mapRow.setOpaque(false);
-        mapRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel hint = new JLabel("Bind a key to the selected color. Click a chip to reselect its color.");
+        hint.setFont(hint.getFont().deriveFont(11f));
+        hint.setForeground(new Color(120, 120, 120));
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(hint);
+        panel.add(Box.createVerticalStrut(6));
 
-        mappingField = new JTextField(loadTextColorMapping());
-        mappingField.setToolTipText("Format: B=#2196F3,R=#F44336,G=#4CAF50");
-        mappingField.addActionListener(e -> saveTextColorMappingFromField());
-        mapRow.add(mappingField, BorderLayout.CENTER);
+        mappingMap = loadTextColorMappingMap();
 
-        RoundedButton saveBtn = new RoundedButton("Save");
-        saveBtn.setPreferredSize(new Dimension(70, 28));
-        saveBtn.addActionListener(e -> saveTextColorMappingFromField());
-        mapRow.add(saveBtn, BorderLayout.EAST);
-        panel.add(mapRow);
+        mappingChipsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        mappingChipsPanel.setOpaque(false);
+        mappingChipsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        rebuildMappingChips();
+        panel.add(mappingChipsPanel);
 
         JPanel bindRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         bindRow.setOpaque(false);
@@ -276,12 +277,16 @@ public class SimpleColorPicker extends JDialog {
         mappingKeyField.setPreferredSize(new Dimension(28, 24));
         mappingKeyField.setHorizontalAlignment(JTextField.CENTER);
         mappingKeyField.addActionListener(e -> bindKeyToSelectedColor());
-        RoundedButton bindBtn = new RoundedButton("Set");
-        bindBtn.setPreferredSize(new Dimension(54, 24));
+        RoundedButton bindBtn = new RoundedButton("Bind");
+        bindBtn.setPreferredSize(new Dimension(60, 24));
         bindBtn.addActionListener(e -> bindKeyToSelectedColor());
+        RoundedButton removeBtn = new RoundedButton("Remove");
+        removeBtn.setPreferredSize(new Dimension(74, 24));
+        removeBtn.addActionListener(e -> removeKeyBinding());
         bindRow.add(bindLabel);
         bindRow.add(mappingKeyField);
         bindRow.add(bindBtn);
+        bindRow.add(removeBtn);
         panel.add(Box.createVerticalStrut(6));
         panel.add(bindRow);
 
@@ -296,11 +301,6 @@ public class SimpleColorPicker extends JDialog {
         return raw == null ? "" : raw.trim();
     }
 
-    private void saveTextColorMappingFromField() {
-        if (mappingField == null) return;
-        saveTextColorMapping(mappingField.getText());
-    }
-
     private void saveTextColorMapping(String raw) {
         if (mappingPrefKey == null || mappingPrefKey.isBlank()) return;
         String value = raw == null ? "" : raw.trim();
@@ -308,47 +308,144 @@ public class SimpleColorPicker extends JDialog {
     }
 
     private void bindKeyToSelectedColor() {
-        if (mappingField == null || mappingKeyField == null) return;
+        if (mappingKeyField == null) return;
         String rawKey = mappingKeyField.getText();
         if (rawKey == null || rawKey.isBlank()) return;
         char key = Character.toUpperCase(rawKey.trim().charAt(0));
-        String updated = upsertMapping(mappingField.getText(), key, selectedColor);
-        mappingField.setText(updated);
-        saveTextColorMapping(updated);
+        if (mappingMap == null) mappingMap = new java.util.LinkedHashMap<>();
+        mappingMap.put(key, selectedColor);
+        saveTextColorMapping(serializeMapping(mappingMap));
+        rebuildMappingChips();
         mappingKeyField.setText("");
     }
 
-    private static String upsertMapping(String raw, char key, Color color) {
-        java.util.LinkedHashMap<Character, String> map = new java.util.LinkedHashMap<>();
-        if (raw != null) {
-            String[] tokens = raw.split("[,;]");
-            for (String token : tokens) {
-                if (token == null) continue;
-                String t = token.trim();
-                if (t.isEmpty()) continue;
-                int idx = t.indexOf('=');
-                if (idx < 0) idx = t.indexOf(':');
-                if (idx <= 0 || idx >= t.length() - 1) continue;
-                String keyStr = t.substring(0, idx).trim();
-                if (keyStr.isEmpty()) continue;
-                char k = Character.toUpperCase(keyStr.charAt(0));
-                if (!map.containsKey(k)) {
-                    map.put(k, t.substring(idx + 1).trim());
-                }
-            }
+    private void removeKeyBinding() {
+        if (mappingKeyField == null) return;
+        String rawKey = mappingKeyField.getText();
+        if (rawKey == null || rawKey.isBlank()) return;
+        char key = Character.toUpperCase(rawKey.trim().charAt(0));
+        if (mappingMap != null) {
+            mappingMap.remove(key);
+            saveTextColorMapping(serializeMapping(mappingMap));
+            rebuildMappingChips();
         }
-        map.put(Character.toUpperCase(key), toHex(color));
-        StringBuilder sb = new StringBuilder();
-        for (java.util.Map.Entry<Character, String> entry : map.entrySet()) {
-            if (sb.length() > 0) sb.append(',');
-            sb.append(entry.getKey()).append('=').append(entry.getValue());
-        }
-        return sb.toString();
+        mappingKeyField.setText("");
     }
 
     private static String toHex(Color color) {
         if (color == null) return "#000000";
         return String.format("#%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
+    }
+
+    private java.util.LinkedHashMap<Character, Color> loadTextColorMappingMap() {
+        String raw = loadTextColorMapping();
+        return parseMapping(raw);
+    }
+
+    private static java.util.LinkedHashMap<Character, Color> parseMapping(String raw) {
+        java.util.LinkedHashMap<Character, Color> map = new java.util.LinkedHashMap<>();
+        if (raw == null || raw.isBlank()) return map;
+        String[] tokens = raw.split("[,;]");
+        for (String token : tokens) {
+            if (token == null) continue;
+            String t = token.trim();
+            if (t.isEmpty()) continue;
+            int idx = t.indexOf('=');
+            if (idx < 0) idx = t.indexOf(':');
+            if (idx <= 0 || idx >= t.length() - 1) continue;
+            String keyStr = t.substring(0, idx).trim();
+            String valStr = t.substring(idx + 1).trim();
+            if (keyStr.isEmpty() || valStr.isEmpty()) continue;
+            char key = Character.toUpperCase(keyStr.charAt(0));
+            if (map.containsKey(key)) continue;
+            Color color = parseHexColor(valStr);
+            if (color != null) {
+                map.put(key, color);
+            }
+        }
+        return map;
+    }
+
+    private static Color parseHexColor(String raw) {
+        if (raw == null) return null;
+        String v = raw.trim();
+        if (v.startsWith("#")) v = v.substring(1);
+        if (v.length() != 6) return null;
+        try {
+            int rgb = Integer.parseInt(v, 16);
+            return new Color(rgb);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static String serializeMapping(java.util.LinkedHashMap<Character, Color> map) {
+        if (map == null || map.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<Character, Color> entry : map.entrySet()) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(entry.getKey()).append('=').append(toHex(entry.getValue()));
+        }
+        return sb.toString();
+    }
+
+    private void rebuildMappingChips() {
+        if (mappingChipsPanel == null) return;
+        mappingChipsPanel.removeAll();
+        if (mappingMap == null || mappingMap.isEmpty()) {
+            JLabel empty = new JLabel("No shortcuts yet");
+            empty.setFont(empty.getFont().deriveFont(11f));
+            empty.setForeground(new Color(140, 140, 140));
+            mappingChipsPanel.add(empty);
+        } else {
+            for (java.util.Map.Entry<Character, Color> entry : mappingMap.entrySet()) {
+                mappingChipsPanel.add(createMappingChip(entry.getKey(), entry.getValue()));
+            }
+        }
+        mappingChipsPanel.revalidate();
+        mappingChipsPanel.repaint();
+    }
+
+    private JButton createMappingChip(char key, Color color) {
+        JButton chip = new JButton() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                boolean hover = getModel().isRollover();
+                g2.setColor(hover ? new Color(238, 242, 248) : new Color(245, 247, 250));
+                g2.fillRoundRect(0, 0, w, h, 10, 10);
+                g2.setColor(new Color(200, 205, 215));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
+
+                int sw = 14;
+                int sx = 8;
+                int sy = (h - sw) / 2;
+                g2.setColor(color);
+                g2.fillRoundRect(sx, sy, sw, sw, 4, 4);
+                g2.setColor(new Color(0, 0, 0, 60));
+                g2.drawRoundRect(sx, sy, sw, sw, 4, 4);
+
+                g2.setColor(new Color(60, 60, 60));
+                g2.setFont(getFont().deriveFont(java.awt.Font.BOLD, 12f));
+                g2.drawString(String.valueOf(key), sx + sw + 8, sy + sw - 2);
+                g2.dispose();
+            }
+        };
+        chip.setPreferredSize(new Dimension(54, 26));
+        chip.setBorderPainted(false);
+        chip.setContentAreaFilled(false);
+        chip.setFocusPainted(false);
+        chip.setOpaque(false);
+        chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        chip.setToolTipText(key + " → " + toHex(color));
+        chip.addActionListener(e -> {
+            selectedColor = color;
+            previewPanel.repaint();
+        });
+        return chip;
     }
     
     private JPanel createColorGrid() {

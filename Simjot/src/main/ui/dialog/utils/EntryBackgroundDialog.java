@@ -13,6 +13,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.awt.GradientPaint;
@@ -29,7 +30,6 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JSlider;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
@@ -41,7 +41,6 @@ import main.ui.features.gallery.WallpaperGalleryPanel;
 public class EntryBackgroundDialog extends JDialog {
 
     private final JLabel previewLabel;
-    private final JSlider opacitySlider;
     private String selectedImagePath = "";
     private BufferedImage selectedImage;
     private float currentOpacity = 0.3f;
@@ -68,7 +67,7 @@ public class EntryBackgroundDialog extends JDialog {
         JLabel title = new JLabel("Entry Background");
         title.setForeground(new Color(40, 40, 40));
         title.setFont(title.getFont().deriveFont(Font.BOLD, 17f));
-        JLabel subtitle = new JLabel("Pick an image and adjust its opacity");
+        JLabel subtitle = new JLabel("Pick an image for the editor background");
         subtitle.setForeground(new Color(120, 120, 120));
         subtitle.setFont(subtitle.getFont().deriveFont(12f));
         header.add(title);
@@ -102,33 +101,6 @@ public class EntryBackgroundDialog extends JDialog {
         previewCard.setAlignmentX(Component.LEFT_ALIGNMENT);
         center.add(previewCard);
         center.add(Box.createVerticalStrut(10));
-
-        JLabel opacityTitle = new JLabel("Background Opacity");
-        opacityTitle.setForeground(Color.DARK_GRAY);
-        opacityTitle.setFont(opacityTitle.getFont().deriveFont(Font.BOLD, 13f));
-        opacityTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        center.add(opacityTitle);
-        center.add(Box.createVerticalStrut(4));
-
-        JPanel opacityRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        opacityRow.setOpaque(false);
-        JLabel opacityLabel = new JLabel("Opacity:");
-        opacitySlider = new JSlider(0, 100, (int)(currentOpacity * 100));
-        opacitySlider.setPreferredSize(new Dimension(250, 30));
-        JLabel opacityValueLabel = new JLabel(String.format("%d%%", (int)(currentOpacity * 100)));
-        opacityValueLabel.setPreferredSize(new Dimension(40, 20));
-        opacitySlider.addChangeListener(e -> {
-            currentOpacity = opacitySlider.getValue() / 100f;
-            opacityValueLabel.setText(String.format("%d%%", opacitySlider.getValue()));
-            updatePreview();
-        });
-        opacityRow.add(opacityLabel);
-        opacityRow.add(Box.createHorizontalStrut(10));
-        opacityRow.add(opacitySlider);
-        opacityRow.add(Box.createHorizontalStrut(10));
-        opacityRow.add(opacityValueLabel);
-        opacityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        center.add(opacityRow);
 
         panel.add(center, BorderLayout.CENTER);
 
