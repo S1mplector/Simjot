@@ -88,6 +88,7 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedToggleButton;
+import main.ui.components.buttons.QuestionMarkButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
@@ -340,6 +341,11 @@ public class PoemPanel extends AbstractEditorPanel {
         rightToolbar.add(exportBtn);
         rightToolbar.add(dfBtn);
         rightToolbar.add(settingsBtn);
+        QuestionMarkButton helpBtn = new QuestionMarkButton();
+        helpBtn.setToolTipText("Poem editor tips");
+        helpBtn.addActionListener(e -> showHelpDialog());
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(helpBtn);
         // Create shared toolbar and wire callbacks
         NotebookInfo nbInfo = new NotebookInfo(
                 journalFolder.getName(),
@@ -1598,6 +1604,17 @@ public class PoemPanel extends AbstractEditorPanel {
         StyleConstants.setLineSpacing(attrs, spacing);
         applyParagraphRhythm(attrs);
         doc.setParagraphAttributes(0, doc.getLength(), attrs, false);
+    }
+
+    private void showHelpDialog() {
+        String message = "<html><body style='text-align:left;'>"
+                + "<b>Poem editor features</b><br>"
+                + "• Metering, vocabulary, and theme analysis panels.<br>"
+                + "• Rhymes dock with quick lookup and suggestions.<br>"
+                + "• Export to Markdown, HTML, TXT, or PNG.<br>"
+                + "• Background settings and distraction-free mode in the toolbar."
+                + "</body></html>";
+        CustomMessageDialog.display(this, "Poem Editor", message, false);
     }
 
     private void installHeaderShortcut(JComponent editor) {

@@ -35,7 +35,13 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -130,6 +136,11 @@ public class NotetakingPanel extends EntryPanel {
     private static final String TEXT_COLOR_CODE_PREF_KEY = "notetaking.textColorCodeMap";
     private static final String DEFAULT_TEXT_COLOR_CODE_MAP =
             "B=#2196F3,R=#F44336,G=#4CAF50,Y=#FFEB3B,O=#FF9800,P=#9C27B0,K=#212121,W=#FFFFFF";
+    private static final int DRAW_V2_MAGIC = 0x44525732; // "DRW2"
+    private static final int DRAW_V2_VERSION = 2;
+    private static final float DRAW_POINT_MIN_DIST = 1.2f;
+    private static final long DRAW_POINT_MIN_DT_MS = 8L;
+    private static final long DRAW_LARGE_FILE_BYTES = 8L * 1024L * 1024L;
 
     public NotetakingPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -166,6 +177,23 @@ public class NotetakingPanel extends EntryPanel {
     @Override
     protected boolean supportsGuidanceButton() {
         return false;
+    }
+
+    @Override
+    protected String getHelpTitle() {
+        return "Notetaking Editor";
+    }
+
+    @Override
+    protected String getHelpMessage() {
+        return "<html><body style='text-align:left;'>"
+                + "<b>Notetaking features</b><br>"
+                + "• Draw on top of notes with pen, highlighter, eraser, or lasso.<br>"
+                + "• Text and paint modes live in the right toolbar.<br>"
+                + "• Quick heading shortcuts: Cmd/Ctrl+1/2/3, reset with Cmd/Ctrl+0.<br>"
+                + "• Text color quick code: Cmd/Ctrl+Shift+C, then a letter.<br>"
+                + "• Toggle overlay visibility from the draw menu."
+                + "</body></html>";
     }
 
     @Override
@@ -900,19 +928,41 @@ public class NotetakingPanel extends EntryPanel {
     @Override
     protected void safeLoadFile(File f) {
         super.safeLoadFile(f);
-        try { loadDrawingSidecar(f); } catch (Throwable ignored) {}
+        try {
+            File sideV2 = new File(f.getAbsolutePath() + ".draw2");
+            if (sideV2.exists() && sideV2.length() > DRAW_LARGE_FILE_BYTES) {
+                loadDrawingSidecarAsync(f);
+            } else {
+                loadDrawingSidecar(f);
+            }
+        } catch (Throwable ignored) {}
         if (drawingOverlay != null) drawingOverlay.repaint();
     }
 
     private void saveDrawingSidecar(File mainFile) {
         if (mainFile == null) return;
-        File side = new File(mainFile.getAbsolutePath() + ".draw");
-        try (PrintWriter out = new PrintWriter(new FileWriter(side))) {
-            out.println("DRAWV1");
+        File sideV2 = new File(mainFile.getAbsolutePath() + ".draw2");
+        try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(sideV2)))) {
+            out.writeInt(DRAW_V2_MAGIC);
+            out.writeInt(DRAW_V2_VERSION);
+            out.writeInt(drawStrokes.size());
+            out.writeInt(floatingImages.size());
             for (DrawStroke s : drawStrokes) {
-                Color c = s.color;
-                String pts = toPointsCsv(s.points);
-                out.println("S|" + (s.tool==DrawTool.PEN?"pen":"hl") + "|" + c.getRed()+","+c.getGreen()+","+c.getBlue()+","+c.getAlpha() + "|" + s.thickness + "|" + pts);
+                out.writeByte(s.tool == DrawTool.PEN ? 0 : 1);
+                out.writeInt(s.color.getRGB());
+                out.writeShort(Math.max(1, Math.min(Short.MAX_VALUE, s.thickness)));
+                int n = s.floatPoints.size();
+                out.writeInt(n);
+                long prevTs = 0L;
+                for (int i = 0; i < n; i++) {
+                    float[] p = s.floatPoints.get(i);
+                    out.writeFloat(p[0]);
+                    out.writeFloat(p[1]);
+                    long ts = (long) p[2];
+                    int dt = (i == 0) ? 0 : (int) Math.max(0, Math.min(Integer.MAX_VALUE, ts - prevTs));
+                    out.writeInt(dt);
+                    prevTs = ts;
+                }
             }
             for (FloatingImage img : floatingImages) {
                 File stored = ensureFloatingImageFile(img.sourceFile, img.image);
@@ -920,7 +970,11 @@ public class NotetakingPanel extends EntryPanel {
                 img.sourceFile = stored;
                 String rel = makeRelativeToJournal(stored);
                 if (rel == null) continue;
-                out.println("I|" + rel + "|" + img.x + "|" + img.y + "|" + img.width + "|" + img.height);
+                out.writeUTF(rel);
+                out.writeInt(img.x);
+                out.writeInt(img.y);
+                out.writeInt(img.width);
+                out.writeInt(img.height);
             }
         } catch (IOException ignored) { }
     }
@@ -929,34 +983,40 @@ public class NotetakingPanel extends EntryPanel {
         drawStrokes.clear();
         floatingImages.clear();
         if (mainFile == null) return;
-        File side = new File(mainFile.getAbsolutePath() + ".draw");
-        if (!side.exists()) return;
-        try (BufferedReader in = new BufferedReader(new FileReader(side))) {
-            String first = in.readLine();
-            if (first == null || !first.startsWith("DRAWV1")) return;
-            String line;
-            while ((line = in.readLine()) != null) {
-                if (line.startsWith("S|")) {
-                    String[] parts = line.split("\\|");
-                    if (parts.length < 5) continue;
-                    DrawTool tool = "pen".equals(parts[1]) ? DrawTool.PEN : DrawTool.HIGHLIGHT;
-                    String[] rgba = parts[2].split(",");
-                    int r = Integer.parseInt(rgba[0]);
-                    int g = Integer.parseInt(rgba[1]);
-                    int b = Integer.parseInt(rgba[2]);
-                    int a = Integer.parseInt(rgba[3]);
-                    int thick = Integer.parseInt(parts[3]);
-                    List<Point> pts = fromPointsCsv(parts[4]);
-                    drawStrokes.add(new DrawStroke(tool, new Color(r,g,b,a), thick, pts));
-                } else if (line.startsWith("I|")) {
-                    String[] parts = line.split("\\|");
-                    if (parts.length < 6) continue;
-                    File imgFile = resolveImageFile(parts[1]);
+        File sideV2 = new File(mainFile.getAbsolutePath() + ".draw2");
+        if (sideV2.exists()) {
+            try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(sideV2)))) {
+                int magic = in.readInt();
+                int version = in.readInt();
+                if (magic != DRAW_V2_MAGIC || version != DRAW_V2_VERSION) return;
+                int strokeCount = in.readInt();
+                int imageCount = in.readInt();
+                for (int s = 0; s < strokeCount; s++) {
+                    byte toolByte = in.readByte();
+                    DrawTool tool = toolByte == 0 ? DrawTool.PEN : DrawTool.HIGHLIGHT;
+                    Color color = new Color(in.readInt(), true);
+                    int thick = in.readShort();
+                    int n = in.readInt();
+                    DrawStroke stroke = new DrawStroke(tool, color, thick);
+                    long base = System.currentTimeMillis();
+                    long ts = base;
+                    for (int i = 0; i < n; i++) {
+                        float x = in.readFloat();
+                        float y = in.readFloat();
+                        int dt = in.readInt();
+                        if (i > 0) ts += Math.max(0L, dt);
+                        stroke.addPointRaw(x, y, ts);
+                    }
+                    drawStrokes.add(stroke);
+                }
+                for (int i = 0; i < imageCount; i++) {
+                    String rel = in.readUTF();
+                    File imgFile = resolveImageFile(rel);
                     if (imgFile == null || !imgFile.exists()) continue;
-                    int x = Integer.parseInt(parts[2]);
-                    int y = Integer.parseInt(parts[3]);
-                    int w = Integer.parseInt(parts[4]);
-                    int h = Integer.parseInt(parts[5]);
+                    int x = in.readInt();
+                    int y = in.readInt();
+                    int w = in.readInt();
+                    int h = in.readInt();
                     BufferedImage img = null;
                     try { img = ImageIO.read(imgFile); } catch (Throwable ignored) {}
                     if (img == null) continue;
@@ -965,11 +1025,67 @@ public class NotetakingPanel extends EntryPanel {
                     }
                     floatingImages.add(new FloatingImage(imgFile, img, x, y, img.getWidth(), img.getHeight()));
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        } else {
+            File side = new File(mainFile.getAbsolutePath() + ".draw");
+            if (!side.exists()) return;
+            try (BufferedReader in = new BufferedReader(new FileReader(side))) {
+                String first = in.readLine();
+                if (first == null || !first.startsWith("DRAWV1")) return;
+                String line;
+                while ((line = in.readLine()) != null) {
+                    if (line.startsWith("S|")) {
+                        String[] parts = line.split("\\|");
+                        if (parts.length < 5) continue;
+                        DrawTool tool = "pen".equals(parts[1]) ? DrawTool.PEN : DrawTool.HIGHLIGHT;
+                        String[] rgba = parts[2].split(",");
+                        int r = Integer.parseInt(rgba[0]);
+                        int g = Integer.parseInt(rgba[1]);
+                        int b = Integer.parseInt(rgba[2]);
+                        int a = Integer.parseInt(rgba[3]);
+                        int thick = Integer.parseInt(parts[3]);
+                        List<Point> pts = fromPointsCsv(parts[4]);
+                        drawStrokes.add(new DrawStroke(tool, new Color(r,g,b,a), thick, pts));
+                    } else if (line.startsWith("I|")) {
+                        String[] parts = line.split("\\|");
+                        if (parts.length < 6) continue;
+                        File imgFile = resolveImageFile(parts[1]);
+                        if (imgFile == null || !imgFile.exists()) continue;
+                        int x = Integer.parseInt(parts[2]);
+                        int y = Integer.parseInt(parts[3]);
+                        int w = Integer.parseInt(parts[4]);
+                        int h = Integer.parseInt(parts[5]);
+                        BufferedImage img = null;
+                        try { img = ImageIO.read(imgFile); } catch (Throwable ignored) {}
+                        if (img == null) continue;
+                        if (w > 0 && h > 0) {
+                            img = scaleToSize(img, w, h);
+                        }
+                        floatingImages.add(new FloatingImage(imgFile, img, x, y, img.getWidth(), img.getHeight()));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
         if (drawingOverlay != null) {
             drawingOverlay.markNativeDirtyAll();
         }
+    }
+
+    private void loadDrawingSidecarAsync(File mainFile) {
+        new javax.swing.SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                loadDrawingSidecar(mainFile);
+                return null;
+            }
+            @Override
+            protected void done() {
+                if (drawingOverlay != null) {
+                    drawingOverlay.markNativeDirtyAll();
+                    drawingOverlay.repaint();
+                }
+            }
+        }.execute();
     }
 
     private File ensureFloatingImageFile(File sourceFile, BufferedImage img) {
@@ -1270,10 +1386,23 @@ public class NotetakingPanel extends EntryPanel {
         }
         
         void addPoint(float x, float y, long timestamp) {
+            if (!floatPoints.isEmpty()) {
+                float[] last = floatPoints.get(floatPoints.size() - 1);
+                float dx = x - last[0];
+                float dy = y - last[1];
+                if ((dx * dx + dy * dy) < (DRAW_POINT_MIN_DIST * DRAW_POINT_MIN_DIST)
+                        && Math.abs(timestamp - (long) last[2]) < DRAW_POINT_MIN_DT_MS) {
+                    return;
+                }
+            }
+            addPointRaw(x, y, timestamp);
+        }
+
+        void addPointRaw(float x, float y, long timestamp) {
             points.add(new Point(Math.round(x), Math.round(y)));
             floatPoints.add(new float[]{x, y, timestamp});
             updateBounds(Math.round(x), Math.round(y));
-            cacheValid = false; // Invalidate cache
+            cacheValid = false;
             cachedThicknesses = null;
         }
         

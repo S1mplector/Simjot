@@ -106,6 +106,7 @@ import main.infrastructure.io.IoLog;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
+import main.ui.components.buttons.QuestionMarkButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -603,6 +604,12 @@ public class EntryPanel extends AbstractEditorPanel {
         rightToolbar.add(Box.createHorizontalStrut(6));
         rightToolbar.add(settingsBtn);
 
+        QuestionMarkButton helpBtn = new QuestionMarkButton();
+        helpBtn.setToolTipText("Editor tips");
+        helpBtn.addActionListener(e -> showHelpDialog());
+        rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.add(helpBtn);
+
         // Bind the shared title field to our reference used elsewhere
         titleField = sharedToolbar.getTitleField();
         toolbarContainer = sharedToolbar.getContainer();
@@ -886,6 +893,25 @@ public class EntryPanel extends AbstractEditorPanel {
         } else {
             autosaveCoordinator = null; // autosave disabled
         }
+    }
+
+    protected String getHelpTitle() {
+        return "Journal Editor";
+    }
+
+    protected String getHelpMessage() {
+        return "<html><body style='text-align:left;'>"
+                + "<b>Journal editor basics</b><br>"
+                + "• Title and rich-text formatting (bold/italic/underline/strike).<br>"
+                + "• Bullet and numbered lists for structure.<br>"
+                + "• Background settings and distraction-free mode in the toolbar.<br>"
+                + "• Mood slider (when enabled) logs your mood alongside entries.<br>"
+                + "• Autosave keeps changes safe while you write."
+                + "</body></html>";
+    }
+
+    protected void showHelpDialog() {
+        CustomMessageDialog.display(this, getHelpTitle(), getHelpMessage(), false);
     }
 
     private void installHeaderShortcut(JComponent editor) {
