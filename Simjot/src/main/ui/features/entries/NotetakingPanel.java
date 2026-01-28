@@ -138,8 +138,8 @@ public class NotetakingPanel extends EntryPanel {
             "B=#2196F3,R=#F44336,G=#4CAF50,Y=#FFEB3B,O=#FF9800,P=#9C27B0,K=#212121,W=#FFFFFF";
     private static final int DRAW_V2_MAGIC = 0x44525732; // "DRW2"
     private static final int DRAW_V2_VERSION = 2;
-    private static final float DRAW_POINT_MIN_DIST = 1.2f;
-    private static final long DRAW_POINT_MIN_DT_MS = 8L;
+    private static final float DRAW_POINT_MIN_DIST = 0.35f;
+    private static final long DRAW_POINT_MIN_DT_MS = 2L;
     private static final long DRAW_LARGE_FILE_BYTES = 8L * 1024L * 1024L;
 
     public NotetakingPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
@@ -1152,12 +1152,13 @@ public class NotetakingPanel extends EntryPanel {
         return out;
     }
 
-    private static String toPointsCsv(List<Point> pts) {
+    private static String toPointsCsv(DrawStroke stroke) {
         StringBuilder sb = new StringBuilder();
-        for (int i=0;i<pts.size();i++) {
-            Point p = pts.get(i);
+        if (stroke == null) return "";
+        for (int i=0;i<stroke.floatPoints.size();i++) {
+            float[] p = stroke.floatPoints.get(i);
             if (i>0) sb.append(';');
-            sb.append(p.x).append(',').append(p.y);
+            sb.append(Math.round(p[0])).append(',').append(Math.round(p[1]));
         }
         return sb.toString();
     }
@@ -1267,9 +1268,9 @@ public class NotetakingPanel extends EntryPanel {
                 g2.setColor(s.color);
                 g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 Path2D path = new Path2D.Float();
-                for (int i=0;i<s.points.size();i++) {
-                    Point p = s.points.get(i);
-                    if (i==0) path.moveTo(p.x, p.y); else path.lineTo(p.x, p.y);
+                for (int i=0;i<s.floatPoints.size();i++) {
+                    float[] p = s.floatPoints.get(i);
+                    if (i==0) path.moveTo(p[0], p[1]); else path.lineTo(p[0], p[1]);
                 }
                 g2.draw(path);
             }
@@ -1351,7 +1352,6 @@ public class NotetakingPanel extends EntryPanel {
         final DrawTool tool;
         final Color color;
         final int thickness;
-        final List<Point> points; // Legacy integer points for persistence
         final List<float[]> floatPoints; // [x, y, timestamp] for native engine
         private int minX = Integer.MAX_VALUE;
         private int minY = Integer.MAX_VALUE;
@@ -1373,7 +1373,6 @@ public class NotetakingPanel extends EntryPanel {
             this.tool = tool;
             this.color = color;
             this.thickness = thickness;
-            this.points = pts;
             this.floatPoints = new ArrayList<>();
             // Convert existing points to float format
             for (Point p : pts) {
@@ -1391,15 +1390,12 @@ public class NotetakingPanel extends EntryPanel {
                 float dx = x - last[0];
                 float dy = y - last[1];
                 if ((dx * dx + dy * dy) < (DRAW_POINT_MIN_DIST * DRAW_POINT_MIN_DIST)
-                        && Math.abs(timestamp - (long) last[2]) < DRAW_POINT_MIN_DT_MS) {
-                    return;
-                }
+                        && Math.abs(timestamp - (long) last[2]) < DRAW_POINT_MIN_DT_MS) return;
             }
             addPointRaw(x, y, timestamp);
         }
 
         void addPointRaw(float x, float y, long timestamp) {
-            points.add(new Point(Math.round(x), Math.round(y)));
             floatPoints.add(new float[]{x, y, timestamp});
             updateBounds(Math.round(x), Math.round(y));
             cacheValid = false;
@@ -1441,7 +1437,7 @@ public class NotetakingPanel extends EntryPanel {
         }
         
         void recomputeBounds() {
-            if (points.isEmpty()) {
+            if (floatPoints.isEmpty()) {
                 minX = minY = Integer.MAX_VALUE;
                 maxX = maxY = Integer.MIN_VALUE;
                 boundsDirty = true;
@@ -1449,8 +1445,8 @@ public class NotetakingPanel extends EntryPanel {
             }
             minX = minY = Integer.MAX_VALUE;
             maxX = maxY = Integer.MIN_VALUE;
-            for (Point p : points) {
-                updateBounds(p.x, p.y);
+            for (float[] p : floatPoints) {
+                updateBounds(Math.round(p[0]), Math.round(p[1]));
             }
             boundsDirty = false;
         }
@@ -1476,17 +1472,13 @@ public class NotetakingPanel extends EntryPanel {
         }
         
         boolean intersectsRect(java.awt.Rectangle rect, int pad) {
-            if (points.isEmpty()) return false;
+            if (floatPoints.isEmpty()) return false;
             java.awt.Rectangle bounds = getBoundsWithPadding(pad);
             return bounds.intersects(rect);
         }
 
         void addLegacyPoint(Point p) {
-            points.add(p);
-            floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
-            updateBounds(p.x, p.y);
-            cacheValid = false;
-            cachedThicknesses = null;
+            addPointRaw(p.x, p.y, System.currentTimeMillis());
         }
         
         private void rebuildCache() {
@@ -1794,12 +1786,14 @@ private class DrawingOverlay extends JComponent {
     private float smoothX, smoothY;
     private float lastRawX, lastRawY;
     private long lastTimestamp;
-    private static final float SMOOTH_ALPHA = 0.48f; // More smoothing without heavy lag
-    private static final float MIN_DISTANCE_BASE = 1.4f;
-    private static final float MAX_DISTANCE_BOOST = 8f;
-    private static final float DISTANCE_VELOCITY_SCALE = 6f;
-    private static final int FINAL_SMOOTH_ITER = 3;
-    private static final float FINAL_SAMPLE_DISTANCE = 1.2f;
+    private static final float SMOOTH_ALPHA_MIN = 0.35f;
+    private static final float SMOOTH_ALPHA_MAX = 0.82f;
+    private static final float SMOOTH_VELOCITY_SCALE = 0.08f;
+    private static final float MIN_DISTANCE_BASE = 0.6f;
+    private static final float MAX_DISTANCE_BOOST = 5f;
+    private static final float DISTANCE_VELOCITY_SCALE = 4f;
+    private static final int FINAL_SMOOTH_ITER = 2;
+    private static final float FINAL_SAMPLE_DISTANCE = 1.0f;
 
     // Lasso selection state
     private List<Point> lassoPath = new ArrayList<>();
@@ -1897,8 +1891,11 @@ private class DrawingOverlay extends JComponent {
                     return;
                 }
 
-                smoothX = SMOOTH_ALPHA * rawX + (1f - SMOOTH_ALPHA) * smoothX;
-                smoothY = SMOOTH_ALPHA * rawY + (1f - SMOOTH_ALPHA) * smoothY;
+                float velocity = (float) (Math.sqrt(dx * dx + dy * dy) / Math.max(1, now - lastTimestamp));
+                float alpha = SMOOTH_ALPHA_MAX - Math.min(0.45f, velocity * SMOOTH_VELOCITY_SCALE);
+                if (alpha < SMOOTH_ALPHA_MIN) alpha = SMOOTH_ALPHA_MIN;
+                smoothX = alpha * rawX + (1f - alpha) * smoothX;
+                smoothY = alpha * rawY + (1f - alpha) * smoothY;
 
                 Point prev = lastPoint;
                 current.addPoint(smoothX, smoothY, now);
@@ -1926,9 +1923,6 @@ private class DrawingOverlay extends JComponent {
                 if (current != null && currentDrawTool == DrawTool.PEN && current.floatPoints.size() >= 3) {
                     final DrawStroke strokeToSmooth = current;
                     strokeWorker.submit(() -> applyFinalSmoothing(strokeToSmooth));
-                } else if (current != null && currentDrawTool == DrawTool.HIGHLIGHT && current.points.size() >= 3) {
-                    final DrawStroke strokeToSmooth = current;
-                    strokeWorker.submit(() -> applyFinalHighlightSmoothing(strokeToSmooth));
                 }
                 if (current != null && useOptimizer) {
                     addStrokeToOptimizer(current);
@@ -2079,59 +2073,53 @@ private class DrawingOverlay extends JComponent {
         }
 
         private void applyFinalHighlightSmoothing(DrawStroke stroke) {
-            if (stroke == null || stroke.points.size() < 3) return;
-            if (nativeDrawing != null) {
-                float[] xs = stroke.getPointsX();
-                float[] ys = stroke.getPointsY();
-                if (xs.length >= 3 && ys.length == xs.length) {
-                    float[] finalX = xs;
-                    float[] finalY = ys;
-                    float[][] sampled = nativeDrawing.strokeDistanceSample(xs, ys, FINAL_SAMPLE_DISTANCE);
-                    if (sampled != null && sampled[0].length >= 3 && sampled[0].length < xs.length) {
-                        finalX = sampled[0];
-                        finalY = sampled[1];
-                    }
-                    float[][] smoothed = nativeDrawing.strokeSmoothChaikin(finalX, finalY, FINAL_SMOOTH_ITER);
-                    if (smoothed != null && smoothed[0].length >= 3) {
-                        finalX = smoothed[0];
-                        finalY = smoothed[1];
-                    }
-                    float[] outX = finalX;
-                    float[] outY = finalY;
-                    long[] baseTs = stroke.getTimestamps();
-                    long start = (baseTs.length > 0) ? baseTs[0] : System.currentTimeMillis();
-                    long end = (baseTs.length > 0) ? baseTs[baseTs.length - 1] : start;
-                    long[] ts = interpolateTimestamps(outX, outY, start, end);
-                    SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, outX, outY, ts));
-                    return;
+            if (stroke == null || stroke.floatPoints.size() < 3) return;
+            float[] xs = stroke.getPointsX();
+            float[] ys = stroke.getPointsY();
+            if (xs.length >= 3 && ys.length == xs.length && nativeDrawing != null) {
+                float[] finalX = xs;
+                float[] finalY = ys;
+                float[][] sampled = nativeDrawing.strokeDistanceSample(xs, ys, FINAL_SAMPLE_DISTANCE);
+                if (sampled != null && sampled[0].length >= 3 && sampled[0].length < xs.length) {
+                    finalX = sampled[0];
+                    finalY = sampled[1];
                 }
+                float[][] smoothed = nativeDrawing.strokeSmoothChaikin(finalX, finalY, FINAL_SMOOTH_ITER);
+                if (smoothed != null && smoothed[0].length >= 3) {
+                    finalX = smoothed[0];
+                    finalY = smoothed[1];
+                }
+                long[] baseTs = stroke.getTimestamps();
+                long start = (baseTs.length > 0) ? baseTs[0] : System.currentTimeMillis();
+                long end = (baseTs.length > 0) ? baseTs[baseTs.length - 1] : start;
+                long[] ts = interpolateTimestamps(finalX, finalY, start, end);
+                float[] finalXs = finalX;
+                float[] finalYs = finalY;
+                long[] finalTs = ts;
+                SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, finalTs));
+                return;
             }
-            java.util.List<Point> pts = stroke.points;
-            int n = pts.size();
-            java.util.List<Point> smooth = new java.util.ArrayList<>(n);
-            smooth.add(new Point(pts.get(0)));
+            int n = stroke.floatPoints.size();
+            float[] smoothX = new float[n];
+            float[] smoothY = new float[n];
+            float[] first = stroke.floatPoints.get(0);
+            smoothX[0] = first[0];
+            smoothY[0] = first[1];
             for (int i = 1; i < n - 1; i++) {
-                Point p0 = pts.get(i - 1);
-                Point p1 = pts.get(i);
-                Point p2 = pts.get(i + 1);
-                int x = Math.round((p0.x + p1.x * 2f + p2.x) / 4f);
-                int y = Math.round((p0.y + p1.y * 2f + p2.y) / 4f);
-                smooth.add(new Point(x, y));
+                float[] p0 = stroke.floatPoints.get(i - 1);
+                float[] p1 = stroke.floatPoints.get(i);
+                float[] p2 = stroke.floatPoints.get(i + 1);
+                smoothX[i] = (p0[0] + p1[0] * 2f + p2[0]) / 4f;
+                smoothY[i] = (p0[1] + p1[1] * 2f + p2[1]) / 4f;
             }
-            smooth.add(new Point(pts.get(n - 1)));
-            SwingUtilities.invokeLater(() -> {
-                stroke.points.clear();
-                stroke.points.addAll(smooth);
-                stroke.floatPoints.clear();
-                for (Point p : smooth) {
-                    stroke.floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
-                }
-                stroke.invalidateCache();
-                stroke.recomputeBounds();
-                strokeBufferDirty = true;
-                highlightBufferDirty = true;
-                repaint();
-            });
+            float[] last = stroke.floatPoints.get(n - 1);
+            smoothX[n - 1] = last[0];
+            smoothY[n - 1] = last[1];
+            long[] baseTs = stroke.getTimestamps();
+            long start = (baseTs.length > 0) ? baseTs[0] : System.currentTimeMillis();
+            long end = (baseTs.length > 0) ? baseTs[baseTs.length - 1] : start;
+            long[] ts = interpolateTimestamps(smoothX, smoothY, start, end);
+            SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, smoothX, smoothY, ts));
         }
         
         private long[] mapSampledTimestamps(float[] sampledX, float[] sampledY, float[] originalX, float[] originalY, long[] originalTs) {
@@ -2157,11 +2145,10 @@ private class DrawingOverlay extends JComponent {
         }
         
         private void replaceStrokePoints(DrawStroke stroke, float[] xs, float[] ys, long[] ts) {
-            stroke.points.clear();
             stroke.floatPoints.clear();
             for (int i = 0; i < xs.length; i++) {
                 float timestamp = (ts != null && i < ts.length) ? ts[i] : System.currentTimeMillis();
-                stroke.addPoint(xs[i], ys[i], (long) timestamp);
+                stroke.addPointRaw(xs[i], ys[i], (long) timestamp);
             }
             stroke.invalidateCache();
             strokeBufferDirty = true;
@@ -2313,7 +2300,7 @@ private class DrawingOverlay extends JComponent {
                 
                 // For pen strokes, check floatPoints (what's actually rendered)
                 // For highlighter, check integer points
-                if (s.tool == DrawTool.PEN && !s.floatPoints.isEmpty()) {
+                if (!s.floatPoints.isEmpty()) {
                     List<float[]> fpts = s.floatPoints;
                     if (fpts.size() == 1) {
                         float[] pt = fpts.get(0);
@@ -2324,22 +2311,6 @@ private class DrawingOverlay extends JComponent {
                             float[] a = fpts.get(i - 1);
                             float[] b = fpts.get(i);
                             if (distPointToSegmentSqF(px, py, a[0], a[1], b[0], b[1]) <= r2) {
-                                shouldErase = true;
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    // Highlighter or fallback - use integer points
-                    List<Point> pts = s.points;
-                    if (pts.isEmpty()) continue;
-                    if (pts.size() == 1) {
-                        Point pt = pts.get(0);
-                        int dx = p.x - pt.x, dy = p.y - pt.y;
-                        shouldErase = (dx * dx + dy * dy <= r2);
-                    } else {
-                        for (int i = 1; i < pts.size(); i++) {
-                            if (distPointToSegmentSq(p, pts.get(i - 1), pts.get(i)) <= r2) {
                                 shouldErase = true;
                                 break;
                             }
@@ -2436,18 +2407,8 @@ private class DrawingOverlay extends JComponent {
         
         private void addStrokeToOptimizer(DrawStroke s) {
             if (optimizerHandle == 0 || nativeDrawing == null) return;
-            float[] xs, ys;
-            if (s.tool == DrawTool.HIGHLIGHT) {
-                xs = new float[s.points.size()];
-                ys = new float[s.points.size()];
-                for (int i = 0; i < s.points.size(); i++) {
-                    xs[i] = s.points.get(i).x;
-                    ys[i] = s.points.get(i).y;
-                }
-            } else {
-                xs = s.getPointsX();
-                ys = s.getPointsY();
-            }
+            float[] xs = s.getPointsX();
+            float[] ys = s.getPointsY();
             int optId = nativeDrawing.optimizerAddStroke(optimizerHandle, xs, ys, null,
                                                           s.color.getRGB(), s.thickness);
             if (optId >= 0) {
@@ -2551,18 +2512,8 @@ private class DrawingOverlay extends JComponent {
             }
             
             for (DrawStroke s : drawStrokes) {
-                float[] strokeX, strokeY;
-                if (s.tool == DrawTool.HIGHLIGHT) {
-                    strokeX = new float[s.points.size()];
-                    strokeY = new float[s.points.size()];
-                    for (int i = 0; i < s.points.size(); i++) {
-                        strokeX[i] = s.points.get(i).x;
-                        strokeY[i] = s.points.get(i).y;
-                    }
-                } else {
-                    strokeX = s.getPointsX();
-                    strokeY = s.getPointsY();
-                }
+                float[] strokeX = s.getPointsX();
+                float[] strokeY = s.getPointsY();
                 
                 // Use native lasso test if available, else Java fallback
                 boolean selected = false;
@@ -2679,10 +2630,6 @@ private class DrawingOverlay extends JComponent {
             boolean movedHighlight = false;
             for (DrawStroke s : selectedStrokes) {
                 if (!translateStrokeNative(s, dx, dy)) {
-                    for (Point p : s.points) {
-                        p.x += dx;
-                        p.y += dy;
-                    }
                     for (float[] fp : s.floatPoints) {
                         fp[0] += dx;
                         fp[1] += dy;
@@ -2739,21 +2686,16 @@ private class DrawingOverlay extends JComponent {
             if (xs.length == 0 || ys.length != xs.length) return false;
             if (!nativeDrawing.lassoTranslatePoints(xs, ys, dx, dy)) return false;
             int n = xs.length;
-            if (s.floatPoints.size() == n && s.points.size() == n) {
+            if (s.floatPoints.size() == n) {
                 for (int i = 0; i < n; i++) {
                     float[] fp = s.floatPoints.get(i);
                     fp[0] = xs[i];
                     fp[1] = ys[i];
-                    Point p = s.points.get(i);
-                    p.x = Math.round(xs[i]);
-                    p.y = Math.round(ys[i]);
                 }
             } else {
                 s.floatPoints.clear();
-                s.points.clear();
                 for (int i = 0; i < n; i++) {
                     s.floatPoints.add(new float[]{xs[i], ys[i], System.currentTimeMillis()});
-                    s.points.add(new Point(Math.round(xs[i]), Math.round(ys[i])));
                 }
             }
             return true;
@@ -2761,14 +2703,16 @@ private class DrawingOverlay extends JComponent {
         
         // Get stroke bounding box clipped to viewport
         private java.awt.Rectangle getStrokeBounds(DrawStroke s, int offsetX, int offsetY, int viewW, int viewH) {
-            if (s.points.isEmpty()) return new java.awt.Rectangle(0, 0, 0, 0);
+            if (s.floatPoints.isEmpty()) return new java.awt.Rectangle(0, 0, 0, 0);
             int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
             int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-            for (Point p : s.points) {
-                if (p.x < minX) minX = p.x;
-                if (p.y < minY) minY = p.y;
-                if (p.x > maxX) maxX = p.x;
-                if (p.y > maxY) maxY = p.y;
+            for (float[] p : s.floatPoints) {
+                int px = Math.round(p[0]);
+                int py = Math.round(p[1]);
+                if (px < minX) minX = px;
+                if (py < minY) minY = py;
+                if (px > maxX) maxX = px;
+                if (py > maxY) maxY = py;
             }
             int pad = (int)(s.thickness / 2) + 2;
             minX -= pad; minY -= pad;
@@ -2917,19 +2861,10 @@ private class DrawingOverlay extends JComponent {
                         int[] pixels = ((java.awt.image.DataBufferInt) highlightStrokeBuffer.getRaster().getDataBuffer()).getData();
                         java.util.Arrays.fill(pixels, 0);
                         for (DrawStroke s : drawStrokes) {
-                            if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
+                            if (s.tool != DrawTool.HIGHLIGHT || s.floatPoints.isEmpty()) continue;
                             if (!s.intersectsRect(viewRect, s.thickness + 10)) continue;
                             float[] xs = s.getPointsX();
                             float[] ys = s.getPointsY();
-                            if (xs.length == 0 || ys.length != xs.length) {
-                                xs = new float[s.points.size()];
-                                ys = new float[s.points.size()];
-                                for (int i = 0; i < s.points.size(); i++) {
-                                    Point p = s.points.get(i);
-                                    xs[i] = p.x;
-                                    ys[i] = p.y;
-                                }
-                            }
                             if (xs.length == 0) continue;
                             float[] thicknesses = getOrComputeThicknesses(s);
                             if (thicknesses.length != xs.length) {
@@ -2949,7 +2884,7 @@ private class DrawingOverlay extends JComponent {
                         
                         // Render each highlighter stroke with proper alpha compositing
                         for (DrawStroke s : drawStrokes) {
-                            if (s.tool != DrawTool.HIGHLIGHT || s.points.isEmpty()) continue;
+                            if (s.tool != DrawTool.HIGHLIGHT || s.floatPoints.isEmpty()) continue;
                             if (!s.intersectsRect(viewRect, s.thickness + 10)) continue;
                             int alpha = s.color.getAlpha();
                             Color opaqueColor = new Color(s.color.getRed(), s.color.getGreen(), s.color.getBlue(), 255);
@@ -2965,7 +2900,7 @@ private class DrawingOverlay extends JComponent {
                             sg.translate(-bounds.x - offsetX, -bounds.y - offsetY);
                             sg.setColor(opaqueColor);
                             sg.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                            drawPointsPath(sg, s.points);
+                            drawPointsPath(sg, s.floatPoints);
                             sg.dispose();
                             
                             // Composite to main highlighter buffer with alpha
@@ -3094,27 +3029,27 @@ private class DrawingOverlay extends JComponent {
             g2.draw(path);
         }
         
-        // Path2D drawing for integer Point list (highlighter)
-        private void drawPointsPath(Graphics2D g2, List<Point> points) {
+        // Path2D drawing for float point list (highlighter)
+        private void drawPointsPath(Graphics2D g2, List<float[]> points) {
             int n = points.size();
             if (n == 0) return;
             if (n == 1) {
-                Point p = points.get(0);
-                g2.fillOval(p.x - 1, p.y - 1, 3, 3);
+                float[] p = points.get(0);
+                g2.fillOval(Math.round(p[0] - 1), Math.round(p[1] - 1), 3, 3);
                 return;
             }
             java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
-            Point first = points.get(0);
-            path.moveTo(first.x, first.y);
+            float[] first = points.get(0);
+            path.moveTo(first[0], first[1]);
             for (int i = 1; i < n - 1; i++) {
-                Point p = points.get(i);
-                Point next = points.get(i + 1);
-                float mx = (p.x + next.x) * 0.5f;
-                float my = (p.y + next.y) * 0.5f;
-                path.quadTo(p.x, p.y, mx, my);
+                float[] p = points.get(i);
+                float[] next = points.get(i + 1);
+                float mx = (p[0] + next[0]) * 0.5f;
+                float my = (p[1] + next[1]) * 0.5f;
+                path.quadTo(p[0], p[1], mx, my);
             }
-            Point last = points.get(n - 1);
-            path.lineTo(last.x, last.y);
+            float[] last = points.get(n - 1);
+            path.lineTo(last[0], last[1]);
             g2.draw(path);
         }
     }
