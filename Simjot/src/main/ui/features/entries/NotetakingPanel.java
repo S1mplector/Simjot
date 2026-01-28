@@ -90,6 +90,7 @@ import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
 import main.ui.dialog.file.SimjotFileChooser;
 import main.core.service.SettingsStore;
+import main.infrastructure.input.TabletInputSupport;
 
 /**
  * Notetaking editor: extends the standard EntryPanel with
@@ -131,6 +132,10 @@ public class NotetakingPanel extends EntryPanel {
     private Timer textColorCodeTimer;
     private KeyEventDispatcher textColorCodeDispatcher;
     private boolean textColorDispatcherInstalled = false;
+    private boolean tabletInitialized = false;
+    private boolean useTabletPressure = true;
+    private float pressureGamma = 1.0f;
+    private float minPressure = 0.05f;
 
     private static final int TEXT_COLOR_CODE_TIMEOUT_MS = 5000;
     private static final String TEXT_COLOR_CODE_PREF_KEY = "notetaking.textColorCodeMap";
@@ -138,6 +143,8 @@ public class NotetakingPanel extends EntryPanel {
             "B=#2196F3,R=#F44336,G=#4CAF50,Y=#FFEB3B,O=#FF9800,P=#9C27B0,K=#212121,W=#FFFFFF";
     private static final int DRAW_V2_MAGIC = 0x44525732; // "DRW2"
     private static final int DRAW_V2_VERSION = 2;
+    private static final int DRAW_V3_VERSION = 3;
+    private static final float DEFAULT_PRESSURE = 1.0f;
     private static final float DRAW_POINT_MIN_DIST = 0.35f;
     private static final long DRAW_POINT_MIN_DT_MS = 2L;
     private static final long DRAW_LARGE_FILE_BYTES = 8L * 1024L * 1024L;
@@ -415,6 +422,22 @@ public class NotetakingPanel extends EntryPanel {
         Color picked = main.ui.dialog.utils.SimpleColorPicker.showDialog(
                 this, "Text Color", currentTextColor, TEXT_COLOR_CODE_PREF_KEY, DEFAULT_TEXT_COLOR_CODE_MAP);
         applyTextColor(picked);
+    }
+
+    private float getPressure(MouseEvent e) {
+        if (!useTabletPressure) return DEFAULT_PRESSURE;
+        if (!tabletInitialized) {
+            tabletInitialized = true;
+            try {
+                TabletInputSupport.initialize();
+                TabletInputSupport.setPressureGamma(pressureGamma);
+            } catch (Throwable ignored) {}
+        }
+        if (TabletInputSupport.isAvailable()) {
+            float pressure = TabletInputSupport.getPressure();
+            return Math.max(minPressure, pressure);
+        }
+        return DEFAULT_PRESSURE;
     }
 
     private JPanel buildColorPopupContent() {
@@ -944,7 +967,7 @@ public class NotetakingPanel extends EntryPanel {
         File sideV2 = new File(mainFile.getAbsolutePath() + ".draw2");
         try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(sideV2)))) {
             out.writeInt(DRAW_V2_MAGIC);
-            out.writeInt(DRAW_V2_VERSION);
+            out.writeInt(DRAW_V3_VERSION);
             out.writeInt(drawStrokes.size());
             out.writeInt(floatingImages.size());
             for (DrawStroke s : drawStrokes) {
@@ -958,7 +981,8 @@ public class NotetakingPanel extends EntryPanel {
                     float[] p = s.floatPoints.get(i);
                     out.writeFloat(p[0]);
                     out.writeFloat(p[1]);
-                    long ts = (long) p[2];
+                    out.writeFloat(p[2]);
+                    long ts = (long) p[3];
                     int dt = (i == 0) ? 0 : (int) Math.max(0, Math.min(Integer.MAX_VALUE, ts - prevTs));
                     out.writeInt(dt);
                     prevTs = ts;
@@ -988,7 +1012,7 @@ public class NotetakingPanel extends EntryPanel {
             try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(sideV2)))) {
                 int magic = in.readInt();
                 int version = in.readInt();
-                if (magic != DRAW_V2_MAGIC || version != DRAW_V2_VERSION) return;
+                if (magic != DRAW_V2_MAGIC || (version != DRAW_V2_VERSION && version != DRAW_V3_VERSION)) return;
                 int strokeCount = in.readInt();
                 int imageCount = in.readInt();
                 for (int s = 0; s < strokeCount; s++) {
@@ -1003,9 +1027,10 @@ public class NotetakingPanel extends EntryPanel {
                     for (int i = 0; i < n; i++) {
                         float x = in.readFloat();
                         float y = in.readFloat();
+                        float pressure = (version >= DRAW_V3_VERSION) ? in.readFloat() : DEFAULT_PRESSURE;
                         int dt = in.readInt();
                         if (i > 0) ts += Math.max(0L, dt);
-                        stroke.addPointRaw(x, y, ts);
+                        stroke.addPointRaw(x, y, pressure, ts);
                     }
                     drawStrokes.add(stroke);
                 }
@@ -1347,12 +1372,12 @@ public class NotetakingPanel extends EntryPanel {
         }
     }
     
-    // Enhanced stroke with float precision and timestamps for velocity-based rendering
+    // Enhanced stroke with float precision, pressure, and timestamps for velocity-based rendering
     private static class DrawStroke {
         final DrawTool tool;
         final Color color;
         final int thickness;
-        final List<float[]> floatPoints; // [x, y, timestamp] for native engine
+        final List<float[]> floatPoints; // [x, y, pressure, timestamp] for native engine
         private int minX = Integer.MAX_VALUE;
         private int minY = Integer.MAX_VALUE;
         private int maxX = Integer.MIN_VALUE;
@@ -1376,7 +1401,7 @@ public class NotetakingPanel extends EntryPanel {
             this.floatPoints = new ArrayList<>();
             // Convert existing points to float format
             for (Point p : pts) {
-                floatPoints.add(new float[]{p.x, p.y, System.currentTimeMillis()});
+                floatPoints.add(new float[]{p.x, p.y, DEFAULT_PRESSURE, System.currentTimeMillis()});
                 updateBounds(p.x, p.y);
             }
             if (pts.isEmpty()) {
@@ -1384,19 +1409,19 @@ public class NotetakingPanel extends EntryPanel {
             }
         }
         
-        void addPoint(float x, float y, long timestamp) {
+        void addPoint(float x, float y, float pressure, long timestamp) {
             if (!floatPoints.isEmpty()) {
                 float[] last = floatPoints.get(floatPoints.size() - 1);
                 float dx = x - last[0];
                 float dy = y - last[1];
                 if ((dx * dx + dy * dy) < (DRAW_POINT_MIN_DIST * DRAW_POINT_MIN_DIST)
-                        && Math.abs(timestamp - (long) last[2]) < DRAW_POINT_MIN_DT_MS) return;
+                        && Math.abs(timestamp - (long) last[3]) < DRAW_POINT_MIN_DT_MS) return;
             }
-            addPointRaw(x, y, timestamp);
+            addPointRaw(x, y, pressure, timestamp);
         }
 
-        void addPointRaw(float x, float y, long timestamp) {
-            floatPoints.add(new float[]{x, y, timestamp});
+        void addPointRaw(float x, float y, float pressure, long timestamp) {
+            floatPoints.add(new float[]{x, y, pressure, timestamp});
             updateBounds(Math.round(x), Math.round(y));
             cacheValid = false;
             cachedThicknesses = null;
@@ -1478,7 +1503,7 @@ public class NotetakingPanel extends EntryPanel {
         }
 
         void addLegacyPoint(Point p) {
-            addPointRaw(p.x, p.y, System.currentTimeMillis());
+            addPointRaw(p.x, p.y, DEFAULT_PRESSURE, System.currentTimeMillis());
         }
         
         private void rebuildCache() {
@@ -1495,8 +1520,14 @@ public class NotetakingPanel extends EntryPanel {
         
         long[] getTimestamps() {
             long[] ts = new long[floatPoints.size()];
-            for (int i = 0; i < floatPoints.size(); i++) ts[i] = (long) floatPoints.get(i)[2];
+            for (int i = 0; i < floatPoints.size(); i++) ts[i] = (long) floatPoints.get(i)[3];
             return ts;
+        }
+
+        float[] getPressures() {
+            float[] ps = new float[floatPoints.size()];
+            for (int i = 0; i < floatPoints.size(); i++) ps[i] = floatPoints.get(i)[2];
+            return ps;
         }
     }
     
@@ -1845,7 +1876,11 @@ private class DrawingOverlay extends JComponent {
                     lastRawX = p.x;
                     lastRawY = p.y;
                     lastTimestamp = now;
-                    current.addPoint(smoothX, smoothY, now);
+                    if (TabletInputSupport.isAvailable()) {
+                        TabletInputSupport.resetPressureSmoothing();
+                    }
+                    float pressure = getPressure(e);
+                    current.addPoint(smoothX, smoothY, pressure, now);
                 }
 
                 lastPoint = p;
@@ -1898,7 +1933,8 @@ private class DrawingOverlay extends JComponent {
                 smoothY = alpha * rawY + (1f - alpha) * smoothY;
 
                 Point prev = lastPoint;
-                current.addPoint(smoothX, smoothY, now);
+                float pressure = getPressure(e);
+                current.addPoint(smoothX, smoothY, pressure, now);
                 addNativePoint(current, smoothX, smoothY, now);
                 lastPoint = new Point(Math.round(smoothX), Math.round(smoothY));
                 lastRawX = rawX;
@@ -1997,12 +2033,12 @@ private class DrawingOverlay extends JComponent {
         private void addStrokeToNativeManager(long handle, DrawStroke stroke) {
             if (handle == 0 || stroke == null || stroke.floatPoints.isEmpty()) return;
             float[] first = stroke.floatPoints.get(0);
-            int idx = nativeDrawing.strokeBegin(handle, first[0], first[1], (long) first[2],
+            int idx = nativeDrawing.strokeBegin(handle, first[0], first[1], (long) first[3],
                     stroke.thickness, stroke.color.getRGB(), false);
             if (idx < 0) return;
             for (int i = 1; i < stroke.floatPoints.size(); i++) {
                 float[] p = stroke.floatPoints.get(i);
-                nativeDrawing.strokeAddPoint(handle, idx, p[0], p[1], (long) p[2]);
+                nativeDrawing.strokeAddPoint(handle, idx, p[0], p[1], (long) p[3]);
             }
             nativeDrawing.strokeEnd(handle, idx, false);
         }
@@ -2044,6 +2080,7 @@ private class DrawingOverlay extends JComponent {
             float[] ys = stroke.getPointsY();
             long[] ts = stroke.getTimestamps();
             if (xs.length < 3) return;
+            float[] basePressures = stroke.getPressures();
             
             float[] workingX = xs;
             float[] workingY = ys;
@@ -2069,7 +2106,7 @@ private class DrawingOverlay extends JComponent {
             float[] finalXs = finalX;
             float[] finalYs = finalY;
             long[] finalTimestamps = finalTs;
-            SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, finalTimestamps));
+            SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, basePressures, finalTimestamps));
         }
 
         private void applyFinalHighlightSmoothing(DrawStroke stroke) {
@@ -2096,7 +2133,8 @@ private class DrawingOverlay extends JComponent {
                 float[] finalXs = finalX;
                 float[] finalYs = finalY;
                 long[] finalTs = ts;
-                SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, finalTs));
+                float[] basePressures = stroke.getPressures();
+                SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, finalXs, finalYs, basePressures, finalTs));
                 return;
             }
             int n = stroke.floatPoints.size();
@@ -2119,7 +2157,8 @@ private class DrawingOverlay extends JComponent {
             long start = (baseTs.length > 0) ? baseTs[0] : System.currentTimeMillis();
             long end = (baseTs.length > 0) ? baseTs[baseTs.length - 1] : start;
             long[] ts = interpolateTimestamps(smoothX, smoothY, start, end);
-            SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, smoothX, smoothY, ts));
+            float[] basePressures = stroke.getPressures();
+            SwingUtilities.invokeLater(() -> replaceStrokePoints(stroke, smoothX, smoothY, basePressures, ts));
         }
         
         private long[] mapSampledTimestamps(float[] sampledX, float[] sampledY, float[] originalX, float[] originalY, long[] originalTs) {
@@ -2143,12 +2182,35 @@ private class DrawingOverlay extends JComponent {
             }
             return result;
         }
+
+        private float[] resamplePressures(float[] pressures, int newCount) {
+            if (pressures == null || pressures.length == 0 || newCount <= 0) return null;
+            if (pressures.length == newCount) return pressures.clone();
+            float[] out = new float[newCount];
+            if (newCount == 1) {
+                out[0] = pressures[0];
+                return out;
+            }
+            int last = pressures.length - 1;
+            for (int i = 0; i < newCount; i++) {
+                float t = i * (last / (float) (newCount - 1));
+                int idx = (int) Math.floor(t);
+                int next = Math.min(last, idx + 1);
+                float frac = t - idx;
+                float v0 = pressures[idx];
+                float v1 = pressures[next];
+                out[i] = v0 + (v1 - v0) * frac;
+            }
+            return out;
+        }
         
-        private void replaceStrokePoints(DrawStroke stroke, float[] xs, float[] ys, long[] ts) {
+        private void replaceStrokePoints(DrawStroke stroke, float[] xs, float[] ys, float[] pressures, long[] ts) {
             stroke.floatPoints.clear();
+            float[] resampledPressures = resamplePressures(pressures, xs.length);
             for (int i = 0; i < xs.length; i++) {
                 float timestamp = (ts != null && i < ts.length) ? ts[i] : System.currentTimeMillis();
-                stroke.addPointRaw(xs[i], ys[i], (long) timestamp);
+                float pressure = (resampledPressures != null && i < resampledPressures.length) ? resampledPressures[i] : DEFAULT_PRESSURE;
+                stroke.addPointRaw(xs[i], ys[i], pressure, (long) timestamp);
             }
             stroke.invalidateCache();
             strokeBufferDirty = true;
@@ -2185,12 +2247,13 @@ private class DrawingOverlay extends JComponent {
                     int count = Math.min(3, n);
                     float[] xs = new float[count];
                     float[] ys = new float[count];
+                    float[] thicknesses = new float[count];
                     for (int i = 0; i < count; i++) {
                         float[] p = stroke.floatPoints.get(n - count + i);
                         xs[i] = p[0];
                         ys[i] = p[1];
+                        thicknesses[i] = stroke.thickness * clampPressure(p[2]);
                     }
-                    float[] thicknesses = buildConstantThicknesses(count, stroke.thickness);
                     int[] pixels = ((java.awt.image.DataBufferInt) penStrokeBuffer.getRaster().getDataBuffer()).getData();
                     boolean ok = nativeDrawing.strokeRenderVariable(pixels, penStrokeBuffer.getWidth(), penStrokeBuffer.getHeight(),
                             xs, ys, thicknesses, stroke.color.getRGB(), vpPos.x, vpPos.y);
@@ -2200,7 +2263,8 @@ private class DrawingOverlay extends JComponent {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.translate(-vpPos.x, -vpPos.y);
                 g2.setColor(stroke.color);
-                g2.setStroke(new BasicStroke(stroke.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                float lastPressure = stroke.floatPoints.get(n - 1)[2];
+                g2.setStroke(new BasicStroke(stroke.thickness * clampPressure(lastPressure), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 if (n == 1) {
                     float[] p0 = stroke.floatPoints.get(0);
                     g2.fillOval(Math.round(p0[0] - 1), Math.round(p0[1] - 1), 3, 3);
@@ -2693,9 +2757,13 @@ private class DrawingOverlay extends JComponent {
                     fp[1] = ys[i];
                 }
             } else {
+                float[] pressures = s.getPressures();
+                long[] timestamps = s.getTimestamps();
                 s.floatPoints.clear();
                 for (int i = 0; i < n; i++) {
-                    s.floatPoints.add(new float[]{xs[i], ys[i], System.currentTimeMillis()});
+                    float pressure = (pressures != null && i < pressures.length) ? pressures[i] : DEFAULT_PRESSURE;
+                    long ts = (timestamps != null && i < timestamps.length) ? timestamps[i] : System.currentTimeMillis();
+                    s.floatPoints.add(new float[]{xs[i], ys[i], pressure, ts});
                 }
             }
             return true;
@@ -2813,8 +2881,12 @@ private class DrawingOverlay extends JComponent {
                         if (s.tool != DrawTool.PEN) continue;
                         if (!s.intersectsRect(viewRect, s.thickness + 6)) continue;
                         g2.setColor(s.color);
-                        g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                        drawStrokePath(g2, s.floatPoints);
+                        if (hasPressureVariation(s)) {
+                            drawStrokePathVariable(g2, s);
+                        } else {
+                            g2.setStroke(new BasicStroke(s.thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                            drawStrokePath(g2, s.floatPoints);
+                        }
                         drew = true;
                     }
                     g2.dispose();
@@ -2993,9 +3065,26 @@ private class DrawingOverlay extends JComponent {
             int n = s.floatPoints.size();
             float[] thicknesses = new float[Math.max(1, n)];
             float baseT = s.thickness;
-            java.util.Arrays.fill(thicknesses, baseT);
+            if (s.tool == DrawTool.PEN) {
+                float[] pressures = s.getPressures();
+                if (pressures != null && pressures.length == n) {
+                    for (int i = 0; i < n; i++) {
+                        thicknesses[i] = baseT * clampPressure(pressures[i]);
+                    }
+                } else {
+                    java.util.Arrays.fill(thicknesses, baseT);
+                }
+            } else {
+                java.util.Arrays.fill(thicknesses, baseT);
+            }
             s.setCachedThicknesses(thicknesses);
             return thicknesses;
+        }
+
+        private float clampPressure(float pressure) {
+            if (pressure < 0.05f) return 0.05f;
+            if (pressure > 1.6f) return 1.6f;
+            return pressure;
         }
 
         private float[] buildConstantThicknesses(int count, float thickness) {
@@ -3027,6 +3116,36 @@ private class DrawingOverlay extends JComponent {
             float[] last = floatPoints.get(n - 1);
             path.lineTo(last[0], last[1]);
             g2.draw(path);
+        }
+
+        private boolean hasPressureVariation(DrawStroke stroke) {
+            if (stroke == null || stroke.floatPoints.size() < 2) return false;
+            float[] pressures = stroke.getPressures();
+            if (pressures == null || pressures.length == 0) return false;
+            float base = pressures[0];
+            for (int i = 1; i < pressures.length; i++) {
+                if (Math.abs(pressures[i] - base) > 0.08f) return true;
+            }
+            return false;
+        }
+
+        private void drawStrokePathVariable(Graphics2D g2, DrawStroke stroke) {
+            List<float[]> pts = stroke.floatPoints;
+            int n = pts.size();
+            if (n == 0) return;
+            if (n == 1) {
+                float[] p = pts.get(0);
+                float radius = stroke.thickness * clampPressure(p[2]) * 0.5f;
+                g2.fillOval(Math.round(p[0] - radius), Math.round(p[1] - radius), Math.round(radius * 2f), Math.round(radius * 2f));
+                return;
+            }
+            for (int i = 1; i < n; i++) {
+                float[] p0 = pts.get(i - 1);
+                float[] p1 = pts.get(i);
+                float pressure = (p0[2] + p1[2]) * 0.5f;
+                g2.setStroke(new BasicStroke(stroke.thickness * clampPressure(pressure), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(Math.round(p0[0]), Math.round(p0[1]), Math.round(p1[0]), Math.round(p1[1]));
+            }
         }
         
         // Path2D drawing for float point list (highlighter)
