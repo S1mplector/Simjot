@@ -76,6 +76,9 @@ public final class SettingsStore {
     private static final String KEY_POEM_BG_IMAGE = "poemBackgroundImage";
     private static final String KEY_POEM_BG_OPACITY = "poemBackgroundOpacity";
     private static final String KEY_EDITOR_GLASS_OPACITY = "editorGlassOpacity";
+    private static final String KEY_ENTRY_GLASS_OPACITY = "entryGlassOpacity";
+    private static final String KEY_POEM_GLASS_OPACITY = "poemGlassOpacity";
+    private static final String KEY_NOTETAKING_GLASS_OPACITY = "notetakingGlassOpacity";
     private static final String KEY_EDITOR_PAPER_FEEL = "editorPaperFeelEnabled";
     private static final String KEY_EDITOR_TYPO_POLISH = "editorTypographyPolishEnabled";
     private static final String KEY_EDITOR_HEADER_STAMP = "editorHeaderStampEnabled";
@@ -146,6 +149,9 @@ public final class SettingsStore {
     private static final float DEF_ENTRY_BG_OPACITY = 0.7f;
     private static final float DEF_POEM_BG_OPACITY = 0.3f; // Lighter default for poems
     private static final float DEF_EDITOR_GLASS_OPACITY = 0.9f; // Glass panel opacity (0=transparent, 1=opaque)
+    private static final float DEF_ENTRY_GLASS_OPACITY = DEF_EDITOR_GLASS_OPACITY;
+    private static final float DEF_POEM_GLASS_OPACITY = DEF_EDITOR_GLASS_OPACITY;
+    private static final float DEF_NOTETAKING_GLASS_OPACITY = DEF_EDITOR_GLASS_OPACITY;
     private static final boolean DEF_EDITOR_PAPER_FEEL = true;
     private static final boolean DEF_EDITOR_TYPO_POLISH = true;
     private static final boolean DEF_EDITOR_HEADER_STAMP = false;
@@ -561,18 +567,56 @@ public final class SettingsStore {
         float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
         props.setProperty(KEY_POEM_BG_OPACITY, String.valueOf(clamped));
     }
-    
-    public float getEditorGlassOpacity() {
+
+    private float readOpacity(String key, float def) {
         try {
-            return Float.parseFloat(props.getProperty(KEY_EDITOR_GLASS_OPACITY, String.valueOf(DEF_EDITOR_GLASS_OPACITY)));
+            return Float.parseFloat(props.getProperty(key, String.valueOf(def)));
         } catch (NumberFormatException e) {
-            return DEF_EDITOR_GLASS_OPACITY;
+            return def;
         }
+    }
+
+    public float getEntryGlassOpacity() {
+        float legacy = readOpacity(KEY_EDITOR_GLASS_OPACITY, DEF_ENTRY_GLASS_OPACITY);
+        return readOpacity(KEY_ENTRY_GLASS_OPACITY, legacy);
+    }
+
+    public void setEntryGlassOpacity(float opacity) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
+        props.setProperty(KEY_ENTRY_GLASS_OPACITY, String.valueOf(clamped));
+        props.setProperty(KEY_EDITOR_GLASS_OPACITY, String.valueOf(clamped));
+    }
+
+    public float getPoemGlassOpacity() {
+        float legacy = readOpacity(KEY_EDITOR_GLASS_OPACITY, DEF_POEM_GLASS_OPACITY);
+        return readOpacity(KEY_POEM_GLASS_OPACITY, legacy);
+    }
+
+    public void setPoemGlassOpacity(float opacity) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
+        props.setProperty(KEY_POEM_GLASS_OPACITY, String.valueOf(clamped));
+    }
+
+    public float getNotetakingGlassOpacity() {
+        float legacy = readOpacity(KEY_EDITOR_GLASS_OPACITY, DEF_NOTETAKING_GLASS_OPACITY);
+        return readOpacity(KEY_NOTETAKING_GLASS_OPACITY, legacy);
+    }
+
+    public void setNotetakingGlassOpacity(float opacity) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
+        props.setProperty(KEY_NOTETAKING_GLASS_OPACITY, String.valueOf(clamped));
+    }
+
+    public float getEditorGlassOpacity() {
+        return getEntryGlassOpacity();
     }
     
     public void setEditorGlassOpacity(float opacity) {
         float clamped = Math.max(0.0f, Math.min(1.0f, opacity));
         props.setProperty(KEY_EDITOR_GLASS_OPACITY, String.valueOf(clamped));
+        props.setProperty(KEY_ENTRY_GLASS_OPACITY, String.valueOf(clamped));
+        props.setProperty(KEY_POEM_GLASS_OPACITY, String.valueOf(clamped));
+        props.setProperty(KEY_NOTETAKING_GLASS_OPACITY, String.valueOf(clamped));
     }
 
     public boolean isEditorPaperFeelEnabled() {

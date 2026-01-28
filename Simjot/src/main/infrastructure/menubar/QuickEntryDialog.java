@@ -89,7 +89,7 @@ public class QuickEntryDialog extends JDialog {
         FrostedGlassPanel mainPanel = new FrostedGlassPanel(new BorderLayout(0, 8), 16) {
             @Override
             protected float getOpacityScale() {
-                return SettingsStore.get().getEditorGlassOpacity();
+                return SettingsStore.get().getEntryGlassOpacity();
             }
         };
         mainPanel.setBorder(new EmptyBorder(12, 14, 12, 14));
@@ -154,7 +154,7 @@ public class QuickEntryDialog extends JDialog {
         FrostedGlassPanel textWrapper = new FrostedGlassPanel(new BorderLayout(), 14) {
             @Override
             protected float getOpacityScale() {
-                return SettingsStore.get().getEditorGlassOpacity();
+                return SettingsStore.get().getEntryGlassOpacity();
             }
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));

@@ -89,7 +89,6 @@ import main.core.service.SettingsStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -1381,80 +1380,67 @@ public class NotebookManagerPanel extends JPanel {
             setBackground(new Color(0,0,0,0));
             setLayout(new BorderLayout());
 
-            ShadowedDialogPanel panel = new ShadowedDialogPanel(new BorderLayout(0, 16), 18);
-            panel.setBorder(BorderFactory.createEmptyBorder(24, 24, 20, 24));
+            ShadowedDialogPanel panel = new ShadowedDialogPanel(new BorderLayout(12, 12), 16);
+            panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+            panel.setFlat(true);
+            panel.setFlatColor(Color.WHITE);
 
-            // Header with icon and title
-            JPanel header = new JPanel(new BorderLayout(12, 0));
+            // Header (name field + subtitle)
+            JPanel header = new JPanel();
             header.setOpaque(false);
-            
-            // Decorative notebook icon
-            JPanel iconPanel = new JPanel() {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    super.paintComponent(g);
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    int s = Math.min(getWidth(), getHeight()) - 4;
-                    int x = (getWidth() - s) / 2;
-                    int y = (getHeight() - s) / 2;
-                    // Draw a stylized notebook
-                    g2.setColor(new Color(100, 149, 237, 40));
-                    g2.fillRoundRect(x, y, s, s, 8, 8);
-                    g2.setColor(new Color(100, 149, 237));
-                    g2.setStroke(new BasicStroke(1.5f));
-                    g2.drawRoundRect(x + 2, y + 2, s - 4, s - 4, 6, 6);
-                    // Lines inside
-                    g2.setStroke(new BasicStroke(1f));
-                    int lineY = y + s / 3;
-                    g2.drawLine(x + 6, lineY, x + s - 6, lineY);
-                    g2.drawLine(x + 6, lineY + 6, x + s - 10, lineY + 6);
-                    g2.drawLine(x + 6, lineY + 12, x + s - 14, lineY + 12);
-                    g2.dispose();
-                }
-            };
-            iconPanel.setOpaque(false);
-            iconPanel.setPreferredSize(new Dimension(40, 40));
-            header.add(iconPanel, BorderLayout.WEST);
-            
-            JPanel titlePanel = new JPanel();
-            titlePanel.setOpaque(false);
-            titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
-            JLabel title = new JLabel("Create New Notebook");
-            title.setForeground(new Color(40, 40, 40));
-            title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-            title.setAlignmentX(Component.LEFT_ALIGNMENT);
-            JLabel subtitle = new JLabel("Choose a type and give it a name");
+            header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+            header.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
+
+            nameField.setToolTipText("Enter notebook name");
+            nameField.setAlignmentX(Component.LEFT_ALIGNMENT);
+            nameField.setEditable(true);
+            nameField.setFocusable(true);
+            nameField.setPreferredSize(new Dimension(360, 36));
+            nameField.setMinimumSize(new Dimension(200, 36));
+            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+            nameField.setPlaceholder("Notebook name");
+            try {
+                String family = SettingsStore.get().getEditorFontFamily();
+                int size = SettingsStore.get().getJournalFontSize();
+                nameField.setFont(CustomFontApplier.resolveUiFont(family, size));
+            } catch (Throwable ignored) {
+                nameField.setFont(nameField.getFont().deriveFont(Font.PLAIN, 16f));
+            }
+            header.add(nameField);
+
+            JLabel subtitle = new JLabel("Choose a notebook type below");
             subtitle.setForeground(new Color(120, 120, 120));
             subtitle.setFont(subtitle.getFont().deriveFont(12f));
             subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-            titlePanel.add(title);
-            titlePanel.add(Box.createVerticalStrut(2));
-            titlePanel.add(subtitle);
-            header.add(titlePanel, BorderLayout.CENTER);
-            
+            header.add(Box.createVerticalStrut(6));
+            header.add(subtitle);
             panel.add(header, BorderLayout.NORTH);
 
             // Center content
-            JPanel center = new JPanel();
+            JPanel center = new JPanel(new GridBagLayout());
             center.setOpaque(false);
-            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+            GridBagConstraints gc = new GridBagConstraints();
+            gc.gridx = 0;
+            gc.gridy = 0;
+            gc.anchor = GridBagConstraints.WEST;
+            gc.fill = GridBagConstraints.HORIZONTAL;
+            gc.weightx = 1.0;
+            gc.insets = new Insets(6, 4, 6, 4);
 
-            // Type selection cards
-            JLabel typeLabel = new JLabel("Notebook Type");
-            typeLabel.setForeground(new Color(80, 80, 80));
-            typeLabel.setFont(typeLabel.getFont().deriveFont(Font.BOLD, 12f));
-            typeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            center.add(typeLabel);
-            center.add(Box.createVerticalStrut(8));
+            JLabel typeLabel = new JLabel("Notebook Type:");
+            typeLabel.setForeground(Color.DARK_GRAY);
+            typeLabel.setFont(typeLabel.getFont().deriveFont(Font.BOLD, 13f));
+            center.add(typeLabel, gc);
+
+            gc.gridy++;
+            gc.insets = new Insets(6, 4, 8, 4);
 
             JPanel typeCards = new JPanel(new GridBagLayout());
             typeCards.setOpaque(false);
-            GridBagConstraints gc = new GridBagConstraints();
-            gc.fill = GridBagConstraints.BOTH;
-            gc.weightx = 1.0;
-            gc.weighty = 1.0;
-            gc.insets = new Insets(0, 0, 0, 8);
+            GridBagConstraints tc = new GridBagConstraints();
+            tc.fill = GridBagConstraints.BOTH;
+            tc.weightx = 1.0;
+            tc.insets = new Insets(0, 0, 0, 8);
 
             poetryCard = new TypeCard(
                 "Poetry",
@@ -1475,64 +1461,30 @@ public class NotebookManagerPanel extends JPanel {
                 NotebookInfo.Type.NOTETAKING
             );
 
-            gc.gridx = 0;
-            typeCards.add(poetryCard, gc);
-            gc.gridx = 1;
-            gc.insets = new Insets(0, 6, 0, 6);
-            typeCards.add(journalCard, gc);
-            gc.gridx = 2;
-            gc.insets = new Insets(0, 0, 0, 0);
-            typeCards.add(notetakingCard, gc);
+            tc.gridx = 0;
+            typeCards.add(poetryCard, tc);
+            tc.gridx = 1;
+            tc.insets = new Insets(0, 6, 0, 6);
+            typeCards.add(journalCard, tc);
+            tc.gridx = 2;
+            tc.insets = new Insets(0, 0, 0, 0);
+            typeCards.add(notetakingCard, tc);
 
-            typeCards.setAlignmentX(Component.LEFT_ALIGNMENT);
-            typeCards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
-            center.add(typeCards);
-            center.add(Box.createVerticalStrut(12));
-
-            JLabel nameLabel = new JLabel("Name");
-            nameLabel.setForeground(new Color(80, 80, 80));
-            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
-            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            center.add(nameLabel);
-            center.add(Box.createVerticalStrut(6));
-
-            // Name field (title-style divider)
-            nameField.setToolTipText("Enter notebook name");
-            nameField.setAlignmentX(Component.LEFT_ALIGNMENT);
-            nameField.setEditable(true);
-            nameField.setFocusable(true);
-            nameField.setPreferredSize(new Dimension(360, 36));
-            nameField.setMinimumSize(new Dimension(200, 36));
-            nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-            nameField.setPlaceholder("Notebook name");
-            try {
-                String family = SettingsStore.get().getEditorFontFamily();
-                int size = SettingsStore.get().getJournalFontSize();
-                nameField.setFont(CustomFontApplier.resolveUiFont(family, size));
-            } catch (Throwable ignored) {
-                nameField.setFont(nameField.getFont().deriveFont(Font.PLAIN, 16f));
-            }
-            center.add(nameField);
-            center.add(Box.createVerticalStrut(8));
-
+            center.add(typeCards, gc);
             panel.add(center, BorderLayout.CENTER);
 
             // Buttons
-            JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+            JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
             btns.setOpaque(false);
-            IconMenuButton cancel = new IconMenuButton("Cancel", "exit");
-            cancel.setFloatAnimationEnabled(false).setAeroGlowEnabled(true).setHoverOverlayOpacity(1.35f);
-            cancel.setToolTipText("Cancel");
-            cancel.setPreferredSize(new Dimension(84, 80));
-            cancel.addActionListener(e -> { accepted = false; setVisible(false); dispose(); });
-            IconMenuButton okBtn = new IconMenuButton("Create", "save");
-            okBtn.setFloatAnimationEnabled(false).setAeroGlowEnabled(true).setHoverOverlayOpacity(1.35f);
+            RoundedButton okBtn = createDialogButton("Create", "save");
             okBtn.setToolTipText("Create");
-            okBtn.setPreferredSize(new Dimension(84, 80));
             okBtn.setEnabled(false);
             okBtn.addActionListener(e -> { accepted = true; setVisible(false); dispose(); });
-            btns.add(cancel);
+            RoundedButton cancel = createDialogButton("Cancel", "exit");
+            cancel.setToolTipText("Cancel");
+            cancel.addActionListener(e -> { accepted = false; setVisible(false); dispose(); });
             btns.add(okBtn);
+            btns.add(cancel);
             panel.add(btns, BorderLayout.SOUTH);
 
             // Enable Create only when name entered
@@ -1573,6 +1525,13 @@ public class NotebookManagerPanel extends JPanel {
             poetryCard.setSelected(type == NotebookInfo.Type.POETRY);
             journalCard.setSelected(type == NotebookInfo.Type.JOURNAL);
             notetakingCard.setSelected(type == NotebookInfo.Type.NOTETAKING);
+        }
+
+        private RoundedButton createDialogButton(String text, String iconId) {
+            RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+            btn.setPreferredSize(new Dimension(132, 40));
+            btn.setFocusPainted(false);
+            return btn;
         }
 
         boolean isAccepted(){ return accepted; }

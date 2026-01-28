@@ -93,7 +93,7 @@ public class GlobalSearchDialog extends JDialog {
         FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(12, 12), 16) {
             @Override
             protected float getOpacityScale() {
-                return SettingsStore.get().getEditorGlassOpacity();
+                return SettingsStore.get().getEntryGlassOpacity();
             }
         };
         root.setBorder(new EmptyBorder(16, 16, 16, 16));

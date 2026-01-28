@@ -169,6 +169,11 @@ public class NotetakingPanel extends EntryPanel {
     }
 
     @Override
+    protected float getEditorGlassOpacity() {
+        return SettingsStore.get().getNotetakingGlassOpacity();
+    }
+
+    @Override
     public void removeNotify() {
         try { if (drawingOverlay != null) drawingOverlay.shutdown(); } catch (Throwable ignored) {}
         cancelTextColorCode(false);

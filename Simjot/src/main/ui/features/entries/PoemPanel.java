@@ -408,7 +408,7 @@ public class PoemPanel extends AbstractEditorPanel {
         JPanel textWrapper = new FrostedGlassPanel(new BorderLayout(), 16) {
             @Override
             protected float getOpacityScale() {
-                return SettingsStore.get().getEditorGlassOpacity();
+                return SettingsStore.get().getPoemGlassOpacity();
             }
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));

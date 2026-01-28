@@ -18,10 +18,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GradientPaint;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
@@ -58,6 +60,7 @@ import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.slider.MoodSlider;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.TodayCalendarPanel;
@@ -68,8 +71,15 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<AccentOption> accentBox;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
-    private final MoodSlider glassOpacitySlider;
-    private final JLabel glassOpacityValueLabel;
+    private final MoodSlider journalGlassOpacitySlider;
+    private final JLabel journalGlassOpacityValueLabel;
+    private final GlassOpacityPreview journalGlassPreview;
+    private final MoodSlider poemGlassOpacitySlider;
+    private final JLabel poemGlassOpacityValueLabel;
+    private final GlassOpacityPreview poemGlassPreview;
+    private final MoodSlider notetakingGlassOpacitySlider;
+    private final JLabel notetakingGlassOpacityValueLabel;
+    private final GlassOpacityPreview notetakingGlassPreview;
     private final JCheckBox paperFeelChk;
     private final JCheckBox typographyPolishChk;
     private final JCheckBox headerStampChk;
@@ -144,23 +154,52 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
         gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
 
-        // Editor glass panel opacity slider
+        // Editor glass panel opacity sliders (per editor type)
         gc.gridwidth = 1;
-        gc.gridx = 0; gc.gridy = 6; add(SettingsUi.label("Editor glass opacity:"), gc);
-        JPanel glassSliderPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 5, 0));
-        glassSliderPanel.setOpaque(false);
-        float savedGlassOpacity = store.getEditorGlassOpacity();
-        glassOpacitySlider = new MoodSlider();
-        glassOpacitySlider.setValue((int)(savedGlassOpacity * 100));
-        glassOpacitySlider.setHoverFadeEnabled(true);
-        glassOpacityValueLabel = new JLabel(String.format("%d%%", (int)(savedGlassOpacity * 100)));
-        glassOpacityValueLabel.setPreferredSize(new Dimension(40, 20));
-        glassOpacitySlider.addChangeListener(e -> {
-            glassOpacityValueLabel.setText(String.format("%d%%", glassOpacitySlider.getValue()));
+        float savedJournalGlassOpacity = store.getEntryGlassOpacity();
+        journalGlassOpacitySlider = new MoodSlider();
+        journalGlassOpacitySlider.setValue((int)(savedJournalGlassOpacity * 100));
+        journalGlassOpacitySlider.setHoverFadeEnabled(true);
+        journalGlassOpacityValueLabel = new JLabel(String.format("%d%%", (int)(savedJournalGlassOpacity * 100)));
+        journalGlassOpacityValueLabel.setPreferredSize(new Dimension(40, 20));
+        journalGlassPreview = new GlassOpacityPreview("Journal", savedJournalGlassOpacity);
+        journalGlassOpacitySlider.addChangeListener(e -> {
+            int v = journalGlassOpacitySlider.getValue();
+            journalGlassOpacityValueLabel.setText(String.format("%d%%", v));
+            journalGlassPreview.setOpacity(v / 100f);
         });
-        glassSliderPanel.add(glassOpacitySlider);
-        glassSliderPanel.add(glassOpacityValueLabel);
-        gc.gridx = 1; add(glassSliderPanel, gc);
+        gc.gridx = 0; gc.gridy = 6; add(SettingsUi.label("Journal editor glass opacity:"), gc);
+        gc.gridx = 1; add(buildGlassOpacityRow(journalGlassOpacitySlider, journalGlassOpacityValueLabel, journalGlassPreview), gc);
+
+        float savedPoemGlassOpacity = store.getPoemGlassOpacity();
+        poemGlassOpacitySlider = new MoodSlider();
+        poemGlassOpacitySlider.setValue((int)(savedPoemGlassOpacity * 100));
+        poemGlassOpacitySlider.setHoverFadeEnabled(true);
+        poemGlassOpacityValueLabel = new JLabel(String.format("%d%%", (int)(savedPoemGlassOpacity * 100)));
+        poemGlassOpacityValueLabel.setPreferredSize(new Dimension(40, 20));
+        poemGlassPreview = new GlassOpacityPreview("Poem", savedPoemGlassOpacity);
+        poemGlassOpacitySlider.addChangeListener(e -> {
+            int v = poemGlassOpacitySlider.getValue();
+            poemGlassOpacityValueLabel.setText(String.format("%d%%", v));
+            poemGlassPreview.setOpacity(v / 100f);
+        });
+        gc.gridx = 0; gc.gridy = 7; add(SettingsUi.label("Poem editor glass opacity:"), gc);
+        gc.gridx = 1; add(buildGlassOpacityRow(poemGlassOpacitySlider, poemGlassOpacityValueLabel, poemGlassPreview), gc);
+
+        float savedNotetakingGlassOpacity = store.getNotetakingGlassOpacity();
+        notetakingGlassOpacitySlider = new MoodSlider();
+        notetakingGlassOpacitySlider.setValue((int)(savedNotetakingGlassOpacity * 100));
+        notetakingGlassOpacitySlider.setHoverFadeEnabled(true);
+        notetakingGlassOpacityValueLabel = new JLabel(String.format("%d%%", (int)(savedNotetakingGlassOpacity * 100)));
+        notetakingGlassOpacityValueLabel.setPreferredSize(new Dimension(40, 20));
+        notetakingGlassPreview = new GlassOpacityPreview("Notes", savedNotetakingGlassOpacity);
+        notetakingGlassOpacitySlider.addChangeListener(e -> {
+            int v = notetakingGlassOpacitySlider.getValue();
+            notetakingGlassOpacityValueLabel.setText(String.format("%d%%", v));
+            notetakingGlassPreview.setOpacity(v / 100f);
+        });
+        gc.gridx = 0; gc.gridy = 8; add(SettingsUi.label("Notetaking editor glass opacity:"), gc);
+        gc.gridx = 1; add(buildGlassOpacityRow(notetakingGlassOpacitySlider, notetakingGlassOpacityValueLabel, notetakingGlassPreview), gc);
 
         paperFeelChk = new JCheckBox("Paper feel overlay in journal/poem editors", store.isEditorPaperFeelEnabled());
         paperFeelChk.setUI(new ModernCheckBoxUI());
@@ -177,11 +216,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         headerLocationField.setText(store.getEditorHeaderStampLocation());
         headerLocationField.setPlaceholder("Optional location (e.g., Paris)");
 
-        gc.gridx = 0; gc.gridy = 7; gc.gridwidth = 2; add(paperFeelChk, gc);
-        gc.gridx = 0; gc.gridy = 8; gc.gridwidth = 2; add(typographyPolishChk, gc);
-        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2; add(headerStampChk, gc);
+        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2; add(paperFeelChk, gc);
+        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2; add(typographyPolishChk, gc);
+        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2; add(headerStampChk, gc);
         gc.gridwidth = 1;
-        gc.gridx = 0; gc.gridy = 10; add(SettingsUi.label("Header location:"), gc);
+        gc.gridx = 0; gc.gridy = 12; add(SettingsUi.label("Header location:"), gc);
         gc.gridx = 1; add(headerLocationField, gc);
         gc.gridwidth = 2;
 
@@ -190,24 +229,24 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         toggleHeaderLocation.run();
 
         // Clock & Calendar Style section
-        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 14; gc.gridwidth = 2;
         gc.insets = new Insets(20, 5, 5, 5);
         add(SettingsUi.header("Clock & Calendar", "Style for main menu widgets"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
 
         // Clock style selection
-        gc.gridx = 0; gc.gridy = 12; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
         add(SettingsUi.label("Clock style:"), gc);
 
         selectedClockStyle = store.getClockStyle();
         StyleCycler clockCycler = new StyleCycler(CLOCK_STYLES, selectedClockStyle, true);
         clockCycler.setOnChange(style -> selectedClockStyle = style);
-        gc.gridx = 0; gc.gridy = 13; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 16; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(clockCycler, gc);
 
         // Calendar style selection
-        gc.gridx = 0; gc.gridy = 14; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 17; gc.gridwidth = 2;
         gc.insets = new Insets(10, 5, 5, 5);
         add(SettingsUi.label("Calendar style:"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
@@ -215,7 +254,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         selectedCalendarStyle = store.getCalendarStyle();
         StyleCycler calendarCycler = new StyleCycler(CALENDAR_STYLES, selectedCalendarStyle, false);
         calendarCycler.setOnChange(style -> selectedCalendarStyle = style);
-        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 18; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(calendarCycler, gc);
         gc.gridwidth = 1;
@@ -252,6 +291,70 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         };
     }
 
+    private static JPanel buildGlassOpacityRow(MoodSlider slider, JLabel valueLabel, GlassOpacityPreview preview) {
+        JPanel row = new JPanel(new BorderLayout(8, 0));
+        row.setOpaque(false);
+        JPanel sliderRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 5, 0));
+        sliderRow.setOpaque(false);
+        sliderRow.add(slider);
+        sliderRow.add(valueLabel);
+        row.add(sliderRow, BorderLayout.CENTER);
+        row.add(preview, BorderLayout.EAST);
+        return row;
+    }
+
+    private static class GlassOpacityPreview extends JPanel {
+        private float opacity;
+        private final FrostedGlassPanel glass;
+
+        GlassOpacityPreview(String label, float opacity) {
+            this.opacity = Math.max(0f, Math.min(1f, opacity));
+            setOpaque(false);
+            setLayout(new BorderLayout());
+            setPreferredSize(new Dimension(140, 60));
+            setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+
+            glass = new FrostedGlassPanel(new BorderLayout(), 10) {
+                @Override
+                protected float getOpacityScale() {
+                    return GlassOpacityPreview.this.opacity;
+                }
+            };
+            glass.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+            JLabel text = new JLabel(label, JLabel.CENTER);
+            text.setFont(text.getFont().deriveFont(Font.BOLD, 11f));
+            text.setForeground(new Color(40, 40, 40, 180));
+            glass.add(text, BorderLayout.CENTER);
+            add(glass, BorderLayout.CENTER);
+        }
+
+        void setOpacity(float opacity) {
+            this.opacity = Math.max(0f, Math.min(1f, opacity));
+            glass.repaint();
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = 12;
+            GradientPaint gp = new GradientPaint(0, 0, new Color(240, 244, 250), 0, h, new Color(220, 228, 238));
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, arc, arc);
+            g2.setColor(new Color(255, 255, 255, 120));
+            for (int i = -h; i < w; i += 12) {
+                g2.drawLine(i, 0, i + h, h);
+            }
+            g2.setColor(new Color(200, 205, 215));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.dispose();
+        }
+    }
+
 
     @Override public JComponent getComponent() { return this; }
 
@@ -273,8 +376,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
 
         store.setMainMenuAnimationsDisabled(disableMainMenuAnimationsChk.isSelected());
 
-        // Editor glass panel opacity
-        store.setEditorGlassOpacity(glassOpacitySlider.getValue() / 100f);
+        // Editor glass panel opacity (per editor)
+        store.setEntryGlassOpacity(journalGlassOpacitySlider.getValue() / 100f);
+        store.setPoemGlassOpacity(poemGlassOpacitySlider.getValue() / 100f);
+        store.setNotetakingGlassOpacity(notetakingGlassOpacitySlider.getValue() / 100f);
         store.setEditorPaperFeelEnabled(paperFeelChk.isSelected());
         store.setEditorTypographyPolishEnabled(typographyPolishChk.isSelected());
         store.setEditorHeaderStampEnabled(headerStampChk.isSelected());

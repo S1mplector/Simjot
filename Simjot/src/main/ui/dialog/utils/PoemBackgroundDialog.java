@@ -11,6 +11,7 @@ package main.ui.dialog.utils;
 import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
@@ -22,6 +23,7 @@ import java.awt.image.BufferedImage;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -31,8 +33,9 @@ import javax.swing.JSlider;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.components.buttons.IconMenuButton;
-import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.RoundedPanel;
+import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 public class PoemBackgroundDialog extends JDialog {
@@ -45,106 +48,115 @@ public class PoemBackgroundDialog extends JDialog {
     
     public PoemBackgroundDialog(Frame owner) {
         super(owner, "Poem Background Settings", true);
-        setSize(500, 400);
+        setUndecorated(true);
+        setBackground(new Color(0, 0, 0, 0));
+        setLayout(new BorderLayout());
         
         // Initialize with current settings
         SettingsStore settings = SettingsStore.get();
         selectedImagePath = settings.getPoemBackgroundImage();
         currentOpacity = settings.getPoemBackgroundOpacity();
-        
-        // Main content panel with increased padding
-        JPanel contentPanel = new JPanel(new BorderLayout(15, 15));
-        contentPanel.setOpaque(false);
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
-        
-        // Preview panel with increased size and better spacing
-        JPanel previewPanel = new JPanel(new BorderLayout(10, 10));
-        previewPanel.setOpaque(false);
-        previewPanel.setBorder(BorderFactory.createTitledBorder("Preview"));
+
+        ShadowedDialogPanel panel = new ShadowedDialogPanel(new BorderLayout(12, 12), 16);
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        panel.setFlat(true);
+        panel.setFlatColor(Color.WHITE);
+
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        JLabel title = new JLabel("Poem Background");
+        title.setForeground(new Color(40, 40, 40));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 17f));
+        JLabel subtitle = new JLabel("Pick an image and adjust its opacity");
+        subtitle.setForeground(new Color(120, 120, 120));
+        subtitle.setFont(subtitle.getFont().deriveFont(12f));
+        header.add(title);
+        header.add(Box.createVerticalStrut(4));
+        header.add(subtitle);
+        panel.add(header, BorderLayout.NORTH);
+
+        JPanel center = new JPanel();
+        center.setOpaque(false);
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+
+        JLabel previewTitle = new JLabel("Preview");
+        previewTitle.setForeground(Color.DARK_GRAY);
+        previewTitle.setFont(previewTitle.getFont().deriveFont(Font.BOLD, 13f));
+        previewTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        center.add(previewTitle);
+        center.add(Box.createVerticalStrut(6));
+
+        RoundedPanel previewCard = new RoundedPanel(16);
+        previewCard.setFlat(true);
+        previewCard.setBackground(new Color(250, 250, 252));
+        previewCard.setLayout(new BorderLayout());
+        previewCard.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         previewLabel = new JLabel("No background selected", JLabel.CENTER);
-        previewLabel.setPreferredSize(new Dimension(350, 250));
+        previewLabel.setPreferredSize(new Dimension(360, 200));
         previewLabel.setHorizontalAlignment(JLabel.CENTER);
         previewLabel.setVerticalAlignment(JLabel.CENTER);
-        previewLabel.setOpaque(true);
-        previewLabel.setBackground(Color.WHITE);
-        previewLabel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200)),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        ));
-        
-        previewPanel.add(previewLabel, BorderLayout.CENTER);
-        
-        // Opacity control with better spacing
-        JPanel opacityPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
-        opacityPanel.setOpaque(false);
-        opacityPanel.setBorder(BorderFactory.createTitledBorder("Background Opacity"));
-        
+        previewLabel.setOpaque(false);
+        previewLabel.setForeground(new Color(120, 120, 120));
+        previewCard.add(previewLabel, BorderLayout.CENTER);
+        previewCard.setAlignmentX(Component.LEFT_ALIGNMENT);
+        center.add(previewCard);
+        center.add(Box.createVerticalStrut(10));
+
+        JLabel opacityTitle = new JLabel("Background Opacity");
+        opacityTitle.setForeground(Color.DARK_GRAY);
+        opacityTitle.setFont(opacityTitle.getFont().deriveFont(Font.BOLD, 13f));
+        opacityTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        center.add(opacityTitle);
+        center.add(Box.createVerticalStrut(4));
+
+        JPanel opacityRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        opacityRow.setOpaque(false);
         JLabel opacityLabel = new JLabel("Opacity:");
         opacitySlider = new JSlider(0, 100, (int)(currentOpacity * 100));
         opacitySlider.setPreferredSize(new Dimension(250, 30));
-        
-        // Add a label to show the current opacity percentage
-        JLabel opacityValueLabel = new JLabel("30%");
+        JLabel opacityValueLabel = new JLabel(String.format("%d%%", (int)(currentOpacity * 100)));
         opacityValueLabel.setPreferredSize(new Dimension(40, 20));
-        
-        // Update the preview in real-time when slider changes
         opacitySlider.addChangeListener(e -> {
             currentOpacity = opacitySlider.getValue() / 100f;
             opacityValueLabel.setText(String.format("%d%%", opacitySlider.getValue()));
-            updatePreview(); // Update the preview with new opacity
+            updatePreview();
         });
-        
-        // Add components to opacity panel with proper spacing
-        opacityPanel.add(opacityLabel);
-        opacityPanel.add(Box.createHorizontalStrut(10));
-        opacityPanel.add(opacitySlider);
-        opacityPanel.add(Box.createHorizontalStrut(10));
-        opacityPanel.add(opacityValueLabel);
-        
-        // Button panel with improved spacing
-        JPanel buttonPanel = new JPanel(new BorderLayout(15, 0));
-        buttonPanel.setOpaque(false);
-        
-        // Centered buttons (IconMenuButton style)
-        JPanel centerButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 8));
-        centerButtonPanel.setOpaque(false);
-        
-        IconMenuButton galleryBtn = new IconMenuButton("Gallery", "gallery");
+        opacityRow.add(opacityLabel);
+        opacityRow.add(Box.createHorizontalStrut(10));
+        opacityRow.add(opacitySlider);
+        opacityRow.add(Box.createHorizontalStrut(10));
+        opacityRow.add(opacityValueLabel);
+        opacityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        center.add(opacityRow);
+
+        panel.add(center, BorderLayout.CENTER);
+
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
+        btns.setOpaque(false);
+        RoundedButton galleryBtn = createDialogButton("Gallery", "gallery");
         galleryBtn.setToolTipText("Choose from gallery");
         galleryBtn.addActionListener(e -> selectFromGallery());
-        
-        IconMenuButton removeBtn = new IconMenuButton("Remove", "trash");
+        RoundedButton removeBtn = createDialogButton("Remove", "trash");
         removeBtn.setToolTipText("Remove background");
         removeBtn.addActionListener(e -> removeBackground());
-        
-        IconMenuButton okBtn = new IconMenuButton("OK", "save");
+        RoundedButton okBtn = createDialogButton("Save", "save");
         okBtn.setToolTipText("Apply changes");
         okBtn.addActionListener(e -> saveAndClose());
-        
-        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
+        RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
         cancelBtn.setToolTipText("Cancel changes");
         cancelBtn.addActionListener(e -> dispose());
-        
-        centerButtonPanel.add(galleryBtn);
-        centerButtonPanel.add(removeBtn);
-        centerButtonPanel.add(okBtn);
-        centerButtonPanel.add(cancelBtn);
-        
-        // Add centered buttons
-        buttonPanel.add(centerButtonPanel, BorderLayout.CENTER);
-        
-        // Add all sections to the content panel
-        contentPanel.add(previewPanel, BorderLayout.CENTER);
-        contentPanel.add(opacityPanel, BorderLayout.SOUTH);
-        
-        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(), 16);
-        root.add(contentPanel, BorderLayout.CENTER);
-        root.add(buttonPanel, BorderLayout.SOUTH);
-        setContentPane(root);
-        
-        // Ensure the dialog is properly sized
+        btns.add(galleryBtn);
+        btns.add(removeBtn);
+        btns.add(okBtn);
+        btns.add(cancelBtn);
+        panel.add(btns, BorderLayout.SOUTH);
+
+        add(panel);
         pack();
+        setSize(520, 420);
         setMinimumSize(getSize());
+        setLocationRelativeTo(owner);
         
         // Load initial preview
         if (!selectedImagePath.isEmpty()) {
@@ -152,6 +164,13 @@ public class PoemBackgroundDialog extends JDialog {
         } else {
             updatePreview();
         }
+    }
+
+    private RoundedButton createDialogButton(String text, String iconId) {
+        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+        btn.setPreferredSize(new Dimension(132, 40));
+        btn.setFocusPainted(false);
+        return btn;
     }
     
     private void selectFromGallery() {

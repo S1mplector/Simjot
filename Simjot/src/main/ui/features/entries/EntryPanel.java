@@ -238,6 +238,11 @@ public class EntryPanel extends AbstractEditorPanel {
      */
     protected boolean supportsGuidanceButton() { return false; }
 
+    /**
+     * Opacity for the glass panel used in this editor.
+     */
+    protected float getEditorGlassOpacity() { return SettingsStore.get().getEntryGlassOpacity(); }
+
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) { }
     protected void installContentOverlay(JComponent textWrapper, JScrollPane scrollPane) { }
 
@@ -655,7 +660,7 @@ public class EntryPanel extends AbstractEditorPanel {
         JPanel textWrapper = new FrostedGlassPanel(new BorderLayout(), 16) {
             @Override
             protected float getOpacityScale() {
-                return SettingsStore.get().getEditorGlassOpacity();
+                return getEditorGlassOpacity();
             }
         };
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
