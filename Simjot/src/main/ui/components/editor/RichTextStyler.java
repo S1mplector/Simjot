@@ -94,7 +94,7 @@ public final class RichTextStyler {
      * Does nothing when there is no selection.
      */
     public static void applyHeaderToSelection(JTextPane pane) {
-        applyHeaderToSelection(pane, 18);
+        applyHeaderToSelection(pane, 40);
     }
 
     /**
