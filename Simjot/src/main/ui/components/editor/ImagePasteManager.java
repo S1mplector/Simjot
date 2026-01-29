@@ -384,9 +384,13 @@ public final class ImagePasteManager {
         hideImageEditOverlay();
 
         try {
+            Rectangle visibleBounds = visibleImageBounds(editor, imageBounds);
+            if (visibleBounds == null || visibleBounds.width <= 0 || visibleBounds.height <= 0) {
+                return;
+            }
             Point editorLoc = editor.getLocationOnScreen();
-            int x = editorLoc.x + imageBounds.x;
-            int y = editorLoc.y + imageBounds.y;
+            int x = editorLoc.x + visibleBounds.x;
+            int y = editorLoc.y + visibleBounds.y;
 
             JWindow overlay = new JWindow(SwingUtilities.getWindowAncestor(editor));
             overlay.setBackground(new Color(0, 0, 0, 0));
@@ -408,7 +412,7 @@ public final class ImagePasteManager {
                 }
             };
             content.setOpaque(false);
-            content.setPreferredSize(new Dimension(imageBounds.width, imageBounds.height));
+            content.setPreferredSize(new Dimension(visibleBounds.width, visibleBounds.height));
 
             overlay.setContentPane(content);
             overlay.pack();
@@ -432,9 +436,13 @@ public final class ImagePasteManager {
      */
     private static void showSizePreviewOverlay(JTextPane editor, Rectangle imageBounds, int newW, int newH) {
         try {
+            Rectangle visibleBounds = visibleImageBounds(editor, imageBounds);
+            if (visibleBounds == null || visibleBounds.width <= 0 || visibleBounds.height <= 0) {
+                visibleBounds = imageBounds;
+            }
             Point editorLoc = editor.getLocationOnScreen();
-            int centerX = editorLoc.x + imageBounds.x + imageBounds.width / 2;
-            int centerY = editorLoc.y + imageBounds.y + imageBounds.height / 2;
+            int centerX = editorLoc.x + visibleBounds.x + visibleBounds.width / 2;
+            int centerY = editorLoc.y + visibleBounds.y + visibleBounds.height / 2;
 
             String sizeText = newW + " × " + newH;
 
@@ -477,7 +485,10 @@ public final class ImagePasteManager {
             // Center on image
             int overlayW = sizePreviewOverlay.getWidth();
             int overlayH = sizePreviewOverlay.getHeight();
-            sizePreviewOverlay.setLocation(centerX - overlayW / 2, centerY - overlayH / 2);
+            int targetX = centerX - overlayW / 2;
+            int targetY = centerY - overlayH / 2;
+            Point clamped = clampToVisibleRect(editor, targetX, targetY, overlayW, overlayH);
+            sizePreviewOverlay.setLocation(clamped.x, clamped.y);
             sizePreviewOverlay.setVisible(true);
         } catch (Throwable ignored) {}
     }
@@ -971,17 +982,74 @@ public final class ImagePasteManager {
     
     private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds) {
         try {
+            Rectangle visibleBounds = visibleImageBounds(editor, imageBounds);
+            if (visibleBounds == null || visibleBounds.width <= 0 || visibleBounds.height <= 0) {
+                visibleBounds = imageBounds;
+            }
             Point editorLoc = editor.getLocationOnScreen();
-            int x = editorLoc.x + imageBounds.x + (imageBounds.width - toolbar.getWidth()) / 2;
-            int y = editorLoc.y + imageBounds.y + imageBounds.height + 4;
-            
-            // Keep within screen bounds
-            Rectangle screenBounds = editor.getGraphicsConfiguration().getBounds();
-            x = Math.max(screenBounds.x, Math.min(x, screenBounds.x + screenBounds.width - toolbar.getWidth()));
-            y = Math.max(screenBounds.y, Math.min(y, screenBounds.y + screenBounds.height - toolbar.getHeight()));
-            
+            Rectangle visibleRect = getVisibleRectSafe(editor);
+            int minX = editorLoc.x + visibleRect.x;
+            int minY = editorLoc.y + visibleRect.y;
+            int maxX = minX + Math.max(0, visibleRect.width - toolbar.getWidth());
+            int maxY = minY + Math.max(0, visibleRect.height - toolbar.getHeight());
+
+            int x = editorLoc.x + visibleBounds.x + (visibleBounds.width - toolbar.getWidth()) / 2;
+            x = clampInt(x, minX, maxX);
+
+            int belowY = editorLoc.y + visibleBounds.y + visibleBounds.height + 4;
+            int aboveY = editorLoc.y + visibleBounds.y - toolbar.getHeight() - 4;
+            int y;
+            if (belowY <= maxY) {
+                y = belowY;
+            } else if (aboveY >= minY) {
+                y = aboveY;
+            } else {
+                y = clampInt(belowY, minY, maxY);
+            }
+
             toolbar.setLocation(x, y);
         } catch (Throwable ignored) {}
+    }
+
+    private static Rectangle visibleImageBounds(JTextPane editor, Rectangle imageBounds) {
+        if (editor == null || imageBounds == null) return imageBounds;
+        try {
+            Rectangle visible = getVisibleRectSafe(editor);
+            Rectangle clipped = imageBounds.intersection(visible);
+            if (clipped.isEmpty()) return imageBounds;
+            return clipped;
+        } catch (Throwable ignored) {
+            return imageBounds;
+        }
+    }
+
+    private static Rectangle getVisibleRectSafe(JTextPane editor) {
+        Rectangle visible = editor.getVisibleRect();
+        if (visible == null || visible.width <= 0 || visible.height <= 0) {
+            return new Rectangle(0, 0, editor.getWidth(), editor.getHeight());
+        }
+        return visible;
+    }
+
+    private static Point clampToVisibleRect(JTextPane editor, int x, int y, int w, int h) {
+        try {
+            Point editorLoc = editor.getLocationOnScreen();
+            Rectangle visible = getVisibleRectSafe(editor);
+            int minX = editorLoc.x + visible.x;
+            int minY = editorLoc.y + visible.y;
+            int maxX = minX + Math.max(0, visible.width - w);
+            int maxY = minY + Math.max(0, visible.height - h);
+            int clampedX = clampInt(x, minX, maxX);
+            int clampedY = clampInt(y, minY, maxY);
+            return new Point(clampedX, clampedY);
+        } catch (Throwable ignored) {
+            return new Point(x, y);
+        }
+    }
+
+    private static int clampInt(int value, int min, int max) {
+        if (max < min) return min;
+        return Math.max(min, Math.min(value, max));
     }
     
     private static void repositionToolbar(JWindow toolbar, JTextPane editor, int startOffset) {
