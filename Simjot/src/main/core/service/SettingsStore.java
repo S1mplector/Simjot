@@ -83,6 +83,7 @@ public final class SettingsStore {
     private static final String KEY_EDITOR_TYPO_POLISH = "editorTypographyPolishEnabled";
     private static final String KEY_EDITOR_HEADER_STAMP = "editorHeaderStampEnabled";
     private static final String KEY_EDITOR_HEADER_LOCATION = "editorHeaderStampLocation";
+    private static final String KEY_HANDWRITING_TOOLBAR = "handwritingToolbarEnabled";
     private static final String KEY_BRUSH_SIZE   = "defaultBrushSize";
     private static final String KEY_SMOOTHING    = "strokeSmoothing";
     private static final String KEY_THUMBNAILS   = "generateThumbnails";
@@ -155,6 +156,7 @@ public final class SettingsStore {
     private static final boolean DEF_EDITOR_PAPER_FEEL = true;
     private static final boolean DEF_EDITOR_TYPO_POLISH = true;
     private static final boolean DEF_EDITOR_HEADER_STAMP = false;
+    private static final boolean DEF_HANDWRITING_TOOLBAR = false;
 
     // ====================
     // DEFAULT VALUES
@@ -641,6 +643,14 @@ public final class SettingsStore {
 
     public void setEditorHeaderStampEnabled(boolean enabled) {
         props.setProperty(KEY_EDITOR_HEADER_STAMP, String.valueOf(enabled));
+    }
+
+    public boolean isHandwritingToolbarEnabled() {
+        return Boolean.parseBoolean(props.getProperty(KEY_HANDWRITING_TOOLBAR, String.valueOf(DEF_HANDWRITING_TOOLBAR)));
+    }
+
+    public void setHandwritingToolbarEnabled(boolean enabled) {
+        props.setProperty(KEY_HANDWRITING_TOOLBAR, String.valueOf(enabled));
     }
 
     public String getEditorHeaderStampLocation() {

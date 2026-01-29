@@ -71,6 +71,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox poetryAutocorrectChk;
     private final JCheckBox menuBarChk;
     private final JCheckBox launchOnLoginChk;
+    private final JCheckBox handwritingToolbarChk;
     
 
     GeneralSettingsPage() {
@@ -196,6 +197,19 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 1; add(autosaveSpin, gc);
         row++;
 
+        handwritingToolbarChk = new JCheckBox("Enable handwriting toolbar (experimental)", store.isHandwritingToolbarEnabled());
+        handwritingToolbarChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        handwritingToolbarChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(handwritingToolbarChk, gc);
+        row++;
+
+        JLabel handwritingWarn = SettingsUi.label("Experimental: handwriting tools may be unstable or slow. Restart the editor to apply.");
+        handwritingWarn.setFont(handwritingWarn.getFont().deriveFont(Font.PLAIN, 11f));
+        handwritingWarn.setForeground(new Color(120, 60, 0, 170));
+        gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(handwritingWarn, gc);
+        gc.gridwidth = 1;
+        row++;
+
         // Autocorrect section
         gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2;
         gc.insets = new Insets(16, 5, 5, 5);
@@ -318,6 +332,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setSpellCheckEnabled(spellChk.isSelected());
         store.setJournalAutocorrectEnabled(journalAutocorrectChk.isSelected());
         store.setPoetryAutocorrectEnabled(poetryAutocorrectChk.isSelected());
+        store.setHandwritingToolbarEnabled(handwritingToolbarChk.isSelected());
         
         // Menu bar service (macOS only)
         boolean menuBarEnabled = store.isMenuBarServiceEnabled();

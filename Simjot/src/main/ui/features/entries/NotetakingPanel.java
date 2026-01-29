@@ -224,41 +224,43 @@ public class NotetakingPanel extends EntryPanel {
         textColorBtn.addActionListener(e -> showTextColorPicker());
         rightToolbar.add(textColorBtn);
         rightToolbar.add(Box.createHorizontalStrut(8));
-        
-        // Text mode selector
-        textModeBtn = new main.ui.components.buttons.ToolbarIconButton("select_text");
-        textModeBtn.setToolTipText("Text mode");
-        textModeBtn.addActionListener(e -> selectTextMode());
-        rightToolbar.add(textModeBtn);
-        rightToolbar.add(Box.createHorizontalStrut(4));
+        boolean showHandwritingToolbar = SettingsStore.get().isHandwritingToolbarEnabled();
+        if (showHandwritingToolbar) {
+            // Text mode selector
+            textModeBtn = new main.ui.components.buttons.ToolbarIconButton("select_text");
+            textModeBtn.setToolTipText("Text mode");
+            textModeBtn.addActionListener(e -> selectTextMode());
+            rightToolbar.add(textModeBtn);
+            rightToolbar.add(Box.createHorizontalStrut(4));
 
-        // Paint mode selector (Pen)
-        paintModeBtn = new main.ui.components.buttons.ToolbarIconButton("pen_tool");
-        paintModeBtn.setToolTipText("Pen tool");
-        paintModeBtn.addActionListener(e -> { currentDrawTool = DrawTool.PEN; selectPaintMode(); updatePickersForCurrentTool(); });
-        rightToolbar.add(paintModeBtn);
-        rightToolbar.add(Box.createHorizontalStrut(4));
+            // Paint mode selector (Pen)
+            paintModeBtn = new main.ui.components.buttons.ToolbarIconButton("pen_tool");
+            paintModeBtn.setToolTipText("Pen tool");
+            paintModeBtn.addActionListener(e -> { currentDrawTool = DrawTool.PEN; selectPaintMode(); updatePickersForCurrentTool(); });
+            rightToolbar.add(paintModeBtn);
+            rightToolbar.add(Box.createHorizontalStrut(4));
 
-        // Highlighter tool
-        highlighterBtn = new main.ui.components.buttons.ToolbarIconButton("highlighter_tool");
-        highlighterBtn.setToolTipText("Highlighter");
-        highlighterBtn.addActionListener(e -> { currentDrawTool = DrawTool.HIGHLIGHT; selectPaintMode(); updatePickersForCurrentTool(); });
-        rightToolbar.add(highlighterBtn);
-        rightToolbar.add(Box.createHorizontalStrut(4));
+            // Highlighter tool
+            highlighterBtn = new main.ui.components.buttons.ToolbarIconButton("highlighter_tool");
+            highlighterBtn.setToolTipText("Highlighter");
+            highlighterBtn.addActionListener(e -> { currentDrawTool = DrawTool.HIGHLIGHT; selectPaintMode(); updatePickersForCurrentTool(); });
+            rightToolbar.add(highlighterBtn);
+            rightToolbar.add(Box.createHorizontalStrut(4));
 
-        // Eraser tool
-        eraserBtn = new main.ui.components.buttons.ToolbarIconButton("eraser_tool");
-        eraserBtn.setToolTipText("Eraser");
-        eraserBtn.addActionListener(e -> { currentDrawTool = DrawTool.ERASER; selectPaintMode(); updatePickersForCurrentTool(); });
-        rightToolbar.add(eraserBtn);
-        rightToolbar.add(Box.createHorizontalStrut(4));
+            // Eraser tool
+            eraserBtn = new main.ui.components.buttons.ToolbarIconButton("eraser_tool");
+            eraserBtn.setToolTipText("Eraser");
+            eraserBtn.addActionListener(e -> { currentDrawTool = DrawTool.ERASER; selectPaintMode(); updatePickersForCurrentTool(); });
+            rightToolbar.add(eraserBtn);
+            rightToolbar.add(Box.createHorizontalStrut(4));
 
-        // Lasso selection tool
-        lassoBtn = new main.ui.components.buttons.ToolbarIconButton("lasso_tool");
-        lassoBtn.setToolTipText("Lasso Select (move strokes)");
-        lassoBtn.addActionListener(e -> { currentDrawTool = DrawTool.LASSO; selectPaintMode(); updatePickersForCurrentTool(); });
-        rightToolbar.add(lassoBtn);
-        rightToolbar.add(Box.createHorizontalStrut(4));
+            // Lasso selection tool
+            lassoBtn = new main.ui.components.buttons.ToolbarIconButton("lasso_tool");
+            lassoBtn.setToolTipText("Lasso Select (move strokes)");
+            lassoBtn.addActionListener(e -> { currentDrawTool = DrawTool.LASSO; selectPaintMode(); updatePickersForCurrentTool(); });
+            rightToolbar.add(lassoBtn);
+            rightToolbar.add(Box.createHorizontalStrut(4));
+        }
 
         // Text divider (entry date separator)
         dividerBtn = new main.ui.components.buttons.ToolbarIconButton("text_divider");
@@ -267,31 +269,33 @@ public class NotetakingPanel extends EntryPanel {
         rightToolbar.add(dividerBtn);
         rightToolbar.add(Box.createHorizontalStrut(6));
 
-        // Stroke width spinner
-        strokeSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 64, 1));
-        try { strokeSpinner.setUI(new main.ui.components.spinner.ModernSpinnerUI()); } catch (Throwable ignored) {}
-        strokeSpinner.setPreferredSize(new Dimension(52, 24));
-        strokeSpinner.addChangeListener(e -> {
-            int v = (int) strokeSpinner.getValue();
-            if (currentDrawTool == DrawTool.PEN) penThickness = v;
-            else if (currentDrawTool == DrawTool.HIGHLIGHT) highlightThickness = v;
-            else if (currentDrawTool == DrawTool.ERASER) eraserRadius = v;
-            if (drawingOverlay != null) drawingOverlay.repaint();
-        });
-        rightToolbar.add(strokeSpinner);
-        rightToolbar.add(Box.createHorizontalStrut(6));
+        if (showHandwritingToolbar) {
+            // Stroke width spinner
+            strokeSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 64, 1));
+            try { strokeSpinner.setUI(new main.ui.components.spinner.ModernSpinnerUI()); } catch (Throwable ignored) {}
+            strokeSpinner.setPreferredSize(new Dimension(52, 24));
+            strokeSpinner.addChangeListener(e -> {
+                int v = (int) strokeSpinner.getValue();
+                if (currentDrawTool == DrawTool.PEN) penThickness = v;
+                else if (currentDrawTool == DrawTool.HIGHLIGHT) highlightThickness = v;
+                else if (currentDrawTool == DrawTool.ERASER) eraserRadius = v;
+                if (drawingOverlay != null) drawingOverlay.repaint();
+            });
+            rightToolbar.add(strokeSpinner);
+            rightToolbar.add(Box.createHorizontalStrut(6));
 
-        // Color button
-        colorBtn = new JButton();
-        colorBtn.setPreferredSize(new Dimension(24, 24));
-        colorBtn.setFocusPainted(false);
-        colorBtn.setOpaque(true);
-        colorBtn.setContentAreaFilled(true);
-        colorBtn.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,80), 1));
-        colorBtn.addActionListener(e -> showColorPopover());
-        rightToolbar.add(colorBtn);
+            // Color button
+            colorBtn = new JButton();
+            colorBtn.setPreferredSize(new Dimension(24, 24));
+            colorBtn.setFocusPainted(false);
+            colorBtn.setOpaque(true);
+            colorBtn.setContentAreaFilled(true);
+            colorBtn.setBorder(BorderFactory.createLineBorder(new Color(0,0,0,80), 1));
+            colorBtn.addActionListener(e -> showColorPopover());
+            rightToolbar.add(colorBtn);
 
-        updatePickersForCurrentTool();
+            updatePickersForCurrentTool();
+        }
         setEditingMode(EditingMode.TEXT);
     }
 
