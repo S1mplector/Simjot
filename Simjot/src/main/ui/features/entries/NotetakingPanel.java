@@ -123,7 +123,6 @@ public class NotetakingPanel extends EntryPanel {
     private main.ui.components.buttons.ToolbarIconButton highlighterBtn;
     private main.ui.components.buttons.ToolbarIconButton eraserBtn;
     private main.ui.components.buttons.ToolbarIconButton lassoBtn;
-    private main.ui.components.buttons.ToolbarIconButton dividerBtn;
     private main.ui.components.buttons.TextColorButton textColorBtn;
     private Color currentTextColor = Color.BLACK;
     private EditingMode editingMode = EditingMode.TEXT;
@@ -261,13 +260,6 @@ public class NotetakingPanel extends EntryPanel {
             rightToolbar.add(lassoBtn);
             rightToolbar.add(Box.createHorizontalStrut(4));
         }
-
-        // Text divider (entry date separator)
-        dividerBtn = new main.ui.components.buttons.ToolbarIconButton("text_divider");
-        dividerBtn.setToolTipText("Insert text divider");
-        dividerBtn.addActionListener(e -> insertTextDivider());
-        rightToolbar.add(dividerBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
 
         if (showHandwritingToolbar) {
             // Stroke width spinner
