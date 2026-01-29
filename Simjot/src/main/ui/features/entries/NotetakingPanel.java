@@ -160,6 +160,9 @@ public class NotetakingPanel extends EntryPanel {
         } catch (Throwable ignored) {}
         // Add richer formatting accelerators on top of base behavior
         installAdvancedFormattingShortcuts();
+        try {
+            codeSyntaxFormatter = CodeSyntaxFormatter.install(contentArea);
+        } catch (Throwable ignored) {}
     }
 
     private void maybeShowDrawMenu(MouseEvent e, JComponent invoker) {
