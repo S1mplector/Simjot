@@ -34,18 +34,16 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.BufferedReader;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -61,11 +59,11 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
-import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
@@ -85,12 +83,13 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
+import main.core.service.SettingsStore;
+import main.infrastructure.input.TabletInputSupport;
 import main.ui.app.JournalApp;
+import main.ui.components.editor.CodeSyntaxFormatter;
 import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.RichTextStyler;
 import main.ui.dialog.file.SimjotFileChooser;
-import main.core.service.SettingsStore;
-import main.infrastructure.input.TabletInputSupport;
 
 /**
  * Notetaking editor: extends the standard EntryPanel with
@@ -135,6 +134,7 @@ public class NotetakingPanel extends EntryPanel {
     private boolean useTabletPressure = true;
     private float pressureGamma = 1.0f;
     private float minPressure = 0.05f;
+    private CodeSyntaxFormatter codeSyntaxFormatter;
 
     private static final int TEXT_COLOR_CODE_TIMEOUT_MS = 5000;
     private static final String TEXT_COLOR_CODE_PREF_KEY = "notetaking.textColorCodeMap";
@@ -211,6 +211,7 @@ public class NotetakingPanel extends EntryPanel {
     public void removeNotify() {
         try { if (drawingOverlay != null) drawingOverlay.shutdown(); } catch (Throwable ignored) {}
         cancelTextColorCode(false);
+        try { if (codeSyntaxFormatter != null) codeSyntaxFormatter.dispose(); } catch (Throwable ignored) {}
         super.removeNotify();
     }
 
@@ -1271,19 +1272,12 @@ public class NotetakingPanel extends EntryPanel {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g2.setColor(Color.WHITE);
-            g2.fillRect(0,0,width,height);
-            Runnable print = () -> {
-                Dimension old = contentArea.getSize();
-                contentArea.setSize(width, height);
-                contentArea.doLayout();
-                contentArea.printAll(g2);
-                contentArea.setSize(old);
-                contentArea.doLayout();
-            };
-            if (SwingUtilities.isEventDispatchThread()) print.run(); else SwingUtilities.invokeAndWait(print);
-            for (FloatingImage imgEntry : floatingImages) {
-                if (imgEntry.image == null) continue;
-                g2.drawImage(imgEntry.image, imgEntry.x, imgEntry.y, imgEntry.width, imgEntry.height, null);
+            g2.fillRect(0, 0, width, height);
+            if (!floatingImages.isEmpty()) {
+                for (FloatingImage imgEntry : floatingImages) {
+                    if (imgEntry == null || imgEntry.image == null) continue;
+                    g2.drawImage(imgEntry.image, imgEntry.x, imgEntry.y, imgEntry.width, imgEntry.height, null);
+                }
             }
             for (DrawStroke s : drawStrokes) {
                 g2.setColor(s.color);
