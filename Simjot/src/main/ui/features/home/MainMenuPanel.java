@@ -403,59 +403,24 @@ public class MainMenuPanel extends JPanel {
             content.add(pinnedRow);
         }
 
-        // Create the button panel with animated fade-in
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.setOpaque(false);
-        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
-        buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        // Main main menu buttons section 
-        JLabel writingHeader = new JLabel("");
-        writingHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
-        writingHeader.setForeground(Color.WHITE);
-        writingHeader.setFont(writingHeader.getFont().deriveFont(Font.BOLD, 22f));
-        buttonPanel.add(writingHeader);
-        buttonPanel.add(Box.createRigidArea(new Dimension(0, 6)));
-
-        // Planning section has been removed
-        // Icon row (horizontal, compact)
-        JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
-        iconRow.setOpaque(false);
-
-        IconMenuButton notebooksButton = createIconButton("Write", JournalApp.NOTEBOOK_MANAGER, "fountain_pen");
-        notebooksButton.setToolTipText("Collect, draft, and manage your notebooks");
-        iconRow.add(notebooksButton);
-
+        // Glass Dock Bar - Frutiger Aero style
+        main.ui.components.dock.GlassDockBar dockBar = new main.ui.components.dock.GlassDockBar();
+        dockBar.addItem("Write", "fountain_pen", () -> app.switchCard(JournalApp.NOTEBOOK_MANAGER));
         if (SHOW_GALLERY) {
-            IconMenuButton galleryButton = createIconButton("Gallery", JournalApp.GALLERY, "image");
-            galleryButton.addActionListener(e -> app.switchCard(JournalApp.GALLERY));
-            iconRow.add(galleryButton);
+            dockBar.addItem("Gallery", "image", () -> app.switchCard(JournalApp.GALLERY));
         }
-
-        IconMenuButton moodButton = createIconButton("Mood", JournalApp.MOOD_CHART, "smile");
-        moodButton.setToolTipText("View mood trends and analytics over time");
-        iconRow.add(moodButton);
-
-        IconMenuButton settingsButton = createIconButton("Settings", JournalApp.SETTINGS, "wrench");
-        settingsButton.setToolTipText("Customize appearance, storage, security, and more");
-        iconRow.add(settingsButton);
-
-        IconMenuButton exitButton = new IconMenuButton("Exit", "saveandexit").setAeroGlowEnabled(true);
-        exitButton.setToolTipText("Save all work and close Simjot");
-        exitButton.addActionListener(e -> {
+        dockBar.addItem("Mood", "smile", () -> app.switchCard(JournalApp.MOOD_CHART));
+        dockBar.addItem("Settings", "wrench", () -> app.switchCard(JournalApp.SETTINGS));
+        dockBar.addItem("Exit", "saveandexit", () -> {
             if (app != null) {
                 app.exitGracefully();
             }
         });
-        iconRow.add(exitButton);
+        dockBar.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        buttonPanel.add(iconRow);
-
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
-        buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        content.add(Box.createRigidArea(new Dimension(0, 20)));
-        content.add(buttonPanel);
+        content.add(Box.createRigidArea(new Dimension(0, 40)));
+        content.add(dockBar);
+        content.add(Box.createRigidArea(new Dimension(0, 30))); // Lift from bottom toolbar
 
         header.startAnimation();
         // Buttons are visible immediately
