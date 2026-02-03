@@ -23,7 +23,6 @@ public class ElegantUnlockDialog extends JDialog {
     // Refined color palette
     private static final Color ACCENT = new Color(99, 102, 241);       // Indigo
     private static final Color ACCENT_LIGHT = new Color(129, 140, 248);
-    private static final Color ACCENT_GLOW = new Color(99, 102, 241, 40);
     private static final Color TEXT_PRIMARY = new Color(17, 24, 39);
     private static final Color TEXT_SECONDARY = new Color(107, 114, 128);
     private static final Color TEXT_MUTED = new Color(156, 163, 175);
@@ -46,38 +45,25 @@ public class ElegantUnlockDialog extends JDialog {
     private final JPasswordField passwordField;
     private final JCheckBox rememberCheck;
     private final JLabel errorLabel;
-    private final AnimatedLockIcon lockIcon;
+    private final LockIcon lockIcon;
     private final JButton unlockButton;
     private boolean confirmed = false;
     private char[] password = null;
     private boolean passwordVisible = false;
-    private float fadeProgress = 0f;
-    private Timer fadeTimer;
 
     public ElegantUnlockDialog(Frame owner) {
         super(owner, "Unlock", true);
         setUndecorated(true);
-        setBackground(new Color(0, 0, 0, 0));
         
         passwordField = new JPasswordField(24);
         rememberCheck = new JCheckBox("Remember for this session");
         errorLabel = new JLabel(" ");
-        lockIcon = new AnimatedLockIcon();
+        lockIcon = new LockIcon();
         unlockButton = createPrimaryButton("Unlock");
         
         buildUI();
         setSize(420, 400);
         setLocationRelativeTo(owner);
-        
-        // Fade-in animation
-        fadeTimer = new Timer(16, e -> {
-            fadeProgress = Math.min(1f, fadeProgress + 0.08f);
-            repaint();
-            if (fadeProgress >= 1f) {
-                fadeTimer.stop();
-                lockIcon.startPulse();
-            }
-        });
     }
 
     public static Result prompt(Component parent) {
@@ -91,10 +77,6 @@ public class ElegantUnlockDialog extends JDialog {
     
     @Override
     public void setVisible(boolean visible) {
-        if (visible) {
-            fadeProgress = 0f;
-            fadeTimer.start();
-        }
         super.setVisible(visible);
     }
 
@@ -106,29 +88,28 @@ public class ElegantUnlockDialog extends JDialog {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
                 int w = getWidth(), h = getHeight();
-                float alpha = fadeProgress;
                 
                 // Outer shadow
-                for (int i = 0; i < 20; i++) {
-                    float shadowAlpha = (20 - i) * 0.008f * alpha;
+                for (int i = 0; i < 12; i++) {
+                    float shadowAlpha = (12 - i) * 0.012f;
                     g2.setColor(new Color(0, 0, 0, (int)(shadowAlpha * 255)));
                     g2.fill(new RoundRectangle2D.Float(i, i + 2, w - i * 2, h - i * 2, 28 - i, 28 - i));
                 }
                 
                 // Main card background
-                g2.setColor(new Color(255, 255, 255, (int)(250 * alpha)));
+                g2.setColor(new Color(255, 255, 255, 250));
                 g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 24, 24));
                 
                 // Subtle top gradient sheen
                 GradientPaint sheen = new GradientPaint(
-                    0, 0, new Color(255, 255, 255, (int)(80 * alpha)),
+                    0, 0, new Color(255, 255, 255, 80),
                     0, h * 0.3f, new Color(255, 255, 255, 0)
                 );
                 g2.setPaint(sheen);
                 g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 24, 24));
                 
                 // Border
-                g2.setColor(new Color(229, 231, 235, (int)(180 * alpha)));
+                g2.setColor(new Color(229, 231, 235, 180));
                 g2.setStroke(new BasicStroke(1f));
                 g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, 24, 24));
                 
@@ -466,7 +447,13 @@ public class ElegantUnlockDialog extends JDialog {
     
     public void showError(String message) {
         errorLabel.setText(message);
-        lockIcon.showError();
+        // Clear error after delay
+        Timer clearTimer = new Timer(3000, e -> {
+            errorLabel.setText(" ");
+            ((Timer)e.getSource()).stop();
+        });
+        clearTimer.setRepeats(false);
+        clearTimer.start();
     }
     
     private void shakeDialog() {
@@ -497,37 +484,12 @@ public class ElegantUnlockDialog extends JDialog {
     }
 
     /**
-     * Animated lock icon with pulse and error shake effects.
+     * Static lock icon - no animations for stability.
      */
-    private class AnimatedLockIcon extends JPanel {
-        private float pulsePhase = 0f;
-        private float errorFlash = 0f;
-        private Timer pulseTimer;
-        private Timer errorTimer;
-        
-        AnimatedLockIcon() {
+    private static class LockIcon extends JPanel {
+        LockIcon() {
             setOpaque(false);
             setPreferredSize(new Dimension(72, 72));
-            
-            pulseTimer = new Timer(50, e -> {
-                pulsePhase += 0.1f;
-                if (pulsePhase > Math.PI * 2) pulsePhase -= Math.PI * 2;
-                repaint();
-            });
-            
-            errorTimer = new Timer(16, e -> {
-                errorFlash = Math.max(0, errorFlash - 0.08f);
-                if (errorFlash <= 0) errorTimer.stop();
-                repaint();
-            });
-        }
-        
-        void startPulse() { pulseTimer.start(); }
-        void stopPulse() { pulseTimer.stop(); }
-        
-        void showError() {
-            errorFlash = 1f;
-            errorTimer.start();
         }
         
         @Override
@@ -539,42 +501,33 @@ public class ElegantUnlockDialog extends JDialog {
             int w = getWidth(), h = getHeight();
             int cx = w / 2, cy = h / 2;
             
-            float pulse = 1f + (float)Math.sin(pulsePhase) * 0.03f;
-            float glowIntensity = 0.5f + (float)Math.sin(pulsePhase) * 0.2f;
-            
-            // Error state blend
-            Color iconColor = blendColors(ACCENT, ERROR_COLOR, errorFlash);
-            Color glowColor = blendColors(ACCENT_GLOW, new Color(239, 68, 68, 40), errorFlash);
-            
-            // Outer glow
-            for (int i = 0; i < 15; i++) {
-                int alpha = (int)((15 - i) * 2.5f * glowIntensity * fadeProgress);
-                g2.setColor(new Color(iconColor.getRed(), iconColor.getGreen(), iconColor.getBlue(), alpha));
-                float size = (36 + i * 2) * pulse;
+            // Soft glow
+            for (int i = 0; i < 10; i++) {
+                int alpha = (10 - i) * 6;
+                g2.setColor(new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), alpha));
+                float size = 36 + i * 2.5f;
                 g2.fill(new Ellipse2D.Float(cx - size / 2, cy - size / 2, size, size));
             }
             
             // Background circle
-            g2.setColor(new Color(iconColor.getRed(), iconColor.getGreen(), iconColor.getBlue(), (int)(25 * fadeProgress)));
-            float bgSize = 64 * pulse;
-            g2.fill(new Ellipse2D.Float(cx - bgSize / 2, cy - bgSize / 2, bgSize, bgSize));
+            g2.setColor(new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 30));
+            g2.fill(new Ellipse2D.Float(cx - 32, cy - 32, 64, 64));
             
             // Lock body
-            g2.setColor(new Color(iconColor.getRed(), iconColor.getGreen(), iconColor.getBlue(), (int)(255 * fadeProgress)));
-            int bodyW = (int)(26 * pulse), bodyH = (int)(20 * pulse);
+            g2.setColor(ACCENT);
+            int bodyW = 26, bodyH = 20;
             int bodyX = cx - bodyW / 2, bodyY = cy;
             g2.fill(new RoundRectangle2D.Float(bodyX, bodyY, bodyW, bodyH, 5, 5));
             
             // Lock shackle
-            g2.setStroke(new BasicStroke(3.5f * pulse, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            int shackleW = (int)(16 * pulse), shackleH = (int)(14 * pulse);
+            g2.setStroke(new BasicStroke(3.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int shackleW = 16, shackleH = 14;
             g2.drawArc(cx - shackleW / 2, bodyY - shackleH, shackleW, shackleH * 2, 0, 180);
             
             // Keyhole
-            g2.setColor(new Color(255, 255, 255, (int)(220 * fadeProgress)));
-            int khSize = (int)(5 * pulse);
-            g2.fillOval(cx - khSize / 2, bodyY + (int)(5 * pulse), khSize, khSize);
-            g2.fillRect(cx - (int)(1.5f * pulse), bodyY + (int)(9 * pulse), (int)(3 * pulse), (int)(6 * pulse));
+            g2.setColor(Color.WHITE);
+            g2.fillOval(cx - 2, bodyY + 5, 5, 5);
+            g2.fillRect(cx - 1, bodyY + 9, 3, 6);
             
             g2.dispose();
         }

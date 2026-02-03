@@ -293,6 +293,7 @@ public class NotebookEntriesPanel extends JPanel {
         private float selectionSweepPhase = 0f;
         private float dashedBorderPhase = 0f; // Current animated phase for dashed border
         private boolean hovered = false;
+        private boolean encrypted = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
 
         // Background image cache (scaled+blurred per size)
@@ -451,6 +452,7 @@ public class NotebookEntriesPanel extends JPanel {
             Float delProg = file != null && deleteAnim != null ? deleteAnim.get(file) : null;
             deleteProgress = delProg == null ? 0f : delProg;
             moodValue = file != null && moods != null ? moods.getOrDefault(file, -1) : -1;
+            encrypted = file != null && EncryptionManager.isEncrypted(file);
             Object phaseObj = list.getClientProperty("selectionSweepPhase");
             if (phaseObj instanceof float[] arr && arr.length > 0) {
                 selectionSweepPhase = arr[0];
@@ -607,6 +609,31 @@ public class NotebookEntriesPanel extends JPanel {
                 
                 // Reset stroke for any subsequent drawing
                 g2.setStroke(new java.awt.BasicStroke(1.0f));
+            }
+            
+            // Draw lock icon for encrypted entries (top-left corner)
+            if (encrypted) {
+                int lockX = 20, lockY = 12;
+                
+                // Subtle shadow
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillOval(lockX - 1, lockY, 13, 13);
+                
+                // Lock body - elegant dark style
+                g2.setColor(new Color(50, 55, 65));
+                int bodyW = 9, bodyH = 7;
+                int bodyX = lockX, bodyY = lockY + 5;
+                g2.fillRoundRect(bodyX, bodyY, bodyW, bodyH, 2, 2);
+                
+                // Lock shackle
+                g2.setStroke(new java.awt.BasicStroke(2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+                int shackleW = 6, shackleH = 5;
+                int shackleCx = lockX + bodyW / 2;
+                g2.drawArc(shackleCx - shackleW / 2, bodyY - shackleH + 1, shackleW, shackleH * 2, 0, 180);
+                
+                // Keyhole highlight
+                g2.setColor(new Color(255, 255, 255, 180));
+                g2.fillOval(shackleCx - 1, bodyY + 2, 3, 3);
             }
             g2.dispose();
             super.paintComponent(g);
