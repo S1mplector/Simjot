@@ -437,22 +437,36 @@ public class MainMenuPanel extends JPanel {
         // widgetPanel = new JPanel();
         widgetPanel = null;
         // Use a layered pane to allow dragging over other components (even though widget panel is omitted)
+        final JPanel contentRef = content;
         layeredPane = new JLayeredPane() {
             @Override
             public Dimension getPreferredSize() {
-                return content.getPreferredSize();
+                return contentRef.getPreferredSize();
+            }
+            
+            @Override
+            public Dimension getMinimumSize() {
+                return new Dimension(1, 1);
             }
 
             @Override
             public void doLayout() {
                 // Always stretch the main content to the full size immediately,
                 // so first paint is centered and not left-aligned.
-                if (content.getParent() == this) {
-                    content.setBounds(0, 0, getWidth(), getHeight());
+                if (contentRef.getParent() == this) {
+                    contentRef.setBounds(0, 0, getWidth(), getHeight());
                 }
+            }
+            
+            @Override
+            public void setBounds(int x, int y, int width, int height) {
+                super.setBounds(x, y, width, height);
+                // Force re-layout when bounds change to prevent black strips
+                doLayout();
             }
         };
         layeredPane.setLayout(null); // Absolute positioning for draggable widget; content is stretched in doLayout.
+        layeredPane.setOpaque(false); // Let parent background show through if needed
 
         // Add the main content panel (bounds will be set by doLayout before first paint)
         layeredPane.add(content, Integer.valueOf(JLayeredPane.DEFAULT_LAYER));

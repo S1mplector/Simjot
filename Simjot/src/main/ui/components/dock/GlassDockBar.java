@@ -240,14 +240,36 @@ public class GlassDockBar extends JPanel {
             // Draw item background with glow
             drawItemBackground(g2, itemX, itemY, scaledSize, glow);
             
-            // Draw icon
+            // Draw icon with hover transform (scale + tilt)
             int iconScaledSize = (int)(ICON_SIZE * scale);
             int iconX = itemX + (scaledSize - iconScaledSize) / 2;
             int iconY = itemY + (scaledSize - iconScaledSize) / 2 - 4;
             
             String resPath = ImageIconRenderer.mapIdToResource(item.iconId);
             if (resPath != null) {
-                ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconScaledSize, this, true);
+                // Apply subtle scale and tilt on hover
+                if (glow > 0.01f) {
+                    java.awt.geom.AffineTransform oldTransform = g2.getTransform();
+                    
+                    // Calculate icon center
+                    float iconCenterX = iconX + iconScaledSize / 2f;
+                    float iconCenterY = iconY + iconScaledSize / 2f;
+                    
+                    // Apply transforms: translate to center, rotate, scale, translate back
+                    float extraScale = 1f + (0.08f * glow); // Up to 8% bigger
+                    float tiltAngle = -0.08f * glow; // Tilt left (negative = counterclockwise)
+                    
+                    g2.translate(iconCenterX, iconCenterY);
+                    g2.rotate(tiltAngle);
+                    g2.scale(extraScale, extraScale);
+                    g2.translate(-iconCenterX, -iconCenterY);
+                    
+                    ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconScaledSize, this, true);
+                    
+                    g2.setTransform(oldTransform);
+                } else {
+                    ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconScaledSize, this, true);
+                }
             }
             
             // Draw label
