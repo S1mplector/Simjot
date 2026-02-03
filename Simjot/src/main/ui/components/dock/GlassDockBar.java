@@ -33,16 +33,14 @@ public class GlassDockBar extends JPanel {
     // Visual constants
     private static final int ITEM_SIZE = 72;
     private static final int ITEM_SPACING = 16;
-    private static final int DOCK_PADDING_H = 24;
-    private static final int DOCK_PADDING_V = 14;
+    private static final int DOCK_PADDING_H = 28;
+    private static final int DOCK_PADDING_V = 18;
     private static final int ICON_SIZE = 42;
     private static final float MAX_SCALE = 1.12f;
     private static final float MAX_GLOW = 1f;
-    private static final int CORNER_RADIUS = 28;
+    private static final int CORNER_RADIUS = 36;
     
-    // Glass colors - more transparent
-    private static final Color GLASS_BG = new Color(255, 255, 255, 28);
-    private static final Color GLASS_BORDER = new Color(255, 255, 255, 70);
+    // Text colors
     private static final Color TEXT_COLOR = new Color(50, 55, 65);
     private static final Color TEXT_SHADOW = new Color(255, 255, 255, 180);
 
@@ -169,47 +167,52 @@ public class GlassDockBar extends JPanel {
     }
     
     private void drawDockBackground(Graphics2D g2, int w, int h) {
-        RoundRectangle2D.Float shape = new RoundRectangle2D.Float(0, 4, w, h - 4, CORNER_RADIUS, CORNER_RADIUS);
+        // Calculate dock height to encompass items but not labels
+        int dockH = DOCK_PADDING_V * 2 + ITEM_SIZE + 8;
         
-        // Outer shadow using native aero math for smooth falloff
-        int shadowLayers = 10;
-        for (int i = 0; i < shadowLayers; i++) {
-            int alpha = NativeAccess.aeroOuterGlowAlpha(shadowLayers - i, shadowLayers, 35);
+        // Main shape - pill-like with equal corner radius
+        RoundRectangle2D.Float shape = new RoundRectangle2D.Float(0, 0, w, dockH, CORNER_RADIUS, CORNER_RADIUS);
+        
+        // Soft outer shadow - ensure all corners stay rounded
+        int shadowLayers = 8;
+        for (int i = shadowLayers; i > 0; i--) {
+            int alpha = NativeAccess.aeroOuterGlowAlpha(i, shadowLayers, 18);
             g2.setColor(new Color(0, 0, 0, alpha));
-            g2.fill(new RoundRectangle2D.Float(-i, 4 + i, w + i * 2, h - 4, CORNER_RADIUS + i, CORNER_RADIUS + i));
+            float spread = (shadowLayers - i) * 1.2f;
+            // Corner radius grows with spread to maintain roundness
+            float cornerR = CORNER_RADIUS + spread * 0.5f;
+            g2.fill(new RoundRectangle2D.Float(
+                -spread, 
+                spread * 0.3f, 
+                w + spread * 2, 
+                dockH + spread * 0.7f, 
+                cornerR, cornerR));
         }
         
-        // Glass background - frosted effect
-        g2.setColor(GLASS_BG);
+        // Pure glass background - very transparent
+        g2.setColor(new Color(255, 255, 255, 15));
         g2.fill(shape);
         
-        // Inner gradient for depth using native color lerp
-        int topColor = NativeAccess.aeroLerpColor(0x23FFFFFF, 0x14C8D4DC, 0.5f);
-        int bottomColor = NativeAccess.aeroLerpColor(0x14C8D4DC, 0x0AC8D4DC, 0.5f);
-        GradientPaint innerGradient = new GradientPaint(
-            0, 4, new Color(topColor, true),
-            0, h, new Color(bottomColor, true)
+        // Subtle frosted overlay
+        GradientPaint frost = new GradientPaint(
+            0, 0, new Color(255, 255, 255, 12),
+            0, dockH, new Color(250, 252, 255, 6)
         );
-        g2.setPaint(innerGradient);
+        g2.setPaint(frost);
         g2.fill(shape);
         
-        // Top highlight (gloss) - brighter for glass effect
+        // Top gloss highlight
         GradientPaint gloss = new GradientPaint(
-            0, 4, new Color(255, 255, 255, 70),
-            0, h * 0.45f, new Color(255, 255, 255, 0)
+            0, 0, new Color(255, 255, 255, 35),
+            0, dockH * 0.35f, new Color(255, 255, 255, 0)
         );
         g2.setPaint(gloss);
-        g2.fill(new RoundRectangle2D.Float(1, 5, w - 2, h * 0.4f, CORNER_RADIUS - 2, CORNER_RADIUS - 2));
+        g2.fill(new RoundRectangle2D.Float(1, 1, w - 2, dockH * 0.35f, CORNER_RADIUS - 1, CORNER_RADIUS - 1));
         
-        // Border with subtle glow
-        g2.setColor(GLASS_BORDER);
-        g2.setStroke(new BasicStroke(1.5f));
-        g2.draw(new RoundRectangle2D.Float(0.5f, 4.5f, w - 1, h - 5, CORNER_RADIUS, CORNER_RADIUS));
-        
-        // Inner light stroke for depth
-        g2.setColor(new Color(255, 255, 255, 50));
+        // Border - subtle
+        g2.setColor(new Color(255, 255, 255, 45));
         g2.setStroke(new BasicStroke(1f));
-        g2.draw(new RoundRectangle2D.Float(1.5f, 5.5f, w - 3, h - 7, CORNER_RADIUS - 2, CORNER_RADIUS - 2));
+        g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, dockH - 1, CORNER_RADIUS, CORNER_RADIUS));
     }
     
     private void drawItems(Graphics2D g2) {
@@ -253,42 +256,42 @@ public class GlassDockBar extends JPanel {
     }
     
     private void drawItemBackground(Graphics2D g2, int x, int y, int size, float glow) {
-        int radius = 14;
+        int radius = 22; // Very rounded corners for item buttons
         RoundRectangle2D.Float shape = new RoundRectangle2D.Float(x, y, size, size, radius, radius);
         
         // Glow effect when hovered - using native aero for smooth falloff
         if (glow > 0.01f) {
-            int glowLayers = 8;
+            int glowLayers = 6;
             for (int i = 0; i < glowLayers; i++) {
-                int baseAlpha = NativeAccess.aeroOuterGlowAlpha(glowLayers - i, glowLayers, 90);
+                int baseAlpha = NativeAccess.aeroOuterGlowAlpha(glowLayers - i, glowLayers, 70);
                 int alpha = (int)(baseAlpha * glow);
-                // Blend accent color using native lerp
                 int glowColor = NativeAccess.aeroLerpColor(0x006496FF, 0x5A6496FF, glow);
                 g2.setColor(new Color((glowColor & 0xFFFFFF) | (alpha << 24), true));
-                g2.fill(new RoundRectangle2D.Float(x - i, y - i, size + i * 2, size + i * 2, radius + i, radius + i));
+                float cornerR = radius + i;
+                g2.fill(new RoundRectangle2D.Float(x - i, y - i, size + i * 2, size + i * 2, cornerR, cornerR));
             }
         }
         
-        // Item background - lerp between base and hover states
-        int baseBg = 0x28FFFFFF;
-        int hoverBg = 0x46FFFFFF;
+        // Item background - very subtle, lerp between base and hover states
+        int baseBg = 0x18FFFFFF;  // More transparent base
+        int hoverBg = 0x35FFFFFF;
         int bgColor = NativeAccess.aeroLerpColor(baseBg, hoverBg, glow);
         g2.setColor(new Color(bgColor, true));
         g2.fill(shape);
         
-        // Top gloss - stronger on hover
-        int glossAlpha = (int)(80 + 50 * glow);
+        // Top gloss - subtle
+        int glossAlpha = (int)(50 + 40 * glow);
         GradientPaint itemGloss = new GradientPaint(
             x, y, new Color(255, 255, 255, glossAlpha),
-            x, y + size * 0.45f, new Color(255, 255, 255, 0)
+            x, y + size * 0.4f, new Color(255, 255, 255, 0)
         );
         g2.setPaint(itemGloss);
-        g2.fill(new RoundRectangle2D.Float(x + 1, y + 1, size - 2, size * 0.4f, radius - 2, radius - 2));
+        g2.fill(new RoundRectangle2D.Float(x + 1, y + 1, size - 2, size * 0.35f, radius - 1, radius - 1));
         
-        // Border - brighter on hover
-        int borderAlpha = (int)(50 + 80 * glow);
+        // Border - subtle
+        int borderAlpha = (int)(35 + 50 * glow);
         g2.setColor(new Color(255, 255, 255, borderAlpha));
-        g2.setStroke(new BasicStroke(1f));
+        g2.setStroke(new BasicStroke(0.8f));
         g2.draw(shape);
     }
     
