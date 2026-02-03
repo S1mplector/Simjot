@@ -33,36 +33,43 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
 /**
- * Applies lightweight syntax coloring to code snippets inside a {@link JTextPane}.
+ * Applies syntax coloring to fenced code blocks (```lang) inside a {@link JTextPane}.
  *
- * <p>The formatter detects fenced code blocks (```lang) as well as implicit blocks
- * that "look" like code (multiple lines ending with semicolons/braces, imports, etc.).
- * It then auto-detects the language (Java, Python, C, or C++) and colors keywords,
- * strings, comments, and numbers to improve readability without altering the underlying
- * content.</p>
+ * <p>Must be explicitly enabled via toggle, no automatic detection to avoid performance cost.
+ * Supports Java, Python, C, C++, JavaScript, TypeScript, Rust, Go, SQL, Shell, HTML, and CSS.</p>
  */
 public final class CodeSyntaxFormatter {
 
-    private static final int DEBOUNCE_MS = 400;
-    private static final int MIN_CODE_LINES = 4;
-    private static final int MIN_CODE_BLOCK_LENGTH = 48;
+    private static final int DEBOUNCE_MS = 250;
+    
+    // Colors - VS Code inspired dark-friendly palette
     private static final Color BASE_CODE_COLOR = new Color(42, 46, 55);
-    private static final Color KEYWORD_COLOR = new Color(111, 66, 193);
-    private static final Color TYPE_COLOR = new Color(5, 129, 168);
-    private static final Color BUILTIN_COLOR = new Color(46, 116, 181);
-    private static final Color COMMENT_COLOR = new Color(97, 137, 102);
-    private static final Color STRING_COLOR = new Color(193, 112, 52);
-    private static final Color NUMBER_COLOR = new Color(149, 85, 197);
+    private static final Color KEYWORD_COLOR = new Color(198, 120, 221);    // Purple
+    private static final Color TYPE_COLOR = new Color(86, 182, 194);        // Cyan
+    private static final Color BUILTIN_COLOR = new Color(97, 175, 239);     // Blue
+    private static final Color COMMENT_COLOR = new Color(106, 153, 85);     // Green
+    private static final Color STRING_COLOR = new Color(206, 145, 120);     // Orange/brown
+    private static final Color NUMBER_COLOR = new Color(209, 154, 102);     // Gold
+    private static final Color FUNCTION_COLOR = new Color(220, 220, 170);   // Yellow
+    private static final Color OPERATOR_COLOR = new Color(150, 150, 150);   // Gray
+    private static final Color TAG_COLOR = new Color(86, 156, 214);         // HTML tags
+    private static final Color ATTRIBUTE_COLOR = new Color(156, 220, 254);  // HTML attributes
+    
     private static final String CODE_FONT_FAMILY = resolveCodeFont();
     private static final AttributeSet BASE_ATTR = buildBaseAttribute();
     private static final Map<Color, AttributeSet> COLOR_CACHE = new ConcurrentHashMap<>();
 
+    // Common patterns
     private static final java.util.regex.Pattern STRING_PATTERN =
-            java.util.regex.Pattern.compile("\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'");
+            java.util.regex.Pattern.compile("\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|`([^`\\\\]|\\\\.)*`");
     private static final java.util.regex.Pattern TRIPLE_STRING_PATTERN =
             java.util.regex.Pattern.compile("\"\"\"[\\s\\S]*?\"\"\"|'''[\\s\\S]*?'''");
     private static final java.util.regex.Pattern NUMBER_PATTERN =
-            java.util.regex.Pattern.compile("\\b0x[0-9a-fA-F]+\\b|\\b\\d+(?:\\.\\d+)?\\b");
+            java.util.regex.Pattern.compile("\\b0x[0-9a-fA-F_]+\\b|\\b0b[01_]+\\b|\\b\\d[\\d_]*(?:\\.[\\d_]+)?(?:[eE][+-]?\\d+)?[fFdDlL]?\\b");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LANGUAGE DEFINITIONS
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private static final SyntaxDefinition JAVA_SYNTAX = new SyntaxDefinition(
             buildWordPattern(new String[]{
@@ -72,13 +79,17 @@ public final class CodeSyntaxFormatter {
                     "interface", "long", "native", "new", "package", "private", "protected",
                     "public", "return", "short", "static", "strictfp", "super", "switch",
                     "synchronized", "this", "throw", "throws", "transient", "try", "void",
-                    "volatile", "while"
+                    "volatile", "while", "var", "yield", "record", "sealed", "permits", "when"
             }),
             buildWordPattern(new String[]{
-                    "String", "List", "Map", "Set", "Optional", "LocalDate", "LocalDateTime",
-                    "BigDecimal", "Runnable", "Comparable"
+                    "String", "Integer", "Long", "Double", "Float", "Boolean", "Character", "Byte", "Short",
+                    "List", "Map", "Set", "Queue", "Deque", "Collection", "Optional", "Stream",
+                    "LocalDate", "LocalDateTime", "LocalTime", "Duration", "Instant",
+                    "BigDecimal", "BigInteger", "Pattern", "Matcher",
+                    "Runnable", "Callable", "Comparable", "Iterable", "Iterator",
+                    "Thread", "Object", "Class", "Exception", "Error", "Throwable"
             }),
-            buildWordPattern(new String[]{"System", "Objects", "Collectors"}),
+            buildWordPattern(new String[]{"System", "Objects", "Collections", "Arrays", "Math", "Files", "Paths"}),
             java.util.regex.Pattern.compile("//[^\\n]*"),
             java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
     );
@@ -89,10 +100,15 @@ public final class CodeSyntaxFormatter {
                     "def", "del", "elif", "else", "except", "False", "finally", "for",
                     "from", "global", "if", "import", "in", "is", "lambda", "None",
                     "nonlocal", "not", "or", "pass", "raise", "return", "True", "try",
-                    "while", "with", "yield"
+                    "while", "with", "yield", "match", "case"
             }),
-            buildWordPattern(new String[]{"list", "dict", "tuple", "set"}),
-            buildWordPattern(new String[]{"print", "len", "range", "enumerate", "open"}),
+            buildWordPattern(new String[]{"int", "float", "str", "bool", "list", "dict", "tuple", "set", "bytes", "type"}),
+            buildWordPattern(new String[]{
+                    "print", "len", "range", "enumerate", "zip", "map", "filter", "sorted", "reversed",
+                    "open", "input", "type", "isinstance", "hasattr", "getattr", "setattr",
+                    "sum", "min", "max", "abs", "round", "pow", "divmod",
+                    "any", "all", "iter", "next", "id", "hash", "repr", "str", "int", "float", "bool"
+            }),
             java.util.regex.Pattern.compile("#[^\\n]*"),
             java.util.regex.Pattern.compile("(?s)\"\"\".*?\"\"\"|'''[\\s\\S]*?'''")
     );
@@ -103,10 +119,15 @@ public final class CodeSyntaxFormatter {
                     "double", "else", "enum", "extern", "float", "for", "goto", "if",
                     "inline", "int", "long", "register", "restrict", "return", "short",
                     "signed", "sizeof", "static", "struct", "switch", "typedef", "union",
-                    "unsigned", "void", "volatile", "while"
+                    "unsigned", "void", "volatile", "while", "_Bool", "_Complex", "_Imaginary"
             }),
-            buildWordPattern(new String[]{"size_t", "uint32_t", "uint64_t"}),
-            buildWordPattern(new String[]{"printf", "scanf", "memcpy", "malloc", "free"}),
+            buildWordPattern(new String[]{"size_t", "ptrdiff_t", "int8_t", "int16_t", "int32_t", "int64_t",
+                    "uint8_t", "uint16_t", "uint32_t", "uint64_t", "intptr_t", "uintptr_t", "FILE"}),
+            buildWordPattern(new String[]{"printf", "scanf", "fprintf", "fscanf", "sprintf", "sscanf",
+                    "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset", "memcmp",
+                    "strlen", "strcpy", "strcat", "strcmp", "strncpy", "strncat", "strncmp",
+                    "fopen", "fclose", "fread", "fwrite", "fgets", "fputs", "fseek", "ftell",
+                    "exit", "abort", "assert", "NULL"}),
             java.util.regex.Pattern.compile("//[^\\n]*"),
             java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
     );
@@ -114,78 +135,223 @@ public final class CodeSyntaxFormatter {
     private static final SyntaxDefinition CPP_SYNTAX = new SyntaxDefinition(
             buildWordPattern(new String[]{
                     "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor",
-                    "bool", "break", "case", "catch", "char", "class", "compl", "const",
-                    "constexpr", "const_cast", "continue", "decltype", "default", "delete",
-                    "do", "double", "dynamic_cast", "else", "enum", "explicit", "export",
-                    "extern", "false", "float", "for", "friend", "goto", "if", "inline",
+                    "bool", "break", "case", "catch", "char", "char8_t", "char16_t", "char32_t",
+                    "class", "compl", "concept", "const", "consteval", "constexpr", "constinit",
+                    "const_cast", "continue", "co_await", "co_return", "co_yield", "decltype",
+                    "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit",
+                    "export", "extern", "false", "float", "for", "friend", "goto", "if", "inline",
                     "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq",
                     "nullptr", "operator", "or", "or_eq", "private", "protected", "public",
-                    "register", "reinterpret_cast", "return", "short", "signed", "sizeof",
-                    "static", "static_assert", "static_cast", "struct", "switch", "template",
-                    "this", "thread_local", "throw", "true", "try", "typedef", "typeid",
-                    "typename", "union", "unsigned", "using", "virtual", "void", "volatile",
-                    "wchar_t", "while", "xor", "xor_eq"
+                    "register", "reinterpret_cast", "requires", "return", "short", "signed",
+                    "sizeof", "static", "static_assert", "static_cast", "struct", "switch",
+                    "template", "this", "thread_local", "throw", "true", "try", "typedef",
+                    "typeid", "typename", "union", "unsigned", "using", "virtual", "void",
+                    "volatile", "wchar_t", "while", "xor", "xor_eq"
             }),
-            buildWordPattern(new String[]{"std", "string", "vector", "map", "unique_ptr"}),
-            buildWordPattern(new String[]{"cout", "cin", "endl", "printf"}),
+            buildWordPattern(new String[]{"std", "string", "wstring", "vector", "map", "unordered_map",
+                    "set", "unordered_set", "list", "deque", "array", "pair", "tuple",
+                    "unique_ptr", "shared_ptr", "weak_ptr", "optional", "variant", "any",
+                    "span", "string_view", "function", "thread", "mutex", "atomic"}),
+            buildWordPattern(new String[]{"cout", "cin", "cerr", "clog", "endl", "printf", "scanf",
+                    "std::move", "std::forward", "std::make_unique", "std::make_shared"}),
             java.util.regex.Pattern.compile("//[^\\n]*"),
             java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
     );
 
+    private static final SyntaxDefinition JAVASCRIPT_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "async", "await", "break", "case", "catch", "class", "const", "continue",
+                    "debugger", "default", "delete", "do", "else", "export", "extends", "false",
+                    "finally", "for", "function", "if", "import", "in", "instanceof", "let",
+                    "new", "null", "return", "static", "super", "switch", "this", "throw",
+                    "true", "try", "typeof", "undefined", "var", "void", "while", "with", "yield"
+            }),
+            buildWordPattern(new String[]{"Array", "Object", "String", "Number", "Boolean", "Function",
+                    "Symbol", "BigInt", "Map", "Set", "WeakMap", "WeakSet", "Promise",
+                    "Date", "RegExp", "Error", "JSON", "Math", "Proxy", "Reflect"}),
+            buildWordPattern(new String[]{"console", "document", "window", "fetch", "setTimeout", "setInterval",
+                    "clearTimeout", "clearInterval", "parseInt", "parseFloat", "isNaN", "isFinite",
+                    "encodeURI", "decodeURI", "encodeURIComponent", "decodeURIComponent",
+                    "require", "module", "exports", "process"}),
+            java.util.regex.Pattern.compile("//[^\\n]*"),
+            java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
+    );
+
+    private static final SyntaxDefinition TYPESCRIPT_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "abstract", "any", "as", "asserts", "async", "await", "bigint", "boolean",
+                    "break", "case", "catch", "class", "const", "continue", "debugger", "declare",
+                    "default", "delete", "do", "else", "enum", "export", "extends", "false",
+                    "finally", "for", "from", "function", "get", "if", "implements", "import",
+                    "in", "infer", "instanceof", "interface", "is", "keyof", "let", "module",
+                    "namespace", "never", "new", "null", "number", "object", "of", "package",
+                    "private", "protected", "public", "readonly", "return", "require", "set",
+                    "static", "string", "super", "switch", "symbol", "this", "throw", "true",
+                    "try", "type", "typeof", "undefined", "unique", "unknown", "var", "void",
+                    "while", "with", "yield"
+            }),
+            buildWordPattern(new String[]{"Array", "Object", "String", "Number", "Boolean", "Function",
+                    "Symbol", "BigInt", "Map", "Set", "WeakMap", "WeakSet", "Promise",
+                    "Partial", "Required", "Readonly", "Record", "Pick", "Omit", "Exclude", "Extract",
+                    "NonNullable", "Parameters", "ReturnType", "InstanceType"}),
+            buildWordPattern(new String[]{"console", "document", "window", "fetch", "setTimeout", "setInterval"}),
+            java.util.regex.Pattern.compile("//[^\\n]*"),
+            java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
+    );
+
+    private static final SyntaxDefinition RUST_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else",
+                    "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop",
+                    "match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self",
+                    "static", "struct", "super", "trait", "true", "type", "unsafe", "use",
+                    "where", "while", "macro_rules"
+            }),
+            buildWordPattern(new String[]{"i8", "i16", "i32", "i64", "i128", "isize",
+                    "u8", "u16", "u32", "u64", "u128", "usize", "f32", "f64", "bool", "char",
+                    "str", "String", "Vec", "Box", "Rc", "Arc", "RefCell", "Cell",
+                    "Option", "Result", "Some", "None", "Ok", "Err",
+                    "HashMap", "HashSet", "BTreeMap", "BTreeSet"}),
+            buildWordPattern(new String[]{"println", "print", "format", "panic", "assert", "assert_eq",
+                    "vec", "dbg", "todo", "unimplemented", "unreachable"}),
+            java.util.regex.Pattern.compile("//[^\\n]*"),
+            java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
+    );
+
+    private static final SyntaxDefinition GO_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "break", "case", "chan", "const", "continue", "default", "defer", "else",
+                    "fallthrough", "for", "func", "go", "goto", "if", "import", "interface",
+                    "map", "package", "range", "return", "select", "struct", "switch", "type", "var"
+            }),
+            buildWordPattern(new String[]{"bool", "byte", "complex64", "complex128", "error", "float32", "float64",
+                    "int", "int8", "int16", "int32", "int64", "rune", "string",
+                    "uint", "uint8", "uint16", "uint32", "uint64", "uintptr"}),
+            buildWordPattern(new String[]{"append", "cap", "close", "complex", "copy", "delete", "imag",
+                    "len", "make", "new", "panic", "print", "println", "real", "recover",
+                    "nil", "true", "false", "iota"}),
+            java.util.regex.Pattern.compile("//[^\\n]*"),
+            java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
+    );
+
+    private static final SyntaxDefinition SQL_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "SELECT", "FROM", "WHERE", "AND", "OR", "NOT", "IN", "LIKE", "BETWEEN",
+                    "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", "CREATE", "ALTER",
+                    "DROP", "TABLE", "INDEX", "VIEW", "DATABASE", "SCHEMA", "GRANT", "REVOKE",
+                    "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "CROSS", "ON", "AS",
+                    "ORDER", "BY", "ASC", "DESC", "GROUP", "HAVING", "LIMIT", "OFFSET",
+                    "UNION", "INTERSECT", "EXCEPT", "DISTINCT", "ALL", "EXISTS", "CASE",
+                    "WHEN", "THEN", "ELSE", "END", "NULL", "IS", "TRUE", "FALSE",
+                    "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "UNIQUE", "CHECK", "DEFAULT",
+                    "CONSTRAINT", "AUTO_INCREMENT", "SERIAL", "RETURNING", "WITH", "RECURSIVE"
+            }),
+            buildWordPattern(new String[]{"INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "DECIMAL", "NUMERIC",
+                    "FLOAT", "REAL", "DOUBLE", "VARCHAR", "CHAR", "TEXT", "BLOB", "CLOB",
+                    "DATE", "TIME", "TIMESTAMP", "DATETIME", "BOOLEAN", "BOOL", "UUID", "JSON", "JSONB"}),
+            buildWordPattern(new String[]{"COUNT", "SUM", "AVG", "MIN", "MAX", "COALESCE", "NULLIF",
+                    "CAST", "CONVERT", "CONCAT", "SUBSTRING", "TRIM", "UPPER", "LOWER", "LENGTH",
+                    "NOW", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP"}),
+            java.util.regex.Pattern.compile("--[^\\n]*"),
+            java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
+    );
+
+    private static final SyntaxDefinition SHELL_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "if", "then", "else", "elif", "fi", "case", "esac", "for", "while", "until",
+                    "do", "done", "in", "function", "select", "time", "coproc",
+                    "return", "exit", "break", "continue", "local", "export", "readonly",
+                    "declare", "typeset", "unset", "shift", "source", "eval", "exec"
+            }),
+            null,
+            buildWordPattern(new String[]{"echo", "printf", "read", "cd", "pwd", "ls", "cp", "mv", "rm", "mkdir",
+                    "rmdir", "cat", "head", "tail", "grep", "sed", "awk", "find", "xargs",
+                    "sort", "uniq", "wc", "cut", "tr", "tee", "test", "true", "false",
+                    "chmod", "chown", "chgrp", "ln", "touch", "which", "whereis", "type",
+                    "curl", "wget", "ssh", "scp", "rsync", "tar", "gzip", "gunzip", "zip", "unzip"}),
+            java.util.regex.Pattern.compile("#[^\\n]*"),
+            null
+    );
+
+    private static final SyntaxDefinition HTML_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{}), // HTML doesn't have keywords in the traditional sense
+            null,
+            null,
+            java.util.regex.Pattern.compile("<!--.*?-->", java.util.regex.Pattern.DOTALL),
+            null
+    );
+
+    private static final SyntaxDefinition CSS_SYNTAX = new SyntaxDefinition(
+            buildWordPattern(new String[]{
+                    "important", "inherit", "initial", "unset", "revert", "auto", "none",
+                    "block", "inline", "flex", "grid", "absolute", "relative", "fixed", "sticky",
+                    "hidden", "visible", "scroll", "solid", "dashed", "dotted", "double"
+            }),
+            null,
+            buildWordPattern(new String[]{"rgb", "rgba", "hsl", "hsla", "url", "calc", "var", "attr",
+                    "linear-gradient", "radial-gradient", "rotate", "scale", "translate", "skew",
+                    "min", "max", "clamp", "counter", "cubic-bezier", "steps"}),
+            java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL),
+            null
+    );
+
     private static final SyntaxDefinition GENERIC_SYNTAX = new SyntaxDefinition(
-            buildWordPattern(new String[]{"if", "else", "for", "while", "return", "function", "var", "let"}),
+            buildWordPattern(new String[]{"if", "else", "for", "while", "return", "function", "var", "let", "const", "class"}),
             null,
             null,
             java.util.regex.Pattern.compile("//[^\\n]*|#[^\\n]*"),
             java.util.regex.Pattern.compile("/\\*.*?\\*/", java.util.regex.Pattern.DOTALL)
     );
 
-    private static final Map<Language, SyntaxDefinition> SYNTAX_DEFINITIONS = Map.of(
-            Language.JAVA, JAVA_SYNTAX,
-            Language.PYTHON, PYTHON_SYNTAX,
-            Language.C, C_SYNTAX,
-            Language.CPP, CPP_SYNTAX,
-            Language.GENERIC, GENERIC_SYNTAX
+    private static final Map<Language, SyntaxDefinition> SYNTAX_DEFINITIONS = Map.ofEntries(
+            Map.entry(Language.JAVA, JAVA_SYNTAX),
+            Map.entry(Language.PYTHON, PYTHON_SYNTAX),
+            Map.entry(Language.C, C_SYNTAX),
+            Map.entry(Language.CPP, CPP_SYNTAX),
+            Map.entry(Language.JAVASCRIPT, JAVASCRIPT_SYNTAX),
+            Map.entry(Language.TYPESCRIPT, TYPESCRIPT_SYNTAX),
+            Map.entry(Language.RUST, RUST_SYNTAX),
+            Map.entry(Language.GO, GO_SYNTAX),
+            Map.entry(Language.SQL, SQL_SYNTAX),
+            Map.entry(Language.SHELL, SHELL_SYNTAX),
+            Map.entry(Language.HTML, HTML_SYNTAX),
+            Map.entry(Language.CSS, CSS_SYNTAX),
+            Map.entry(Language.GENERIC, GENERIC_SYNTAX)
     );
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INSTANCE STATE
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private final JTextPane textPane;
     private StyledDocument document;
     private final Timer debounceTimer;
     private boolean applyingFormatting = false;
+    private volatile boolean enabled = false;
 
     private final DocumentListener documentListener = new DocumentListener() {
-        @Override
-        public void insertUpdate(DocumentEvent e) {
-            handleDocumentEvent();
-        }
-
-        @Override
-        public void removeUpdate(DocumentEvent e) {
-            handleDocumentEvent();
-        }
-
-        @Override
-        public void changedUpdate(DocumentEvent e) {
-            handleDocumentEvent();
-        }
+        @Override public void insertUpdate(DocumentEvent e) { handleDocumentEvent(); }
+        @Override public void removeUpdate(DocumentEvent e) { handleDocumentEvent(); }
+        @Override public void changedUpdate(DocumentEvent e) { handleDocumentEvent(); }
     };
 
-    private final PropertyChangeListener documentChangeListener = new PropertyChangeListener() {
-        @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            if (!"document".equals(evt.getPropertyName())) return;
-            if (evt.getOldValue() instanceof StyledDocument oldDoc) {
-                oldDoc.removeDocumentListener(documentListener);
-            }
-            if (evt.getNewValue() instanceof StyledDocument newDoc) {
-                document = newDoc;
-                document.addDocumentListener(documentListener);
-            } else {
-                document = null;
-            }
-            scheduleRefresh();
+    private final PropertyChangeListener documentChangeListener = evt -> {
+        if (!"document".equals(evt.getPropertyName())) return;
+        if (evt.getOldValue() instanceof StyledDocument oldDoc) {
+            oldDoc.removeDocumentListener(documentListener);
         }
+        if (evt.getNewValue() instanceof StyledDocument newDoc) {
+            document = newDoc;
+            document.addDocumentListener(documentListener);
+        } else {
+            document = null;
+        }
+        if (enabled) scheduleRefresh();
     };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PUBLIC API
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private CodeSyntaxFormatter(JTextPane pane) {
         this.textPane = Objects.requireNonNull(pane, "textPane");
@@ -194,12 +360,37 @@ public final class CodeSyntaxFormatter {
         pane.addPropertyChangeListener(documentChangeListener);
         this.debounceTimer = new Timer(DEBOUNCE_MS, e -> applyFormatting());
         this.debounceTimer.setRepeats(false);
-        scheduleRefresh();
     }
 
-    /** Install the formatter on the provided pane. */
+    /** Install the formatter on the provided pane (starts disabled). */
     public static CodeSyntaxFormatter install(JTextPane pane) {
         return new CodeSyntaxFormatter(pane);
+    }
+
+    /** Check if syntax highlighting is enabled. */
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    /** Enable or disable syntax highlighting. */
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (enabled) {
+            scheduleRefresh();
+        }
+    }
+
+    /** Toggle syntax highlighting on/off. Returns the new state. */
+    public boolean toggle() {
+        setEnabled(!enabled);
+        return enabled;
+    }
+
+    /** Force a refresh of syntax highlighting (if enabled). */
+    public void refresh() {
+        if (enabled) {
+            scheduleRefresh();
+        }
     }
 
     /** Remove listeners and timers. */
@@ -211,8 +402,12 @@ public final class CodeSyntaxFormatter {
         textPane.removePropertyChangeListener(documentChangeListener);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INTERNAL LOGIC
+    // ═══════════════════════════════════════════════════════════════════════════
+
     private void handleDocumentEvent() {
-        if (applyingFormatting) return;
+        if (applyingFormatting || !enabled) return;
         scheduleRefresh();
     }
 
@@ -221,12 +416,12 @@ public final class CodeSyntaxFormatter {
             SwingUtilities.invokeLater(this::scheduleRefresh);
             return;
         }
-        if (document == null) return;
+        if (document == null || !enabled) return;
         debounceTimer.restart();
     }
 
     private void applyFormatting() {
-        if (document == null) return;
+        if (document == null || !enabled) return;
         if (!SwingUtilities.isEventDispatchThread()) {
             SwingUtilities.invokeLater(this::applyFormatting);
             return;
@@ -237,14 +432,11 @@ public final class CodeSyntaxFormatter {
         } catch (BadLocationException ex) {
             return;
         }
-        if (text.isBlank()) {
-            return;
-        }
+        if (text.isBlank()) return;
 
-        List<CodeRegion> regions = collectRegions(text);
-        if (regions.isEmpty()) {
-            return;
-        }
+        // Only process fenced code blocks (```lang ... ```)
+        List<CodeRegion> regions = findFencedRegions(text);
+        if (regions.isEmpty()) return;
 
         applyingFormatting = true;
         try {
@@ -258,15 +450,6 @@ public final class CodeSyntaxFormatter {
         }
     }
 
-    private List<CodeRegion> collectRegions(String text) {
-        List<CodeRegion> regions = new ArrayList<>();
-        List<CodeRegion> fenced = findFencedRegions(text);
-        regions.addAll(fenced);
-        regions.addAll(findImplicitRegions(text, fenced));
-        regions.sort(Comparator.comparingInt(CodeRegion::start));
-        return regions;
-    }
-
     private List<CodeRegion> findFencedRegions(String text) {
         List<CodeRegion> regions = new ArrayList<>();
         int idx = 0;
@@ -275,7 +458,7 @@ public final class CodeSyntaxFormatter {
             if (fenceStart < 0) break;
             int fenceLineEnd = text.indexOf('\n', fenceStart + 3);
             if (fenceLineEnd < 0) break;
-            String hint = text.substring(fenceStart + 3, fenceLineEnd).trim();
+            String hint = text.substring(fenceStart + 3, fenceLineEnd).trim().toLowerCase(Locale.ROOT);
             int blockClose = text.indexOf("```", fenceLineEnd + 1);
             if (blockClose < 0) break;
             int contentStart = fenceLineEnd + 1;
@@ -283,89 +466,11 @@ public final class CodeSyntaxFormatter {
                 idx = blockClose + 3;
                 continue;
             }
-            Language lang = detectLanguage(text.substring(contentStart, blockClose), hint);
+            Language lang = detectLanguage(hint);
             regions.add(new CodeRegion(contentStart, blockClose, lang));
             idx = blockClose + 3;
         }
         return regions;
-    }
-
-    private List<CodeRegion> findImplicitRegions(String text, List<CodeRegion> reserved) {
-        List<CodeRegion> regions = new ArrayList<>();
-        List<CodeRegion> sortedReserved = new ArrayList<>(reserved);
-        sortedReserved.sort(Comparator.comparingInt(CodeRegion::start));
-        int reservedIndex = 0;
-        int idx = 0;
-        int blockStart = -1;
-        int lastCodeLineEnd = -1;
-        int codeLines = 0;
-
-        while (idx < text.length()) {
-            if (reservedIndex < sortedReserved.size()) {
-                CodeRegion active = sortedReserved.get(reservedIndex);
-                if (idx >= active.end()) {
-                    reservedIndex++;
-                    continue;
-                }
-                if (idx >= active.start() && idx < active.end()) {
-                    if (blockStart != -1 && codeLines >= MIN_CODE_LINES && lastCodeLineEnd > blockStart) {
-                        addImplicitRegion(regions, reserved, blockStart, lastCodeLineEnd, text);
-                    }
-                    blockStart = -1;
-                    codeLines = 0;
-                    idx = active.end();
-                    continue;
-                }
-            }
-
-            int lineEnd = text.indexOf('\n', idx);
-            if (lineEnd < 0) lineEnd = text.length();
-            String line = text.substring(idx, lineEnd);
-            boolean blank = line.trim().isEmpty();
-            boolean codeLine = isLikelyCodeLine(line);
-
-            if (codeLine) {
-                if (blockStart == -1) {
-                    blockStart = idx;
-                }
-                codeLines++;
-                lastCodeLineEnd = lineEnd;
-            } else if (!blank) {
-                if (blockStart != -1 && codeLines >= MIN_CODE_LINES && lastCodeLineEnd > blockStart) {
-                    addImplicitRegion(regions, reserved, blockStart, lastCodeLineEnd, text);
-                }
-                blockStart = -1;
-                codeLines = 0;
-            } else {
-                if (blockStart != -1) {
-                    lastCodeLineEnd = lineEnd;
-                }
-            }
-            idx = lineEnd + 1;
-        }
-
-        if (blockStart != -1 && codeLines >= MIN_CODE_LINES && lastCodeLineEnd > blockStart) {
-            addImplicitRegion(regions, reserved, blockStart, lastCodeLineEnd, text);
-        }
-        return regions;
-    }
-
-    private void addImplicitRegion(List<CodeRegion> target, List<CodeRegion> reserved, int start, int end, String text) {
-        if (end - start < MIN_CODE_BLOCK_LENGTH) return;
-        if (overlapsExisting(start, end, reserved)) return;
-        if (overlapsExisting(start, end, target)) return;
-        String snippet = text.substring(start, end);
-        Language lang = detectLanguage(snippet, null);
-        target.add(new CodeRegion(start, end, lang));
-    }
-
-    private boolean overlapsExisting(int start, int end, List<CodeRegion> regions) {
-        for (CodeRegion region : regions) {
-            if (start < region.end() && end > region.start()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void highlightRegion(CodeRegion region, String fullText) {
@@ -388,13 +493,13 @@ public final class CodeSyntaxFormatter {
         // Apply base monospace font/color to entire region
         document.setCharacterAttributes(start, length, BASE_ATTR, false);
 
-        // Apply keywords, types, builtins, numbers - but skip excluded ranges
+        // Apply syntax colors - skip excluded ranges for keywords/types/builtins
         applyPatternExcluding(text, syntax.keywordPattern(), KEYWORD_COLOR, start, excludedRanges);
         applyPatternExcluding(text, syntax.typePattern(), TYPE_COLOR, start, excludedRanges);
         applyPatternExcluding(text, syntax.builtinPattern(), BUILTIN_COLOR, start, excludedRanges);
         applyPatternExcluding(text, NUMBER_PATTERN, NUMBER_COLOR, start, excludedRanges);
 
-        // Apply comments and strings last so they override any accidental keyword matches
+        // Apply comments and strings last so they override
         applyPattern(text, syntax.blockCommentPattern(), COMMENT_COLOR, start);
         applyPattern(text, syntax.lineCommentPattern(), COMMENT_COLOR, start);
         applyPattern(text, STRING_PATTERN, STRING_COLOR, start);
@@ -414,10 +519,7 @@ public final class CodeSyntaxFormatter {
     private boolean isInExcludedRange(int pos, int len, List<int[]> excludedRanges) {
         int end = pos + len;
         for (int[] range : excludedRanges) {
-            // If any part of the match overlaps with an excluded range, skip it
-            if (pos < range[1] && end > range[0]) {
-                return true;
-            }
+            if (pos < range[1] && end > range[0]) return true;
         }
         return false;
     }
@@ -452,101 +554,23 @@ public final class CodeSyntaxFormatter {
         });
     }
 
-    private boolean isLikelyCodeLine(String line) {
-        if (line == null) return false;
-        String trimmed = line.trim();
-        if (trimmed.isEmpty()) return false;
-        if (trimmed.startsWith("```")) return false;
-        // Skip lines that look like prose (start with capital and have few symbols)
-        if (trimmed.length() > 20 && Character.isUpperCase(trimmed.charAt(0)) && !trimmed.contains(";") && !trimmed.contains("{")) {
-            long symbolCount = trimmed.chars().filter(c -> "{}();=<>&|+-*/".indexOf(c) >= 0).count();
-            if (symbolCount < 2) return false;
-        }
-        // Strong indicators of code
-        if (trimmed.startsWith("//") || trimmed.startsWith("#include") || trimmed.startsWith("#define") || trimmed.startsWith("#!")) return true;
-        if (trimmed.startsWith("import ") || trimmed.startsWith("package ") || trimmed.startsWith("using ")) return true;
-        if (trimmed.startsWith("public ") || trimmed.startsWith("private ") || trimmed.startsWith("protected ")) return true;
-        if (trimmed.startsWith("class ") || trimmed.startsWith("struct ") || trimmed.startsWith("enum ")) return true;
-        if (trimmed.startsWith("def ") || trimmed.startsWith("function ") || trimmed.startsWith("const ") || trimmed.startsWith("let ") || trimmed.startsWith("var ")) return true;
-        if (trimmed.startsWith("async ") || trimmed.startsWith("await ")) return true;
-        if (trimmed.startsWith("@") && trimmed.length() > 1 && Character.isLetter(trimmed.charAt(1))) return true;
-        if (trimmed.contains("::") || trimmed.contains("->")) return true;
-        // Lines ending with code-specific patterns
-        if (trimmed.endsWith("{") || trimmed.endsWith("}") || trimmed.endsWith(");") || trimmed.endsWith("};" )) return true;
-        // Python-style block starters
-        if (trimmed.endsWith(":") && (trimmed.startsWith("if ") || trimmed.startsWith("elif ") || trimmed.startsWith("else") || 
-                trimmed.startsWith("for ") || trimmed.startsWith("while ") || trimmed.startsWith("def ") || 
-                trimmed.startsWith("class ") || trimmed.startsWith("try") || trimmed.startsWith("except") || trimmed.startsWith("with "))) return true;
-        // Lines with semicolon endings (statements)
-        if (trimmed.endsWith(";") && trimmed.length() > 3) return true;
-        // Function calls with clear syntax: word(args)
-        if (trimmed.matches("^\\s*\\w+\\s*\\([^)]*\\)\\s*[;{]?\\s*$")) return true;
-        // Variable assignment patterns
-        if (trimmed.matches("^\\s*(\\w+\\s+)?\\w+\\s*=\\s*.+;?\\s*$") && trimmed.contains("=")) return true;
-        // Require higher symbol density for uncertain lines
-        int symbolCount = 0;
-        for (char ch : trimmed.toCharArray()) {
-            if ("{}();=<>&|+-*/".indexOf(ch) >= 0) {
-                symbolCount++;
-            }
-        }
-        return symbolCount >= 3;
-    }
-
-    private Language detectLanguage(String snippet, String explicitHint) {
-        Language fromHint = fromAlias(explicitHint);
-        if (fromHint != null) return fromHint;
-        String lower = snippet == null ? "" : snippet.toLowerCase(Locale.ROOT);
-        int javaScore = 0;
-        int pythonScore = 0;
-        int cScore = 0;
-        int cppScore = 0;
-
-        if (lower.contains("system.out") || lower.contains("public class") || lower.contains("implements") || lower.contains("@override")) {
-            javaScore += 3;
-        }
-        if (lower.contains("def ") || lower.contains("self") || lower.contains("print(") || lower.contains("elif") || lower.contains("lambda")) {
-            pythonScore += 3;
-        }
-        if (lower.contains("#include <stdio") || lower.contains("printf(") || lower.contains("scanf(") || lower.contains("->")) {
-            cScore += 3;
-        }
-        if (lower.contains("std::") || lower.contains("#include <iostream") || lower.contains("using namespace")) {
-            cppScore += 4;
-        }
-        if (lower.contains("template<")) {
-            cppScore += 2;
-        }
-        if (lower.contains("#include")) {
-            cScore += 1;
-            cppScore += 1;
-        }
-        if (lower.contains("async def") || lower.contains("await ")) {
-            pythonScore += 1;
-        }
-        if (lower.contains("new ") && lower.contains("();")) {
-            javaScore += 1;
-        }
-
-        int max = Math.max(Math.max(javaScore, pythonScore), Math.max(cScore, cppScore));
-        if (max == 0) {
-            return Language.GENERIC;
-        }
-        if (javaScore == max) return Language.JAVA;
-        if (pythonScore == max) return Language.PYTHON;
-        if (cppScore == max) return Language.CPP;
-        return Language.C;
-    }
-
-    private Language fromAlias(String hint) {
-        if (hint == null || hint.isBlank()) return null;
-        String normalized = hint.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
+    /** Detect language from the hint string after ``` */
+    private Language detectLanguage(String hint) {
+        if (hint == null || hint.isBlank()) return Language.GENERIC;
+        return switch (hint) {
             case "java" -> Language.JAVA;
-            case "py", "python" -> Language.PYTHON;
+            case "py", "python", "python3" -> Language.PYTHON;
             case "c" -> Language.C;
-            case "cpp", "c++" -> Language.CPP;
-            default -> null;
+            case "cpp", "c++", "cxx", "cc" -> Language.CPP;
+            case "js", "javascript", "node" -> Language.JAVASCRIPT;
+            case "ts", "typescript" -> Language.TYPESCRIPT;
+            case "rs", "rust" -> Language.RUST;
+            case "go", "golang" -> Language.GO;
+            case "sql", "mysql", "postgresql", "postgres", "sqlite" -> Language.SQL;
+            case "sh", "bash", "shell", "zsh", "fish" -> Language.SHELL;
+            case "html", "htm", "xml", "xhtml" -> Language.HTML;
+            case "css", "scss", "sass", "less" -> Language.CSS;
+            default -> Language.GENERIC;
         };
     }
 
@@ -557,7 +581,7 @@ public final class CodeSyntaxFormatter {
                 .map(java.util.regex.Pattern::quote)
                 .collect(Collectors.joining("|"));
         if (joined.isEmpty()) return null;
-        return java.util.regex.Pattern.compile("\\b(" + joined + ")\\b");
+        return java.util.regex.Pattern.compile("\\b(" + joined + ")\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
     }
 
     private static AttributeSet buildBaseAttribute() {
@@ -571,14 +595,16 @@ public final class CodeSyntaxFormatter {
         String[] preferred = {"JetBrains Mono", "SF Mono", "Menlo", "Consolas", "Monaco", "Monospaced"};
         List<String> installed = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
         for (String candidate : preferred) {
-            if (installed.contains(candidate)) {
-                return candidate;
-            }
+            if (installed.contains(candidate)) return candidate;
         }
         return "Monospaced";
     }
 
-    private enum Language { JAVA, PYTHON, C, CPP, GENERIC }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TYPES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private enum Language { JAVA, PYTHON, C, CPP, JAVASCRIPT, TYPESCRIPT, RUST, GO, SQL, SHELL, HTML, CSS, GENERIC }
 
     private record CodeRegion(int start, int end, Language language) {}
 
