@@ -28,7 +28,7 @@ import main.core.security.crypto.EncryptedMetadata;
 import main.core.security.crypto.SimjotCrypto;
 import main.core.service.SettingsStore;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.dialog.security.EncryptionUnlockDialog;
+import main.ui.dialog.security.ElegantUnlockDialog;
 
 /**
  * Manages encryption settings, session password caching, and file-level helpers.
@@ -172,7 +172,7 @@ public final class EncryptionManager {
     }
 
     private static String promptForPassword(Component parent) {
-        EncryptionUnlockDialog.Result res = EncryptionUnlockDialog.prompt(parent);
+        ElegantUnlockDialog.Result res = ElegantUnlockDialog.prompt(parent);
         if (res == null || res.password == null || res.password.length == 0) return null;
         SettingsStore s = SettingsStore.get();
         String salt = s.getEncryptionPasswordSalt();

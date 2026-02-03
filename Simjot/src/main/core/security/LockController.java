@@ -10,7 +10,7 @@ package main.core.security;
 
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
-import main.ui.dialog.security.LockScreenDialog;
+import main.ui.dialog.security.ElegantLockScreen;
 
 import java.awt.*;
 import java.awt.event.AWTEventListener;
@@ -113,7 +113,7 @@ public final class LockController {
             locked = true;
             unlockedNotebooks.clear();
             if (cover != null) cover.setVisible(true);
-            LockScreenDialog dlg = new LockScreenDialog(app, false);
+            ElegantLockScreen dlg = new ElegantLockScreen(app, false);
             boolean ok = dlg.blockUntilUnlocked();
             if (ok) {
                 locked = false;
@@ -128,7 +128,7 @@ public final class LockController {
         locked = true;
         unlockedNotebooks.clear();
         if (cover != null) cover.setVisible(true);
-        LockScreenDialog dlg = new LockScreenDialog(app, false);
+        ElegantLockScreen dlg = new ElegantLockScreen(app, false);
         boolean ok = dlg.blockUntilUnlocked();
         if (ok) {
             locked = false;
@@ -143,7 +143,7 @@ public final class LockController {
         if (!s.isLockEnabled()) return true;
         if (!s.isNotebookLocked(name)) return true;
         if (unlockedNotebooks.contains(name)) return true;
-        LockScreenDialog dlg = new LockScreenDialog(app, false);
+        ElegantLockScreen dlg = new ElegantLockScreen(app, false);
         boolean ok = dlg.blockUntilUnlocked();
         if (ok) {
             unlockedNotebooks.add(name);

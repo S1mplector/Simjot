@@ -67,7 +67,7 @@ import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
 import main.ui.dialog.message.CustomMessageDialog;
-import main.ui.dialog.security.LockScreenDialog;
+import main.ui.dialog.security.ElegantLockScreen;
 import main.ui.dialog.setup.SetupWizardDialog;
 import main.ui.features.drawing.DrawingPanel;
 import main.ui.features.entries.GlobalSearchDialog;
@@ -727,7 +727,7 @@ public class JournalApp extends JFrame {
                 LockController.get().init(this);
                 if (SettingsStore.get().isLockEnabled() && SettingsStore.get().isLockRequireOnStart()) {
                     // Show full-screen Aero-styled lock screen on startup
-                    new LockScreenDialog(this).blockUntilUnlocked();
+                    new ElegantLockScreen(this).blockUntilUnlocked();
                 }
             } catch (Throwable t) {
                 logWarn("Lock init", t);

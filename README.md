@@ -18,23 +18,22 @@ A personalizable creative wellness and writing studio with a Aero-inspired UI an
 - Mood data is stored in a custom binary format optimized for most optimal parsing. 
 
 ### **Organization & management**
-- Notebook system with different types (Journal, Poetry)
+- Notebook system with different types (Journal, Poetry, and notetaking)
 - Smart auto-save functionality with timestamp-based filenames
 - Global search and filtering across all content
-- Entry templates with quick selection and customization
 
 ### **Security & Backup**
+
 - **Password Protection**: Lock your journal with AES-256 encryption
 - **Selective Backup**: Choose to include mood data, settings, wallpapers
 - **Backup Verification**: Integrity checking and pruning by age
 - **Easy Restore**: Browse and restore from any backup point
 
 ### **Personalization & UI**
+
 - Aero-inspired UI with glass panels and smooth animations (can be disabled)
 - Themes, backgrounds, and a custom font studio for creating or importing fonts
 - Global hotkeys and quick actions for fast capture
-- Optional Sim AI companion via local Ollama
-- Native-accelerated search and analytics for large notebooks
 
 ## Screenshots
 
@@ -72,7 +71,6 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 - **Maven 3.8+** for dependency management and building
 - **CMake 3.20+** and a C/C++ compiler for the native library (recommended)
 - **GHC/Cabal** for the Haskell poetry module (optional)
-- **Ollama** for the Sim AI companion (optional)
 
 ### Installation & Build
 
@@ -88,7 +86,6 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 cd Simjot
 mvn clean package
 ```
-
 #### Manual Build
 See [README_BUILD.md](README_BUILD.md) for detailed build instructions including:
 - Windows packaging with `jpackage`
@@ -126,41 +123,14 @@ On first startup, Simjot will prompt you to:
 2. **Take an optional tutorial** to learn the interface
 3. **Set up your preferences** in the settings panel
 
-### Creating Content
-
-#### **Journal Entries**
-1. Click "New Entry" from the main menu
-2. Select your mood using the interactive slider
-3. Write your thoughts in the rich text editor
-4. Entries are automatically saved with timestamps
-
-#### **Poetry Writing**
-1. Select "New Poem" for the dedicated poetry interface
-2. Track stanza count in real-time
-3. Use the metering and analysis utilities to improve your poetry
-
-### Organization
-
-#### **Notebooks**
-- Create separate notebooks for different topics or time periods
-- Choose notebook types: Journal or Poetry
-- Each notebook maintains its own file structure
-
-#### **Viewing Content**
-- Use "View Entries" to browse all your created content
-- Filter by type (entries, poems)
-- Preview content before opening
-- See word counts and creation dates
-
 ### Architecture
-- **Modular Java application** using Java Platform Module System
-- **Swing-based UI** with custom Look & Feel
+- Simjot is a **modular Java application** using Java Platform Module System, it features a **Swing-based UI** with custom Look & Feel
 - **CardLayout navigation** for smooth panel transitions
 - **MVC pattern** with observer-based UI updates
 - **Event-driven design** with event bus for component communication
 - **File-based persistence** with custom serialization
 - **Panama FFM integration** for native modules (C/C++)
-- **Optional Haskell FFI** for advanced poetry analysis
+- **Haskell FFI** for advanced poetry analysis
 
 ### Technologies Used
 - **Java 24** with Project Jigsaw and Panama FFM (preview)
@@ -216,7 +186,5 @@ SIMJOT_LOG=debug ./run.sh
 ```
 
 ---
-
-I started developing Simjot when I was battling some extremely hard feelings and when I was in a bad state of mind. I needed a tool to help me express my thoughts and emotions, and Simjot was born. I hope it helps you too.
 
 *Happy Journaling!*
