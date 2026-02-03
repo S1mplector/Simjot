@@ -72,6 +72,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox menuBarChk;
     private final JCheckBox launchOnLoginChk;
     private final JCheckBox handwritingToolbarChk;
+    private final JCheckBox codeSyntaxFormatterChk;
     
 
     GeneralSettingsPage() {
@@ -210,6 +211,19 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         gc.gridwidth = 1;
         row++;
 
+        codeSyntaxFormatterChk = new JCheckBox("Enable code syntax highlighting (experimental)", store.isCodeSyntaxFormatterEnabled());
+        codeSyntaxFormatterChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        codeSyntaxFormatterChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(codeSyntaxFormatterChk, gc);
+        row++;
+
+        JLabel codeFormatWarn = SettingsUi.label("Experimental: auto-detects code blocks and applies syntax coloring. Restart the editor to apply.");
+        codeFormatWarn.setFont(codeFormatWarn.getFont().deriveFont(Font.PLAIN, 11f));
+        codeFormatWarn.setForeground(new Color(120, 60, 0, 170));
+        gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(codeFormatWarn, gc);
+        gc.gridwidth = 1;
+        row++;
+
         // Autocorrect section
         gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2;
         gc.insets = new Insets(16, 5, 5, 5);
@@ -333,6 +347,7 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setJournalAutocorrectEnabled(journalAutocorrectChk.isSelected());
         store.setPoetryAutocorrectEnabled(poetryAutocorrectChk.isSelected());
         store.setHandwritingToolbarEnabled(handwritingToolbarChk.isSelected());
+        store.setCodeSyntaxFormatterEnabled(codeSyntaxFormatterChk.isSelected());
         
         // Menu bar service (macOS only)
         boolean menuBarEnabled = store.isMenuBarServiceEnabled();

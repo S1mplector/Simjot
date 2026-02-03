@@ -4,20 +4,20 @@
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
-A highly personalizable creative wellness and writing studio with a modern Aero-inspired UI, native-accelerated core utilities, and rich journaling and poetry tools.
+A personalizable creative wellness and writing studio with a Aero-inspired UI and rich journaling and poetry tools.
 
 ## Features
 
-### **Multi-Format Content Creation**
-- Journal entries with mood tracking, rich formatting, images, and customizable templates
-- Dedicated poetry editor with real-time syllable counting, rhyme and meter analysis, and form detection powered by native engines (C/C++ and Haskell)
+### **Writing tools and mood tracking**
 
-### **Mood & Wellness Tracking**
-- **Interactive mood slider** with visual feedback (0-100 scale)
-- **Mood chart** with date range filtering (7 days, 30 days, all time)
-- **Automatic mood logging** integrated with journal entries
+- Simjot supports journal entries with mood tracking, rich formatting, images, and customizable templates. 
+- Additionally, Simjot provides a dedicated poetry editor with real-time syllable counting, rhyme and meter analysis, and form detection powered by native engines (C/C++ and Haskell)
 
-### **Organization & Management**
+- Mood is set per entry via a **Interactive mood slider** with visual feedback (0-100 scale)
+- In the **Mood chart**, you can view your mood data with date range filtering (7 days, 30 days, all time)
+- Mood data is stored in a custom binary format optimized for most optimal parsing. 
+
+### **Organization & management**
 - Notebook system with different types (Journal, Poetry)
 - Smart auto-save functionality with timestamp-based filenames
 - Global search and filtering across all content

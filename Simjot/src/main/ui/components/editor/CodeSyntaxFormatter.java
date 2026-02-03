@@ -43,9 +43,9 @@ import javax.swing.text.StyledDocument;
  */
 public final class CodeSyntaxFormatter {
 
-    private static final int DEBOUNCE_MS = 320;
-    private static final int MIN_CODE_LINES = 3;
-    private static final int MIN_CODE_BLOCK_LENGTH = 32;
+    private static final int DEBOUNCE_MS = 400;
+    private static final int MIN_CODE_LINES = 4;
+    private static final int MIN_CODE_BLOCK_LENGTH = 48;
     private static final Color BASE_CODE_COLOR = new Color(42, 46, 55);
     private static final Color KEYWORD_COLOR = new Color(111, 66, 193);
     private static final Color TYPE_COLOR = new Color(5, 129, 168);
@@ -58,7 +58,9 @@ public final class CodeSyntaxFormatter {
     private static final Map<Color, AttributeSet> COLOR_CACHE = new ConcurrentHashMap<>();
 
     private static final java.util.regex.Pattern STRING_PATTERN =
-            java.util.regex.Pattern.compile("\\\"([^\\\"\\\\]|\\\\.)*\\\"|'([^'\\\\]|\\\\.)*'");
+            java.util.regex.Pattern.compile("\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'");
+    private static final java.util.regex.Pattern TRIPLE_STRING_PATTERN =
+            java.util.regex.Pattern.compile("\"\"\"[\\s\\S]*?\"\"\"|'''[\\s\\S]*?'''");
     private static final java.util.regex.Pattern NUMBER_PATTERN =
             java.util.regex.Pattern.compile("\\b0x[0-9a-fA-F]+\\b|\\b\\d+(?:\\.\\d+)?\\b");
 
@@ -374,14 +376,62 @@ public final class CodeSyntaxFormatter {
         if (length <= 0) return;
         String text = fullText.substring(start, end);
 
+        // Collect ranges that should not have keyword coloring (comments and strings)
+        List<int[]> excludedRanges = new ArrayList<>();
+        collectPatternRanges(text, syntax.blockCommentPattern(), excludedRanges);
+        collectPatternRanges(text, syntax.lineCommentPattern(), excludedRanges);
+        collectPatternRanges(text, STRING_PATTERN, excludedRanges);
+        if (region.language() == Language.PYTHON) {
+            collectPatternRanges(text, TRIPLE_STRING_PATTERN, excludedRanges);
+        }
+
+        // Apply base monospace font/color to entire region
         document.setCharacterAttributes(start, length, BASE_ATTR, false);
+
+        // Apply keywords, types, builtins, numbers - but skip excluded ranges
+        applyPatternExcluding(text, syntax.keywordPattern(), KEYWORD_COLOR, start, excludedRanges);
+        applyPatternExcluding(text, syntax.typePattern(), TYPE_COLOR, start, excludedRanges);
+        applyPatternExcluding(text, syntax.builtinPattern(), BUILTIN_COLOR, start, excludedRanges);
+        applyPatternExcluding(text, NUMBER_PATTERN, NUMBER_COLOR, start, excludedRanges);
+
+        // Apply comments and strings last so they override any accidental keyword matches
         applyPattern(text, syntax.blockCommentPattern(), COMMENT_COLOR, start);
         applyPattern(text, syntax.lineCommentPattern(), COMMENT_COLOR, start);
         applyPattern(text, STRING_PATTERN, STRING_COLOR, start);
-        applyPattern(text, NUMBER_PATTERN, NUMBER_COLOR, start);
-        applyPattern(text, syntax.keywordPattern(), KEYWORD_COLOR, start);
-        applyPattern(text, syntax.typePattern(), TYPE_COLOR, start);
-        applyPattern(text, syntax.builtinPattern(), BUILTIN_COLOR, start);
+        if (region.language() == Language.PYTHON) {
+            applyPattern(text, TRIPLE_STRING_PATTERN, STRING_COLOR, start);
+        }
+    }
+
+    private void collectPatternRanges(String text, java.util.regex.Pattern pattern, List<int[]> ranges) {
+        if (pattern == null) return;
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            ranges.add(new int[]{matcher.start(), matcher.end()});
+        }
+    }
+
+    private boolean isInExcludedRange(int pos, int len, List<int[]> excludedRanges) {
+        int end = pos + len;
+        for (int[] range : excludedRanges) {
+            // If any part of the match overlaps with an excluded range, skip it
+            if (pos < range[1] && end > range[0]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyPatternExcluding(String blockText, java.util.regex.Pattern pattern, Color color, int offset, List<int[]> excludedRanges) {
+        if (pattern == null) return;
+        java.util.regex.Matcher matcher = pattern.matcher(blockText);
+        while (matcher.find()) {
+            int matchStart = matcher.start();
+            int len = matcher.end() - matchStart;
+            if (len <= 0) continue;
+            if (isInExcludedRange(matchStart, len, excludedRanges)) continue;
+            document.setCharacterAttributes(offset + matchStart, len, colorAttribute(color), false);
+        }
     }
 
     private void applyPattern(String blockText, java.util.regex.Pattern pattern, Color color, int offset) {
@@ -407,25 +457,40 @@ public final class CodeSyntaxFormatter {
         String trimmed = line.trim();
         if (trimmed.isEmpty()) return false;
         if (trimmed.startsWith("```")) return false;
+        // Skip lines that look like prose (start with capital and have few symbols)
+        if (trimmed.length() > 20 && Character.isUpperCase(trimmed.charAt(0)) && !trimmed.contains(";") && !trimmed.contains("{")) {
+            long symbolCount = trimmed.chars().filter(c -> "{}();=<>&|+-*/".indexOf(c) >= 0).count();
+            if (symbolCount < 2) return false;
+        }
+        // Strong indicators of code
         if (trimmed.startsWith("//") || trimmed.startsWith("#include") || trimmed.startsWith("#define") || trimmed.startsWith("#!")) return true;
         if (trimmed.startsWith("import ") || trimmed.startsWith("package ") || trimmed.startsWith("using ")) return true;
         if (trimmed.startsWith("public ") || trimmed.startsWith("private ") || trimmed.startsWith("protected ")) return true;
         if (trimmed.startsWith("class ") || trimmed.startsWith("struct ") || trimmed.startsWith("enum ")) return true;
-        if (trimmed.startsWith("def ") || trimmed.startsWith("async ") || trimmed.startsWith("await ")) return true;
-        if (trimmed.startsWith("for ") || trimmed.startsWith("while ") || trimmed.startsWith("if ") || trimmed.startsWith("elif ") || trimmed.startsWith("else:")) return true;
-        if (trimmed.startsWith("return ") || trimmed.startsWith("throw ") || trimmed.startsWith("catch ") || trimmed.startsWith("try")) return true;
+        if (trimmed.startsWith("def ") || trimmed.startsWith("function ") || trimmed.startsWith("const ") || trimmed.startsWith("let ") || trimmed.startsWith("var ")) return true;
+        if (trimmed.startsWith("async ") || trimmed.startsWith("await ")) return true;
         if (trimmed.startsWith("@") && trimmed.length() > 1 && Character.isLetter(trimmed.charAt(1))) return true;
         if (trimmed.contains("::") || trimmed.contains("->")) return true;
-        if (trimmed.endsWith("{") || trimmed.endsWith("}") || trimmed.endsWith(":")) return true;
-        if (trimmed.contains(";")) return true;
-        if (trimmed.matches(".*\\w+\\s*\\(.*\\).*")) return true;
+        // Lines ending with code-specific patterns
+        if (trimmed.endsWith("{") || trimmed.endsWith("}") || trimmed.endsWith(");") || trimmed.endsWith("};" )) return true;
+        // Python-style block starters
+        if (trimmed.endsWith(":") && (trimmed.startsWith("if ") || trimmed.startsWith("elif ") || trimmed.startsWith("else") || 
+                trimmed.startsWith("for ") || trimmed.startsWith("while ") || trimmed.startsWith("def ") || 
+                trimmed.startsWith("class ") || trimmed.startsWith("try") || trimmed.startsWith("except") || trimmed.startsWith("with "))) return true;
+        // Lines with semicolon endings (statements)
+        if (trimmed.endsWith(";") && trimmed.length() > 3) return true;
+        // Function calls with clear syntax: word(args)
+        if (trimmed.matches("^\\s*\\w+\\s*\\([^)]*\\)\\s*[;{]?\\s*$")) return true;
+        // Variable assignment patterns
+        if (trimmed.matches("^\\s*(\\w+\\s+)?\\w+\\s*=\\s*.+;?\\s*$") && trimmed.contains("=")) return true;
+        // Require higher symbol density for uncertain lines
         int symbolCount = 0;
         for (char ch : trimmed.toCharArray()) {
             if ("{}();=<>&|+-*/".indexOf(ch) >= 0) {
                 symbolCount++;
             }
         }
-        return symbolCount >= 2;
+        return symbolCount >= 3;
     }
 
     private Language detectLanguage(String snippet, String explicitHint) {
@@ -492,7 +557,7 @@ public final class CodeSyntaxFormatter {
                 .map(java.util.regex.Pattern::quote)
                 .collect(Collectors.joining("|"));
         if (joined.isEmpty()) return null;
-        return java.util.regex.Pattern.compile("(?i)\\b(" + joined + ")\\b");
+        return java.util.regex.Pattern.compile("\\b(" + joined + ")\\b");
     }
 
     private static AttributeSet buildBaseAttribute() {
