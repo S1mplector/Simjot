@@ -18,7 +18,6 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
-import java.awt.image.BufferedImage;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
@@ -33,10 +32,10 @@ public class ElegantLockScreen extends JDialog {
     private static final Color ACCENT_LIGHT = new Color(129, 140, 248);
     private static final Color TEXT_WHITE = new Color(255, 255, 255);
     private static final Color TEXT_WHITE_MUTED = new Color(255, 255, 255, 180);
-    private static final Color GLASS_BG = new Color(255, 255, 255, 35);
-    private static final Color GLASS_BORDER = new Color(255, 255, 255, 60);
-    private static final Color FIELD_BG = new Color(0, 0, 0, 40);
-    private static final Color FIELD_BG_FOCUS = new Color(0, 0, 0, 60);
+    private static final Color GLASS_BG = new Color(255, 255, 255, 40);
+    private static final Color GLASS_BORDER = new Color(255, 255, 255, 70);
+    private static final Color FIELD_BG = new Color(0, 0, 0, 50);
+    private static final Color FIELD_BG_FOCUS = new Color(0, 0, 0, 70);
     private static final Color ERROR_COLOR = new Color(248, 113, 113);
     
     private final JPasswordField passwordField;
@@ -46,11 +45,7 @@ public class ElegantLockScreen extends JDialog {
     private final JPanel glassCard;
     private boolean unlocked = false;
     private final boolean fullScreen;
-    private float fadeProgress = 0f;
-    private Timer fadeTimer;
     private Timer clockTimer;
-    private Timer errorFadeTimer;
-    private float errorAlpha = 0f;
 
     public ElegantLockScreen(Frame owner) {
         this(owner, true);
@@ -60,7 +55,6 @@ public class ElegantLockScreen extends JDialog {
         super(owner, "Unlock", true);
         this.fullScreen = fullScreen;
         setUndecorated(true);
-        setBackground(new Color(0, 0, 0, 0));
         
         passwordField = new JPasswordField(20);
         clockLabel = new JLabel();
@@ -70,7 +64,9 @@ public class ElegantLockScreen extends JDialog {
         
         buildUI();
         setupBounds(owner);
-        setupAnimations();
+        
+        // Only clock timer - no animations
+        clockTimer = new Timer(1000, e -> updateClock());
         
         try { setAlwaysOnTop(true); } catch (Throwable ignored) {}
     }
@@ -104,36 +100,10 @@ public class ElegantLockScreen extends JDialog {
         }
     }
 
-    private void setupAnimations() {
-        // Fade-in animation
-        fadeTimer = new Timer(20, e -> {
-            fadeProgress = Math.min(1f, fadeProgress + 0.06f);
-            repaint();
-            if (fadeProgress >= 1f) {
-                fadeTimer.stop();
-            }
-        });
-        
-        // Clock update timer
-        clockTimer = new Timer(1000, e -> updateClock());
-        
-        // Error fade timer
-        errorFadeTimer = new Timer(50, e -> {
-            errorAlpha = Math.max(0f, errorAlpha - 0.05f);
-            if (errorAlpha <= 0f) {
-                errorFadeTimer.stop();
-                errorLabel.setText(" ");
-            }
-            errorLabel.repaint();
-        });
-    }
-
     @Override
     public void setVisible(boolean visible) {
         if (visible) {
-            fadeProgress = 0f;
             updateClock();
-            fadeTimer.start();
             clockTimer.start();
             SwingUtilities.invokeLater(() -> passwordField.requestFocusInWindow());
         } else {
@@ -220,24 +190,21 @@ public class ElegantLockScreen extends JDialog {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
                 int w = getWidth(), h = getHeight();
-                float alpha = fadeProgress;
                 
                 // Glass background with blur simulation
-                g2.setColor(new Color(GLASS_BG.getRed(), GLASS_BG.getGreen(), GLASS_BG.getBlue(), 
-                    (int)(GLASS_BG.getAlpha() * alpha)));
+                g2.setColor(GLASS_BG);
                 g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 32, 32));
                 
                 // Top highlight
                 GradientPaint highlight = new GradientPaint(
-                    0, 0, new Color(255, 255, 255, (int)(40 * alpha)),
+                    0, 0, new Color(255, 255, 255, 40),
                     0, h * 0.4f, new Color(255, 255, 255, 0)
                 );
                 g2.setPaint(highlight);
                 g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 32, 32));
                 
                 // Border
-                g2.setColor(new Color(GLASS_BORDER.getRed(), GLASS_BORDER.getGreen(), GLASS_BORDER.getBlue(),
-                    (int)(GLASS_BORDER.getAlpha() * alpha)));
+                g2.setColor(GLASS_BORDER);
                 g2.setStroke(new BasicStroke(1f));
                 g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, 32, 32));
                 
@@ -249,7 +216,7 @@ public class ElegantLockScreen extends JDialog {
         card.setBorder(new EmptyBorder(36, 44, 36, 44));
 
         // Lock icon
-        JPanel lockIcon = new AnimatedLockIcon();
+        JPanel lockIcon = new LockIcon();
         lockIcon.setAlignmentX(Component.CENTER_ALIGNMENT);
         card.add(lockIcon);
         card.add(Box.createVerticalStrut(20));
@@ -553,15 +520,13 @@ public class ElegantLockScreen extends JDialog {
 
     private void showError(String message) {
         errorLabel.setText(message);
-        errorAlpha = 1f;
-        errorFadeTimer.stop();
-        // Start fade after delay
-        Timer delayTimer = new Timer(2000, e -> {
-            errorFadeTimer.start();
+        // Clear error after delay
+        Timer clearTimer = new Timer(3000, e -> {
+            errorLabel.setText(" ");
             ((Timer)e.getSource()).stop();
         });
-        delayTimer.setRepeats(false);
-        delayTimer.start();
+        clearTimer.setRepeats(false);
+        clearTimer.start();
     }
 
     private void shakeCard() {
@@ -643,24 +608,13 @@ public class ElegantLockScreen extends JDialog {
     }
 
     /**
-     * Animated lock icon with subtle pulse effect.
+     * Static lock icon - no animations for stability.
      */
-    private class AnimatedLockIcon extends JPanel {
-        private float pulsePhase = 0f;
-        private Timer pulseTimer;
-
-        AnimatedLockIcon() {
+    private static class LockIcon extends JPanel {
+        LockIcon() {
             setOpaque(false);
-            setPreferredSize(new Dimension(80, 80));
-            setMaximumSize(new Dimension(80, 80));
-            
-            // Slower, smoother pulse
-            pulseTimer = new Timer(60, e -> {
-                pulsePhase += 0.06f;
-                if (pulsePhase > Math.PI * 2) pulsePhase -= Math.PI * 2;
-                repaint();
-            });
-            pulseTimer.start();
+            setPreferredSize(new Dimension(72, 72));
+            setMaximumSize(new Dimension(72, 72));
         }
 
         @Override
@@ -672,26 +626,20 @@ public class ElegantLockScreen extends JDialog {
             int w = getWidth(), h = getHeight();
             int cx = w / 2, cy = h / 2;
 
-            // Subtle pulse - reduced intensity
-            float pulse = 1f + (float)Math.sin(pulsePhase) * 0.02f;
-            float glowIntensity = 0.3f + (float)Math.sin(pulsePhase) * 0.1f;
-            float alpha = fadeProgress;
-
-            // Outer glow - reduced layers and intensity
-            for (int i = 0; i < 8; i++) {
-                int glowAlpha = (int)((8 - i) * 3 * glowIntensity * alpha);
-                g2.setColor(new Color(255, 255, 255, Math.min(glowAlpha, 255)));
-                float size = (28 + i * 2f) * pulse;
+            // Soft glow
+            for (int i = 0; i < 6; i++) {
+                int glowAlpha = (6 - i) * 8;
+                g2.setColor(new Color(255, 255, 255, glowAlpha));
+                float size = 30 + i * 3f;
                 g2.fill(new Ellipse2D.Float(cx - size / 2, cy - size / 2, size, size));
             }
 
             // Background circle
-            g2.setColor(new Color(255, 255, 255, (int)(15 * alpha)));
-            float bgSize = 48 * pulse;
-            g2.fill(new Ellipse2D.Float(cx - bgSize / 2, cy - bgSize / 2, bgSize, bgSize));
+            g2.setColor(new Color(255, 255, 255, 20));
+            g2.fill(new Ellipse2D.Float(cx - 24, cy - 24, 48, 48));
 
             // Lock body
-            g2.setColor(new Color(255, 255, 255, (int)(240 * alpha)));
+            g2.setColor(new Color(255, 255, 255, 240));
             int bodyW = 22, bodyH = 17;
             int bodyX = cx - bodyW / 2, bodyY = cy;
             g2.fill(new RoundRectangle2D.Float(bodyX, bodyY, bodyW, bodyH, 4, 4));
@@ -702,7 +650,7 @@ public class ElegantLockScreen extends JDialog {
             g2.drawArc(cx - shackleW / 2, bodyY - shackleH, shackleW, shackleH * 2, 0, 180);
 
             // Keyhole
-            g2.setColor(new Color(30, 41, 59, (int)(255 * alpha)));
+            g2.setColor(new Color(30, 41, 59));
             g2.fillOval(cx - 2, bodyY + 4, 4, 4);
             g2.fillRect(cx - 1, bodyY + 7, 3, 5);
 
