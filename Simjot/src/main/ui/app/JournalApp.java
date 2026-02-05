@@ -79,7 +79,7 @@ import main.ui.features.entries.QuickCaptureDialog;
 import main.ui.features.gallery.GalleryPanel;
 import main.ui.features.gallery.GeneratedWallpapers;
 import main.ui.features.home.MainMenuPanel;
-import main.ui.features.home.ModernMoodChartPanel;
+import main.ui.features.home.ElegantMoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
 import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
@@ -875,7 +875,7 @@ public class JournalApp extends JFrame {
         if (createdStaticCards.contains(cardName)) return;
         try {
             if (cardName.equals(MOOD_CHART)) {
-                cardPanel.add(new ModernMoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
+                cardPanel.add(new ElegantMoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
                 createdStaticCards.add(MOOD_CHART);
             } else if (cardName.equals(SETTINGS)) {
                 settingsPanel = new SettingsPanel(this, cardLayout, cardPanel);

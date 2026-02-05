@@ -206,8 +206,8 @@ public class BackgroundPanel extends JPanel {
 					if (imgW <= 0 || imgH <= 0) return null;
 					// Calculate scale factor (cover the entire area)
 					double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
-					int drawW = (int) Math.round(imgW * scale);
-					int drawH = (int) Math.round(imgH * scale);
+					int drawW = (int) Math.ceil(imgW * scale);
+					int drawH = (int) Math.ceil(imgH * scale);
 					// Create a new image with the current opacity
 					BufferedImage tmp = new BufferedImage(drawW, drawH, BufferedImage.TYPE_INT_ARGB);
 					Graphics2D cg = tmp.createGraphics();
@@ -269,8 +269,8 @@ public class BackgroundPanel extends JPanel {
                 int imgH = backgroundImage.getHeight(this);
                 if (imgW > 0 && imgH > 0) {
                     double scale = Math.max((double) panelW / imgW, (double) panelH / imgH);
-                    int drawW = (int) Math.round(imgW * scale);
-                    int drawH = (int) Math.round(imgH * scale);
+                    int drawW = (int) Math.ceil(imgW * scale);
+                    int drawH = (int) Math.ceil(imgH * scale);
                     int x = (panelW - drawW) / 2;
                     int y = (panelH - drawH) / 2;
                     Graphics2D g2 = (Graphics2D) g.create();

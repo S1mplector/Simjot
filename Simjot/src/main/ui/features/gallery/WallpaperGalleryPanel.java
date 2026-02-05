@@ -237,11 +237,13 @@ private JPanel buttonPanel;
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         buttonPanel.setOpaque(false);
         IconMenuButton selectBtn = new IconMenuButton("Select", "save");
+        IconMenuButton removeBtn = new IconMenuButton("Remove", "trash");
         IconMenuButton refreshBtn = new IconMenuButton("Refresh", "rescan");
         IconMenuButton openFolderBtn = new IconMenuButton("Open", "open_folder");
         IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
 
         selectBtn.setToolTipText("Apply selected wallpaper");
+        removeBtn.setToolTipText("Remove current wallpaper");
         refreshBtn.setToolTipText("Refresh wallpaper list");
         openFolderBtn.setToolTipText("Open wallpapers folder");
         cancelBtn.setToolTipText("Cancel and close");
@@ -256,6 +258,16 @@ private JPanel buttonPanel;
                     java.awt.Color ac = AccentColorUtil.extractAccent(selectedItem.getImage());
                     settings.setMainMenuAccentRGB(ac.getRGB());
                 } catch (Throwable ignored) {}
+                settings.save();
+            }
+            dispose();
+        });
+
+        removeBtn.addActionListener(e -> {
+            selectedItem = null;
+            if (autoSaveSelection) {
+                SettingsStore settings = SettingsStore.get();
+                settings.setBackgroundImage("");
                 settings.save();
             }
             dispose();
@@ -275,6 +287,9 @@ private JPanel buttonPanel;
         cancelBtn.addActionListener(e -> dispose());
         
         buttonPanel.add(selectBtn);
+        if (autoSaveSelection) {
+            buttonPanel.add(removeBtn);
+        }
         buttonPanel.add(refreshBtn);
         buttonPanel.add(openFolderBtn);
         buttonPanel.add(cancelBtn);
