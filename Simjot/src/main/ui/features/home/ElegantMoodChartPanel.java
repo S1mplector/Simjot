@@ -21,6 +21,7 @@ import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.LinearGradientPaint;
 import java.awt.Point;
 import java.awt.RadialGradientPaint;
@@ -38,6 +39,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
 
 import javax.swing.Box;
@@ -78,8 +80,6 @@ public class ElegantMoodChartPanel extends JPanel {
     private static final Color TEXT_SECONDARY = new Color(98, 110, 126);
     private static final Color TEXT_MUTED = new Color(130, 140, 156);
     private static final Color ACCENT_MAIN = new Color(34, 137, 168);
-    private static final Color ACCENT_WARM = new Color(223, 150, 94);
-    private static final Color ACCENT_SOFT = new Color(76, 181, 157);
 
     private static final int CHART_MARGIN = 60;
 
@@ -100,10 +100,10 @@ public class ElegantMoodChartPanel extends JPanel {
     private float hoverTargetAlpha = 0f;
     private Timer hoverTimer;
 
-    private StatCard overallCard;
-    private StatCard volatilityCard;
-    private StatCard streakCard;
-    private StatCard samplesCard;
+    private static final int POPUP_HIDE_DELAY_MS = 260;
+    private final JPopupMenu hoverPopup = new JPopupMenu();
+    private final Timer hoverPopupHideTimer = new Timer(POPUP_HIDE_DELAY_MS, e -> hideHoverPopupNow());
+    private LocalDate hoverPopupDay = null;
 
     private ChartCanvas chartCanvas;
 
@@ -121,6 +121,11 @@ public class ElegantMoodChartPanel extends JPanel {
         startReveal();
 
         hoverTimer = new Timer(16, e -> updateHoverFade());
+        hoverPopup.setOpaque(false);
+        hoverPopup.setBorder(new EmptyBorder(0, 0, 0, 0));
+        hoverPopup.setBorderPainted(false);
+        hoverPopup.setFocusable(false);
+        hoverPopupHideTimer.setRepeats(false);
 
         addComponentListener(new ComponentAdapter() {
             @Override
@@ -211,26 +216,7 @@ public class ElegantMoodChartPanel extends JPanel {
     private JPanel createBody() {
         JPanel body = new JPanel(new BorderLayout(0, 14));
         body.setOpaque(false);
-        body.setBorder(new EmptyBorder(12, 26, 24, 26));
-
-        JPanel statsRow = new JPanel();
-        statsRow.setOpaque(false);
-        statsRow.setLayout(new java.awt.GridLayout(1, 4, 14, 0));
-        statsRow.setPreferredSize(new Dimension(0, 86));
-
-        overallCard = new StatCard("Overall", this::getOverallValue,
-                this::getOverallColor, () -> "/100", 0);
-        volatilityCard = new StatCard("Volatility", this::getVolatilityValue,
-                () -> ACCENT_MAIN, () -> "std dev", 1);
-        streakCard = new StatCard("Streak", this::getStreakText,
-                this::getStreakColor, () -> "current", 2);
-        samplesCard = new StatCard("Samples", () -> String.valueOf(model.getTotalSamples()),
-                () -> ACCENT_SOFT, () -> "moods", 3);
-
-        statsRow.add(overallCard);
-        statsRow.add(volatilityCard);
-        statsRow.add(streakCard);
-        statsRow.add(samplesCard);
+        body.setBorder(new EmptyBorder(10, 24, 22, 24));
 
         JPanel chartCard = new ChartCard();
         chartCard.setLayout(new BorderLayout());
@@ -238,7 +224,7 @@ public class ElegantMoodChartPanel extends JPanel {
         chartCanvas = new ChartCanvas();
         JPanel chartInset = new JPanel(new BorderLayout());
         chartInset.setOpaque(false);
-        chartInset.setBorder(new EmptyBorder(16, 16, 18, 16));
+        chartInset.setBorder(new EmptyBorder(14, 14, 16, 14));
         chartInset.add(chartCanvas, BorderLayout.CENTER);
         chartCard.add(chartInset, BorderLayout.CENTER);
 
@@ -247,7 +233,6 @@ public class ElegantMoodChartPanel extends JPanel {
         hint.setForeground(TEXT_MUTED);
         hint.setHorizontalAlignment(JLabel.CENTER);
 
-        body.add(statsRow, BorderLayout.NORTH);
         body.add(chartCard, BorderLayout.CENTER);
         body.add(hint, BorderLayout.SOUTH);
 
@@ -260,6 +245,7 @@ public class ElegantMoodChartPanel extends JPanel {
         hoverIndex = null;
         hoverTargetAlpha = 0f;
         hoverAlpha = 0f;
+        hideHoverPopupNow();
         if (hoverTimer != null && hoverTimer.isRunning()) {
             hoverTimer.stop();
         }
@@ -290,43 +276,6 @@ public class ElegantMoodChartPanel extends JPanel {
             f = new Font("Georgia", Font.BOLD, Math.round(size));
         }
         return f.deriveFont(size);
-    }
-
-    private String getStreakText() {
-        int streak = model.getCurrentStreak();
-        if (streak > 0) return streak + " good";
-        if (streak < 0) return (-streak) + " tough";
-        return "None";
-    }
-
-    private Color getStreakColor() {
-        int streak = model.getCurrentStreak();
-        if (streak > 0) return ACCENT_SOFT;
-        if (streak < 0) return ACCENT_WARM;
-        return TEXT_SECONDARY;
-    }
-
-    private boolean hasMoodData() {
-        if (model.getDays().isEmpty()) return false;
-        for (Double v : model.getValues()) {
-            if (v != null) return true;
-        }
-        return false;
-    }
-
-    private String getOverallValue() {
-        if (!hasMoodData()) return "--";
-        return String.format("%.0f", model.getOverallAverage());
-    }
-
-    private Color getOverallColor() {
-        if (!hasMoodData()) return TEXT_SECONDARY;
-        return MoodAnalyticsEngine.getColor(model.getOverallAverage());
-    }
-
-    private String getVolatilityValue() {
-        if (!hasMoodData()) return "--";
-        return String.format("%.1f", model.getVolatility());
     }
 
     @Override
@@ -383,6 +332,174 @@ public class ElegantMoodChartPanel extends JPanel {
         repaint();
     }
 
+    private void updateHoverPopup(ChartCanvas chartPanel, int idx) {
+        if (chartPanel == null || !chartPanel.isShowing()) {
+            scheduleHoverPopupHide();
+            return;
+        }
+        if (idx < 0 || idx >= model.getDays().size()) {
+            scheduleHoverPopupHide();
+            return;
+        }
+
+        LocalDate day = model.getDays().get(idx);
+        Double value = model.getValues().get(idx);
+        if (value == null) {
+            scheduleHoverPopupHide();
+            return;
+        }
+
+        hoverPopupHideTimer.stop();
+
+        if (!day.equals(hoverPopupDay) || !hoverPopup.isVisible()) {
+            hoverPopup.removeAll();
+            List<File> entries = model.getEntriesByDate().get(day);
+            MoodChartModel.Details details = model.getLatestDetailsFor(day);
+            hoverPopup.add(buildHoverPopup(day, value, entries, details));
+            hoverPopupDay = day;
+        }
+
+        int x = renderer.getX(idx);
+        int y = renderer.getYDaily(idx);
+        if (x < 0 || y == Integer.MIN_VALUE) {
+            scheduleHoverPopupHide();
+            return;
+        }
+
+        Dimension pref = hoverPopup.getPreferredSize();
+        int px = x + 14;
+        int py = y - pref.height - 12;
+        int minX = 8;
+        int maxX = Math.max(minX, chartPanel.getWidth() - pref.width - 8);
+        px = clamp(px, minX, maxX);
+        if (py < 8) {
+            py = y + 12;
+        }
+        int maxY = Math.max(8, chartPanel.getHeight() - pref.height - 8);
+        py = clamp(py, 8, maxY);
+
+        hoverPopup.show(chartPanel, px, py);
+    }
+
+    private void scheduleHoverPopupHide() {
+        if (!hoverPopup.isVisible()) return;
+        hoverPopupHideTimer.restart();
+    }
+
+    private void hideHoverPopupNow() {
+        hoverPopup.setVisible(false);
+        hoverPopupDay = null;
+    }
+
+    private JPanel buildHoverPopup(LocalDate day, Double value, List<File> entries, MoodChartModel.Details det) {
+        RoundedPanel card = new RoundedPanel(16);
+        card.setFlat(true);
+        card.setBackground(Color.WHITE);
+        card.setLayout(new BorderLayout(0, 8));
+        card.setBorder(new EmptyBorder(10, 12, 10, 12));
+
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        String dateText = DateTimeFormatter.ofPattern("MMM d, yyyy").format(day);
+        if (det != null && det.ts != null) {
+            dateText += "  •  " + det.ts.toLocalTime().withNano(0)
+                    .format(DateTimeFormatter.ofPattern("HH:mm"));
+        }
+        JLabel dateLabel = new JLabel(dateText);
+        dateLabel.setFont(AeroTheme.defaultBoldFont(12.5f));
+        dateLabel.setForeground(TEXT_PRIMARY);
+        JLabel valueLabel = new JLabel(Math.round(value) + "/100");
+        valueLabel.setFont(AeroTheme.defaultBoldFont(14f));
+        valueLabel.setForeground(MoodAnalyticsEngine.getColor(value));
+        header.add(dateLabel, BorderLayout.WEST);
+        header.add(valueLabel, BorderLayout.EAST);
+
+        card.add(header, BorderLayout.NORTH);
+
+        JPanel body = new JPanel();
+        body.setOpaque(false);
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+
+        if (det != null) {
+            JPanel grid = new JPanel(new GridLayout(2, 4, 8, 4));
+            grid.setOpaque(false);
+            grid.add(metricCell("Joy", det.joy));
+            grid.add(metricCell("Calm", det.calm));
+            grid.add(metricCell("Gratitude", det.gratitude));
+            grid.add(metricCell("Energy", det.energy));
+            grid.add(metricCell("Sadness", det.sadness));
+            grid.add(metricCell("Anger", det.anger));
+            grid.add(metricCell("Anxiety", det.anxiety));
+            grid.add(metricCell("Stress", det.stress));
+            body.add(grid);
+        }
+
+        int entryCount = entries == null ? 0 : entries.size();
+        String entryLine = entryCount == 0 ? "No journal entries"
+                : entryCount == 1 ? "1 journal entry" : entryCount + " journal entries";
+        JLabel entryLabel = new JLabel(entryLine);
+        entryLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+        entryLabel.setForeground(TEXT_SECONDARY);
+        body.add(Box.createVerticalStrut(6));
+        body.add(entryLabel);
+
+        if (entryCount > 0) {
+            String latest = latestEntryTitle(entries);
+            if (latest != null && !latest.isBlank()) {
+                JLabel latestLabel = new JLabel("Latest: " + latest);
+                latestLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+                latestLabel.setForeground(TEXT_MUTED);
+                body.add(Box.createVerticalStrut(2));
+                body.add(latestLabel);
+            }
+        }
+
+        if (entryCount > 0) {
+            JLabel hint = new JLabel("Click to open nearest entry");
+            hint.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+            hint.setForeground(TEXT_MUTED);
+            body.add(Box.createVerticalStrut(6));
+            body.add(hint);
+        }
+
+        card.add(body, BorderLayout.CENTER);
+
+        return card;
+    }
+
+    private JPanel metricCell(String label, int value) {
+        JPanel cell = new JPanel();
+        cell.setOpaque(false);
+        cell.setLayout(new BoxLayout(cell, BoxLayout.Y_AXIS));
+        String val = value < 0 ? "--" : String.valueOf(value);
+        JLabel valLabel = new JLabel(val);
+        valLabel.setFont(AeroTheme.defaultBoldFont(12f));
+        valLabel.setForeground(TEXT_PRIMARY);
+        JLabel nameLabel = new JLabel(label);
+        nameLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10.5f));
+        nameLabel.setForeground(TEXT_MUTED);
+        cell.add(valLabel);
+        cell.add(nameLabel);
+        return cell;
+    }
+
+    private String latestEntryTitle(List<File> files) {
+        if (files == null || files.isEmpty()) return "";
+        File latest = files.stream()
+                .max(java.util.Comparator.comparingLong(File::lastModified))
+                .orElse(null);
+        if (latest == null) return "";
+        String title = safeTitle(latest);
+        if (title.length() > 40) {
+            return title.substring(0, 40) + "...";
+        }
+        return title;
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     private class RangeButton extends JButton {
         private final int index;
 
@@ -425,10 +542,10 @@ public class ElegantMoodChartPanel extends JPanel {
             Color text;
 
             if (selected || pressed) {
-                top = new Color(58, 146, 192);
-                bottom = new Color(34, 122, 170);
-                border = new Color(24, 96, 140);
-                text = Color.WHITE;
+                top = new Color(255, 235, 205, 230);
+                bottom = new Color(253, 218, 160, 220);
+                border = new Color(230, 168, 95);
+                text = new Color(80, 50, 30);
             } else if (hover) {
                 top = new Color(245, 248, 252);
                 bottom = new Color(226, 234, 242);
@@ -445,78 +562,16 @@ public class ElegantMoodChartPanel extends JPanel {
             g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
             g2.setColor(border);
             g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            if (selected || hover) {
+                g2.setColor(new Color(255, 180, 90, selected ? 140 : 70));
+                g2.drawRoundRect(1, 1, w - 3, h - 3, arc - 2, arc - 2);
+            }
 
             g2.setColor(text);
             FontMetrics fm = g2.getFontMetrics();
             int tx = (w - fm.stringWidth(getText())) / 2;
             int ty = (h + fm.getAscent() - fm.getDescent()) / 2;
             g2.drawString(getText(), tx, ty);
-
-            g2.dispose();
-        }
-    }
-
-    private class StatCard extends RoundedPanel {
-        private final String label;
-        private final java.util.function.Supplier<String> valueSupplier;
-        private final java.util.function.Supplier<Color> accentSupplier;
-        private final java.util.function.Supplier<String> suffixSupplier;
-        private final int index;
-
-        StatCard(String label,
-                 java.util.function.Supplier<String> valueSupplier,
-                 java.util.function.Supplier<Color> accentSupplier,
-                 java.util.function.Supplier<String> suffixSupplier,
-                 int index) {
-            this.label = label;
-            this.valueSupplier = valueSupplier;
-            this.accentSupplier = accentSupplier;
-            this.suffixSupplier = suffixSupplier;
-            this.index = index;
-            setArc(16);
-            setFlat(true);
-            setBackground(Color.WHITE);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            float stagger = Math.max(0f, Math.min(1f, (revealProgress - index * 0.12f) / 0.8f));
-            g2.setComposite(AlphaComposite.SrcOver.derive(0.2f + 0.8f * stagger));
-            g2.translate(0, (1f - stagger) * 6f);
-            super.paintComponent(g2);
-
-            Color accent = accentSupplier.get();
-            g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 30));
-            g2.fillOval(14, 16, 28, 28);
-            g2.setColor(accent);
-            g2.setStroke(new BasicStroke(2f));
-            g2.drawOval(14, 16, 28, 28);
-
-            g2.setFont(AeroTheme.defaultBoldFont(20f));
-            g2.setColor(TEXT_PRIMARY);
-            String value = valueSupplier.get();
-            FontMetrics fm = g2.getFontMetrics();
-            int valueX = 54;
-            int valueY = 38;
-            g2.drawString(value, valueX, valueY);
-
-            String suffix = suffixSupplier.get();
-            if ("--".equals(value)) {
-                suffix = "";
-            }
-            if (suffix != null && !suffix.isBlank()) {
-                g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
-                g2.setColor(TEXT_MUTED);
-                int sx = valueX + fm.stringWidth(value) + 6;
-                g2.drawString(suffix, sx, valueY - 2);
-            }
-
-            g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-            g2.setColor(TEXT_SECONDARY);
-            g2.drawString(label, valueX, getHeight() - 18);
 
             g2.dispose();
         }
@@ -566,6 +621,7 @@ public class ElegantMoodChartPanel extends JPanel {
                 @Override
                 public void mouseExited(MouseEvent e) {
                     setHoverIndex(null);
+                    scheduleHoverPopupHide();
                     setToolTipText("");
                 }
 
@@ -586,35 +642,41 @@ public class ElegantMoodChartPanel extends JPanel {
         private void updateHover(MouseEvent e) {
             if (model.getDays().isEmpty()) {
                 setHoverIndex(null);
+                scheduleHoverPopupHide();
                 return;
             }
             int n = model.getDays().size();
             int chartW = Math.max(1, getWidth() - 2 * CHART_MARGIN);
             if (n <= 1 || chartW <= 0) {
                 setHoverIndex(null);
+                scheduleHoverPopupHide();
                 return;
             }
 
             int idx = renderer.indexForX(getWidth(), e.getX(), n);
             if (idx < 0 || idx >= n) {
                 setHoverIndex(null);
+                scheduleHoverPopupHide();
                 return;
             }
 
             int x = CHART_MARGIN + Math.round(idx * (chartW / (float) Math.max(1, n - 1)));
             if (Math.abs(e.getX() - x) > 18) {
                 setHoverIndex(null);
+                scheduleHoverPopupHide();
                 return;
             }
 
             Double value = model.getValues().get(idx);
             if (value == null) {
                 setHoverIndex(null);
+                scheduleHoverPopupHide();
                 return;
             }
 
             setHoverIndex(idx);
-            setToolTipText(buildTooltip(idx));
+            updateHoverPopup(this, idx);
+            setToolTipText("");
         }
 
         @Override
@@ -654,58 +716,10 @@ public class ElegantMoodChartPanel extends JPanel {
                     g2.drawOval(x - radius, y - radius, radius * 2, radius * 2);
                 }
 
-                String pill = buildHoverLabel(hoverIndex);
-                if (pill != null && !pill.isBlank()) {
-                    g2.setComposite(AlphaComposite.SrcOver.derive(0.9f * hoverAlpha));
-                    g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-                    FontMetrics fm = g2.getFontMetrics();
-                    int tw = fm.stringWidth(pill) + 18;
-                    int th = fm.getHeight() + 6;
-                    int px = Math.max(16, getWidth() - tw - 20);
-                    int py = 16;
-                    g2.setColor(new Color(255, 255, 255, 220));
-                    g2.fillRoundRect(px, py, tw, th, 16, 16);
-                    g2.setColor(new Color(180, 190, 205, 180));
-                    g2.drawRoundRect(px, py, tw, th, 16, 16);
-                    g2.setColor(TEXT_PRIMARY);
-                    g2.drawString(pill, px + 9, py + th - 6);
-                }
             }
 
             g2.dispose();
         }
-    }
-
-    private String buildTooltip(int idx) {
-        if (idx < 0 || idx >= model.getDays().size()) return "";
-        LocalDate d = model.getDays().get(idx);
-        Double raw = model.getValues().get(idx);
-        java.util.List<File> files = model.getEntriesByDate().get(d);
-        MoodChartModel.Details det = model.getLatestDetailsFor(d);
-        String base;
-        if (raw == null) {
-            base = d + (files == null || files.isEmpty() ? " no entry" : " (" + files.size() + ") click to open");
-        } else {
-            base = d + " avg mood: " + (int) Math.round(raw) + "/100";
-            if (files != null && !files.isEmpty()) {
-                base += files.size() == 1 ? " | 1 entry" : " | " + files.size() + " entries";
-            }
-        }
-        if (det != null) {
-            String detail = " J:" + det.joy + " C:" + det.calm + " G:" + det.gratitude + " En:" + det.energy
-                    + " | Sa:" + det.sadness + " Ang:" + det.anger + " Anx:" + det.anxiety + " St:" + det.stress;
-            return base + detail;
-        }
-        return base;
-    }
-
-    private String buildHoverLabel(int idx) {
-        if (idx < 0 || idx >= model.getDays().size()) return "";
-        LocalDate day = model.getDays().get(idx);
-        Double value = model.getValues().get(idx);
-        if (value == null) return "";
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d, yyyy");
-        return fmt.format(day) + "  " + Math.round(value) + "/100";
     }
 
     private void handleChartClick(MouseEvent e) {
