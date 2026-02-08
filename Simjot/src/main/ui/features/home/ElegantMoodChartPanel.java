@@ -49,7 +49,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
+import javax.swing.Popup;
+import javax.swing.PopupFactory;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
@@ -101,7 +102,8 @@ public class ElegantMoodChartPanel extends JPanel {
     private Timer hoverTimer;
 
     private static final int POPUP_HIDE_DELAY_MS = 260;
-    private final JPopupMenu hoverPopup = new JPopupMenu();
+    private Popup hoverPopup;
+    private JComponent hoverPopupContent;
     private final Timer hoverPopupHideTimer = new Timer(POPUP_HIDE_DELAY_MS, e -> hideHoverPopupNow());
     private LocalDate hoverPopupDay = null;
 
@@ -121,10 +123,6 @@ public class ElegantMoodChartPanel extends JPanel {
         startReveal();
 
         hoverTimer = new Timer(16, e -> updateHoverFade());
-        hoverPopup.setOpaque(false);
-        hoverPopup.setBorder(new EmptyBorder(0, 0, 0, 0));
-        hoverPopup.setBorderPainted(false);
-        hoverPopup.setFocusable(false);
         hoverPopupHideTimer.setRepeats(false);
 
         addComponentListener(new ComponentAdapter() {
@@ -351,11 +349,10 @@ public class ElegantMoodChartPanel extends JPanel {
 
         hoverPopupHideTimer.stop();
 
-        if (!day.equals(hoverPopupDay) || !hoverPopup.isVisible()) {
-            hoverPopup.removeAll();
+        if (!day.equals(hoverPopupDay) || hoverPopupContent == null) {
             List<File> entries = model.getEntriesByDate().get(day);
             MoodChartModel.Details details = model.getLatestDetailsFor(day);
-            hoverPopup.add(buildHoverPopup(day, value, entries, details));
+            hoverPopupContent = buildHoverPopup(day, value, entries, details);
             hoverPopupDay = day;
         }
 
@@ -366,7 +363,7 @@ public class ElegantMoodChartPanel extends JPanel {
             return;
         }
 
-        Dimension pref = hoverPopup.getPreferredSize();
+        Dimension pref = hoverPopupContent.getPreferredSize();
         int px = x + 14;
         int py = y - pref.height - 12;
         int minX = 8;
@@ -377,17 +374,26 @@ public class ElegantMoodChartPanel extends JPanel {
         }
         int maxY = Math.max(8, chartPanel.getHeight() - pref.height - 8);
         py = clamp(py, 8, maxY);
-
-        hoverPopup.show(chartPanel, px, py);
+        if (hoverPopup != null) {
+            hoverPopup.hide();
+            hoverPopup = null;
+        }
+        Point screen = new Point(px, py);
+        javax.swing.SwingUtilities.convertPointToScreen(screen, chartPanel);
+        hoverPopup = PopupFactory.getSharedInstance().getPopup(chartPanel, hoverPopupContent, screen.x, screen.y);
+        hoverPopup.show();
     }
 
     private void scheduleHoverPopupHide() {
-        if (!hoverPopup.isVisible()) return;
+        if (hoverPopup == null) return;
         hoverPopupHideTimer.restart();
     }
 
     private void hideHoverPopupNow() {
-        hoverPopup.setVisible(false);
+        if (hoverPopup != null) {
+            hoverPopup.hide();
+            hoverPopup = null;
+        }
         hoverPopupDay = null;
     }
 
@@ -608,7 +614,7 @@ public class ElegantMoodChartPanel extends JPanel {
     private class ChartCanvas extends JComponent {
         ChartCanvas() {
             setOpaque(false);
-            setToolTipText("");
+            setToolTipText(null);
 
             addMouseMotionListener(new MouseAdapter() {
                 @Override
@@ -622,7 +628,7 @@ public class ElegantMoodChartPanel extends JPanel {
                 public void mouseExited(MouseEvent e) {
                     setHoverIndex(null);
                     scheduleHoverPopupHide();
-                    setToolTipText("");
+                    setToolTipText(null);
                 }
 
                 @Override
@@ -676,7 +682,7 @@ public class ElegantMoodChartPanel extends JPanel {
 
             setHoverIndex(idx);
             updateHoverPopup(this, idx);
-            setToolTipText("");
+            setToolTipText(null);
         }
 
         @Override
