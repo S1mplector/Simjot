@@ -69,7 +69,6 @@ import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -101,6 +100,7 @@ import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.features.entries.GlobalSearchEngine;
 import main.ui.theme.aero.AeroTheme;
@@ -1839,24 +1839,26 @@ public class NotebookManagerPanel extends JPanel {
         }
 
         private void chooseCustomIcon() {
-            JFileChooser chooser = new JFileChooser();
-            chooser.setDialogTitle("Select Notebook Icon");
-            chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-            chooser.setAcceptAllFileFilterUsed(true);
-
-            if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                File selected = chooser.getSelectedFile();
-                if (selected != null && selected.exists()) {
-                    try {
-                        BufferedImage img = ImageIO.read(selected);
-                        if (img != null) {
-                            customIconPath = selected.getAbsolutePath();
-                            iconPreview.repaint();
-                        }
-                    } catch (IOException ex) {
-                        CustomConfirmDialog.confirm(this, "Icon Load Failed", "Could not load selected image.");
-                    }
+            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Select Notebook Icon");
+            chooser.setMode(SimjotFileChooser.Mode.OPEN);
+            chooser.addFileFilter("Images", "png", "jpg", "jpeg", "gif", "bmp", "webp");
+            if (customIconPath != null && !customIconPath.isBlank()) {
+                File current = new File(customIconPath);
+                File dir = current.getParentFile();
+                if (dir != null && dir.isDirectory()) {
+                    chooser.setCurrentDirectory(dir);
                 }
+            }
+            File selected = chooser.showDialog();
+            if (selected == null || !selected.exists()) return;
+            try {
+                BufferedImage img = ImageIO.read(selected);
+                if (img != null) {
+                    customIconPath = selected.getAbsolutePath();
+                    iconPreview.repaint();
+                }
+            } catch (IOException ex) {
+                CustomConfirmDialog.confirm(this, "Icon Load Failed", "Could not load selected image.");
             }
         }
 

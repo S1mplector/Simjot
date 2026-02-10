@@ -361,7 +361,7 @@ public class SimjotFileChooser extends JDialog {
     }
 
     private boolean useNativeDialog() {
-        return AppLifecycle.isMacOS();
+        return AppLifecycle.isMacOS() || AppLifecycle.isWindows() || AppLifecycle.isLinux();
     }
 
     private File showNativeDialog(boolean allowMultiple) {
