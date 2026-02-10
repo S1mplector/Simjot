@@ -27,7 +27,7 @@ import main.ui.theme.aero.AeroTheme;
  * shows only the icon at rest, then reveals a soft overlay + caption on hover/press.
  */
 public class ToolbarMenuIconButton extends ToolbarIconButton {
-    private final String iconId;
+    private final String iconResourcePath;
     private final String caption;
     private boolean hovering = false;
     private double iconRotationRadians = 0.0;
@@ -35,7 +35,8 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
     public ToolbarMenuIconButton(String caption, String iconId) {
         super(iconId);
         this.caption = caption == null ? "" : caption;
-        this.iconId = iconId == null ? "" : iconId.toLowerCase();
+        String normalizedIconId = iconId == null ? "" : iconId.toLowerCase();
+        this.iconResourcePath = ImageIconRenderer.mapIdToResource(normalizedIconId);
         setOpaque(false);
         setContentAreaFilled(false);
         setBorderPainted(false);
@@ -83,7 +84,7 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         int iconSize = Math.min(w, h) - 12;
         int ix = (w - iconSize) / 2;
         int iy = (h - iconSize) / 2;
-        String res = ImageIconRenderer.mapIdToResource(iconId);
+        String res = iconResourcePath;
         if (res != null) {
             if (Math.abs(iconRotationRadians) > 0.0001) {
                 IconTransforms.drawRotated(g2, res, ix, iy, iconSize, this, true, iconRotationRadians);

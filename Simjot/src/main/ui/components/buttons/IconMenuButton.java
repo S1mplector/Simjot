@@ -40,7 +40,7 @@ import main.ui.util.AccentColorUtil;
  * Draws a centered SVG/PNG/vector icon; on hover/press shows a soft overlay and reveals the caption under the icon.
  */
 public class IconMenuButton extends JButton {
-    private final String iconId;
+    private final String iconResourcePath;
     private final String caption;
     private boolean hoverTarget = false;
     private float hoverT = 0f;
@@ -57,7 +57,8 @@ public class IconMenuButton extends JButton {
     public IconMenuButton(String text, String iconId) {
         super(""); // we render text manually
         this.caption = text == null ? "" : text;
-        this.iconId = iconId == null ? "" : iconId.toLowerCase();
+        String normalizedIconId = iconId == null ? "" : iconId.toLowerCase();
+        this.iconResourcePath = ImageIconRenderer.mapIdToResource(normalizedIconId);
         setOpaque(false);
         setContentAreaFilled(false);
         setBorderPainted(false);
@@ -156,7 +157,7 @@ public class IconMenuButton extends JButton {
 
         AffineTransform oldTransform = g2.getTransform();
         g2.translate(0, lift);
-        String resPath = ImageIconRenderer.mapIdToResource(iconId);
+        String resPath = iconResourcePath;
         if (resPath != null) {
             ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconSize, this, true);
         }

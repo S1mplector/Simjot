@@ -39,6 +39,7 @@ public class GlassDockBar extends JPanel {
     private static final float MAX_SCALE = 1.12f;
     private static final float MAX_GLOW = 1f;
     private static final int CORNER_RADIUS = 36;
+    private static final Font LABEL_FONT = new Font("SF Pro Text", Font.PLAIN, 11);
     
     // Text colors
     private static final Color TEXT_COLOR = new Color(50, 55, 65);
@@ -107,8 +108,7 @@ public class GlassDockBar extends JPanel {
         
         for (int i = 0; i < items.size(); i++) {
             int x = startX + i * (ITEM_SIZE + ITEM_SPACING);
-            Rectangle bounds = new Rectangle(x, y, ITEM_SIZE, ITEM_SIZE);
-            if (bounds.contains(p)) {
+            if (p.x >= x && p.x < x + ITEM_SIZE && p.y >= y && p.y < y + ITEM_SIZE) {
                 return i;
             }
         }
@@ -220,6 +220,8 @@ public class GlassDockBar extends JPanel {
         
         int startX = DOCK_PADDING_H;
         int baseY = DOCK_PADDING_V;
+        g2.setFont(LABEL_FONT);
+        FontMetrics labelFm = g2.getFontMetrics();
         
         for (int i = 0; i < items.size(); i++) {
             DockItem item = items.get(i);
@@ -245,7 +247,7 @@ public class GlassDockBar extends JPanel {
             int iconX = itemX + (scaledSize - iconScaledSize) / 2;
             int iconY = itemY + (scaledSize - iconScaledSize) / 2 - 4;
             
-            String resPath = ImageIconRenderer.mapIdToResource(item.iconId);
+            String resPath = item.resourcePath;
             if (resPath != null) {
                 // Apply subtle scale and tilt on hover
                 if (glow > 0.01f) {
@@ -273,7 +275,7 @@ public class GlassDockBar extends JPanel {
             }
             
             // Draw label
-            drawItemLabel(g2, item.label, x, baseY + ITEM_SIZE + 4, ITEM_SIZE, glow);
+            drawItemLabel(g2, labelFm, item.label, x, baseY + ITEM_SIZE + 4, ITEM_SIZE, glow);
         }
     }
     
@@ -317,11 +319,7 @@ public class GlassDockBar extends JPanel {
         g2.draw(shape);
     }
     
-    private void drawItemLabel(Graphics2D g2, String label, int x, int y, int width, float glow) {
-        Font font = new Font("SF Pro Text", Font.PLAIN, 11);
-        g2.setFont(font);
-        FontMetrics fm = g2.getFontMetrics();
-        
+    private void drawItemLabel(Graphics2D g2, FontMetrics fm, String label, int x, int y, int width, float glow) {
         int textWidth = fm.stringWidth(label);
         int textX = x + (width - textWidth) / 2;
         int textY = y + fm.getAscent();
@@ -351,12 +349,12 @@ public class GlassDockBar extends JPanel {
     
     private static class DockItem {
         final String label;
-        final String iconId;
+        final String resourcePath;
         final Runnable action;
         
         DockItem(String label, String iconId, Runnable action) {
             this.label = label;
-            this.iconId = iconId;
+            this.resourcePath = ImageIconRenderer.mapIdToResource(iconId);
             this.action = action;
         }
     }

@@ -46,6 +46,7 @@ import main.ui.util.AccentColorUtil;
  */
 public class MainMenuButton extends JButton {
     private final String iconId;
+    private final String iconResourcePath;
     private boolean hoverTarget = false;
     private float hoverT = 0f;
     private float hoverV = 0f;
@@ -55,6 +56,7 @@ public class MainMenuButton extends JButton {
     public MainMenuButton(String text, String iconId){
         super(text);
         this.iconId = iconId.toLowerCase();
+        this.iconResourcePath = ImageIconRenderer.mapIdToResource(this.iconId);
         // Left align text
         setHorizontalAlignment(SwingConstants.CENTER);
         setFocusPainted(false);
@@ -149,7 +151,7 @@ public class MainMenuButton extends JButton {
 
         Graphics2D gIcon = (Graphics2D) g2.create();
         gIcon.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        String resPath = ImageIconRenderer.mapIdToResource(iconId);
+        String resPath = iconResourcePath;
         boolean drawn = false;
         if (resPath != null) {
             drawn = ImageIconRenderer.draw(gIcon, resPath, iconX, iconY, iconSize, this, true);

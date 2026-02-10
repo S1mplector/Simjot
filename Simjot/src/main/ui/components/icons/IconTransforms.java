@@ -10,13 +10,14 @@ package main.ui.components.icons;
 
 import java.awt.Component;
 import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
 
 /**
  * Small utility for drawing icons with simple transforms (rotation/flip) while
  * keeping the call sites compact.
  */
 public final class IconTransforms {
+    private static final double EPSILON = 0.0001;
+
     private IconTransforms() {}
 
     public static boolean drawRotated(Graphics2D g2,
@@ -28,17 +29,17 @@ public final class IconTransforms {
                                       boolean shadow,
                                       double radians) {
         if (g2 == null || resourcePath == null || size <= 0) return false;
-        if (Math.abs(radians) < 0.0001) {
+        if (Math.abs(radians) < EPSILON) {
             return ImageIconRenderer.draw(g2, resourcePath, x, y, size, obs, shadow);
         }
-        AffineTransform old = g2.getTransform();
+        double cx = x + size / 2.0;
+        double cy = y + size / 2.0;
+        g2.rotate(radians, cx, cy);
         try {
-            double cx = x + size / 2.0;
-            double cy = y + size / 2.0;
-            g2.rotate(radians, cx, cy);
             return ImageIconRenderer.draw(g2, resourcePath, x, y, size, obs, shadow);
         } finally {
-            g2.setTransform(old);
-        }
+            // Revert without allocating/copying a full AffineTransform per icon draw.
+            g2.rotate(-radians, cx, cy);
+         }
     }
 }

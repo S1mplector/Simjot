@@ -15,6 +15,7 @@ import main.ui.components.icons.ImageIconRenderer;
 
 public class RoundedButton extends JButton {
     private String iconId = null;
+    private String iconResourcePath = null;
 
     public RoundedButton(String text){
         super(text);
@@ -30,6 +31,7 @@ public class RoundedButton extends JButton {
     /** Configure an icon (via ImageIconRenderer id) to display left of the text. */
     public RoundedButton withIcon(String iconId) {
         this.iconId = iconId == null ? null : iconId.toLowerCase();
+        this.iconResourcePath = this.iconId == null ? null : ImageIconRenderer.mapIdToResource(this.iconId);
         repaint();
         return this;
     }
@@ -79,7 +81,11 @@ public class RoundedButton extends JButton {
             iconH = swingIcon.getIconHeight();
         } else if (iconKey != null && !iconKey.isBlank()) {
             int target = Math.max(14, getHeight() - 12);
-            iconPath = ImageIconRenderer.mapIdToResource(iconKey);
+            if (this.iconId != null && this.iconId.equals(iconKey)) {
+                iconPath = iconResourcePath;
+            } else {
+                iconPath = ImageIconRenderer.mapIdToResource(iconKey);
+            }
             if (iconPath != null) {
                 iconSize = target;
                 iconW = target;
