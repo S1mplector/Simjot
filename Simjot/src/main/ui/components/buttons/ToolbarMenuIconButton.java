@@ -18,6 +18,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 
+import main.ui.components.icons.IconTransforms;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
 
@@ -29,6 +30,7 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
     private final String iconId;
     private final String caption;
     private boolean hovering = false;
+    private double iconRotationRadians = 0.0;
 
     public ToolbarMenuIconButton(String caption, String iconId) {
         super(iconId);
@@ -49,6 +51,15 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
             @Override public void mouseEntered(MouseEvent e) { hovering = true; repaint(); }
             @Override public void mouseExited(MouseEvent e) { hovering = false; repaint(); }
         });
+    }
+
+    /** Rotate the icon around its center. Use Math.PI to flip 180 degrees. */
+    public void setIconRotationRadians(double radians) {
+        if (Double.isNaN(radians) || Double.isInfinite(radians)) return;
+        if (this.iconRotationRadians != radians) {
+            this.iconRotationRadians = radians;
+            repaint();
+        }
     }
 
     @Override
@@ -74,7 +85,11 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         int iy = (h - iconSize) / 2;
         String res = ImageIconRenderer.mapIdToResource(iconId);
         if (res != null) {
-            ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
+            if (Math.abs(iconRotationRadians) > 0.0001) {
+                IconTransforms.drawRotated(g2, res, ix, iy, iconSize, this, true, iconRotationRadians);
+            } else {
+                ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
+            }
         }
 
         // Caption appears on hover/press as inline overlay

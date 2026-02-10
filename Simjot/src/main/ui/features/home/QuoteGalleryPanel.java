@@ -8,8 +8,8 @@
 
 package main.ui.features.home;
 
-import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
@@ -18,11 +18,13 @@ import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.LinearGradientPaint;
-import java.awt.Point;
-import java.awt.RadialGradientPaint;
-import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Path2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.nio.charset.StandardCharsets;
@@ -33,20 +35,23 @@ import java.util.List;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 
 import main.core.service.SettingsStore;
+import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.io.QuoteLibrary;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.RoundedButton;
-import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
+import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.features.gallery.GeneratedWallpapers;
 import main.ui.theme.Theme;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
+import main.ui.util.AccentColorUtil;
 
 /**
  * Fullscreen quote gallery with manual navigation and favorites.
@@ -55,14 +60,12 @@ public class QuoteGalleryPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private static final Color BG_TOP = new Color(244, 246, 250);
-    private static final Color BG_BOTTOM = new Color(230, 236, 244);
-    private static final Color CARD_TOP = new Color(255, 255, 255, 230);
-    private static final Color CARD_BOTTOM = new Color(242, 246, 250, 230);
     private static final Color BORDER_SOFT = new Color(198, 206, 218, 180);
     private static final Color TEXT_PRIMARY = new Color(32, 38, 48);
     private static final Color TEXT_SECONDARY = new Color(98, 110, 126);
     private static final Color TEXT_MUTED = new Color(130, 140, 156);
+    private static final Color HEART_ON = new Color(232, 74, 92);
+    private static final Color HEART_OFF = new Color(145, 155, 170);
 
     private final JournalApp app;
 
@@ -75,19 +78,25 @@ public class QuoteGalleryPanel extends JPanel {
 
     private QuoteDisplay display;
     private JLabel countLabel;
-    private RoundedToggleButton favoriteButton;
-    private RoundedButton prevButton;
-    private RoundedButton nextButton;
+    private HeartToggleButton favoriteButton;
+    private ToolbarMenuIconButton prevButton;
+    private ToolbarMenuIconButton nextButton;
     private FilterButton allButton;
     private FilterButton favoritesButton;
+    private Color accent = AccentColorUtil.defaultAccent();
 
     public QuoteGalleryPanel(JournalApp app) {
         this.app = app;
         setLayout(new BorderLayout());
-        setOpaque(true);
+        setOpaque(false);
 
-        add(createHeader(), BorderLayout.NORTH);
-        add(createBody(), BorderLayout.CENTER);
+        JPanel background = buildBackgroundLayer();
+        JPanel content = new JPanel(new BorderLayout());
+        content.setOpaque(false);
+        content.add(createHeader(), BorderLayout.NORTH);
+        content.add(createBody(), BorderLayout.CENTER);
+        background.add(content, BorderLayout.CENTER);
+        add(background, BorderLayout.CENTER);
 
         refreshFromStore();
 
@@ -114,6 +123,45 @@ public class QuoteGalleryPanel extends JPanel {
         if (allButton != null) allButton.repaint();
         if (favoritesButton != null) favoritesButton.repaint();
         rebuildView(key);
+    }
+
+    private JPanel buildBackgroundLayer() {
+        String bgPath = SettingsStore.get().getBackgroundImage();
+        Color nextAccent = AccentColorUtil.defaultAccent();
+        JPanel base;
+        if (bgPath != null && !bgPath.isEmpty()) {
+            if (bgPath.startsWith("gen:")) {
+                Image img = GeneratedWallpapers.render(bgPath, 2560, 1440);
+                try { nextAccent = AccentColorUtil.extractAccent(img); } catch (Throwable ignored) { }
+                BackgroundPanel bg = new BackgroundPanel(img);
+                bg.setOpacityOverride(1.0f);
+                base = bg;
+            } else if (bgPath.startsWith("res:")) {
+                String resPath = bgPath.substring(4);
+                Image img = ResourceLoader.createImage("Simjot/" + resPath);
+                if (img != null) {
+                    try { nextAccent = AccentColorUtil.extractAccent(img); } catch (Throwable ignored) { }
+                    BackgroundPanel bg = new BackgroundPanel(img);
+                    bg.setOpacityOverride(1.0f);
+                    base = bg;
+                } else {
+                    base = new JPanel();
+                }
+            } else {
+                Image img = new ImageIcon(bgPath).getImage();
+                try { nextAccent = AccentColorUtil.extractAccent(img); } catch (Throwable ignored) { }
+                BackgroundPanel bg = new BackgroundPanel(bgPath);
+                bg.setOpacityOverride(1.0f);
+                base = bg;
+            }
+            base.setBackground(Color.BLACK);
+        } else {
+            base = new JPanel();
+            base.setBackground(Color.WHITE);
+        }
+        accent = nextAccent != null ? nextAccent : AccentColorUtil.defaultAccent();
+        base.setLayout(new BorderLayout());
+        return base;
     }
 
     private JPanel createHeader() {
@@ -189,8 +237,8 @@ public class QuoteGalleryPanel extends JPanel {
         body.setOpaque(false);
         body.setBorder(new EmptyBorder(10, 24, 22, 24));
 
-        JPanel quoteCard = new QuoteCard();
-        quoteCard.setLayout(new BorderLayout());
+        FrostedGlassPanel quoteCard = new FrostedGlassPanel(new BorderLayout(), 22);
+        quoteCard.setOpacityScale(0.9f);
         quoteCard.setOpaque(false);
 
         display = new QuoteDisplay();
@@ -211,13 +259,14 @@ public class QuoteGalleryPanel extends JPanel {
         JPanel controls = new JPanel(new BorderLayout());
         controls.setOpaque(false);
 
-        prevButton = new RoundedButton("Previous").withIcon("back");
-        prevButton.setPreferredSize(new Dimension(130, 32));
+        prevButton = new ToolbarMenuIconButton("", "back");
+        prevButton.setToolTipText("Previous quote");
         prevButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         prevButton.addActionListener(e -> showQuoteAt(quoteIndex - 1));
 
-        nextButton = new RoundedButton("Next").withIcon("next");
-        nextButton.setPreferredSize(new Dimension(110, 32));
+        nextButton = new ToolbarMenuIconButton("", "back");
+        nextButton.setIconRotationRadians(Math.PI);
+        nextButton.setToolTipText("Next quote");
         nextButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         nextButton.addActionListener(e -> showQuoteAt(quoteIndex + 1));
 
@@ -236,8 +285,8 @@ public class QuoteGalleryPanel extends JPanel {
         countPanel.setLayout(new BoxLayout(countPanel, BoxLayout.X_AXIS));
         countPanel.add(countLabel);
 
-        favoriteButton = new RoundedToggleButton("Favorite");
-        favoriteButton.setPreferredSize(new Dimension(130, 32));
+        favoriteButton = new HeartToggleButton();
+        favoriteButton.setToolTipText("Favorite");
         favoriteButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         favoriteButton.addActionListener(e -> toggleFavorite());
 
@@ -389,13 +438,13 @@ public class QuoteGalleryPanel extends JPanel {
         if (current == null) {
             favoriteButton.setEnabled(false);
             favoriteButton.setSelected(false);
-            favoriteButton.setText("Favorite");
+            favoriteButton.setToolTipText("Favorite");
             return;
         }
         boolean fav = favoriteKeys.contains(quoteKey(current));
         favoriteButton.setEnabled(true);
         favoriteButton.setSelected(fav);
-        favoriteButton.setText(fav ? "Favorited" : "Favorite");
+        favoriteButton.setToolTipText(fav ? "Favorited" : "Favorite");
     }
 
     private QuoteLibrary.QuoteEntry getCurrentQuote() {
@@ -479,37 +528,6 @@ public class QuoteGalleryPanel extends JPanel {
         return f.deriveFont(size);
     }
 
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        int w = getWidth();
-        int h = getHeight();
-
-        if (Theme.isPlainWhite()) {
-            g2.setColor(Color.WHITE);
-            g2.fillRect(0, 0, w, h);
-        } else {
-            g2.setPaint(new GradientPaint(0, 0, BG_TOP, 0, h, BG_BOTTOM));
-            g2.fillRect(0, 0, w, h);
-
-            g2.setComposite(AlphaComposite.SrcOver.derive(0.35f));
-            RadialGradientPaint glow = new RadialGradientPaint(new Point(w / 3, h / 4),
-                    Math.max(w, h) * 0.6f,
-                    new float[]{0f, 1f},
-                    new Color[]{new Color(255, 255, 255, 180), new Color(255, 255, 255, 0)});
-            g2.setPaint(glow);
-            g2.fillRect(0, 0, w, h);
-
-            g2.setComposite(AlphaComposite.SrcOver.derive(0.18f));
-            g2.setColor(new Color(240, 200, 160, 120));
-            g2.fillOval(30, h - 230, 280, 190);
-        }
-
-        g2.dispose();
-    }
-
     private class FilterButton extends JButton {
         private final int index;
 
@@ -588,31 +606,78 @@ public class QuoteGalleryPanel extends JPanel {
         }
     }
 
-    private class QuoteCard extends JPanel {
+    private class HeartToggleButton extends JToggleButton {
+        HeartToggleButton() {
+            setOpaque(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setRolloverEnabled(true);
+            setPreferredSize(new Dimension(44, 44));
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
             int w = getWidth();
             int h = getHeight();
-            int arc = 22;
+            boolean hover = getModel().isRollover();
+            boolean pressed = getModel().isPressed();
+            boolean selected = isSelected();
 
-            if (Theme.isPlainWhite()) {
-                g2.setColor(Color.WHITE);
-                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
-                g2.setColor(new Color(210, 216, 224));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
-            } else {
-                AeroPainters.paintOuterGlow(g2, new Rectangle(3, 3, w - 6, h - 6), arc,
-                        new Color(70, 130, 180, 90), 8, 90);
-                AeroPainters.paintVerticalGradient(g2, new Rectangle(0, 0, w, h), CARD_TOP, CARD_BOTTOM, arc);
-                AeroPainters.paintGlassOverlay(g2, new Rectangle(0, 0, w, h), arc);
-                AeroPainters.paintInnerStroke(g2, new Rectangle(0, 0, w, h), arc, new Color(255, 255, 255, 150));
-                g2.setColor(BORDER_SOFT);
-                g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            int arc = 12;
+            Color top = pressed ? new Color(230, 234, 242, 220)
+                    : (hover ? new Color(250, 252, 255, 220) : new Color(245, 248, 252, 200));
+            Color bottom = pressed ? new Color(210, 216, 226, 220)
+                    : (hover ? new Color(226, 234, 242, 220) : new Color(225, 230, 238, 190));
+            g2.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(new Color(170, 180, 195, 200));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+            Shape heart = createHeartShape(w, h);
+            Color fill = selected ? HEART_ON : (hover ? AccentColorUtil.lighten(HEART_OFF, 0.15f) : HEART_OFF);
+            Color stroke = selected ? AccentColorUtil.darken(HEART_ON, 0.18f) : new Color(110, 120, 135, 190);
+
+            if (selected) {
+                Graphics2D glow = (Graphics2D) g2.create();
+                Color glowBase = AccentColorUtil.blend(HEART_ON, accent, 0.25f);
+                glow.setColor(new Color(glowBase.getRed(), glowBase.getGreen(), glowBase.getBlue(), 70));
+                glow.setStroke(new BasicStroke(4.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                glow.draw(heart);
+                glow.dispose();
             }
+
+            g2.setColor(fill);
+            g2.fill(heart);
+            g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(stroke);
+            g2.draw(heart);
+
+            if (!selected && hover) {
+                g2.setColor(new Color(255, 255, 255, 120));
+                g2.setStroke(new BasicStroke(1f));
+                g2.draw(heart);
+            }
+
             g2.dispose();
-            super.paintComponent(g);
+        }
+
+        private Shape createHeartShape(int w, int h) {
+            Path2D.Double path = new Path2D.Double();
+            path.moveTo(0, -20);
+            path.curveTo(-25, -50, -60, -10, 0, 30);
+            path.curveTo(60, -10, 25, -50, 0, -20);
+            path.closePath();
+            Rectangle2D bounds = path.getBounds2D();
+            double scale = Math.min((w * 0.58) / bounds.getWidth(), (h * 0.58) / bounds.getHeight());
+            AffineTransform at = new AffineTransform();
+            at.translate(w / 2.0, h / 2.0);
+            at.scale(scale, scale);
+            at.translate(-bounds.getCenterX(), -bounds.getCenterY());
+            return at.createTransformedShape(path);
         }
     }
 
