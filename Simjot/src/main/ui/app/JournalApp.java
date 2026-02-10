@@ -78,6 +78,7 @@ import main.ui.features.entries.NotebookEntriesPanel;
 import main.ui.features.entries.QuickCaptureDialog;
 import main.ui.features.gallery.GalleryPanel;
 import main.ui.features.gallery.GeneratedWallpapers;
+import main.ui.features.home.QuoteGalleryPanel;
 import main.ui.features.home.MainMenuPanel;
 import main.ui.features.home.ElegantMoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
@@ -211,6 +212,11 @@ public class JournalApp extends JFrame {
      * Card identifier for mood chart visualization.
      */
     public static final String MOOD_CHART = "Mood Chart";
+
+    /**
+     * Card identifier for quote gallery.
+     */
+    public static final String QUOTE_GALLERY = "Quote Gallery";
     
     /**
      * Card identifier for new poem creation.
@@ -250,6 +256,11 @@ public class JournalApp extends JFrame {
      * Gallery panel for managing drawings and wallpapers.
      */
     private GalleryPanel galleryPanel;
+
+    /**
+     * Quote gallery panel for browsing and favoriting quotes.
+     */
+    private QuoteGalleryPanel quoteGalleryPanel;
 
     /**
      * Flag to track if the first panel switch has occurred.
@@ -870,6 +881,16 @@ public class JournalApp extends JFrame {
         });
     }
 
+    public void openQuoteViewer(String quoteText, String quoteAuthor) {
+        try {
+            maybeCreateLazyCard(QUOTE_GALLERY);
+            if (quoteGalleryPanel != null) {
+                quoteGalleryPanel.showQuote(quoteText, quoteAuthor);
+            }
+        } catch (Throwable ignored) { }
+        switchCard(QUOTE_GALLERY);
+    }
+
     private void maybeCreateLazyCard(String cardName) {
         if (cardName == null) return;
         if (createdStaticCards.contains(cardName)) return;
@@ -877,6 +898,12 @@ public class JournalApp extends JFrame {
             if (cardName.equals(MOOD_CHART)) {
                 cardPanel.add(new ElegantMoodChartPanel(this, cardLayout, cardPanel), MOOD_CHART);
                 createdStaticCards.add(MOOD_CHART);
+            } else if (cardName.equals(QUOTE_GALLERY)) {
+                if (quoteGalleryPanel == null) {
+                    quoteGalleryPanel = new QuoteGalleryPanel(this);
+                }
+                cardPanel.add(quoteGalleryPanel, QUOTE_GALLERY);
+                createdStaticCards.add(QUOTE_GALLERY);
             } else if (cardName.equals(SETTINGS)) {
                 settingsPanel = new SettingsPanel(this, cardLayout, cardPanel);
                 cardPanel.add(settingsPanel, SETTINGS);

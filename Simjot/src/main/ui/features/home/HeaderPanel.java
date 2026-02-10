@@ -20,6 +20,8 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.QuoteLibrary;
 import main.infrastructure.monitoring.AppPerf;
 import main.core.service.SettingsStore;
+import main.ui.app.JournalApp;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
@@ -31,11 +33,17 @@ public class HeaderPanel extends JPanel {
     private float ecgOpacity = 0f; // current alpha of ECG line
     private boolean beatPeak = false; // tracks heart peak to trigger ECG
     private Timer fadeTimer, pulseTimer;
+    private Timer fullscreenFadeTimer;
     // Quote rotation
     private Timer rotateTimer, quoteFadeTimer;
     // Inline Next (chevron) button hit area & hover state
     private Rectangle nextHit = new Rectangle();
     private boolean nextHover = false;
+    private Rectangle panelRectCache;
+    private Rectangle fullscreenHit = new Rectangle();
+    private boolean panelHover = false;
+    private boolean fullscreenHover = false;
+    private float fullscreenAlpha = 0f;
     // Animation state for eased pulse
     private double phase = 0;       // continuous time phase
     private double lastBeatValue = 0; // for peak detection on eased curve
@@ -45,20 +53,28 @@ public class HeaderPanel extends JPanel {
     private java.util.List<QuoteLibrary.QuoteEntry> quotePool;
     private int quoteIndex = 0;
     private final Color accent;
+    private final JournalApp app;
     private BufferedImage cachedHeart;
     private int cachedW;
     private int cachedH;
     private Color cachedAccent;
     private static final float PANEL_HEART_SCALE = 1.12f;
+    private static final int FULLSCREEN_BTN_SIZE = 28;
+    private static final int FULLSCREEN_BTN_PAD = 10;
     
     public HeaderPanel() {
-        this(Theme.getWidgetAccent());
+        this(null, Theme.getWidgetAccent());
     }
 
     public HeaderPanel(Color accent) {
+        this(null, accent);
+    }
+
+    public HeaderPanel(JournalApp app, Color accent) {
         setPreferredSize(new Dimension(800, 120));
         setOpaque(false);
         setLayout(new BorderLayout());
+        this.app = app;
         this.accent = (accent != null ? accent : AeroTheme.AERO_BLUE);
         // Load curated quotes from resources (native-accelerated I/O when available).
         quotePool = new java.util.ArrayList<>(QuoteLibrary.loadQuoteEntries());
@@ -78,20 +94,51 @@ public class HeaderPanel extends JPanel {
         quote = initial.text;
         quoteAuthor = initial.author;
 
-        // Mouse interactivity for inline chevron button
+        // Mouse interactivity for inline chevron + fullscreen button
         MouseAdapter mx = new MouseAdapter() {
             @Override public void mouseMoved(MouseEvent e) {
-                boolean h = nextHit != null && nextHit.contains(e.getPoint());
-                if (h != nextHover) {
-                    nextHover = h;
-                    setCursor(h ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
-                    repaint();
+                boolean repaintNeeded = false;
+                boolean overPanel = panelRectCache != null && panelRectCache.contains(e.getPoint());
+                if (overPanel != panelHover) {
+                    panelHover = overPanel;
+                    animateFullscreenVisibility(panelHover);
+                    repaintNeeded = true;
                 }
+
+                boolean overNext = nextHit != null && nextHit.contains(e.getPoint());
+                if (overNext != nextHover) {
+                    nextHover = overNext;
+                    repaintNeeded = true;
+                }
+
+                boolean overFullscreen = fullscreenHit != null && fullscreenHit.contains(e.getPoint()) && fullscreenAlpha > 0.05f;
+                if (overFullscreen != fullscreenHover) {
+                    fullscreenHover = overFullscreen;
+                    repaintNeeded = true;
+                }
+
+                boolean hand = overNext || overFullscreen;
+                setCursor(hand ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+                if (repaintNeeded) repaint();
             }
+
             @Override public void mouseExited(MouseEvent e) {
-                if (nextHover) { nextHover = false; setCursor(Cursor.getDefaultCursor()); repaint(); }
+                if (panelHover) {
+                    panelHover = false;
+                    animateFullscreenVisibility(false);
+                }
+                boolean repaintNeeded = nextHover || fullscreenHover;
+                nextHover = false;
+                fullscreenHover = false;
+                setCursor(Cursor.getDefaultCursor());
+                if (repaintNeeded) repaint();
             }
+
             @Override public void mouseClicked(MouseEvent e) {
+                if (fullscreenHit != null && fullscreenHit.contains(e.getPoint()) && fullscreenAlpha > 0.1f) {
+                    openQuotePanel();
+                    return;
+                }
                 if (nextHit != null && nextHit.contains(e.getPoint())) advanceQuote();
             }
         };
@@ -161,6 +208,48 @@ public class HeaderPanel extends JPanel {
         try { periodSec = SettingsStore.get().getHeaderQuoteRotationSeconds(); } catch (Throwable ignored) {}
         rotateTimer = new Timer(Math.max(5, periodSec) * 1000, e -> advanceQuote());
         rotateTimer.start();
+    }
+
+    private void animateFullscreenVisibility(boolean show) {
+        float target = show ? 1f : 0f;
+        if (Math.abs(fullscreenAlpha - target) < 0.01f) {
+            fullscreenAlpha = target;
+            repaint();
+            return;
+        }
+        if (SettingsStore.get().isMainMenuAnimationsDisabled() || SettingsStore.get().isAnimationsDisabled()) {
+            fullscreenAlpha = target;
+            repaint();
+            return;
+        }
+        if (fullscreenFadeTimer != null && fullscreenFadeTimer.isRunning()) {
+            fullscreenFadeTimer.stop();
+        }
+        final float start = fullscreenAlpha;
+        final long startNanos = System.nanoTime();
+        final int durationMs = show ? 180 : 220;
+        fullscreenFadeTimer = new Timer(16, ev -> {
+            float t = (System.nanoTime() - startNanos) / (durationMs * 1_000_000f);
+            if (t >= 1f) {
+                fullscreenAlpha = target;
+                fullscreenFadeTimer.stop();
+            } else {
+                float eased = NativeAccess.easeSmoothstep(Math.max(0f, Math.min(1f, t)));
+                fullscreenAlpha = start + (target - start) * eased;
+            }
+            repaint();
+        });
+        fullscreenFadeTimer.setCoalesce(true);
+        fullscreenFadeTimer.start();
+    }
+
+    private void openQuotePanel() {
+        if (app == null) return;
+        try {
+            app.openQuoteViewer(quote, quoteAuthor);
+        } catch (Throwable ignored) {
+            app.switchCard(JournalApp.QUOTE_GALLERY);
+        }
     }
 
     private void advanceQuote(){
@@ -255,6 +344,8 @@ public class HeaderPanel extends JPanel {
                 heartX, heartY, hb.width * PANEL_HEART_SCALE, hb.height * PANEL_HEART_SCALE
             );
             Rectangle panelRect = computePanelRect(width, height, titleBounds, quoteBounds, authorBounds, heartBounds, nextHit);
+            panelRectCache = panelRect;
+            updateFullscreenHit(panelRect);
             paintFrostedPanel(g2, panelRect, textAlpha * 0.6f);
 
             if (cachedHeart == null || cachedW != width || cachedH != height || cachedAccent == null || !cachedAccent.equals(accent)) {
@@ -469,10 +560,61 @@ public class HeaderPanel extends JPanel {
         nb.draw(chevron);
         nb.dispose();
 
+        paintFullscreenButton(g2);
+
         }
         g2.dispose();
     }
     
+    private void updateFullscreenHit(Rectangle panelRect) {
+        if (panelRect == null) {
+            fullscreenHit.setBounds(0, 0, 0, 0);
+            return;
+        }
+        int size = FULLSCREEN_BTN_SIZE;
+        int x = panelRect.x + panelRect.width - size - FULLSCREEN_BTN_PAD;
+        int y = panelRect.y + FULLSCREEN_BTN_PAD;
+        int minX = panelRect.x + 6;
+        int minY = panelRect.y + 6;
+        if (x < minX) x = minX;
+        if (y < minY) y = minY;
+        fullscreenHit.setBounds(x, y, size, size);
+    }
+
+    private void paintFullscreenButton(Graphics2D g2) {
+        float alpha = fullscreenAlpha * textAlpha;
+        if (alpha <= 0.01f) return;
+        if (fullscreenHit == null || fullscreenHit.width <= 0 || fullscreenHit.height <= 0) return;
+
+        Graphics2D fb = (Graphics2D) g2.create();
+        fb.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        fb.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
+
+        int x = fullscreenHit.x;
+        int y = fullscreenHit.y;
+        int size = fullscreenHit.width;
+        int arc = 10;
+        Color top = fullscreenHover ? new Color(250, 252, 255, 230) : new Color(245, 248, 252, 200);
+        Color bottom = fullscreenHover ? new Color(226, 234, 242, 230) : new Color(225, 230, 238, 190);
+        fb.setPaint(new GradientPaint(x, y, top, x, y + size, bottom));
+        fb.fillRoundRect(x, y, size, size, arc, arc);
+        fb.setColor(new Color(170, 180, 195, 200));
+        fb.drawRoundRect(x, y, size - 1, size - 1, arc, arc);
+        if (fullscreenHover) {
+            fb.setColor(new Color(255, 255, 255, 160));
+            fb.drawRoundRect(x + 1, y + 1, size - 3, size - 3, arc - 2, arc - 2);
+        }
+
+        String iconPath = ImageIconRenderer.mapIdToResource("fullscreen");
+        if (iconPath != null) {
+            int iconSize = Math.max(10, size - 12);
+            int ix = x + (size - iconSize) / 2;
+            int iy = y + (size - iconSize) / 2;
+            ImageIconRenderer.draw(fb, iconPath, ix, iy, iconSize, this, true);
+        }
+        fb.dispose();
+    }
+
     
 
     private Shape createHeartShape() {

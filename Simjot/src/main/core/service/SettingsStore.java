@@ -106,6 +106,7 @@ public final class SettingsStore {
     // Header quotes settings
     private static final String KEY_HEADER_QUOTES = "header.quotes"; // multi-line string
     private static final String KEY_HEADER_QUOTE_ROTATE_SEC = "header.quote.rotate.sec"; // integer seconds
+    private static final String KEY_FAVORITE_QUOTES = "quotes.favorites"; // newline-delimited keys
     // Visual accents
     private static final String KEY_MAINMENU_ACCENT_RGB = "mainMenuAccentRGB";
     private static final String KEY_WIDGET_ACCENT_RGB = "widgetAccentRGB";
@@ -1103,6 +1104,48 @@ public final class SettingsStore {
     public void setHeaderQuoteRotationSeconds(int seconds){
         int sec = Math.max(5, Math.min(120, seconds));
         props.setProperty(KEY_HEADER_QUOTE_ROTATE_SEC, String.valueOf(sec));
+    }
+
+    // -------- Quote favorites -------- //
+    public java.util.Set<String> getFavoriteQuoteKeys(){
+        String raw = props.getProperty(KEY_FAVORITE_QUOTES, "").trim();
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (raw.isEmpty()) return out;
+        for (String line : raw.split("\n")){
+            String t = line.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    public void setFavoriteQuoteKeys(java.util.Set<String> keys){
+        if (keys == null || keys.isEmpty()) {
+            props.remove(KEY_FAVORITE_QUOTES);
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (String key : keys){
+            if (key == null) continue;
+            String t = key.trim();
+            if (t.isEmpty()) continue;
+            if (!first) sb.append('\n');
+            sb.append(t);
+            first = false;
+        }
+        if (sb.length() == 0) props.remove(KEY_FAVORITE_QUOTES); else props.setProperty(KEY_FAVORITE_QUOTES, sb.toString());
+    }
+
+    public boolean isQuoteFavorited(String key){
+        if (key == null || key.isBlank()) return false;
+        return getFavoriteQuoteKeys().contains(key);
+    }
+
+    public void setQuoteFavorited(String key, boolean favorited){
+        if (key == null || key.isBlank()) return;
+        java.util.Set<String> keys = getFavoriteQuoteKeys();
+        if (favorited) keys.add(key); else keys.remove(key);
+        setFavoriteQuoteKeys(keys);
     }
 
     /**

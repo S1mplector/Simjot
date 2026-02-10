@@ -368,7 +368,7 @@ public class MainMenuPanel extends JPanel {
         } catch (Exception ignored) { }
 
         // Add header and clock.
-        HeaderPanel header = new HeaderPanel(accent);
+        HeaderPanel header = new HeaderPanel(app, accent);
         header.setAlignmentX(Component.CENTER_ALIGNMENT);
         content.add(Box.createRigidArea(new Dimension(0, 10)));
         content.add(header);

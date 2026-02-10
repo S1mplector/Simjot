@@ -417,7 +417,7 @@ public final class ImageIconRenderer {
             case "write" -> iconSvg("Pen-Write");
             case "brush", "pencil" -> iconSvg("Pencil-1");
             case "delete", "delete_entry" -> iconSvg("Delete-2");
-            case "back" -> iconSvg("Direction-Button-2");
+            case "back", "previous", "prev" -> iconSvg("Direction-Button-2");
             case "list", "lines" -> iconSvg("List-Numbers");
             case "close" -> iconSvg("Remove-Bold");
             case "saveandexit", "save_and_exit" -> iconSvg("Login-1");
@@ -431,8 +431,9 @@ public final class ImageIconRenderer {
             case "calendar" -> iconSvg("Calendar-3");
             // View / window controls
             case "fullscreen", "enter_fullscreen", "toggle_fullscreen" -> iconSvg("Expand-Full");
-            case "export", "share", "download" -> iconSvg("Direction-Button-3");
+            case "export", "share", "download", "next", "forward" -> iconSvg("Direction-Button-3");
             case "rhyme", "rhymes", "rhyme_dock" -> iconSvg("Arrange-Letter");
+            case "favorite", "favourite", "bookmark" -> iconSvg("Bookmarks-Document");
             // Storage actions
             case "explorer", "open_in_explorer" -> iconSvg("Layout-Content");
             case "refreshsizes", "refresh_sizes" -> iconSvg("Button-Loop");
