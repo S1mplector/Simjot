@@ -89,8 +89,6 @@ public final class ImagePasteManager {
     private static JWindow activeOverlay = null;
     private static JWindow imageEditOverlay = null;
     private static JWindow sizePreviewOverlay = null;
-    private static float overlayAlpha = 0f;
-    private static Timer overlayFadeTimer = null;
     private static MouseAdapter activeMouseListener = null;
     private static java.awt.event.FocusAdapter activeFocusListener = null;
     private static AWTEventListener activeGlobalMouseListener = null;
@@ -100,6 +98,7 @@ public final class ImagePasteManager {
     // Native image cache settings
     private static final int CACHE_MAX_ENTRIES = 48;
     private static final int CACHE_MAX_MEMORY_MB = 96;
+    private static final int POPUP_EDGE_MARGIN = 8;
     private static volatile boolean cacheInitialized = false;
 
     public static void install(JTextPane editor, Supplier<File> attachmentsDirSupplier, int maxWidthPx) {
@@ -179,7 +178,7 @@ public final class ImagePasteManager {
                         Object src = as.getAttribute("imageSourceFile");
                         if (src instanceof File) srcFile = (File) src;
                         
-                        showMinimalToolbarWithFade(editor, el.getStartOffset(), srcFile, icon, bounds, 
+                        showMinimalToolbarWithFade(editor, el.getStartOffset(), srcFile, icon, bounds, e.getPoint(),
                                           attachmentsDirSupplier, maxWidthPx);
                         return;
                     }
@@ -205,6 +204,7 @@ public final class ImagePasteManager {
                                                    File sourceFile,
                                                    ImageIcon currentIcon,
                                                    Rectangle imageBounds,
+                                                   Point clickPoint,
                                                    Supplier<File> attachmentsDirSupplier,
                                                    int defaultMaxWidth) {
         // Dismiss any existing overlay
@@ -217,21 +217,16 @@ public final class ImagePasteManager {
         final File[] srcRef = new File[]{sourceFile};
 
         JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
-        toolbar.setBackground(new Color(0, 0, 0, 0));
+        toolbar.setBackground(Color.WHITE);
         toolbar.setAlwaysOnTop(true);
         activeOverlay = toolbar;
-        overlayAlpha = 0f;
 
-        FrostedGlassPanel content = new FrostedGlassPanel(new java.awt.BorderLayout(10, 0), 16) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setComposite(AlphaComposite.SrcOver.derive(overlayAlpha));
-                super.paintComponent(g2);
-                g2.dispose();
-            }
-        };
-        content.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        JPanel content = new JPanel(new java.awt.BorderLayout(10, 0));
+        content.setOpaque(true);
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(202, 208, 216), 1),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
 
         MoodSlider sizeSlider = new MoodSlider();
         sizeSlider.setMinimum(minW);
@@ -295,46 +290,24 @@ public final class ImagePasteManager {
         toolbar.setContentPane(content);
         toolbar.pack();
 
-        positionToolbar(toolbar, editor, imageBounds);
+        positionToolbar(toolbar, editor, imageBounds, clickPoint);
         toolbar.setVisible(true);
 
         // Show "being edited" overlay on the image
         showImageEditOverlay(editor, imageBounds);
-
-        // Fade in animation
-        overlayFadeTimer = new Timer(16, null);
-        overlayFadeTimer.addActionListener(e -> {
-            overlayAlpha += 0.15f;
-            if (overlayAlpha >= 1f) {
-                overlayAlpha = 1f;
-                overlayFadeTimer.stop();
-            }
-            content.repaint();
-        });
-        overlayFadeTimer.start();
 
         // Track editor and remove any previous listeners
         activeEditor = editor;
         removeActiveListeners(editor);
         installGlobalMouseListener();
 
-        // Auto-dismiss when clicking elsewhere or mouse leaves
+        // Auto-dismiss when clicking elsewhere.
         activeMouseListener = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
                 Point screenPoint = e.getLocationOnScreen();
                 if (!isMouseOverAnyOverlay(screenPoint)) {
                     fadeOutAndDismiss(toolbar);
                 }
-            }
-            @Override public void mouseExited(MouseEvent e) {
-                // Check if mouse went to toolbar or overlay
-                Timer checkTimer = new Timer(200, ev -> {
-                    if (!isMouseOverAnyOverlay(null)) {
-                        fadeOutAndDismiss(toolbar);
-                    }
-                });
-                checkTimer.setRepeats(false);
-                checkTimer.start();
             }
         };
         editor.addMouseListener(activeMouseListener);
@@ -355,26 +328,7 @@ public final class ImagePasteManager {
     }
 
     private static void fadeOutAndDismiss(JWindow toolbar) {
-        if (toolbar == null || !toolbar.isVisible()) {
-            dismissActiveOverlay();
-            return;
-        }
-
-        if (overlayFadeTimer != null) {
-            overlayFadeTimer.stop();
-        }
-
-        overlayFadeTimer = new Timer(16, null);
-        overlayFadeTimer.addActionListener(e -> {
-            overlayAlpha -= 0.2f;
-            if (overlayAlpha <= 0f) {
-                overlayAlpha = 0f;
-                overlayFadeTimer.stop();
-                dismissActiveOverlay();
-            }
-            toolbar.repaint();
-        });
-        overlayFadeTimer.start();
+        dismissActiveOverlay();
     }
 
     /**
@@ -981,33 +935,85 @@ public final class ImagePasteManager {
     }
     
     private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds) {
+        positionToolbar(toolbar, editor, imageBounds, null);
+    }
+
+    private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds, Point clickPoint) {
         try {
             Rectangle visibleBounds = visibleImageBounds(editor, imageBounds);
             if (visibleBounds == null || visibleBounds.width <= 0 || visibleBounds.height <= 0) {
                 visibleBounds = imageBounds;
             }
             Point editorLoc = editor.getLocationOnScreen();
-            Rectangle visibleRect = getVisibleRectSafe(editor);
-            int minX = editorLoc.x + visibleRect.x;
-            int minY = editorLoc.y + visibleRect.y;
-            int maxX = minX + Math.max(0, visibleRect.width - toolbar.getWidth());
-            int maxY = minY + Math.max(0, visibleRect.height - toolbar.getHeight());
+            Rectangle placementBounds = getPopupPlacementBounds(editor);
+            if (placementBounds == null || placementBounds.width <= 0 || placementBounds.height <= 0) return;
 
-            int x = editorLoc.x + visibleBounds.x + (visibleBounds.width - toolbar.getWidth()) / 2;
-            x = clampInt(x, minX, maxX);
+            Rectangle imageOnScreen = new Rectangle(
+                    editorLoc.x + visibleBounds.x,
+                    editorLoc.y + visibleBounds.y,
+                    Math.max(1, visibleBounds.width),
+                    Math.max(1, visibleBounds.height));
 
-            int belowY = editorLoc.y + visibleBounds.y + visibleBounds.height + 4;
-            int aboveY = editorLoc.y + visibleBounds.y - toolbar.getHeight() - 4;
-            int y;
-            if (belowY <= maxY) {
-                y = belowY;
-            } else if (aboveY >= minY) {
-                y = aboveY;
-            } else {
-                y = clampInt(belowY, minY, maxY);
+            int w = toolbar.getWidth();
+            int h = toolbar.getHeight();
+            Rectangle usable = new Rectangle(
+                    placementBounds.x + POPUP_EDGE_MARGIN,
+                    placementBounds.y + POPUP_EDGE_MARGIN,
+                    Math.max(1, placementBounds.width - (POPUP_EDGE_MARGIN * 2)),
+                    Math.max(1, placementBounds.height - (POPUP_EDGE_MARGIN * 2)));
+            int minX = usable.x;
+            int minY = usable.y;
+            int maxX = usable.x + Math.max(0, usable.width - w);
+            int maxY = usable.y + Math.max(0, usable.height - h);
+
+            int anchorCenterX = imageOnScreen.x + (imageOnScreen.width / 2);
+            int anchorCenterY = imageOnScreen.y + (imageOnScreen.height / 2);
+            if (clickPoint != null) {
+                int clickX = editorLoc.x + clickPoint.x;
+                int clickY = editorLoc.y + clickPoint.y;
+                anchorCenterX = clampInt(clickX, imageOnScreen.x, imageOnScreen.x + Math.max(0, imageOnScreen.width - 1));
+                anchorCenterY = clampInt(clickY, imageOnScreen.y, imageOnScreen.y + Math.max(0, imageOnScreen.height - 1));
             }
 
-            toolbar.setLocation(x, y);
+            final int gap = 12;
+            Rectangle[] candidates = new Rectangle[] {
+                    // Below
+                    new Rectangle(clampInt(anchorCenterX - (w / 2), minX, maxX), imageOnScreen.y + imageOnScreen.height + gap, w, h),
+                    // Above
+                    new Rectangle(clampInt(anchorCenterX - (w / 2), minX, maxX), imageOnScreen.y - h - gap, w, h),
+                    // Right
+                    new Rectangle(imageOnScreen.x + imageOnScreen.width + gap, clampInt(anchorCenterY - (h / 2), minY, maxY), w, h),
+                    // Left
+                    new Rectangle(imageOnScreen.x - w - gap, clampInt(anchorCenterY - (h / 2), minY, maxY), w, h)
+            };
+
+            Rectangle usableRect = new Rectangle(usable.x, usable.y, Math.max(1, usable.width), Math.max(1, usable.height));
+            Rectangle bestPartial = null;
+            long bestVisibleArea = -1L;
+
+            for (Rectangle candidate : candidates) {
+                boolean outsideImage = !candidate.intersects(imageOnScreen);
+                if (!outsideImage) continue;
+
+                boolean fullyVisible = candidate.x >= minX && candidate.x <= maxX
+                        && candidate.y >= minY && candidate.y <= maxY;
+                if (fullyVisible) {
+                    toolbar.setLocation(candidate.x, candidate.y);
+                    return;
+                }
+
+                Rectangle intersection = candidate.intersection(usableRect);
+                long visibleArea = (long) Math.max(0, intersection.width) * Math.max(0, intersection.height);
+                if (visibleArea > bestVisibleArea) {
+                    bestVisibleArea = visibleArea;
+                    bestPartial = candidate;
+                }
+            }
+
+            if (bestPartial != null) {
+                toolbar.setLocation(bestPartial.x, bestPartial.y);
+                return;
+            }
         } catch (Throwable ignored) {}
     }
 
@@ -1031,14 +1037,90 @@ public final class ImagePasteManager {
         return visible;
     }
 
+    private static Rectangle getPopupPlacementBounds(JTextPane editor) {
+        if (editor == null) return new Rectangle(0, 0, 1, 1);
+        try {
+            Rectangle editorVisibleOnScreen = getEditorVisibleOnScreen(editor);
+            Window owner = SwingUtilities.getWindowAncestor(editor);
+            Rectangle ownerBoundsOnScreen = null;
+            if (owner != null && owner.isShowing()) {
+                Point ownerLoc = owner.getLocationOnScreen();
+                ownerBoundsOnScreen = new Rectangle(
+                        ownerLoc.x,
+                        ownerLoc.y,
+                        Math.max(1, owner.getWidth()),
+                        Math.max(1, owner.getHeight()));
+            }
+
+            java.awt.GraphicsConfiguration gc = editor.getGraphicsConfiguration();
+            if (gc == null) {
+                Window w = owner;
+                if (w != null) gc = w.getGraphicsConfiguration();
+            }
+            Rectangle screenBounds;
+            if (gc != null) {
+                screenBounds = new Rectangle(gc.getBounds());
+                java.awt.Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+                screenBounds.x += insets.left;
+                screenBounds.y += insets.top;
+                screenBounds.width = Math.max(1, screenBounds.width - insets.left - insets.right);
+                screenBounds.height = Math.max(1, screenBounds.height - insets.top - insets.bottom);
+            } else {
+                Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+                screenBounds = new Rectangle(0, 0, Math.max(1, screen.width), Math.max(1, screen.height));
+            }
+
+            Rectangle sourceBounds = ownerBoundsOnScreen != null ? ownerBoundsOnScreen : editorVisibleOnScreen;
+            Rectangle clipped = sourceBounds.intersection(screenBounds);
+            if (clipped.width > 0 && clipped.height > 0) return clipped;
+            // Fallback to editor-visible area if owner bounds were unusable
+            clipped = editorVisibleOnScreen.intersection(screenBounds);
+            if (clipped.width > 0 && clipped.height > 0) return clipped;
+            if (sourceBounds.width > 0 && sourceBounds.height > 0) return sourceBounds;
+            return screenBounds;
+        } catch (Throwable ignored) {
+            return new Rectangle(0, 0, 1, 1);
+        }
+    }
+
+    private static Rectangle getEditorVisibleOnScreen(JTextPane editor) {
+        Point editorLoc = editor.getLocationOnScreen();
+        Rectangle visible = getVisibleRectSafe(editor);
+        return new Rectangle(
+                editorLoc.x + visible.x,
+                editorLoc.y + visible.y,
+                Math.max(1, visible.width),
+                Math.max(1, visible.height));
+    }
+
     private static Point clampToVisibleRect(JTextPane editor, int x, int y, int w, int h) {
         try {
-            Point editorLoc = editor.getLocationOnScreen();
-            Rectangle visible = getVisibleRectSafe(editor);
-            int minX = editorLoc.x + visible.x;
-            int minY = editorLoc.y + visible.y;
-            int maxX = minX + Math.max(0, visible.width - w);
-            int maxY = minY + Math.max(0, visible.height - h);
+            Rectangle placementBounds = getEditorVisibleOnScreen(editor);
+            java.awt.GraphicsConfiguration gc = editor.getGraphicsConfiguration();
+            if (gc != null) {
+                Rectangle screenBounds = new Rectangle(gc.getBounds());
+                java.awt.Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+                screenBounds.x += insets.left;
+                screenBounds.y += insets.top;
+                screenBounds.width = Math.max(1, screenBounds.width - insets.left - insets.right);
+                screenBounds.height = Math.max(1, screenBounds.height - insets.top - insets.bottom);
+                Rectangle clipped = placementBounds.intersection(screenBounds);
+                if (clipped.width > 0 && clipped.height > 0) {
+                    placementBounds = clipped;
+                }
+            }
+            int minX = placementBounds.x + POPUP_EDGE_MARGIN;
+            int minY = placementBounds.y + POPUP_EDGE_MARGIN;
+            int maxX = placementBounds.x + placementBounds.width - w - POPUP_EDGE_MARGIN;
+            int maxY = placementBounds.y + placementBounds.height - h - POPUP_EDGE_MARGIN;
+            if (maxX < minX) {
+                minX = placementBounds.x;
+                maxX = placementBounds.x + Math.max(0, placementBounds.width - w);
+            }
+            if (maxY < minY) {
+                minY = placementBounds.y;
+                maxY = placementBounds.y + Math.max(0, placementBounds.height - h);
+            }
             int clampedX = clampInt(x, minX, maxX);
             int clampedY = clampInt(y, minY, maxY);
             return new Point(clampedX, clampedY);
