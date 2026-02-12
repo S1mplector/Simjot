@@ -107,57 +107,48 @@ final class EntryFileFormat {
         if (arr == null || arr.length() < 2) return null;
         int end = arr.length() - 1; // closing ']'
         int idx = 1; // after '['
-        while (idx < end) {
-            char c = arr.charAt(idx);
-            if (c == '-' || (c >= '0' && c <= '9')) break;
-            idx++;
-        }
-        if (idx >= end) return null;
-
         int[] out = new int[8];
         Arrays.fill(out, -1);
-        int limit = 8;
         boolean any = false;
-        int i = 0;
-        while (idx < end && i < limit) {
-            while (idx < end) {
-                char c = arr.charAt(idx);
-                if (c == '-' || (c >= '0' && c <= '9')) break;
-                idx++;
-            }
-            if (idx >= end) break;
-
-            int sign = 1;
-            if (arr.charAt(idx) == '-') {
-                sign = -1;
-                idx++;
-            }
-
-            int v = 0;
-            boolean hasDigits = false;
-            while (idx < end) {
-                char c = arr.charAt(idx);
-                if (c >= '0' && c <= '9') {
-                    hasDigits = true;
-                    v = (v * 10) + (c - '0');
-                    idx++;
-                } else {
-                    break;
-                }
-            }
-            if (!hasDigits) {
-                idx++;
-                continue;
-            }
-
-            int parsed = sign * v;
-            if (parsed >= 0) {
-                out[i] = clamp(parsed);
+        int slot = 0;
+        while (idx <= end && slot < out.length) {
+            int tokenStart = idx;
+            while (idx < end && arr.charAt(idx) != ',') idx++;
+            int tokenEnd = idx;
+            Integer parsed = parseArrayTokenInt(arr, tokenStart, tokenEnd);
+            if (parsed != null && parsed >= 0) {
+                out[slot] = clamp(parsed);
                 any = true;
             }
-            i++;
+            slot++;
+            idx++; // skip comma (or move beyond end)
         }
         return any ? out : null;
+    }
+
+    private static Integer parseArrayTokenInt(String arr, int start, int end) {
+        while (start < end && Character.isWhitespace(arr.charAt(start))) start++;
+        while (end > start && Character.isWhitespace(arr.charAt(end - 1))) end--;
+        if (start >= end) return null;
+
+        int sign = 1;
+        char first = arr.charAt(start);
+        if (first == '+' || first == '-') {
+            sign = (first == '-') ? -1 : 1;
+            start++;
+        }
+        if (start >= end) return null;
+
+        long value = 0L;
+        for (int i = start; i < end; i++) {
+            char c = arr.charAt(i);
+            if (c < '0' || c > '9') return null;
+            value = (value * 10L) + (c - '0');
+            if (value > Integer.MAX_VALUE) return null;
+        }
+        long signed = sign < 0 ? -value : value;
+        if (signed < Integer.MIN_VALUE || signed > Integer.MAX_VALUE) return null;
+        return (int) signed;
     }
 
     private static int[] normalizeDetails(int[] details) {

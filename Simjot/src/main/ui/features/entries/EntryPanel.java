@@ -2084,12 +2084,21 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private static int countWords(String text) {
-        if (text == null) return 0;
+        if (text == null || text.isEmpty()) return 0;
         int nativeCount = NativeAccess.countWords(text);
         if (nativeCount >= 0) return nativeCount;
-        String trimmed = text.trim();
-        if (trimmed.isEmpty()) return 0;
-        return trimmed.split("\\s+").length;
+        int count = 0;
+        boolean inWord = false;
+        for (int i = 0, n = text.length(); i < n; i++) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                inWord = false;
+            } else if (!inWord) {
+                count++;
+                inWord = true;
+            }
+        }
+        return count;
     }
 
     private static BufferedImage scaleToWidth(BufferedImage src, int targetW) {
@@ -2150,6 +2159,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private static String stripImageTokens(String text) {
         if (text == null || text.isEmpty()) return "";
+        if (text.indexOf("[[IMG|") < 0) return text;
         return IMAGE_TOKEN_PATTERN.matcher(text).replaceAll(" ");
     }
 

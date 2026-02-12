@@ -39,6 +39,8 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 
 public final class GlobalSearchEngine {
+    private static final Pattern TAG_PATTERN = Pattern.compile("#([A-Za-z0-9_-]+)");
+
     private GlobalSearchEngine() {}
 
     public static void search(SearchQuery query, Component parent, Consumer<SearchResult> consumer) {
@@ -475,7 +477,7 @@ public final class GlobalSearchEngine {
             return tags;
         }
 
-        Matcher m = Pattern.compile("#([A-Za-z0-9_-]+)").matcher(text);
+        Matcher m = TAG_PATTERN.matcher(text);
         while (m.find()) {
             tags.add(m.group(1).toLowerCase(Locale.ROOT));
         }

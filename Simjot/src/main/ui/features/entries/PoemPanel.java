@@ -1398,8 +1398,7 @@ public class PoemPanel extends AbstractEditorPanel {
         if (nativeWords != null) {
             words = nativeWords;
         } else {
-            String trimmed = safeText.trim();
-            words = trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
+            words = countWordsFast(safeText);
         }
         Integer nativeChars = NativeAccess.textCharCount(safeText, true);
         if (nativeChars != null) chars = nativeChars;
@@ -1464,7 +1463,7 @@ public class PoemPanel extends AbstractEditorPanel {
             writer.println(content);
             writer.flush();
             byte[] data = baos.toByteArray();
-            int wordCount = countWords(new String(data, java.nio.charset.StandardCharsets.UTF_8));
+            int wordCount = countWords(title) + countWords(content);
             if (EncryptionManager.isEncryptionEnabled()) {
                 String password = EncryptionManager.getPasswordForUse(this, !isAutosaving);
                 if (password == null || password.isBlank()) {
@@ -1821,12 +1820,26 @@ public class PoemPanel extends AbstractEditorPanel {
     }
 
     private static int countWords(String text) {
-        if (text == null) return 0;
+        if (text == null || text.isEmpty()) return 0;
         int nativeCount = NativeAccess.countWords(text);
         if (nativeCount >= 0) return nativeCount;
-        String trimmed = text.trim();
-        if (trimmed.isEmpty()) return 0;
-        return trimmed.split("\\s+").length;
+        return countWordsFast(text);
+    }
+
+    private static int countWordsFast(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        int count = 0;
+        boolean inWord = false;
+        for (int i = 0, n = text.length(); i < n; i++) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                inWord = false;
+            } else if (!inWord) {
+                count++;
+                inWord = true;
+            }
+        }
+        return count;
     }
 
     private void updateSaveIndicatorFromCurrentFile() {
