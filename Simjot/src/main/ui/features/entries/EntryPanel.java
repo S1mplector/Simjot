@@ -208,7 +208,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private void refreshDetailedMoodToggleVisual() {
         if (moodDetailsToggleButton == null) return;
         boolean expanded = detailedMoodPanel != null && detailedMoodPanel.isExpanded();
-        moodDetailsToggleButton.setIconRotationRadians(expanded ? Math.PI / 2.0 : 0.0);
+        moodDetailsToggleButton.animateIconRotationRadians(expanded ? Math.PI / 2.0 : 0.0, 200);
         moodDetailsToggleButton.setToolTipText(expanded ? "Hide detailed emotions" : "Show detailed emotions");
     }
 
@@ -1640,6 +1640,9 @@ public class EntryPanel extends AbstractEditorPanel {
                 if (detailedMoodPanel != null) {
                     detailHolder[0] = detailedMoodPanel.captureSnapshot();
                     hasDetailHolder[0] = detailedMoodPanel.hasSnapshot();
+                    if (hasDetailHolder[0]) {
+                        moodHolder[0] = detailedMoodPanel.computeCompositeScore();
+                    }
                 }
             } else {
                 SwingUtilities.invokeAndWait(() -> {
@@ -1649,6 +1652,9 @@ public class EntryPanel extends AbstractEditorPanel {
                     if (detailedMoodPanel != null) {
                         detailHolder[0] = detailedMoodPanel.captureSnapshot();
                         hasDetailHolder[0] = detailedMoodPanel.hasSnapshot();
+                        if (hasDetailHolder[0]) {
+                            moodHolder[0] = detailedMoodPanel.computeCompositeScore();
+                        }
                     }
                 });
             }
@@ -1660,13 +1666,6 @@ public class EntryPanel extends AbstractEditorPanel {
         String content = contentHolder[0];
         int moodValue = moodHolder[0]; // 0 - 100
         DetailedMoodPanel.DetailedMoodSnapshot moodDetails = hasDetailHolder[0] ? detailHolder[0] : null;
-        if (moodValue >= 0) {
-            if (moodDetails != null) {
-                recordMood(moodValue, moodDetails);
-            } else {
-                recordMood(moodValue);
-            }
-        }
 
         String manifestForRestore = null;
         boolean tokensApplied = false;
@@ -1804,6 +1803,15 @@ public class EntryPanel extends AbstractEditorPanel {
                     SwingUtilities.invokeLater(() -> showRecoveryBanner(msg, finalCandidate));
                 }
                 throw io;
+            }
+
+            // Log mood only after the entry file is successfully persisted.
+            if (moodValue >= 0) {
+                if (moodDetails != null) {
+                    recordMood(moodValue, moodDetails);
+                } else {
+                    recordMood(moodValue);
+                }
             }
 
             // Record versioned snapshot

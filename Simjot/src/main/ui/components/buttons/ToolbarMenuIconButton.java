@@ -17,6 +17,7 @@ import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
+import javax.swing.Timer;
 
 import main.ui.components.icons.IconTransforms;
 import main.ui.components.icons.ImageIconRenderer;
@@ -31,6 +32,11 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
     private final String caption;
     private boolean hovering = false;
     private double iconRotationRadians = 0.0;
+    private Timer rotationTimer;
+    private double rotationFromRadians = 0.0;
+    private double rotationToRadians = 0.0;
+    private long rotationStartMs = 0L;
+    private int rotationDurationMs = 180;
 
     public ToolbarMenuIconButton(String caption, String iconId) {
         super(iconId);
@@ -57,8 +63,50 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
     /** Rotate the icon around its center. Use Math.PI to flip 180 degrees. */
     public void setIconRotationRadians(double radians) {
         if (Double.isNaN(radians) || Double.isInfinite(radians)) return;
+        if (rotationTimer != null && rotationTimer.isRunning()) rotationTimer.stop();
         if (this.iconRotationRadians != radians) {
             this.iconRotationRadians = radians;
+            repaint();
+        }
+    }
+
+    /** Smoothly rotate the icon around its center. */
+    public void animateIconRotationRadians(double radians) {
+        animateIconRotationRadians(radians, 180);
+    }
+
+    /** Smoothly rotate the icon around its center using the given duration in milliseconds. */
+    public void animateIconRotationRadians(double radians, int durationMs) {
+        if (Double.isNaN(radians) || Double.isInfinite(radians)) return;
+        int safeDuration = Math.max(60, durationMs);
+        if (Math.abs(this.iconRotationRadians - radians) < 0.0001 && (rotationTimer == null || !rotationTimer.isRunning())) {
+            return;
+        }
+        if (rotationTimer == null) {
+            rotationTimer = new Timer(16, e -> stepRotationAnimation());
+            rotationTimer.setRepeats(true);
+        } else if (rotationTimer.isRunning()) {
+            rotationTimer.stop();
+        }
+        rotationFromRadians = iconRotationRadians;
+        rotationToRadians = radians;
+        rotationDurationMs = safeDuration;
+        rotationStartMs = System.currentTimeMillis();
+        rotationTimer.start();
+    }
+
+    private void stepRotationAnimation() {
+        long elapsed = System.currentTimeMillis() - rotationStartMs;
+        double p = Math.min(1.0, elapsed / (double) rotationDurationMs);
+        // Ease in/out cubic for a clean, non-snappy flip.
+        double e = (p < 0.5)
+                ? (4.0 * p * p * p)
+                : (1.0 - Math.pow(-2.0 * p + 2.0, 3.0) / 2.0);
+        iconRotationRadians = rotationFromRadians + (rotationToRadians - rotationFromRadians) * e;
+        repaint();
+        if (p >= 1.0) {
+            iconRotationRadians = rotationToRadians;
+            rotationTimer.stop();
             repaint();
         }
     }
@@ -107,5 +155,11 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         }
 
         g2.dispose();
+    }
+
+    @Override
+    public void removeNotify() {
+        if (rotationTimer != null) rotationTimer.stop();
+        super.removeNotify();
     }
 }

@@ -46,8 +46,13 @@ public class DetailedMoodPanel extends JPanel {
     private boolean expanded = false;
     private boolean hasSnapshot = false;
     private int animMs = 160;
-    private int targetHeight = 0;
     private boolean suppressCallbacks = false;
+    private Timer heightAnimationTimer;
+    private int animationFrom = 0;
+    private int animationTo = 0;
+    private long animationStartedAt = 0L;
+    private final Timer changeDebounceTimer;
+    private static final int CHANGE_DEBOUNCE_MS = 130;
 
     public static class DetailedMoodSnapshot {
         public final int joy, calm, gratitude, energy, sadness, anger, anxiety, stress;
@@ -105,6 +110,10 @@ public class DetailedMoodPanel extends JPanel {
         shell.add(inner, BorderLayout.CENTER);
         add(shell, BorderLayout.CENTER);
 
+        heightAnimationTimer = new Timer(15, e -> stepHeightAnimation());
+        heightAnimationTimer.setRepeats(true);
+        changeDebounceTimer = new Timer(CHANGE_DEBOUNCE_MS, e -> emitChangeNow());
+        changeDebounceTimer.setRepeats(false);
         installLiveListeners();
         refreshSummaryLabel();
 
@@ -118,12 +127,12 @@ public class DetailedMoodPanel extends JPanel {
     public void setExpanded(boolean expand) {
         if (this.expanded == expand) return;
         this.expanded = expand;
+        int from = getHeight() > 0 ? getHeight() : Math.max(0, getPreferredSize().height);
         if (expand) {
             // compute target height from inner preferred height
-            targetHeight = calcInnerPreferredHeight();
-            animateHeight(0, targetHeight);
+            int targetHeight = calcInnerPreferredHeight();
+            animateHeight(from, targetHeight);
         } else {
-            int from = getHeight() == 0 ? calcInnerPreferredHeight() : getHeight();
             animateHeight(from, 0);
         }
     }
@@ -135,23 +144,42 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void animateHeight(int from, int to) {
-        setVisible(true);
-        final long start = System.currentTimeMillis();
-        final int dur = animMs;
-        Timer t = new Timer(15, null);
-        t.addActionListener(ev -> {
-            float p = Math.min(1f, (System.currentTimeMillis() - start) / (float) dur);
-            // ease-out cubic
-            float e = 1 - (float) Math.pow(1 - p, 3);
-            int h = from + Math.round((to - from) * e);
-            setPreferredSize(new Dimension(getWidth(), h));
+        int safeFrom = Math.max(0, from);
+        int safeTo = Math.max(0, to);
+        if (safeFrom == safeTo) {
+            int prefW = Math.max(0, getPreferredSize().width);
+            setPreferredSize(new Dimension(prefW, safeTo));
+            setVisible(safeTo > 0);
             revalidate();
-            if (p >= 1f) {
-                t.stop();
-                if (to == 0) setVisible(false);
+            repaint();
+            return;
+        }
+
+        setVisible(true);
+        animationFrom = safeFrom;
+        animationTo = safeTo;
+        animationStartedAt = System.currentTimeMillis();
+        if (heightAnimationTimer.isRunning()) {
+            heightAnimationTimer.stop();
+        }
+        heightAnimationTimer.start();
+    }
+
+    private void stepHeightAnimation() {
+        float p = Math.min(1f, (System.currentTimeMillis() - animationStartedAt) / (float) animMs);
+        // ease-out cubic
+        float e = 1 - (float) Math.pow(1 - p, 3);
+        int h = animationFrom + Math.round((animationTo - animationFrom) * e);
+        int prefW = Math.max(0, getPreferredSize().width);
+        setPreferredSize(new Dimension(prefW, h));
+        revalidate();
+        repaint();
+        if (p >= 1f) {
+            heightAnimationTimer.stop();
+            if (animationTo == 0) {
+                setVisible(false);
             }
-        });
-        t.start();
+        }
     }
 
     private void addRow(JPanel panel, GridBagConstraints gc, String label, MoodSlider slider) {
@@ -198,6 +226,10 @@ public class DetailedMoodPanel extends JPanel {
         );
     }
 
+    public int computeCompositeScore() {
+        return computeComposite();
+    }
+
     private static double avg(MoodSlider... sliders) {
         double sum = 0;
         for (MoodSlider s : sliders) sum += s.getValue();
@@ -206,6 +238,7 @@ public class DetailedMoodPanel extends JPanel {
 
     public void applySnapshot(DetailedMoodSnapshot s) {
         if (s == null) return;
+        changeDebounceTimer.stop();
         suppressCallbacks = true;
         joy.setValue(s.joy);
         calm.setValue(s.calm);
@@ -222,6 +255,7 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     public void clearSnapshot() {
+        changeDebounceTimer.stop();
         suppressCallbacks = true;
         joy.setValue(50);
         calm.setValue(50);
@@ -258,7 +292,7 @@ public class DetailedMoodPanel extends JPanel {
             if (suppressCallbacks) return;
             hasSnapshot = true;
             refreshSummaryLabel();
-            if (onChange != null) onChange.accept(computeComposite(), captureSnapshot());
+            changeDebounceTimer.restart();
         };
         joy.addChangeListener(listener);
         calm.addChangeListener(listener);
@@ -270,11 +304,23 @@ public class DetailedMoodPanel extends JPanel {
         stress.addChangeListener(listener);
     }
 
+    private void emitChangeNow() {
+        if (suppressCallbacks || onChange == null) return;
+        onChange.accept(computeComposite(), captureSnapshot());
+    }
+
     private void refreshSummaryLabel() {
         if (!hasSnapshot) {
             summaryLabel.setText("Not set");
             return;
         }
         summaryLabel.setText("Composite " + computeComposite());
+    }
+
+    @Override
+    public void removeNotify() {
+        if (heightAnimationTimer != null) heightAnimationTimer.stop();
+        if (changeDebounceTimer != null) changeDebounceTimer.stop();
+        super.removeNotify();
     }
 }
