@@ -19,6 +19,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
@@ -49,7 +50,7 @@ public class SettingsPanel extends JPanel {
     private final JPanel cardsPanel = new JPanel(cardLayout);
     private final DefaultListModel<String> sectionModel = new DefaultListModel<>();
     private final JList<String> sectionList = new JList<>(sectionModel);
-    private final Map<String, SettingsPage> pages = new HashMap<>();
+    private final Map<String, SettingsPage> pages = new LinkedHashMap<>();
 
     public SettingsPanel(JournalApp app, CardLayout parentLayout, JPanel parentCardPanel) {
         this.app = app;
@@ -84,7 +85,10 @@ public class SettingsPanel extends JPanel {
         sectionList.addListSelectionListener(e->{
             if(!e.getValueIsAdjusting()){
                 String key = sectionList.getSelectedValue();
+                if (key == null || !pages.containsKey(key)) return;
                 cardLayout.show(cardsPanel, key);
+                cardsPanel.revalidate();
+                cardsPanel.repaint();
             }
         });
         JScrollPane sp = new JScrollPane(sectionList);
@@ -141,8 +145,10 @@ public class SettingsPanel extends JPanel {
         // Wrap page in a scroll pane so content can scroll if it exceeds visible area
         JScrollPane scrollPane = new JScrollPane(page.getComponent());
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.setOpaque(false);
-        scrollPane.getViewport().setOpaque(false);
+        scrollPane.setOpaque(true);
+        scrollPane.setBackground(Color.WHITE);
+        scrollPane.getViewport().setOpaque(true);
+        scrollPane.getViewport().setBackground(Color.WHITE);
         scrollPane.getVerticalScrollBar().setUI(new AeroScrollBarUI());
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -156,7 +162,9 @@ public class SettingsPanel extends JPanel {
         new javax.swing.SwingWorker<Void, String>() {
             @Override protected Void doInBackground() {
                 publish("Applying settings…");
-                try { pages.values().forEach(SettingsPage::apply); } catch (Throwable ignored) {}
+                for (SettingsPage page : pages.values()) {
+                    try { page.apply(); } catch (Throwable ignored) {}
+                }
 
                 publish("Writing preferences to disk…");
                 // Robust save: attempt multiple times if needed

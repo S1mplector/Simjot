@@ -10,6 +10,7 @@
 
 #ifdef __APPLE__
 #import <Foundation/Foundation.h>
+#import <CoreFoundation/CoreFoundation.h>
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
@@ -17,7 +18,7 @@
 #include <string.h>
 
 static std::mutex g_bookmark_mutex;
-static std::unordered_map<int64_t, NSURL*> g_active_scopes;
+static std::unordered_map<int64_t, CFURLRef> g_active_scopes;
 static std::atomic<int64_t> g_next_scope_token{1};
 
 static NSData* simjot_bytes_to_nsdata(const uint8_t* bytes, int32_t len) {
@@ -122,10 +123,16 @@ extern "C" int32_t simjot_macos_bookmark_start_access(const uint8_t* bookmark_da
         BOOL ok = [url startAccessingSecurityScopedResource];
         if (!ok) return 0;
 
+        CFURLRef retained_url = (CFURLRef)CFRetain((CFTypeRef)url);
+        if (!retained_url) {
+            [url stopAccessingSecurityScopedResource];
+            return 0;
+        }
+
         int64_t token = g_next_scope_token.fetch_add(1);
         {
             std::lock_guard<std::mutex> lock(g_bookmark_mutex);
-            g_active_scopes[token] = url;
+            g_active_scopes[token] = retained_url;
         }
         if (out_token) *out_token = token;
         return stale ? 2 : 1;
@@ -143,17 +150,19 @@ extern "C" int32_t simjot_macos_bookmark_stop_access(int64_t token) {
     @autoreleasepool {
         if (token <= 0) return 0;
 
-        NSURL* url = nil;
+        CFURLRef retained_url = nullptr;
         {
             std::lock_guard<std::mutex> lock(g_bookmark_mutex);
             auto it = g_active_scopes.find(token);
             if (it == g_active_scopes.end()) return 0;
-            url = it->second;
+            retained_url = it->second;
             g_active_scopes.erase(it);
         }
 
-        if (url) {
+        if (retained_url) {
+            NSURL* url = (NSURL*)retained_url;
             [url stopAccessingSecurityScopedResource];
+            CFRelease(retained_url);
             return 1;
         }
         return 0;

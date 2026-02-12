@@ -64,6 +64,7 @@ import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.CustomMessageDialog;
@@ -154,8 +155,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
         String openLabel = AppLifecycle.isMacOS() ? "Open in Finder" : "Open in Explorer";
         RoundedButton openBtn = new RoundedButton(openLabel);
-        // Use RoundedButton's iconId mechanism so custom painter draws the icon
-        openBtn.putClientProperty("iconId", "explorer");
         openBtn.addActionListener(e -> {
             try {
                 Desktop.getDesktop().open(AppDirectories.getRoot());
@@ -165,7 +164,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         actions.add(Box.createHorizontalStrut(8));
 
         RoundedButton refreshBtn = new RoundedButton("Refresh sizes");
-        refreshBtn.putClientProperty("iconId", "refreshsizes");
         refreshBtn.addActionListener(e -> computeSizesAsync());
         actions.add(refreshBtn);
 
@@ -326,7 +324,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
         JPanel bottomActions = new JPanel(); bottomActions.setOpaque(false); bottomActions.setLayout(new BoxLayout(bottomActions, BoxLayout.X_AXIS));
         RoundedButton openBackups = new RoundedButton("Open Backups Folder");
-        openBackups.putClientProperty("iconId", "explorer");
         openBackups.addActionListener(ev -> {
             try {
                 String d = backupDestField.getText();
@@ -335,7 +332,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             } catch (Exception ignored) {}
         });
         RoundedButton restoreBtn = new RoundedButton("Restore…");
-        restoreBtn.putClientProperty("iconId", "load");
         restoreBtn.addActionListener(ev -> doRestore());
         bottomActions.add(openBackups);
         bottomActions.add(Box.createHorizontalStrut(8));
@@ -865,8 +861,13 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int x = 2, y = 5; int fw = 20, fh = 14;
-                drawFolderIcon(g2, x, y, fw, fh, new Color(255, 204, 77));
+                String res = ImageIconRenderer.mapIdToResource("open_folder");
+                if (res != null) {
+                    ImageIconRenderer.draw(g2, res, 2, 4, 20, this, false);
+                } else {
+                    int x = 2, y = 5; int fw = 20, fh = 14;
+                    drawFolderIcon(g2, x, y, fw, fh, new Color(255, 204, 77));
+                }
                 g2.dispose();
             }
         }
