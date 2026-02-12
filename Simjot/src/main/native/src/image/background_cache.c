@@ -60,6 +60,13 @@
 #include <math.h>
 #include <stdbool.h>
 
+#ifdef __APPLE__
+extern int32_t simjot_macos_image_scale_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h,
+                                             int32_t* dst_argb, int32_t dst_w, int32_t dst_h,
+                                             int32_t quality);
+extern int32_t simjot_macos_image_blur_argb(int32_t* argb, int32_t width, int32_t height, int32_t radius);
+#endif
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * BACKGROUND CACHE STRUCTURES
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -335,7 +342,13 @@ int32_t simjot_bg_process(
     if (!scaled) return -1;
     
     /* Resize */
+#ifdef __APPLE__
+    if (simjot_macos_image_scale_argb(src_argb, src_w, src_h, scaled, draw_w, draw_h, 2) == 0) {
+        resize_bilinear_argb(src_argb, src_w, src_h, scaled, draw_w, draw_h);
+    }
+#else
     resize_bilinear_argb(src_argb, src_w, src_h, scaled, draw_w, draw_h);
+#endif
     
     /* Apply opacity */
     if (opacity < 1.0f) {
@@ -446,6 +459,15 @@ void simjot_bg_blur(int32_t* argb, int32_t width, int32_t height, int32_t radius
     if (radius > 50) radius = 50; /* Limit for performance */
     if (passes <= 0) passes = 1;
     if (passes > 5) passes = 5;
+
+#ifdef __APPLE__
+    int32_t applied = 0;
+    for (int32_t i = 0; i < passes; i++) {
+        if (simjot_macos_image_blur_argb(argb, width, height, radius) == 0) break;
+        applied++;
+    }
+    if (applied == passes) return;
+#endif
     
     int32_t* temp = (int32_t*)malloc(width * height * sizeof(int32_t));
     if (!temp) return;

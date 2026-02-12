@@ -522,7 +522,7 @@ public final class CloudSyncManager {
         if (!enabled.get()) return;
         if (!currentState.compareAndSet(STATE_IDLE, STATE_SCANNING)) return;
         
-        try {
+        try (MacPowerAssertion ignored = MacPowerAssertion.acquire("Simjot cloud sync")) {
             notifyStateChanged(STATE_SCANNING);
             
             // Check network

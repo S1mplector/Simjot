@@ -18,6 +18,7 @@ import main.core.security.EncryptionManager;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
+import main.infrastructure.io.MacPowerAssertion;
 
 /**
  * Background service that decides when to run backups based on user settings.
@@ -121,7 +122,7 @@ public final class BackupService {
     }
 
     private boolean runBackupNow(boolean allowPrompt, Component parent) {
-        try {
+        try (MacPowerAssertion ignored = MacPowerAssertion.acquire("Simjot backup")) {
             File src = AppDirectories.getRoot();
             SettingsStore store = SettingsStore.get();
             String customDest = store.getBackupDestinationPath();

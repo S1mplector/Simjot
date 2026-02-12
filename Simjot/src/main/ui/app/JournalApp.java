@@ -1112,6 +1112,7 @@ public class JournalApp extends JFrame {
                     publish("Finalizing backup…");
                     try { main.infrastructure.backup.BackupService.get().triggerOnExit(); } catch (Throwable t) { logWarn("BackupService triggerOnExit", t); }
                     try { main.infrastructure.backup.BackupService.get().shutdown(); } catch (Throwable t) { logWarn("BackupService shutdown", t); }
+                    try { main.infrastructure.io.MacSecurityBookmarkStore.releaseAll(); } catch (Throwable t) { logWarn("Bookmark release", t); }
 
                     try { Thread.sleep(150); } catch (Throwable ignored) {}
                     return null;

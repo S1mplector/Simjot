@@ -28,16 +28,22 @@ target_include_directories(simjot_native PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc
 
 # Platform-specific linking for UI scaling
 if(APPLE)
+    find_library(QUICKLOOKTHUMBNAILING_FRAMEWORK QuickLookThumbnailing)
     target_link_libraries(simjot_native PRIVATE
         "-framework CoreGraphics"
         "-framework ApplicationServices"
+        "-framework CoreServices"
         "-framework CoreText"
         "-framework CoreFoundation"
         "-framework Cocoa"
         "-framework CoreVideo"
+        "-framework Accelerate"
         "-framework IOKit"
         "-framework SystemConfiguration"
     )
+    if(QUICKLOOKTHUMBNAILING_FRAMEWORK)
+        target_link_libraries(simjot_native PRIVATE "${QUICKLOOKTHUMBNAILING_FRAMEWORK}")
+    endif()
 elseif(WIN32)
     target_link_libraries(simjot_native PRIVATE Shcore)
 endif()

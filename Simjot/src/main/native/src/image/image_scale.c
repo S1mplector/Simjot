@@ -24,6 +24,15 @@
 #include <arm_neon.h>
 #endif
 
+#ifdef __APPLE__
+extern int32_t simjot_macos_image_scale_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h,
+                                             int32_t* dst_argb, int32_t dst_w, int32_t dst_h,
+                                             int32_t quality);
+extern int32_t simjot_macos_image_blur_argb(int32_t* argb, int32_t width, int32_t height, int32_t radius);
+extern int32_t simjot_macos_image_tint_argb(int32_t* argb, int32_t width, int32_t height,
+                                            int32_t tint_color, float intensity);
+#endif
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * HELPER FUNCTIONS
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -329,6 +338,13 @@ int32_t simjot_image_scale(const uint32_t* src, int32_t src_w, int32_t src_h,
     if (!src || !dst || src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0) {
         return 0;
     }
+
+#ifdef __APPLE__
+    if (simjot_macos_image_scale_argb((const int32_t*)src, src_w, src_h,
+                                      (int32_t*)dst, dst_w, dst_h, quality) != 0) {
+        return 1;
+    }
+#endif
     
     // quality: 0 = fast (bilinear), 1 = balanced (progressive), 2 = best (bicubic)
     switch (quality) {
@@ -357,6 +373,12 @@ int32_t simjot_image_blur(uint32_t* pixels, int32_t width, int32_t height, int32
     if (!pixels || width <= 0 || height <= 0 || radius < 1) {
         return 0;
     }
+
+#ifdef __APPLE__
+    if (simjot_macos_image_blur_argb((int32_t*)pixels, width, height, radius) != 0) {
+        return 1;
+    }
+#endif
     
     if (radius > 50) radius = 50;  // Limit for performance
     
@@ -425,6 +447,12 @@ int32_t simjot_image_tint(uint32_t* pixels, int32_t width, int32_t height,
     if (!pixels || width <= 0 || height <= 0) return 0;
     if (intensity < 0) intensity = 0;
     if (intensity > 1) intensity = 1;
+
+#ifdef __APPLE__
+    if (simjot_macos_image_tint_argb((int32_t*)pixels, width, height, (int32_t)tint_color, intensity) != 0) {
+        return 1;
+    }
+#endif
     
     int ta, tr, tg, tb;
     unpack_argb(tint_color, &ta, &tr, &tg, &tb);

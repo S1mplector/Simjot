@@ -35,6 +35,8 @@ import javax.swing.JLabel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
+import main.infrastructure.ffi.MacNativeBridge;
+
 /**
  * Generates preview content for files in the file chooser.
  * 
@@ -138,13 +140,19 @@ public final class FilePreviewProvider {
                 
                 if (file.isDirectory()) {
                     preview.thumbnail = FileIconProvider.getFolderIcon(thumbnailSize);
-                } else if (FileTypeDetector.isImage(file)) {
-                    preview.thumbnail = generateImageThumbnail(file, thumbnailSize);
-                } else if (FileTypeDetector.isTextFile(file)) {
-                    preview.textPreview = generateTextPreview(file);
-                    preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
                 } else {
-                    preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
+                    BufferedImage quickLook = MacNativeBridge.quickLookThumbnail(file, thumbnailSize);
+                    if (quickLook != null) {
+                        preview.thumbnail = new ImageIcon(quickLook);
+                    }
+                    if (preview.thumbnail == null && FileTypeDetector.isImage(file)) {
+                        preview.thumbnail = generateImageThumbnail(file, thumbnailSize);
+                    } else if (preview.thumbnail == null && FileTypeDetector.isTextFile(file)) {
+                        preview.textPreview = generateTextPreview(file);
+                        preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
+                    } else if (preview.thumbnail == null) {
+                        preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
+                    }
                 }
             } catch (Exception e) {
                 preview.thumbnail = FileIconProvider.getUnknownIcon(thumbnailSize);
@@ -178,13 +186,19 @@ public final class FilePreviewProvider {
             
             if (file.isDirectory()) {
                 preview.thumbnail = FileIconProvider.getFolderIcon(thumbnailSize);
-            } else if (FileTypeDetector.isImage(file)) {
-                preview.thumbnail = generateImageThumbnail(file, thumbnailSize);
-            } else if (FileTypeDetector.isTextFile(file)) {
-                preview.textPreview = generateTextPreview(file);
-                preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
             } else {
-                preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
+                BufferedImage quickLook = MacNativeBridge.quickLookThumbnail(file, thumbnailSize);
+                if (quickLook != null) {
+                    preview.thumbnail = new ImageIcon(quickLook);
+                }
+                if (preview.thumbnail == null && FileTypeDetector.isImage(file)) {
+                    preview.thumbnail = generateImageThumbnail(file, thumbnailSize);
+                } else if (preview.thumbnail == null && FileTypeDetector.isTextFile(file)) {
+                    preview.textPreview = generateTextPreview(file);
+                    preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
+                } else if (preview.thumbnail == null) {
+                    preview.thumbnail = FileIconProvider.getIcon(file, thumbnailSize);
+                }
             }
         } catch (Exception e) {
             preview.thumbnail = FileIconProvider.getUnknownIcon(thumbnailSize);
@@ -204,6 +218,13 @@ public final class FilePreviewProvider {
         if (cached != null) return cached;
         
         try {
+            BufferedImage quickLook = MacNativeBridge.quickLookThumbnail(file, size);
+            if (quickLook != null) {
+                ImageIcon icon = new ImageIcon(quickLook);
+                THUMBNAIL_CACHE.put(cacheKey, icon);
+                return icon;
+            }
+
             BufferedImage original = ImageIO.read(file);
             if (original == null) return null;
             

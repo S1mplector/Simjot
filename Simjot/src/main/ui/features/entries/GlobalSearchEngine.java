@@ -35,6 +35,7 @@ import main.core.security.EncryptionManager;
 import main.core.security.crypto.CryptoException;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.ffi.MacNativeBridge;
 import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 
@@ -50,11 +51,14 @@ public final class GlobalSearchEngine {
     public static void search(SearchQuery query, Component parent, Consumer<SearchResult> consumer, BooleanSupplier cancelled) {
         if (query == null || consumer == null) return;
         List<NotebookInfo> notebooks = new NotebookStore().list();
+        AtomicBoolean skipEncrypted = new AtomicBoolean(false);
 
         Set<String> nativeFoundPaths = new HashSet<>();
+        boolean nativeBatchProvidedUnencrypted = false;
         if (!query.q.isEmpty() && NativeAccess.searchBatchReady()) {
             List<NativeAccess.BatchSearchResult> nativeResults = runNativeBatchSearch(query, notebooks);
             if (nativeResults != null && !nativeResults.isEmpty()) {
+                nativeBatchProvidedUnencrypted = true;
                 for (NativeAccess.BatchSearchResult nr : nativeResults) {
                     if (cancelled != null && cancelled.getAsBoolean()) return;
                     SearchResult res = convertNativeResult(nr, notebooks, query);
@@ -66,7 +70,48 @@ public final class GlobalSearchEngine {
             }
         }
 
-        AtomicBoolean skipEncrypted = new AtomicBoolean(false);
+        Set<String> spotlightCandidates = new HashSet<>();
+        if (!query.q.isEmpty()) {
+            List<String> roots = new ArrayList<>();
+            for (NotebookInfo nb : notebooks) {
+                if (nb.getFolder() != null && nb.getFolder().exists()) {
+                    roots.add(nb.getFolder().getAbsolutePath());
+                }
+            }
+            List<String> spotlight = MacNativeBridge.spotlightSearchPaths(
+                    roots,
+                    query.q,
+                    ".note,.txt,.ntk,.poem,.rtf",
+                    500,
+                    1200
+            );
+            if (spotlight != null && !spotlight.isEmpty()) {
+                spotlightCandidates.addAll(spotlight);
+                for (String path : spotlight) {
+                    if (cancelled != null && cancelled.getAsBoolean()) return;
+                    if (path == null || path.isBlank()) continue;
+                    if (nativeFoundPaths.contains(path)) continue;
+
+                    File f = new File(path);
+                    if (!f.exists() || !f.isFile()) continue;
+
+                    NotebookInfo nb = findNotebookForFile(notebooks, f);
+                    if (nb == null) continue;
+
+                    EntryData data = readEntryData(f, parent, skipEncrypted);
+                    if (data == null) continue;
+                    if (!query.matches(data)) continue;
+
+                    nativeFoundPaths.add(path);
+                    consumer.accept(new SearchResult(nb, f, data));
+                    if (nativeFoundPaths.size() >= 500) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        boolean spotlightNarrowScan = spotlightCandidates.size() >= 200;
         for (NotebookInfo nb : notebooks) {
             if (cancelled != null && cancelled.getAsBoolean()) return;
             File[] files = listEntryFiles(nb);
@@ -74,7 +119,12 @@ public final class GlobalSearchEngine {
             for (File f : files) {
                 if (cancelled != null && cancelled.getAsBoolean()) return;
                 if (nativeFoundPaths.contains(f.getAbsolutePath())) continue;
-                if (!nativeFoundPaths.isEmpty() && !EncryptionManager.isEncrypted(f)) continue;
+                if (spotlightNarrowScan
+                        && !EncryptionManager.isEncrypted(f)
+                        && !spotlightCandidates.contains(f.getAbsolutePath())) {
+                    continue;
+                }
+                if (nativeBatchProvidedUnencrypted && !EncryptionManager.isEncrypted(f)) continue;
 
                 EntryData data = readEntryData(f, parent, skipEncrypted);
                 if (data == null) continue;
@@ -82,6 +132,17 @@ public final class GlobalSearchEngine {
                 consumer.accept(new SearchResult(nb, f, data));
             }
         }
+    }
+
+    private static NotebookInfo findNotebookForFile(List<NotebookInfo> notebooks, File file) {
+        if (file == null || notebooks == null || notebooks.isEmpty()) return null;
+        String path = file.getAbsolutePath();
+        for (NotebookInfo nb : notebooks) {
+            if (nb == null || nb.getFolder() == null) continue;
+            String root = nb.getFolder().getAbsolutePath();
+            if (path.startsWith(root)) return nb;
+        }
+        return null;
     }
 
     private static List<NativeAccess.BatchSearchResult> runNativeBatchSearch(SearchQuery query, List<NotebookInfo> notebooks) {

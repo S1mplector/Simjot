@@ -154,6 +154,14 @@ public final class AppDirectories {
      * @throws IllegalArgumentException if rootFolder is null
      */
     public static void setRoot(File rootFolder) {
+        if (rootFolder != null) {
+            try {
+                MacSecurityBookmarkStore.ensureAccess(rootFolder);
+                MacSecurityBookmarkStore.remember(rootFolder);
+            } catch (Throwable ignored) {
+                // Best-effort only; non-macOS and non-sandboxed runs should continue.
+            }
+        }
         root = rootFolder;
     }
 

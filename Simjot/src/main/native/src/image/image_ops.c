@@ -26,6 +26,12 @@
 #include <string.h>
 #include <math.h>
 
+#ifdef __APPLE__
+extern int32_t simjot_macos_image_scale_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h,
+                                             int32_t* dst_argb, int32_t dst_w, int32_t dst_h,
+                                             int32_t quality);
+#endif
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * RGBA PIXEL HELPERS
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -397,6 +403,12 @@ int32_t simjot_image_resize_argb(
     if (!src_argb || !dst_argb || src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0) {
         return -1;
     }
+
+#ifdef __APPLE__
+    if (simjot_macos_image_scale_argb(src_argb, src_w, src_h, dst_argb, dst_w, dst_h, quality) != 0) {
+        return 0;
+    }
+#endif
     
     /* Allocate temporary RGBA buffers */
     int32_t src_pixels = src_w * src_h;

@@ -474,6 +474,42 @@ int32_t simjot_macos_icloud_coordinated_write(const char* path, const uint8_t* d
 int32_t simjot_macos_icloud_coordinated_copy(const char* src_path, const char* dst_path, int32_t copy_attributes);
 int32_t simjot_macos_icloud_coordinated_move(const char* src_path, const char* dst_path);
 
+/* macOS image pipeline (Accelerate/vImage fast path) */
+int32_t simjot_macos_image_scale_argb(const int32_t* src_argb, int32_t src_w, int32_t src_h,
+                                      int32_t* dst_argb, int32_t dst_w, int32_t dst_h,
+                                      int32_t quality);
+int32_t simjot_macos_image_blur_argb(int32_t* argb, int32_t width, int32_t height, int32_t radius);
+int32_t simjot_macos_image_tint_argb(int32_t* argb, int32_t width, int32_t height,
+                                     int32_t tint_color, float intensity);
+
+/* macOS Spotlight search */
+int32_t simjot_macos_spotlight_search(const char* root_paths_newline,
+                                      const char* query,
+                                      const char* extensions_csv,
+                                      int32_t max_results,
+                                      int32_t timeout_ms,
+                                      char* out,
+                                      int32_t out_len);
+
+/* macOS Quick Look thumbnails (PNG output bytes) */
+int32_t simjot_macos_quicklook_thumbnail_png(const char* path,
+                                             int32_t max_edge,
+                                             uint8_t* out,
+                                             int32_t out_len);
+
+/* macOS security-scoped bookmarks */
+int32_t simjot_macos_bookmark_create(const char* path, uint8_t* out, int32_t out_len);
+int32_t simjot_macos_bookmark_resolve(const uint8_t* bookmark_data, int32_t data_len,
+                                      char* out_path, int32_t out_path_len,
+                                      int32_t* out_is_stale);
+int32_t simjot_macos_bookmark_start_access(const uint8_t* bookmark_data, int32_t data_len,
+                                           int64_t* out_token);
+int32_t simjot_macos_bookmark_stop_access(int64_t token);
+
+/* macOS power assertions (prevent sleep during long operations) */
+int32_t simjot_macos_power_assertion_begin(const char* reason, int64_t* out_token);
+int32_t simjot_macos_power_assertion_end(int64_t token);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * HARDWARE DETECTION - CPU/GPU/Memory profiling for performance optimization
  * ═══════════════════════════════════════════════════════════════════════════ */
