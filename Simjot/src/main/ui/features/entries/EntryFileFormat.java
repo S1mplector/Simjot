@@ -8,6 +8,7 @@
 
 package main.ui.features.entries;
 
+import java.util.Arrays;
 import main.infrastructure.io.NativeJson;
 
 final class EntryFileFormat {
@@ -19,6 +20,7 @@ final class EntryFileFormat {
     static final class EntryMeta {
         String title;
         int mood = -1;
+        int[] moodDetails;
         boolean guided;
         String template;
         long savedAt;
@@ -29,6 +31,9 @@ final class EntryFileFormat {
         sb.append("{\"v\":").append(META_VERSION);
         if (meta.title != null) sb.append(",\"title\":\"").append(escape(meta.title)).append("\"");
         if (meta.mood >= 0) sb.append(",\"mood\":").append(meta.mood);
+        if (hasDetails(meta.moodDetails)) {
+            sb.append(",\"emotions\":").append(serializeDetails(meta.moodDetails));
+        }
         if (meta.guided) sb.append(",\"guided\":true");
         if (meta.template != null && !meta.template.isBlank()) {
             sb.append(",\"template\":\"").append(escape(meta.template)).append("\"");
@@ -45,12 +50,17 @@ final class EntryFileFormat {
         meta.title = extractString(json, "title");
         Integer mood = extractInt(json, "mood");
         if (mood != null) meta.mood = mood;
+        int[] details = extractIntArray(json, "emotions");
+        if (!hasDetails(details)) {
+            details = extractIntArray(json, "moodDetails");
+        }
+        meta.moodDetails = hasDetails(details) ? details : null;
         Boolean guided = extractBool(json, "guided");
         meta.guided = guided != null && guided;
         meta.template = extractString(json, "template");
         Long saved = extractLong(json, "savedAt");
         meta.savedAt = saved == null ? 0L : saved;
-        if (meta.title == null && mood == null && meta.template == null && saved == null) {
+        if (meta.title == null && mood == null && meta.template == null && saved == null && meta.moodDetails == null) {
             return null;
         }
         return meta;
@@ -78,6 +88,66 @@ final class EntryFileFormat {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    private static String serializeDetails(int[] details) {
+        int[] normalized = normalizeDetails(details);
+        StringBuilder sb = new StringBuilder(40);
+        sb.append('[');
+        for (int i = 0; i < normalized.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(normalized[i]);
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static int[] extractIntArray(String json, String key) {
+        String arr = NativeJson.getArray(json, key);
+        if (arr == null || arr.length() < 2) return null;
+        String body = arr.substring(1, arr.length() - 1).trim();
+        if (body.isBlank()) return null;
+        String[] parts = body.split(",");
+        if (parts.length == 0) return null;
+        int[] out = new int[8];
+        Arrays.fill(out, -1);
+        int limit = Math.min(8, parts.length);
+        boolean any = false;
+        for (int i = 0; i < limit; i++) {
+            try {
+                int v = Integer.parseInt(parts[i].trim());
+                if (v >= 0) {
+                    out[i] = clamp(v);
+                    any = true;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return any ? out : null;
+    }
+
+    private static int[] normalizeDetails(int[] details) {
+        if (details == null) return null;
+        int[] out = new int[8];
+        Arrays.fill(out, -1);
+        int limit = Math.min(8, details.length);
+        for (int i = 0; i < limit; i++) {
+            int v = details[i];
+            out[i] = (v < 0) ? -1 : clamp(v);
+        }
+        return out;
+    }
+
+    private static boolean hasDetails(int[] details) {
+        if (details == null || details.length == 0) return false;
+        for (int v : details) {
+            if (v >= 0) return true;
+        }
+        return false;
+    }
+
+    private static int clamp(int v) {
+        return Math.max(0, Math.min(100, v));
     }
 
 }

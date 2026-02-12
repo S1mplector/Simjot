@@ -49,8 +49,6 @@ import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -160,6 +158,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private JPanel toolbarContainer;
     private JPanel toolbarGroup;
     private JPanel moodContainer;
+    private ToolbarMenuIconButton moodDetailsToggleButton;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
@@ -200,32 +199,40 @@ public class EntryPanel extends AbstractEditorPanel {
         // Sim guidance disabled visually; listener intentionally not registered
     }
 
-    private void prefillDetailedMoodFromLogToday() {
+    private void setDetailedMoodExpanded(boolean expanded) {
         if (detailedMoodPanel == null) return;
-        LocalDate today = LocalDate.now();
-        DetailedMoodPanel.DetailedMoodSnapshot bestSnap = null;
-        Integer bestComposite = null;
-        LocalDateTime bestTs = null;
-        try {
-            List<MoodFile.MoodRecord> records = MoodFile.readAllRecords();
-            for (MoodFile.MoodRecord rec : records) {
-                if (rec == null || rec.timestamp == null || rec.details == null || rec.details.length < 8) continue;
-                LocalDateTime ts = rec.timestamp;
-                if (!ts.toLocalDate().equals(today)) continue;
-                if (bestTs == null || ts.isAfter(bestTs)) {
-                    bestTs = ts;
-                    bestComposite = rec.composite;
-                    bestSnap = new DetailedMoodPanel.DetailedMoodSnapshot(
-                            rec.details[0], rec.details[1], rec.details[2], rec.details[3],
-                            rec.details[4], rec.details[5], rec.details[6], rec.details[7]
-                    );
-                }
-            }
-        } catch (Throwable ignored) {}
-        if (bestSnap != null) {
-            detailedMoodPanel.applySnapshot(bestSnap);
-            try { if (bestComposite != null) moodSlider.setValue(bestComposite); } catch (Throwable ignored) {}
-        }
+        detailedMoodPanel.setExpanded(expanded);
+        refreshDetailedMoodToggleVisual();
+    }
+
+    private void refreshDetailedMoodToggleVisual() {
+        if (moodDetailsToggleButton == null) return;
+        boolean expanded = detailedMoodPanel != null && detailedMoodPanel.isExpanded();
+        moodDetailsToggleButton.setIconRotationRadians(expanded ? Math.PI / 2.0 : 0.0);
+        moodDetailsToggleButton.setToolTipText(expanded ? "Hide detailed emotions" : "Show detailed emotions");
+    }
+
+    private static int[] detailedMoodArrayFromSnapshot(DetailedMoodPanel.DetailedMoodSnapshot details) {
+        if (details == null) return null;
+        return new int[] {
+                details.joy, details.calm, details.gratitude, details.energy,
+                details.sadness, details.anger, details.anxiety, details.stress
+        };
+    }
+
+    private static DetailedMoodPanel.DetailedMoodSnapshot detailedMoodSnapshotFromArray(int[] values) {
+        if (values == null || values.length < 8) return null;
+        return new DetailedMoodPanel.DetailedMoodSnapshot(
+                safeDetailValue(values[0]), safeDetailValue(values[1]),
+                safeDetailValue(values[2]), safeDetailValue(values[3]),
+                safeDetailValue(values[4]), safeDetailValue(values[5]),
+                safeDetailValue(values[6]), safeDetailValue(values[7])
+        );
+    }
+
+    private static int safeDetailValue(int v) {
+        if (v < 0) return 50;
+        return Math.max(0, Math.min(100, v));
     }
 
     /**
@@ -279,6 +286,14 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void applyEntryContent(BufferedReader reader, String firstLine) throws Exception {
         EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
+        try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
+        try {
+            if (detailedMoodPanel != null) {
+                detailedMoodPanel.clearSnapshot();
+                setDetailedMoodExpanded(false);
+            }
+        } catch (Throwable ignored) {}
+
         String title = "";
         String firstContentLine;
         if (meta != null) {
@@ -290,6 +305,12 @@ public class EntryPanel extends AbstractEditorPanel {
             }
             if (meta.mood >= 0 && moodSlider != null) {
                 try { moodSlider.setValue(meta.mood); } catch (Throwable ignored) {}
+            }
+            if (meta.moodDetails != null && detailedMoodPanel != null) {
+                DetailedMoodPanel.DetailedMoodSnapshot snapshot = detailedMoodSnapshotFromArray(meta.moodDetails);
+                if (snapshot != null) {
+                    detailedMoodPanel.applySnapshot(snapshot);
+                }
             }
         } else {
             title = (firstLine == null ? "" : firstLine);
@@ -639,7 +660,7 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarGroup.add(toolbarContainer);
 
         if (supportsMoodControls()) {
-            JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
             moodRow.setOpaque(false);
             moodSlider = new MoodSlider();
             moodSlider.setHoverFadeEnabled(true);
@@ -647,12 +668,36 @@ public class EntryPanel extends AbstractEditorPanel {
             moodSlider.addChangeListener(e -> {
                 try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
             });
+
+            moodDetailsToggleButton = new ToolbarMenuIconButton("", "forward");
+            moodDetailsToggleButton.setToolTipText("Show detailed emotions");
+            moodDetailsToggleButton.setIconOpacity(0.8f);
+            moodDetailsToggleButton.setPreferredSize(new Dimension(32, 32));
+            moodDetailsToggleButton.setMinimumSize(new Dimension(32, 32));
+            moodDetailsToggleButton.setMaximumSize(new Dimension(32, 32));
+            moodDetailsToggleButton.addActionListener(e -> setDetailedMoodExpanded(
+                    detailedMoodPanel == null || !detailedMoodPanel.isExpanded()
+            ));
+            moodRow.add(moodDetailsToggleButton);
+
+            detailedMoodPanel = new DetailedMoodPanel((composite, snapshot) -> {
+                try {
+                    if (moodSlider != null) {
+                        moodSlider.setValue(composite);
+                    }
+                    SimEventBus.get().emitMoodChanged((double) composite);
+                } catch (Throwable ignored) {}
+            });
+            detailedMoodPanel.setBorder(BorderFactory.createEmptyBorder(6, 30, 0, 6));
+
             moodContainer = new JPanel(new BorderLayout());
             moodContainer.setOpaque(false);
             moodContainer.setBorder(BorderFactory.createEmptyBorder(6, 10, 0, 10));
-            moodContainer.add(moodRow, BorderLayout.CENTER);
+            moodContainer.add(moodRow, BorderLayout.NORTH);
+            moodContainer.add(detailedMoodPanel, BorderLayout.CENTER);
             toolbarGroup.add(Box.createVerticalStrut(6));
             toolbarGroup.add(moodContainer);
+            refreshDetailedMoodToggleVisual();
         }
 
         add(toolbarGroup, BorderLayout.NORTH);
@@ -905,7 +950,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 + "• Title and rich-text formatting (bold/italic/underline/strike).<br>"
                 + "• Bullet and numbered lists for structure.<br>"
                 + "• Background settings and distraction-free mode in the toolbar.<br>"
-                + "• Mood slider (when enabled) logs your mood alongside entries.<br>"
+                + "• Mood slider logs overall mood; use the arrow button for detailed emotions.<br>"
                 + "• Autosave keeps changes safe while you write."
                 + "</body></html>";
     }
@@ -1585,16 +1630,26 @@ public class EntryPanel extends AbstractEditorPanel {
         final String[] titleHolder = new String[1];
         final String[] contentHolder = new String[1];
         final int[] moodHolder = new int[1];
+        final DetailedMoodPanel.DetailedMoodSnapshot[] detailHolder = new DetailedMoodPanel.DetailedMoodSnapshot[1];
+        final boolean[] hasDetailHolder = new boolean[1];
         try {
             if (SwingUtilities.isEventDispatchThread()) {
                 titleHolder[0] = titleField.getText().trim();
                 contentHolder[0] = contentArea.getText();
                 moodHolder[0] = (moodSlider != null) ? moodSlider.getValue() : -1;
+                if (detailedMoodPanel != null) {
+                    detailHolder[0] = detailedMoodPanel.captureSnapshot();
+                    hasDetailHolder[0] = detailedMoodPanel.hasSnapshot();
+                }
             } else {
                 SwingUtilities.invokeAndWait(() -> {
                     titleHolder[0] = titleField.getText().trim();
                     contentHolder[0] = contentArea.getText();
                     moodHolder[0] = (moodSlider != null) ? moodSlider.getValue() : -1;
+                    if (detailedMoodPanel != null) {
+                        detailHolder[0] = detailedMoodPanel.captureSnapshot();
+                        hasDetailHolder[0] = detailedMoodPanel.hasSnapshot();
+                    }
                 });
             }
         } catch (Exception invokeErr) {
@@ -1604,8 +1659,13 @@ public class EntryPanel extends AbstractEditorPanel {
         String title = titleHolder[0];
         String content = contentHolder[0];
         int moodValue = moodHolder[0]; // 0 - 100
+        DetailedMoodPanel.DetailedMoodSnapshot moodDetails = hasDetailHolder[0] ? detailHolder[0] : null;
         if (moodValue >= 0) {
-            recordMood(moodValue);
+            if (moodDetails != null) {
+                recordMood(moodValue, moodDetails);
+            } else {
+                recordMood(moodValue);
+            }
         }
 
         String manifestForRestore = null;
@@ -1646,6 +1706,7 @@ public class EntryPanel extends AbstractEditorPanel {
             EntryFileFormat.EntryMeta meta = new EntryFileFormat.EntryMeta();
             meta.title = title;
             meta.mood = moodValue;
+            meta.moodDetails = detailedMoodArrayFromSnapshot(moodDetails);
             meta.guided = guidedQuestions != null && guidedQuestions.length > 0;
             meta.template = meta.guided ? getGuidedModeTemplateName() : null;
             meta.savedAt = System.currentTimeMillis();
@@ -1807,6 +1868,8 @@ public class EntryPanel extends AbstractEditorPanel {
         try { if (titleField != null) titleField.setEditable(!readOnly); } catch (Throwable ignored) {}
         try { if (contentArea != null) contentArea.setEditable(!readOnly); } catch (Throwable ignored) {}
         try { if (moodSlider != null) moodSlider.setEnabled(!readOnly); } catch (Throwable ignored) {}
+        try { if (detailedMoodPanel != null) detailedMoodPanel.setEnabled(!readOnly); } catch (Throwable ignored) {}
+        try { if (moodDetailsToggleButton != null) moodDetailsToggleButton.setEnabled(!readOnly); } catch (Throwable ignored) {}
         try { if (saveButton != null) saveButton.setEnabled(!readOnly); } catch (Throwable ignored) {}
         if (readOnly && autosaveCoordinator != null) {
             try { autosaveCoordinator.stop(); } catch (Throwable ignored) {}
@@ -2106,6 +2169,13 @@ public class EntryPanel extends AbstractEditorPanel {
     protected void clearEditor() {
         titleField.setText("");
         contentArea.setText("");
+        try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
+        try {
+            if (detailedMoodPanel != null) {
+                detailedMoodPanel.clearSnapshot();
+                setDetailedMoodExpanded(false);
+            }
+        } catch (Throwable ignored) {}
         hideRecoveryBanner();
         if (saveIndicator != null) saveIndicator.clear();
     }

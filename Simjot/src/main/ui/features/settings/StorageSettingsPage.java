@@ -42,7 +42,6 @@ import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
-import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
@@ -65,7 +64,6 @@ import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.checkbox.ModernCheckBoxUI;
 import main.ui.components.combobox.ModernComboBoxUI;
-import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.CustomMessageDialog;
@@ -96,43 +94,33 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         setOpaque(true);
         setBackground(Color.WHITE);
 
-        // Center contents using a wrapper panel with GridBagLayout
-        JPanel centerWrapper = new JPanel(new GridBagLayout());
-        centerWrapper.setOpaque(false);
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(6, 6, 6, 6);
-        gc.fill = GridBagConstraints.NONE;
-
         JPanel content = new JPanel();
-        content.setOpaque(false);
+        content.setOpaque(true);
+        content.setBackground(Color.WHITE);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
 
         // Page header
         content.add(SettingsUi.header("Storage", "Folders, backups and paths"));
-        content.add(Box.createVerticalStrut(8));
+        content.add(Box.createVerticalStrut(10));
 
-        // Title and path (centered)
-        JLabel title = new JLabel("Simjot root folder:");
-        title.setAlignmentX(0.5f);
-        title.setHorizontalAlignment(SwingConstants.CENTER);
-        // allow full-width so CENTER alignment is visible
-        Dimension titlePref = title.getPreferredSize();
-        title.setMaximumSize(new Dimension(Integer.MAX_VALUE, titlePref.height));
-        content.add(title);
+        JPanel rootInfo = createSectionPanel("Data location", "Current Simjot root folder");
+        JPanel rootBody = new JPanel();
+        rootBody.setOpaque(false);
+        rootBody.setLayout(new BoxLayout(rootBody, BoxLayout.Y_AXIS));
 
         pathLbl = new JLabel(AppDirectories.getRoot().getAbsolutePath());
         pathLbl.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        pathLbl.setForeground(new Color(0,0,0,150));
-        pathLbl.setAlignmentX(0.5f);
-        pathLbl.setHorizontalAlignment(SwingConstants.CENTER);
-        Dimension pathPref = pathLbl.getPreferredSize();
-        pathLbl.setMaximumSize(new Dimension(Integer.MAX_VALUE, pathPref.height));
-        content.add(Box.createVerticalStrut(4));
-        content.add(pathLbl);
+        pathLbl.setForeground(new Color(0, 0, 0, 150));
+        pathLbl.setToolTipText(pathLbl.getText());
+        pathLbl.setAlignmentX(LEFT_ALIGNMENT);
+        rootBody.add(pathLbl);
+        rootInfo.add(rootBody, BorderLayout.CENTER);
+        content.add(rootInfo);
 
         content.add(Box.createVerticalStrut(12));
 
-        // Directory tree with sizes and descriptions (Aero-like glass card)
+        // Directory tree with sizes and descriptions
         treeModel = buildTreeModel();
         dirTree = new JTree(treeModel);
         dirTree.setRootVisible(true);
@@ -145,39 +133,24 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
         JScrollPane treeScroll = new JScrollPane(dirTree);
         treeScroll.setPreferredSize(new Dimension(480, 260));
-        treeScroll.setOpaque(false);
-        treeScroll.getViewport().setOpaque(false);
+        treeScroll.setOpaque(true);
+        treeScroll.getViewport().setOpaque(true);
+        treeScroll.getViewport().setBackground(Color.WHITE);
+        treeScroll.setBorder(BorderFactory.createLineBorder(new Color(225, 231, 238)));
         treeScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
         treeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
-        JPanel glassCard = new GlassCardPanel();
-        glassCard.setLayout(new BorderLayout());
-        glassCard.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        JLabel treeTitle = new JLabel("Storage structure");
-        treeTitle.setFont(treeTitle.getFont().deriveFont(Font.BOLD));
-        JLabel treeSub = new JLabel("Folders, descriptions and sizes");
-        treeSub.setFont(treeSub.getFont().deriveFont(Font.PLAIN, 11f));
-        treeSub.setForeground(new Color(0,0,0,120));
-
-        JPanel header = new JPanel();
-        header.setOpaque(false);
-        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-        header.add(treeTitle);
-        header.add(treeSub);
-        glassCard.add(header, BorderLayout.NORTH);
-        glassCard.add(treeScroll, BorderLayout.CENTER);
-        content.add(glassCard);
+        JPanel treeSection = createSectionPanel("Storage structure", "Folders, descriptions and sizes");
+        treeSection.add(treeScroll, BorderLayout.CENTER);
+        content.add(treeSection);
         // Ensure the tree is tall enough to show all rows without scrolling
         adjustTreeHeight(treeScroll);
-
-        // Push subsequent controls to the bottom area
-        content.add(Box.createVerticalGlue());
 
         // Actions
         JPanel actions = new JPanel();
         actions.setOpaque(false);
         actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
-        actions.setAlignmentX(0.5f);
+        actions.setAlignmentX(LEFT_ALIGNMENT);
 
         RoundedButton openBtn = new RoundedButton("Open in Explorer");
         // Use RoundedButton's iconId mechanism so custom painter draws the icon
@@ -205,23 +178,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         content.add(actions);
 
         if (AppLifecycle.isMacOS()) {
-            JPanel icloudCard = new GlassCardPanel();
-            icloudCard.setLayout(new BorderLayout());
-            icloudCard.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-            icloudCard.setAlignmentX(0.5f);
-
-            JLabel icloudTitle = new JLabel("iCloud Sync");
-            icloudTitle.setFont(icloudTitle.getFont().deriveFont(Font.BOLD));
-            JLabel icloudSub = new JLabel("Sync your Simjot folder across Macs");
-            icloudSub.setFont(icloudSub.getFont().deriveFont(Font.PLAIN, 11f));
-            icloudSub.setForeground(new Color(0,0,0,120));
-
-            JPanel icloudHeader = new JPanel();
-            icloudHeader.setOpaque(false);
-            icloudHeader.setLayout(new BoxLayout(icloudHeader, BoxLayout.Y_AXIS));
-            icloudHeader.add(icloudTitle);
-            icloudHeader.add(icloudSub);
-            icloudCard.add(icloudHeader, BorderLayout.NORTH);
+            JPanel icloudCard = createSectionPanel("iCloud Sync", "Sync your Simjot folder across Macs");
 
             JPanel icloudBody = new JPanel();
             icloudBody.setOpaque(false);
@@ -275,22 +232,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         // Backup settings (moved from General) — placed at bottom
         content.add(Box.createVerticalStrut(12));
 
-        JPanel backupsCard = new GlassCardPanel();
-        backupsCard.setLayout(new BorderLayout());
-        backupsCard.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        backupsCard.setAlignmentX(0.5f);
-        JLabel backupsTitle = new JLabel("Backups");
-        backupsTitle.setFont(backupsTitle.getFont().deriveFont(Font.BOLD));
-        JLabel backupsSub = new JLabel("Automatic backups and manual trigger");
-        backupsSub.setFont(backupsSub.getFont().deriveFont(Font.PLAIN, 11f));
-        backupsSub.setForeground(new Color(0,0,0,120));
-
-        JPanel backupsHeader = new JPanel();
-        backupsHeader.setOpaque(false);
-        backupsHeader.setLayout(new BoxLayout(backupsHeader, BoxLayout.Y_AXIS));
-        backupsHeader.add(backupsTitle);
-        backupsHeader.add(backupsSub);
-        backupsCard.add(backupsHeader, BorderLayout.NORTH);
+        JPanel backupsCard = createSectionPanel("Backups", "Automatic backups and manual trigger");
 
         JPanel backups = new JPanel(new GridBagLayout());
         backups.setOpaque(false);
@@ -422,17 +364,37 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         });
         spinnerTimer.start();
 
-        gc.gridx = 0; gc.gridy = 0;
-        centerWrapper.add(content, gc);
-        JScrollPane outerScroll = new JScrollPane(centerWrapper);
-        outerScroll.setBorder(BorderFactory.createEmptyBorder());
-        outerScroll.setOpaque(false);
-        outerScroll.getViewport().setOpaque(false);
-        outerScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        if (outerScroll.getVerticalScrollBar() != null) {
-            outerScroll.getVerticalScrollBar().setUI(new AeroScrollBarUI());
-        }
-        add(outerScroll, BorderLayout.CENTER);
+        JPanel pageRoot = new JPanel(new BorderLayout());
+        pageRoot.setOpaque(true);
+        pageRoot.setBackground(Color.WHITE);
+        pageRoot.add(content, BorderLayout.NORTH);
+        add(pageRoot, BorderLayout.CENTER);
+    }
+
+    private JPanel createSectionPanel(String title, String subtitle) {
+        JPanel section = new JPanel(new BorderLayout(0, 10));
+        section.setOpaque(true);
+        section.setBackground(Color.WHITE);
+        section.setAlignmentX(LEFT_ALIGNMENT);
+        section.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(219, 226, 235)),
+            BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        ));
+        section.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        JLabel sectionTitle = new JLabel(title);
+        sectionTitle.setFont(sectionTitle.getFont().deriveFont(Font.BOLD));
+        JLabel sectionSubtitle = new JLabel(subtitle);
+        sectionSubtitle.setFont(sectionSubtitle.getFont().deriveFont(Font.PLAIN, 11f));
+        sectionSubtitle.setForeground(new Color(0, 0, 0, 120));
+
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.add(sectionTitle);
+        header.add(sectionSubtitle);
+        section.add(header, BorderLayout.NORTH);
+        return section;
     }
 
     @Override public JComponent getComponent() { return this; }
@@ -982,17 +944,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             int textY = y + padY + fm.getAscent();
             g2.drawString(text, textX, textY);
             g2.dispose();
-        }
-    }
-
-    // ---- Glass card panel ----
-    private static class GlassCardPanel extends JPanel {
-        GlassCardPanel() { setOpaque(false); }
-        @Override protected void paintComponent(Graphics g) {
-            // Intentionally draw nothing to remove outer frames around sections.
-            // Keep transparency so the panel acts as a simple layout container
-            // while preserving any inner padding set via borders.
-            super.paintComponent(g);
         }
     }
 

@@ -73,7 +73,6 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("General");
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
-        sectionModel.addElement("Security");
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setSelectedIndex(0);
@@ -110,10 +109,6 @@ public class SettingsPanel extends JPanel {
 
         StorageSettingsPage storagePage = new StorageSettingsPage();
         addPage("Storage", storagePage);
-
-        // Security (lock & password)
-        SecuritySettingsPage security = new SecuritySettingsPage();
-        addPage("Security", security);
 
         // About page temporarily disabled
 
@@ -223,7 +218,6 @@ public class SettingsPanel extends JPanel {
             SECTION_ICONS.put("General", loadSectionIcon("general_settings"));
             SECTION_ICONS.put("Appearance", loadSectionIcon("appearance_settings"));
             SECTION_ICONS.put("Storage", loadSectionIcon("storage_settings"));
-            SECTION_ICONS.put("Security", loadSectionIcon("security"));
             SECTION_ICONS.put("About", loadSectionIcon("about_settings"));
         }
 

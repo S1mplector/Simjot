@@ -11,32 +11,24 @@ package main.ui.features.entries;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.GradientPaint;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.LinearGradientPaint;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
-import java.awt.Shape;
 import java.util.function.BiConsumer;
-import javax.swing.JComponent;
+import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
-import javax.swing.plaf.basic.BasicSliderUI;
+import javax.swing.event.ChangeListener;
 
-import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.slider.MoodSlider;
 import main.ui.theme.aero.AeroTheme;
 
 /**
  * Collapsible detailed mood logging panel with animated expand/collapse.
- * Uses gradient track sliders (no emoji face) and computes a composite score (0-100).
+ * Uses frosted rows and computes a composite score (0-100).
  */
 public class DetailedMoodPanel extends JPanel {
     private final MoodSlider joy = createEmotionSlider();
@@ -48,10 +40,14 @@ public class DetailedMoodPanel extends JPanel {
     private final MoodSlider anxiety = createEmotionSlider();
     private final MoodSlider stress = createEmotionSlider();
 
-    private final JPanel inner;
+    private final JPanel shell;
+    private final JLabel summaryLabel;
+    private final BiConsumer<Integer, DetailedMoodSnapshot> onChange;
     private boolean expanded = false;
+    private boolean hasSnapshot = false;
     private int animMs = 160;
     private int targetHeight = 0;
+    private boolean suppressCallbacks = false;
 
     public static class DetailedMoodSnapshot {
         public final int joy, calm, gratitude, energy, sadness, anger, anxiety, stress;
@@ -61,19 +57,43 @@ public class DetailedMoodPanel extends JPanel {
         }
     }
 
-    public DetailedMoodPanel(BiConsumer<Integer, DetailedMoodSnapshot> onSave) {
-        setOpaque(true);
-        setBackground(new Color(0xE7, 0xE7, 0xE7));
+    public DetailedMoodPanel(BiConsumer<Integer, DetailedMoodSnapshot> onChange) {
+        this.onChange = onChange;
+        setOpaque(false);
         setLayout(new BorderLayout());
 
-        inner = new JPanel(new GridBagLayout());
-        inner.setOpaque(true);
-        inner.setBackground(getBackground());
-        inner.setBorder(new EmptyBorder(12, 16, 8, 16));
+        shell = new FrostedGlassPanel(new BorderLayout(10, 8), 16) {
+            @Override
+            protected float getOpacityScale() {
+                return 0.84f;
+            }
+        };
+        shell.setOpaque(false);
+        shell.setBorder(new EmptyBorder(10, 12, 12, 12));
+
+        JPanel header = new JPanel(new BorderLayout(6, 0));
+        header.setOpaque(false);
+        JLabel title = new JLabel("Detailed Emotions");
+        title.setFont(AeroTheme.defaultFont().deriveFont(java.awt.Font.BOLD, 13f));
+        title.setForeground(AeroTheme.TEXT_PRIMARY);
+        summaryLabel = new JLabel();
+        summaryLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        summaryLabel.setForeground(new Color(90, 90, 90));
+        header.add(title, BorderLayout.WEST);
+        header.add(summaryLabel, BorderLayout.EAST);
+        shell.add(header, BorderLayout.NORTH);
+
+        JPanel inner = new JPanel(new GridBagLayout());
+        inner.setOpaque(false);
+        inner.setBorder(new EmptyBorder(2, 0, 0, 0));
 
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(6, 6, 6, 6);
-        gc.gridx = 0; gc.gridy = 0; gc.anchor = GridBagConstraints.WEST;
+        gc.gridx = 0;
+        gc.gridy = 0;
+        gc.anchor = GridBagConstraints.WEST;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
         addRow(inner, gc, "Joy", joy);
         gc.gridy++; addRow(inner, gc, "Calm", calm);
         gc.gridy++; addRow(inner, gc, "Gratitude", gratitude);
@@ -82,29 +102,11 @@ public class DetailedMoodPanel extends JPanel {
         gc.gridy++; addRow(inner, gc, "Anger", anger);
         gc.gridy++; addRow(inner, gc, "Anxiety", anxiety);
         gc.gridy++; addRow(inner, gc, "Stress", stress);
+        shell.add(inner, BorderLayout.CENTER);
+        add(shell, BorderLayout.CENTER);
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btnPanel.setOpaque(true);
-        btnPanel.setBackground(getBackground());
-        RoundedButton cancel = new RoundedButton("Close");
-        cancel.setForeground(AeroTheme.TEXT_PRIMARY);
-        cancel.addActionListener(e -> setExpanded(false));
-        RoundedButton save = new RoundedButton("Save");
-        save.setForeground(AeroTheme.TEXT_PRIMARY);
-        save.addActionListener(e -> {
-            int composite = computeComposite();
-            if (onSave != null) onSave.accept(composite, captureDetails());
-            setExpanded(false);
-        });
-        btnPanel.add(cancel);
-        btnPanel.add(save);
-
-        JPanel content = new JPanel(new BorderLayout());
-        content.setOpaque(false);
-        content.add(inner, BorderLayout.CENTER);
-        content.add(btnPanel, BorderLayout.SOUTH);
-
-        add(content, BorderLayout.CENTER);
+        installLiveListeners();
+        refreshSummaryLabel();
 
         // Start collapsed
         setPreferredSize(new Dimension(0, 0));
@@ -127,9 +129,9 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private int calcInnerPreferredHeight() {
-        inner.doLayout();
-        inner.validate();
-        return inner.getPreferredSize().height + 16 + 8; // padding from border + buttons
+        shell.doLayout();
+        shell.validate();
+        return shell.getPreferredSize().height;
     }
 
     private void animateHeight(int from, int to) {
@@ -153,21 +155,32 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void addRow(JPanel panel, GridBagConstraints gc, String label, MoodSlider slider) {
+        FrostedGlassPanel row = new FrostedGlassPanel(new BorderLayout(8, 0), 12) {
+            @Override
+            protected float getOpacityScale() {
+                return 0.62f;
+            }
+        };
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(1, 1, 1, 1),
+                BorderFactory.createEmptyBorder(6, 10, 6, 10)
+        ));
+
         JLabel l = new JLabel(label);
         l.setFont(AeroTheme.defaultFont());
         l.setForeground(AeroTheme.TEXT_PRIMARY);
-        panel.add(l, gc);
-        gc.gridx = 1; gc.weightx = 1.0; gc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(slider, gc);
-        gc.gridx = 0; gc.weightx = 0; gc.fill = GridBagConstraints.NONE;
+        row.add(l, BorderLayout.WEST);
+        row.add(slider, BorderLayout.CENTER);
+        panel.add(row, gc);
     }
 
     private static MoodSlider createEmotionSlider() {
         MoodSlider s = new MoodSlider();
-        s.setUI(new SimpleGradientSliderUI(s));
+        s.setHoverFadeEnabled(false);
         s.setOpaque(false);
         s.setFocusable(false);
-        s.setPreferredSize(new Dimension(220, 40));
+        s.setPreferredSize(new Dimension(205, 34));
         return s;
     }
 
@@ -178,7 +191,7 @@ public class DetailedMoodPanel extends JPanel {
         return Math.max(0, Math.min(100, val));
     }
 
-    private DetailedMoodSnapshot captureDetails() {
+    public DetailedMoodSnapshot captureSnapshot() {
         return new DetailedMoodSnapshot(
                 joy.getValue(), calm.getValue(), gratitude.getValue(), energy.getValue(),
                 sadness.getValue(), anger.getValue(), anxiety.getValue(), stress.getValue()
@@ -193,6 +206,7 @@ public class DetailedMoodPanel extends JPanel {
 
     public void applySnapshot(DetailedMoodSnapshot s) {
         if (s == null) return;
+        suppressCallbacks = true;
         joy.setValue(s.joy);
         calm.setValue(s.calm);
         gratitude.setValue(s.gratitude);
@@ -201,77 +215,66 @@ public class DetailedMoodPanel extends JPanel {
         anger.setValue(s.anger);
         anxiety.setValue(s.anxiety);
         stress.setValue(s.stress);
+        suppressCallbacks = false;
+        hasSnapshot = true;
+        refreshSummaryLabel();
         repaint();
     }
 
-    // Slider UI: gradient track, plain thumb (no face)
-    private static class SimpleGradientSliderUI extends BasicSliderUI {
-        private static final int TRACK_HEIGHT = 8;
-        private static final int THUMB_SIZE = 24;
+    public void clearSnapshot() {
+        suppressCallbacks = true;
+        joy.setValue(50);
+        calm.setValue(50);
+        gratitude.setValue(50);
+        energy.setValue(50);
+        sadness.setValue(50);
+        anger.setValue(50);
+        anxiety.setValue(50);
+        stress.setValue(50);
+        suppressCallbacks = false;
+        hasSnapshot = false;
+        refreshSummaryLabel();
+    }
 
-        public SimpleGradientSliderUI(javax.swing.JSlider b) { super(b); }
+    public boolean hasSnapshot() {
+        return hasSnapshot;
+    }
 
-        @Override
-        public Dimension getPreferredSize(JComponent c) {
-            Dimension d = super.getPreferredSize(c);
-            if (slider.getOrientation() == javax.swing.JSlider.HORIZONTAL) {
-                d.height = Math.max(d.height, 40);
-            }
-            return d;
+    @Override
+    public void setEnabled(boolean enabled) {
+        super.setEnabled(enabled);
+        joy.setEnabled(enabled);
+        calm.setEnabled(enabled);
+        gratitude.setEnabled(enabled);
+        energy.setEnabled(enabled);
+        sadness.setEnabled(enabled);
+        anger.setEnabled(enabled);
+        anxiety.setEnabled(enabled);
+        stress.setEnabled(enabled);
+    }
+
+    private void installLiveListeners() {
+        ChangeListener listener = e -> {
+            if (suppressCallbacks) return;
+            hasSnapshot = true;
+            refreshSummaryLabel();
+            if (onChange != null) onChange.accept(computeComposite(), captureSnapshot());
+        };
+        joy.addChangeListener(listener);
+        calm.addChangeListener(listener);
+        gratitude.addChangeListener(listener);
+        energy.addChangeListener(listener);
+        sadness.addChangeListener(listener);
+        anger.addChangeListener(listener);
+        anxiety.addChangeListener(listener);
+        stress.addChangeListener(listener);
+    }
+
+    private void refreshSummaryLabel() {
+        if (!hasSnapshot) {
+            summaryLabel.setText("Not set");
+            return;
         }
-
-        @Override
-        protected void calculateThumbSize() {
-            thumbRect.setSize(THUMB_SIZE, THUMB_SIZE);
-        }
-
-        @Override
-        public void paintTrack(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int trackLeft = trackRect.x;
-            int trackTop = trackRect.y + (trackRect.height - TRACK_HEIGHT) / 2;
-            int trackWidth = trackRect.width;
-            if (trackWidth <= 0) {
-                g2.dispose();
-                return;
-            }
-
-            int plateH = TRACK_HEIGHT + 10;
-            int plateTop = trackTop - 5;
-            g2.setPaint(new Color(255, 255, 255, 110));
-            g2.fillRoundRect(trackLeft, plateTop, trackWidth, plateH, plateH, plateH);
-            g2.setColor(new Color(0, 0, 0, 35));
-            g2.drawRoundRect(trackLeft, plateTop, trackWidth, plateH, plateH, plateH);
-
-            LinearGradientPaint paint = new LinearGradientPaint(
-                trackLeft, 0, trackLeft + trackWidth, 0,
-                new float[]{0f, 0.5f, 1f},
-                new Color[]{ new Color(0,122,204), new Color(200,200,200), new Color(255,120,50) }
-            );
-            g2.setPaint(paint);
-            g2.fillRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
-            g2.setColor(new Color(255, 255, 255, 120));
-            g2.drawRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
-            g2.dispose();
-        }
-
-        @Override
-        public void paintThumb(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int cx = thumbRect.x;
-            int cy = thumbRect.y;
-            g2.setColor(new Color(0, 0, 0, 50));
-            g2.fillOval(cx + 1, cy + 2, THUMB_SIZE - 2, THUMB_SIZE - 2);
-            g2.setPaint(new GradientPaint(0, cy, new Color(255, 255, 255, 245),
-                    0, cy + THUMB_SIZE, new Color(235, 235, 235, 215)));
-            g2.fillOval(cx, cy, THUMB_SIZE, THUMB_SIZE);
-            g2.setColor(new Color(160, 160, 160, 160));
-            g2.drawOval(cx, cy, THUMB_SIZE - 1, THUMB_SIZE - 1);
-            g2.setColor(new Color(255, 255, 255, 180));
-            g2.drawOval(cx + 1, cy + 1, THUMB_SIZE - 3, THUMB_SIZE - 3);
-            g2.dispose();
-        }
+        summaryLabel.setText("Composite " + computeComposite());
     }
 }
