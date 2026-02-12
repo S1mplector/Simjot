@@ -14,11 +14,11 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GradientPaint;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -58,9 +58,9 @@ import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.slider.MoodSlider;
-import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 import main.ui.features.home.AnalogClockPanel;
 import main.ui.features.home.TodayCalendarPanel;
@@ -205,7 +205,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         paperFeelChk.setUI(new ModernCheckBoxUI());
         paperFeelChk.setBackground(new Color(0, 0, 0, 0));
 
-        typographyPolishChk = new JCheckBox("Typography polish (line rhythm + focus glow)", store.isEditorTypographyPolishEnabled());
+        typographyPolishChk = new JCheckBox("Typography polish (focus glow)", store.isEditorTypographyPolishEnabled());
         typographyPolishChk.setUI(new ModernCheckBoxUI());
         typographyPolishChk.setBackground(new Color(0, 0, 0, 0));
 
