@@ -190,6 +190,8 @@ public class EntryPanel extends AbstractEditorPanel {
     private javax.swing.Timer metricsDebounceTimer;
     private static final int METRICS_DEBOUNCE_MS = 160;
     private String lastTypingSnapshot = "";
+    private static final java.util.regex.Pattern IMAGE_TOKEN_PATTERN =
+            java.util.regex.Pattern.compile("\\[\\[IMG\\|([^|]+)\\|(\\d+)x(\\d+)\\]\\]");
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
@@ -1763,7 +1765,9 @@ public class EntryPanel extends AbstractEditorPanel {
             }
 
             byte[] data = baos.toByteArray();
-            int wordCount = countWords(new String(data, StandardCharsets.UTF_8));
+            int wordCount = meta.guided
+                    ? countWordsInGuidedResponses(questionResponses, guidedQuestions)
+                    : countWords(stripImageTokens(content));
             if (EncryptionManager.isEncryptionEnabled()) {
                 String password = EncryptionManager.getPasswordForUse(this, !isAutosaving);
                 if (password == null || password.isBlank()) {
@@ -2036,8 +2040,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private void restoreIconsFromTokens(StyledDocument doc, String manifest) {
         try {
             String text = doc.getText(0, doc.getLength());
-            java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\[\\[IMG\\|([^|]+)\\|(\\d+)x(\\d+)\\]\\]");
-            java.util.regex.Matcher m = p.matcher(text);
+            java.util.regex.Matcher m = IMAGE_TOKEN_PATTERN.matcher(text);
             java.util.List<int[]> ranges = new java.util.ArrayList<>();
             java.util.List<String> rels = new java.util.ArrayList<>();
             java.util.List<Integer> widths = new java.util.ArrayList<>();
@@ -2126,6 +2129,28 @@ public class EntryPanel extends AbstractEditorPanel {
         } catch (Throwable t) {
             return f.getName();
         }
+    }
+
+    private static int countWordsInGuidedResponses(java.util.Map<Integer, String> responses, String[] questions) {
+        if (responses == null || responses.isEmpty()) return 0;
+        if (questions == null || questions.length == 0) {
+            int total = 0;
+            for (String response : responses.values()) {
+                total += countWords(stripImageTokens(response));
+            }
+            return total;
+        }
+        int total = 0;
+        for (int i = 0; i < questions.length; i++) {
+            String response = responses.get(i);
+            total += countWords(stripImageTokens(response));
+        }
+        return total;
+    }
+
+    private static String stripImageTokens(String text) {
+        if (text == null || text.isEmpty()) return "";
+        return IMAGE_TOKEN_PATTERN.matcher(text).replaceAll(" ");
     }
 
     private void recordMood(int moodValue) {

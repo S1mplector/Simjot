@@ -105,23 +105,57 @@ final class EntryFileFormat {
     private static int[] extractIntArray(String json, String key) {
         String arr = NativeJson.getArray(json, key);
         if (arr == null || arr.length() < 2) return null;
-        String body = arr.substring(1, arr.length() - 1).trim();
-        if (body.isBlank()) return null;
-        String[] parts = body.split(",");
-        if (parts.length == 0) return null;
+        int end = arr.length() - 1; // closing ']'
+        int idx = 1; // after '['
+        while (idx < end) {
+            char c = arr.charAt(idx);
+            if (c == '-' || (c >= '0' && c <= '9')) break;
+            idx++;
+        }
+        if (idx >= end) return null;
+
         int[] out = new int[8];
         Arrays.fill(out, -1);
-        int limit = Math.min(8, parts.length);
+        int limit = 8;
         boolean any = false;
-        for (int i = 0; i < limit; i++) {
-            try {
-                int v = Integer.parseInt(parts[i].trim());
-                if (v >= 0) {
-                    out[i] = clamp(v);
-                    any = true;
-                }
-            } catch (NumberFormatException ignored) {
+        int i = 0;
+        while (idx < end && i < limit) {
+            while (idx < end) {
+                char c = arr.charAt(idx);
+                if (c == '-' || (c >= '0' && c <= '9')) break;
+                idx++;
             }
+            if (idx >= end) break;
+
+            int sign = 1;
+            if (arr.charAt(idx) == '-') {
+                sign = -1;
+                idx++;
+            }
+
+            int v = 0;
+            boolean hasDigits = false;
+            while (idx < end) {
+                char c = arr.charAt(idx);
+                if (c >= '0' && c <= '9') {
+                    hasDigits = true;
+                    v = (v * 10) + (c - '0');
+                    idx++;
+                } else {
+                    break;
+                }
+            }
+            if (!hasDigits) {
+                idx++;
+                continue;
+            }
+
+            int parsed = sign * v;
+            if (parsed >= 0) {
+                out[i] = clamp(parsed);
+                any = true;
+            }
+            i++;
         }
         return any ? out : null;
     }

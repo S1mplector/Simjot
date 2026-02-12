@@ -79,6 +79,10 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
     public void animateIconRotationRadians(double radians, int durationMs) {
         if (Double.isNaN(radians) || Double.isInfinite(radians)) return;
         int safeDuration = Math.max(60, durationMs);
+        if (rotationTimer != null && rotationTimer.isRunning()
+                && Math.abs(rotationToRadians - radians) < 0.0001) {
+            return;
+        }
         if (Math.abs(this.iconRotationRadians - radians) < 0.0001 && (rotationTimer == null || !rotationTimer.isRunning())) {
             return;
         }
