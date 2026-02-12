@@ -33,14 +33,13 @@ import javax.swing.ListSelectionModel;
 
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
-import main.ui.components.buttons.ToolbarIconButton;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.features.splash.SettingsSaveSplash;
 import main.ui.scaling.UIScalingManager;
 import main.ui.theme.Theme;
 import main.ui.theme.ThemePalette;
-import main.ui.theme.aero.AeroPainters;
 import main.ui.theme.aero.AeroTheme;
 
 public class SettingsPanel extends JPanel {
@@ -77,7 +76,9 @@ public class SettingsPanel extends JPanel {
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setSelectedIndex(0);
         sectionList.setFixedCellWidth(160);
+        sectionList.setFixedCellHeight(40);
         sectionList.setOpaque(false);
+        sectionList.setFocusable(false);
         sectionList.setCellRenderer(new SidebarCellRenderer());
         sectionList.setBorder(BorderFactory.createEmptyBorder());
         sectionList.addListSelectionListener(e->{
@@ -119,14 +120,15 @@ public class SettingsPanel extends JPanel {
     }
 
     private JPanel buildSouthBar(){
-        JPanel chrome = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel chrome = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 8));
         chrome.setOpaque(true);
         chrome.setBackground(Color.WHITE);
-        // Icon buttons for Cancel/Save using centralized icon renderer
-        ToolbarIconButton cancel = new ToolbarIconButton("back");
+        RoundedButton cancel = new RoundedButton("Cancel").withIcon("back");
+        cancel.setPreferredSize(new Dimension(122, 36));
         cancel.setToolTipText("Cancel");
         cancel.addActionListener(e-> app.switchCard(JournalApp.MAIN_MENU));
-        ToolbarIconButton save = new ToolbarIconButton("save");
+        RoundedButton save = new RoundedButton("Save").withIcon("save");
+        save.setPreferredSize(new Dimension(122, 36));
         save.setToolTipText("Save Settings");
         save.addActionListener(e-> saveAll());
         chrome.add(cancel);
@@ -249,11 +251,9 @@ public class SettingsPanel extends JPanel {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             if (selected) {
                 Rectangle r = new Rectangle(4, 4, getWidth()-8, getHeight()-8);
-                Color top = new Color(240,248,255,230); // light azure
-                Color bottom = new Color(221,236,248,230);
-                AeroPainters.paintVerticalGradient(g2, r, top, bottom, 10);
-                AeroPainters.paintGlassOverlay(g2, r, 10);
-                g2.setColor(new Color(0,0,0,40));
+                g2.setColor(new Color(238, 241, 247));
+                g2.fillRoundRect(r.x, r.y, r.width, r.height, 10, 10);
+                g2.setColor(new Color(206, 212, 222));
                 g2.drawRoundRect(r.x, r.y, r.width-1, r.height-1, 10, 10);
             }
             g2.dispose();

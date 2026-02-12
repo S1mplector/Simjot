@@ -17,6 +17,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.LayoutManager;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -25,7 +26,6 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -42,9 +42,8 @@ import javax.swing.SwingWorker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.components.buttons.IconMenuButton;
-import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.icons.ImageIconRenderer;
+import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.util.AccentColorUtil;
@@ -70,12 +69,16 @@ public class WallpaperGalleryPanel extends JDialog {
     public WallpaperGalleryPanel(Component parent, boolean autoSaveSelection) {
         super(SwingUtilities.getWindowAncestor(parent), "Choose Wallpaper", Dialog.ModalityType.APPLICATION_MODAL);
         this.autoSaveSelection = autoSaveSelection;
-        setLayout(new BorderLayout(10, 10));
-        setSize(700, 600);
-        setLocationRelativeTo(parent);
+        setUndecorated(true);
+        setBackground(new Color(0, 0, 0, 0));
+        setLayout(new BorderLayout());
 
-        FrostedGlassPanel root = new FrostedGlassPanel(new BorderLayout(10, 10), 16);
-        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        ShadowedDialogPanel root = new ShadowedDialogPanel(new BorderLayout(12, 12), 16);
+        root.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        root.setFlat(true);
+        root.setFlatColor(Color.WHITE);
+
+        setLocationRelativeTo(parent);
 
         if (autoSaveSelection) {
             try {
@@ -83,11 +86,26 @@ public class WallpaperGalleryPanel extends JDialog {
                 SettingsStore.get().save();
             } catch (Throwable ignored) {}
         }
-        
-        // Title
-        JLabel titleLabel = new JLabel("Select a wallpaper from built-in or your gallery:", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
-        root.add(titleLabel, BorderLayout.NORTH);
+
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+
+        JLabel titleLabel = new JLabel("Choose Wallpaper");
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 24));
+        titleLabel.setForeground(new Color(40, 40, 40));
+
+        JLabel subtitleLabel = new JLabel("Select a wallpaper from built-in options or your gallery.");
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        subtitleLabel.setForeground(new Color(120, 120, 120));
+
+        header.add(titleLabel);
+        header.add(Box.createVerticalStrut(6));
+        header.add(subtitleLabel);
+        root.add(header, BorderLayout.NORTH);
         
         // Image grid
         setupImageGrid();
@@ -106,19 +124,17 @@ public class WallpaperGalleryPanel extends JDialog {
         hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
         hbar.setOpaque(false);
         hbar.setUnitIncrement(16);
-        FrostedGlassPanel browserPanel = new FrostedGlassPanel(new BorderLayout(), 14);
-        browserPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        JPanel browserPanel = createSectionCard();
         browserPanel.add(listScroll, BorderLayout.CENTER);
         root.add(browserPanel, BorderLayout.CENTER);
 
         // Live preview + accent swatch (right side)
-        FrostedGlassPanel preview = new FrostedGlassPanel(new BorderLayout(8, 8), 14);
+        JPanel preview = createSectionCard(new BorderLayout(8, 8));
         preview.setPreferredSize(new Dimension(280, 0));
-        preview.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
         previewImageLabel = new JLabel("Preview", SwingConstants.CENTER);
         previewImageLabel.setOpaque(false);
         previewImageLabel.setForeground(new Color(60, 60, 60));
-        previewImageLabel.setBorder(BorderFactory.createLineBorder(new Color(200,200,200,160)));
+        previewImageLabel.setBorder(BorderFactory.createLineBorder(new Color(210, 210, 210)));
         preview.add(previewImageLabel, BorderLayout.CENTER);
 
         JPanel swatchRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
@@ -133,15 +149,19 @@ public class WallpaperGalleryPanel extends JDialog {
 
         root.add(preview, BorderLayout.EAST);
         
-        // Buttons panel
+        // Buttons panel (matches notebook metadata dialog style)
         JPanel bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.setOpaque(false);
+        bottomPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         setupButtons();
         bottomPanel.add(buttonPanel, BorderLayout.CENTER);
         root.add(bottomPanel, BorderLayout.SOUTH);
 
-        setContentPane(root);
-        
+        add(root);
+        setSize(1020, 720);
+        setMinimumSize(new Dimension(920, 640));
+        setLocationRelativeTo(parent);
+
         loadWallpapersAsync();
         list.addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) updatePreview(); });
         if (model.getSize() > 0) {
@@ -149,9 +169,18 @@ public class WallpaperGalleryPanel extends JDialog {
         }
     }
 
-    private static Icon iconById(String id) {
-        String path = ImageIconRenderer.mapIdToResource(id);
-        return path != null ? ImageIconRenderer.icon(path, 18, false) : null;
+    private JPanel createSectionCard() {
+        return createSectionCard(new BorderLayout());
+    }
+
+    private JPanel createSectionCard(LayoutManager layout) {
+        JPanel panel = new JPanel(layout);
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220, 220, 220)),
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+        return panel;
     }
     
     private void setupImageGrid() {
@@ -234,13 +263,13 @@ public class WallpaperGalleryPanel extends JDialog {
 private JPanel buttonPanel;
     
     private void setupButtons() {
-        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
+        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
         buttonPanel.setOpaque(false);
-        IconMenuButton selectBtn = new IconMenuButton("Select", "save");
-        IconMenuButton removeBtn = new IconMenuButton("Remove", "trash");
-        IconMenuButton refreshBtn = new IconMenuButton("Refresh", "rescan");
-        IconMenuButton openFolderBtn = new IconMenuButton("Open", "open_folder");
-        IconMenuButton cancelBtn = new IconMenuButton("Cancel", "exit");
+        RoundedButton selectBtn = createDialogButton("Select", "save");
+        RoundedButton removeBtn = createDialogButton("Remove", "trash");
+        RoundedButton refreshBtn = createDialogButton("Refresh", "rescan");
+        RoundedButton openFolderBtn = createDialogButton("Open", "open_folder");
+        RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
 
         selectBtn.setToolTipText("Apply selected wallpaper");
         removeBtn.setToolTipText("Remove current wallpaper");
@@ -293,6 +322,13 @@ private JPanel buttonPanel;
         buttonPanel.add(refreshBtn);
         buttonPanel.add(openFolderBtn);
         buttonPanel.add(cancelBtn);
+    }
+
+    private RoundedButton createDialogButton(String text, String iconId) {
+        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+        btn.setPreferredSize(new Dimension(132, 40));
+        btn.setFocusPainted(false);
+        return btn;
     }
     
     private void loadWallpapersAsync() {

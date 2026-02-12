@@ -152,7 +152,8 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
         actions.setAlignmentX(LEFT_ALIGNMENT);
 
-        RoundedButton openBtn = new RoundedButton("Open in Explorer");
+        String openLabel = AppLifecycle.isMacOS() ? "Open in Finder" : "Open in Explorer";
+        RoundedButton openBtn = new RoundedButton(openLabel);
         // Use RoundedButton's iconId mechanism so custom painter draws the icon
         openBtn.putClientProperty("iconId", "explorer");
         openBtn.addActionListener(e -> {
@@ -167,12 +168,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         refreshBtn.putClientProperty("iconId", "refreshsizes");
         refreshBtn.addActionListener(e -> computeSizesAsync());
         actions.add(refreshBtn);
-
-        RoundedButton revealBtn = new RoundedButton("Reveal selected");
-        revealBtn.putClientProperty("iconId", "revealselected");
-        revealBtn.addActionListener(e -> revealSelected());
-        actions.add(Box.createHorizontalStrut(8));
-        actions.add(revealBtn);
 
         content.add(Box.createVerticalStrut(8));
         content.add(actions);
@@ -373,13 +368,9 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
     private JPanel createSectionPanel(String title, String subtitle) {
         JPanel section = new JPanel(new BorderLayout(0, 10));
-        section.setOpaque(true);
-        section.setBackground(Color.WHITE);
+        section.setOpaque(false);
         section.setAlignmentX(LEFT_ALIGNMENT);
-        section.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(219, 226, 235)),
-            BorderFactory.createEmptyBorder(12, 12, 12, 12)
-        ));
+        section.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
         section.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         JLabel sectionTitle = new JLabel(title);
@@ -550,12 +541,6 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             java.awt.datatransfer.StringSelection ss = new java.awt.datatransfer.StringSelection(n.file.getAbsolutePath());
             java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(ss, null);
         } catch (Exception ignored) {}
-    }
-
-    private void revealSelected() {
-        TreePath sel = dirTree.getSelectionPath();
-        if (sel == null) return;
-        openPath(sel);
     }
 
     private void startIcloudMigration(File icloudRoot, RoundedButton button) {
@@ -868,11 +853,8 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             if (selected) {
                 int arc = 12;
-                g2.setColor(new Color(90, 150, 255, 60));
+                g2.setColor(new Color(0, 0, 0, 26));
                 g2.fillRoundRect(2, 2, getWidth()-4, getHeight()-4, arc, arc);
-                g2.setColor(new Color(90, 150, 255, 100));
-                g2.setStroke(new BasicStroke(1.2f));
-                g2.drawRoundRect(2, 2, getWidth()-4, getHeight()-4, arc, arc);
             }
             g2.dispose();
             super.paintComponent(g);
