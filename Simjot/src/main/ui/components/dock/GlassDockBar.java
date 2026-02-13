@@ -8,12 +8,29 @@
 
 package main.ui.components.dock;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.geom.*;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.*;
+
+import javax.swing.JPanel;
+import javax.swing.Timer;
 
 import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.icons.ImageIconRenderer;
@@ -55,14 +72,14 @@ public class GlassDockBar extends JPanel {
     private static final int ICON_SIZE = 42;
     private static final float MAX_SCALE = 1.12f;
     private static final float MAX_GLOW = 1f;
-    private static final float SCATTER_COLLAPSED_SCALE = 0.72f;
+    private static final float SCATTER_COLLAPSED_SCALE = 0.85f;
     private static final float SCATTER_BASE_RADIUS_X = 40f;
     private static final float SCATTER_BASE_RADIUS_Y = 21f;
     private static final float SCATTER_EXTRA_RADIUS_PER_ITEM_X = 6f;
     private static final float SCATTER_EXTRA_RADIUS_PER_ITEM_Y = 3f;
     private static final float SCATTER_MIN_ICON_GAP = 6f;
     private static final float SCATTER_MAX_ROTATION_DEG = 15f;
-    private static final float MIN_COLLAPSED_ITEM_SIZE = 40f;
+    private static final float MIN_COLLAPSED_ITEM_SIZE = 46f;
     private static final float ANIMATION_RATE = 10.5f;
     private static final long COLLAPSE_LINGER_NS = 170_000_000L;
     private static final float LAYOUT_EPSILON = 0.001f;
@@ -379,7 +396,7 @@ public class GlassDockBar extends JPanel {
         float scale = (scatterScale != null && index >= 0 && index < scatterScale.length) ? scatterScale[index] : 1f;
         float collapsedSize = Math.max(MIN_COLLAPSED_ITEM_SIZE, collapsedItemBase * scale);
         float iconBaseScale = collapsedSize / ITEM_SIZE;
-        float collapsedIconScale = 0.92f + (scale - 0.92f) * 0.35f;
+        float collapsedIconScale = 0.98f + (scale - 0.98f) * 0.35f;
         return Math.max(18f, ICON_SIZE * iconBaseScale * collapsedIconScale);
     }
     
@@ -624,7 +641,7 @@ public class GlassDockBar extends JPanel {
 
             float iconBaseScale = baseSize / ITEM_SIZE;
             float scatterScaleAdjust = (scatterScale != null && i < scatterScale.length) ? scatterScale[i] : 1f;
-            float collapsedIconScale = 0.92f + (scatterScaleAdjust - 0.92f) * 0.35f;
+            float collapsedIconScale = 0.98f + (scatterScaleAdjust - 0.98f) * 0.35f;
             float iconPhaseScale = lerp(collapsedIconScale, 1f, buttonReveal);
             int iconScaledSize = Math.max(18, Math.round(ICON_SIZE * iconBaseScale * iconPhaseScale));
             int iconX = Math.round(drawX + (scaledSize - iconScaledSize) * 0.5f);
