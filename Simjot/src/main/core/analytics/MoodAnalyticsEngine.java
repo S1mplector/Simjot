@@ -86,7 +86,8 @@ public final class MoodAnalyticsEngine {
         }
 
         public boolean hasDetails() {
-            return joy >= 0;
+            return joy >= 0 || calm >= 0 || gratitude >= 0 || energy >= 0
+                    || sadness >= 0 || anger >= 0 || anxiety >= 0 || stress >= 0;
         }
     }
 
@@ -117,36 +118,35 @@ public final class MoodAnalyticsEngine {
             int sum = 0, minV = Integer.MAX_VALUE, maxV = Integer.MIN_VALUE;
             double jSum = 0, cSum = 0, gSum = 0, eSum = 0;
             double sSum = 0, aSum = 0, axSum = 0, stSum = 0;
-            int detailCount = 0;
+            int jCount = 0, cCount = 0, gCount = 0, eCount = 0;
+            int sCount = 0, aCount = 0, axCount = 0, stCount = 0;
 
             for (MoodSample s : samples) {
                 sum += s.composite;
                 if (s.composite < minV) minV = s.composite;
                 if (s.composite > maxV) maxV = s.composite;
-                if (s.hasDetails()) {
-                    jSum += s.joy; cSum += s.calm; gSum += s.gratitude; eSum += s.energy;
-                    sSum += s.sadness; aSum += s.anger; axSum += s.anxiety; stSum += s.stress;
-                    detailCount++;
-                }
+                if (s.joy >= 0) { jSum += s.joy; jCount++; }
+                if (s.calm >= 0) { cSum += s.calm; cCount++; }
+                if (s.gratitude >= 0) { gSum += s.gratitude; gCount++; }
+                if (s.energy >= 0) { eSum += s.energy; eCount++; }
+                if (s.sadness >= 0) { sSum += s.sadness; sCount++; }
+                if (s.anger >= 0) { aSum += s.anger; aCount++; }
+                if (s.anxiety >= 0) { axSum += s.anxiety; axCount++; }
+                if (s.stress >= 0) { stSum += s.stress; stCount++; }
             }
 
             this.average = (double) sum / sampleCount;
             this.min = minV;
             this.max = maxV;
 
-            if (detailCount > 0) {
-                avgJoy = jSum / detailCount;
-                avgCalm = cSum / detailCount;
-                avgGratitude = gSum / detailCount;
-                avgEnergy = eSum / detailCount;
-                avgSadness = sSum / detailCount;
-                avgAnger = aSum / detailCount;
-                avgAnxiety = axSum / detailCount;
-                avgStress = stSum / detailCount;
-            } else {
-                avgJoy = avgCalm = avgGratitude = avgEnergy = -1;
-                avgSadness = avgAnger = avgAnxiety = avgStress = -1;
-            }
+            avgJoy = jCount > 0 ? jSum / jCount : -1;
+            avgCalm = cCount > 0 ? cSum / cCount : -1;
+            avgGratitude = gCount > 0 ? gSum / gCount : -1;
+            avgEnergy = eCount > 0 ? eSum / eCount : -1;
+            avgSadness = sCount > 0 ? sSum / sCount : -1;
+            avgAnger = aCount > 0 ? aSum / aCount : -1;
+            avgAnxiety = axCount > 0 ? axSum / axCount : -1;
+            avgStress = stCount > 0 ? stSum / stCount : -1;
         }
 
         public DailyStats(LocalDate date,

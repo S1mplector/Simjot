@@ -158,6 +158,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private JPanel toolbarContainer;
     private JPanel toolbarGroup;
     private JPanel moodContainer;
+    private JPanel moodSummaryPills;
     private ToolbarMenuIconButton moodDetailsToggleButton;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
@@ -216,14 +217,16 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private static int[] detailedMoodArrayFromSnapshot(DetailedMoodPanel.DetailedMoodSnapshot details) {
         if (details == null) return null;
-        return new int[] {
+        int[] values = new int[] {
                 details.joy, details.calm, details.gratitude, details.energy,
                 details.sadness, details.anger, details.anxiety, details.stress
         };
+        return hasAnyDetailValue(values) ? values : null;
     }
 
     private static DetailedMoodPanel.DetailedMoodSnapshot detailedMoodSnapshotFromArray(int[] values) {
         if (values == null || values.length < 8) return null;
+        if (!hasAnyDetailValue(values)) return null;
         return new DetailedMoodPanel.DetailedMoodSnapshot(
                 safeDetailValue(values[0]), safeDetailValue(values[1]),
                 safeDetailValue(values[2]), safeDetailValue(values[3]),
@@ -233,8 +236,16 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private static int safeDetailValue(int v) {
-        if (v < 0) return 50;
+        if (v < 0) return -1;
         return Math.max(0, Math.min(100, v));
+    }
+
+    private static boolean hasAnyDetailValue(int[] values) {
+        if (values == null || values.length == 0) return false;
+        for (int value : values) {
+            if (value >= 0) return true;
+        }
+        return false;
     }
 
     /**
@@ -288,6 +299,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void applyEntryContent(BufferedReader reader, String firstLine) throws Exception {
         EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
+        DetailedMoodPanel.DetailedMoodSnapshot loadedMoodDetails = null;
         try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
         try {
             if (detailedMoodPanel != null) {
@@ -312,6 +324,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 DetailedMoodPanel.DetailedMoodSnapshot snapshot = detailedMoodSnapshotFromArray(meta.moodDetails);
                 if (snapshot != null) {
                     detailedMoodPanel.applySnapshot(snapshot);
+                    loadedMoodDetails = snapshot;
                 }
             }
         } else {
@@ -322,6 +335,7 @@ public class EntryPanel extends AbstractEditorPanel {
         }
 
         titleField.setText(title);
+        updateMoodSummaryPills(loadedMoodDetails, moodSlider != null ? moodSlider.getValue() : 50);
 
         // Check for guided mode metadata
         if (firstContentLine != null && firstContentLine.startsWith("[GUIDED_MODE:")) {
@@ -668,6 +682,9 @@ public class EntryPanel extends AbstractEditorPanel {
             moodSlider.setHoverFadeEnabled(true);
             moodRow.add(moodSlider);
             moodSlider.addChangeListener(e -> {
+                if (detailedMoodPanel == null || !detailedMoodPanel.hasSnapshot()) {
+                    updateMoodSummaryPills(null, moodSlider.getValue());
+                }
                 try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
             });
 
@@ -687,6 +704,7 @@ public class EntryPanel extends AbstractEditorPanel {
                     if (moodSlider != null) {
                         moodSlider.setValue(composite);
                     }
+                    updateMoodSummaryPills(snapshot, composite);
                     SimEventBus.get().emitMoodChanged((double) composite);
                 } catch (Throwable ignored) {}
             });
@@ -697,9 +715,15 @@ public class EntryPanel extends AbstractEditorPanel {
             moodContainer.setBorder(BorderFactory.createEmptyBorder(6, 10, 0, 10));
             moodContainer.add(moodRow, BorderLayout.NORTH);
             moodContainer.add(detailedMoodPanel, BorderLayout.CENTER);
+            moodSummaryPills = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+            moodSummaryPills.setOpaque(false);
+            moodSummaryPills.setBorder(BorderFactory.createEmptyBorder(4, 30, 0, 6));
+            moodSummaryPills.setVisible(false);
+            moodContainer.add(moodSummaryPills, BorderLayout.SOUTH);
             toolbarGroup.add(Box.createVerticalStrut(6));
             toolbarGroup.add(moodContainer);
             refreshDetailedMoodToggleVisual();
+            updateMoodSummaryPills(null, moodSlider.getValue());
         }
 
         add(toolbarGroup, BorderLayout.NORTH);
@@ -1809,14 +1833,9 @@ public class EntryPanel extends AbstractEditorPanel {
                 throw io;
             }
 
-            // Log mood only after the entry file is successfully persisted.
-            if (moodValue >= 0) {
-                if (moodDetails != null) {
-                    recordMood(moodValue, moodDetails);
-                } else {
-                    recordMood(moodValue);
-                }
-            }
+            // Log mood only after the entry file is successfully persisted,
+            // based on the exact metadata that was written for this save.
+            logMoodFromPersistedMetadata(meta);
 
             // Record versioned snapshot
             try {
@@ -2163,6 +2182,102 @@ public class EntryPanel extends AbstractEditorPanel {
         return IMAGE_TOKEN_PATTERN.matcher(text).replaceAll(" ");
     }
 
+    private void logMoodFromPersistedMetadata(EntryFileFormat.EntryMeta meta) {
+        if (meta == null || meta.mood < 0) return;
+        DetailedMoodPanel.DetailedMoodSnapshot details = detailedMoodSnapshotFromArray(meta.moodDetails);
+        if (details != null) {
+            recordMood(meta.mood, details);
+        } else {
+            recordMood(meta.mood);
+        }
+    }
+
+    private void updateMoodSummaryPills(DetailedMoodPanel.DetailedMoodSnapshot snapshot, int composite) {
+        if (moodSummaryPills == null) return;
+        int safeComposite = Math.max(0, Math.min(100, composite));
+        java.util.List<DetailedMoodPanel.EmotionIntensity> strongest =
+                DetailedMoodPanel.strongestEmotions(snapshot, 2);
+        moodSummaryPills.removeAll();
+
+        if (strongest.isEmpty()) {
+            moodSummaryPills.setVisible(false);
+            moodSummaryPills.revalidate();
+            moodSummaryPills.repaint();
+            return;
+        }
+
+        moodSummaryPills.add(new MoodSummaryPill(
+                "Mood " + safeComposite,
+                new Color(196, 208, 226),
+                new Color(224, 232, 244),
+                new Color(150, 164, 184)
+        ));
+
+        for (DetailedMoodPanel.EmotionIntensity emotion : strongest) {
+            Color base = DetailedMoodPanel.emotionColor(emotion.index);
+            moodSummaryPills.add(new MoodSummaryPill(
+                    emotion.name + " " + emotion.intensity + "%",
+                    blend(base, Color.WHITE, 0.44f),
+                    blend(base, Color.WHITE, 0.70f),
+                    blend(base, new Color(90, 96, 112), 0.34f)
+            ));
+        }
+
+        moodSummaryPills.setVisible(true);
+        moodSummaryPills.revalidate();
+        moodSummaryPills.repaint();
+    }
+
+    private static Color blend(Color a, Color b, float t) {
+        float k = Math.max(0f, Math.min(1f, t));
+        float inv = 1f - k;
+        int r = Math.round(a.getRed() * k + b.getRed() * inv);
+        int g = Math.round(a.getGreen() * k + b.getGreen() * inv);
+        int bl = Math.round(a.getBlue() * k + b.getBlue() * inv);
+        int alpha = Math.round(a.getAlpha() * k + b.getAlpha() * inv);
+        return new Color(r, g, bl, alpha);
+    }
+
+    private static final class MoodSummaryPill extends JLabel {
+        private final Color top;
+        private final Color bottom;
+        private final Color border;
+
+        private MoodSummaryPill(String text, Color top, Color bottom, Color border) {
+            super(text);
+            this.top = top;
+            this.bottom = bottom;
+            this.border = border;
+            setOpaque(false);
+            setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+            setForeground(new Color(55, 62, 76));
+            setBorder(BorderFactory.createEmptyBorder(3, 10, 3, 10));
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            d.height = Math.max(24, d.height + 2);
+            d.width += 2;
+            return d;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = Math.max(16, h - 6);
+            g2.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(border);
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
     private void recordMood(int moodValue) {
         try {
             MoodFile.appendNow(moodValue);
@@ -2179,6 +2294,9 @@ public class EntryPanel extends AbstractEditorPanel {
                 details.joy, details.calm, details.gratitude, details.energy,
                 details.sadness, details.anger, details.anxiety, details.stress
             };
+            if (!hasAnyDetailValue(det)) {
+                det = null;
+            }
         }
         try {
             MoodFile.appendNow(composite, det);
@@ -2213,6 +2331,7 @@ public class EntryPanel extends AbstractEditorPanel {
         titleField.setText("");
         contentArea.setText("");
         try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
+        updateMoodSummaryPills(null, moodSlider != null ? moodSlider.getValue() : 50);
         try {
             if (detailedMoodPanel != null) {
                 detailedMoodPanel.clearSnapshot();

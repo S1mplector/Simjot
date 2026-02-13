@@ -9,6 +9,7 @@
 package main.ui.features.home;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -91,6 +92,8 @@ public class ElegantMoodChartPanel extends JPanel {
     private Timer revealTimer;
 
     private ChartCanvas chartCanvas;
+    private EmotionTrendCanvas emotionTrendCanvas;
+    private JLabel dominantEmotionLabel;
 
     public ElegantMoodChartPanel(JournalApp app, CardLayout cardLayout, JPanel cardPanel) {
         this.app = app;
@@ -211,8 +214,17 @@ public class ElegantMoodChartPanel extends JPanel {
         hint.setForeground(TEXT_MUTED);
         hint.setHorizontalAlignment(JLabel.CENTER);
 
+        JPanel emotionCard = createEmotionInsightsCard();
+
+        JPanel footer = new JPanel();
+        footer.setOpaque(false);
+        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
+        footer.add(emotionCard);
+        footer.add(Box.createVerticalStrut(10));
+        footer.add(hint);
+
         body.add(chartCard, BorderLayout.CENTER);
-        body.add(hint, BorderLayout.SOUTH);
+        body.add(footer, BorderLayout.SOUTH);
 
         return body;
     }
@@ -223,6 +235,10 @@ public class ElegantMoodChartPanel extends JPanel {
         if (chartCanvas != null) {
             chartCanvas.repaint();
         }
+        if (emotionTrendCanvas != null) {
+            emotionTrendCanvas.repaint();
+        }
+        refreshDominantEmotionSummary();
         repaint();
     }
 
@@ -239,6 +255,140 @@ public class ElegantMoodChartPanel extends JPanel {
             repaint();
         });
         revealTimer.start();
+    }
+
+    private JPanel createEmotionInsightsCard() {
+        JPanel emotionCard = new ChartCard();
+        emotionCard.setLayout(new BorderLayout());
+        emotionCard.setOpaque(false);
+        emotionCard.setPreferredSize(new Dimension(10, 196));
+
+        JPanel inset = new JPanel(new BorderLayout(0, 8));
+        inset.setOpaque(false);
+        inset.setBorder(new EmptyBorder(12, 14, 12, 14));
+
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+
+        JLabel title = new JLabel("Emotion Stacks");
+        title.setForeground(TEXT_PRIMARY);
+        title.setFont(AeroTheme.defaultBoldFont(14f));
+
+        dominantEmotionLabel = new JLabel("Dominant this week: no detailed emotion data yet.");
+        dominantEmotionLabel.setForeground(TEXT_SECONDARY);
+        dominantEmotionLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+
+        header.add(title, BorderLayout.WEST);
+        header.add(dominantEmotionLabel, BorderLayout.EAST);
+
+        emotionTrendCanvas = new EmotionTrendCanvas();
+        emotionTrendCanvas.setPreferredSize(new Dimension(10, 110));
+
+        JPanel legend = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        legend.setOpaque(false);
+        for (int i = 0; i < 8; i++) {
+            legend.add(new EmotionLegendPill(
+                    main.ui.features.entries.DetailedMoodPanel.emotionName(i),
+                    main.ui.features.entries.DetailedMoodPanel.emotionColor(i)
+            ));
+        }
+
+        inset.add(header, BorderLayout.NORTH);
+        inset.add(emotionTrendCanvas, BorderLayout.CENTER);
+        inset.add(legend, BorderLayout.SOUTH);
+        emotionCard.add(inset, BorderLayout.CENTER);
+        return emotionCard;
+    }
+
+    private void refreshDominantEmotionSummary() {
+        if (dominantEmotionLabel == null) return;
+        List<LocalDate> days = model.getDays();
+        if (days.isEmpty()) {
+            dominantEmotionLabel.setText("Dominant this week: no detailed emotion data yet.");
+            return;
+        }
+
+        LocalDate latest = days.get(days.size() - 1);
+        LocalDate weekStart = latest.minusDays(6);
+        double[] sums = new double[8];
+        int[] counts = new int[8];
+
+        for (LocalDate day : days) {
+            if (day.isBefore(weekStart)) continue;
+            double[] avg = averageEmotionValuesForDay(day);
+            if (avg == null) continue;
+            for (int i = 0; i < avg.length; i++) {
+                if (avg[i] < 0) continue;
+                sums[i] += avg[i];
+                counts[i]++;
+            }
+        }
+
+        int dominantIndex = -1;
+        double dominantAvg = -1d;
+        for (int i = 0; i < sums.length; i++) {
+            if (counts[i] <= 0) continue;
+            double avg = sums[i] / counts[i];
+            if (avg > dominantAvg) {
+                dominantAvg = avg;
+                dominantIndex = i;
+            }
+        }
+
+        if (dominantIndex < 0) {
+            dominantEmotionLabel.setText("Dominant this week: no detailed emotion data yet.");
+            return;
+        }
+
+        int rounded = (int) Math.round(dominantAvg);
+        int intensity = Math.max(0, Math.min(100, Math.abs(rounded - 50) * 2));
+        dominantEmotionLabel.setText("Dominant this week: "
+                + main.ui.features.entries.DetailedMoodPanel.emotionName(dominantIndex)
+                + " • " + rounded + " (" + intensity + "% intensity)");
+    }
+
+    private double[] averageEmotionValuesForDay(LocalDate day) {
+        if (day == null) return null;
+        java.util.List<MoodChartModel.Details> details = model.getDetailsByDate().get(day);
+        if (details == null || details.isEmpty()) return null;
+
+        double[] sums = new double[8];
+        int[] counts = new int[8];
+        for (MoodChartModel.Details item : details) {
+            if (item == null) continue;
+            for (int i = 0; i < 8; i++) {
+                int value = detailAt(item, i);
+                if (value < 0) continue;
+                sums[i] += value;
+                counts[i]++;
+            }
+        }
+
+        boolean any = false;
+        double[] out = new double[8];
+        for (int i = 0; i < out.length; i++) {
+            if (counts[i] > 0) {
+                out[i] = sums[i] / counts[i];
+                any = true;
+            } else {
+                out[i] = -1d;
+            }
+        }
+        return any ? out : null;
+    }
+
+    private int detailAt(MoodChartModel.Details detail, int index) {
+        return switch (index) {
+            case 0 -> detail.joy;
+            case 1 -> detail.calm;
+            case 2 -> detail.gratitude;
+            case 3 -> detail.energy;
+            case 4 -> detail.sadness;
+            case 5 -> detail.anger;
+            case 6 -> detail.anxiety;
+            case 7 -> detail.stress;
+            default -> -1;
+        };
     }
 
     private Font resolveTitleFont(float size) {
@@ -426,6 +576,140 @@ public class ElegantMoodChartPanel extends JPanel {
             renderer.paint(g2, this, model.getDays(), model.getValues(), model.getEntriesByDate(), null);
 
             g2.dispose();
+        }
+    }
+
+    private class EmotionTrendCanvas extends JComponent {
+        private static final int MARGIN_LEFT = 10;
+        private static final int MARGIN_RIGHT = 10;
+        private static final int MARGIN_TOP = 12;
+        private static final int MARGIN_BOTTOM = 24;
+
+        EmotionTrendCanvas() {
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+
+            int w = getWidth();
+            int h = getHeight();
+            int chartW = Math.max(1, w - MARGIN_LEFT - MARGIN_RIGHT);
+            int chartH = Math.max(1, h - MARGIN_TOP - MARGIN_BOTTOM);
+            int baseY = MARGIN_TOP + chartH;
+
+            List<LocalDate> days = model.getDays();
+            if (days.isEmpty()) {
+                drawNoDetails(g2, w, h);
+                g2.dispose();
+                return;
+            }
+
+            int n = days.size();
+            float slotW = chartW / (float) n;
+            int barW = Math.max(3, Math.min(18, Math.round(slotW - 3f)));
+
+            boolean anyDetailedDay = false;
+            for (int i = 0; i < n; i++) {
+                LocalDate day = days.get(i);
+                double[] avg = averageEmotionValuesForDay(day);
+                if (avg == null) continue;
+
+                double sum = 0d;
+                for (double v : avg) {
+                    if (v >= 0) sum += v;
+                }
+                if (sum <= 0d) continue;
+                anyDetailedDay = true;
+
+                int x = Math.round(MARGIN_LEFT + i * slotW + (slotW - barW) * 0.5f);
+                int yCursor = baseY;
+                for (int emotionIdx = 0; emotionIdx < avg.length; emotionIdx++) {
+                    double v = avg[emotionIdx];
+                    if (v < 0) continue;
+                    int segH = Math.max(1, (int) Math.round((v / sum) * chartH));
+                    int y = Math.max(MARGIN_TOP, yCursor - segH);
+                    Color fill = main.ui.features.entries.DetailedMoodPanel.emotionColor(emotionIdx);
+                    g2.setColor(new Color(fill.getRed(), fill.getGreen(), fill.getBlue(), 205));
+                    g2.fillRect(x, y, barW, yCursor - y);
+                    yCursor = y;
+                    if (yCursor <= MARGIN_TOP) break;
+                }
+            }
+
+            if (!anyDetailedDay) {
+                drawNoDetails(g2, w, h);
+                g2.dispose();
+                return;
+            }
+
+            g2.setColor(new Color(176, 188, 204, 190));
+            g2.setStroke(new BasicStroke(1f));
+            g2.drawLine(MARGIN_LEFT, baseY, w - MARGIN_RIGHT, baseY);
+            g2.drawLine(MARGIN_LEFT, MARGIN_TOP, MARGIN_LEFT, baseY);
+
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d");
+            int labelStep = Math.max(1, n / 6);
+            g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10.5f));
+            g2.setColor(TEXT_MUTED);
+            for (int i = 0; i < n; i += labelStep) {
+                String label = fmt.format(days.get(i));
+                int x = Math.round(MARGIN_LEFT + i * slotW + slotW * 0.5f);
+                int textW = g2.getFontMetrics().stringWidth(label);
+                g2.drawString(label, x - textW / 2, h - 6);
+            }
+
+            g2.dispose();
+        }
+
+        private void drawNoDetails(Graphics2D g2, int w, int h) {
+            g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+            g2.setColor(TEXT_SECONDARY);
+            String msg = "Detailed emotion stacks appear after using emotion chips while saving entries.";
+            int sw = g2.getFontMetrics().stringWidth(msg);
+            g2.drawString(msg, Math.max(8, (w - sw) / 2), Math.max(24, h / 2));
+        }
+    }
+
+    private static final class EmotionLegendPill extends JLabel {
+        private final Color baseColor;
+
+        private EmotionLegendPill(String text, Color baseColor) {
+            super(text);
+            this.baseColor = baseColor;
+            setOpaque(false);
+            setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10.5f));
+            setForeground(new Color(54, 60, 72));
+            setBorder(new EmptyBorder(2, 8, 2, 8));
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            d.height = Math.max(20, d.height);
+            return d;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = Math.max(12, h - 6);
+            Color top = new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), 78);
+            Color bottom = new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), 48);
+            g2.setPaint(new LinearGradientPaint(0, 0, 0, h,
+                    new float[]{0f, 1f},
+                    new Color[]{top, bottom}));
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), 130));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
         }
     }
 

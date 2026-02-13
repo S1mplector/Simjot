@@ -59,6 +59,8 @@ public class BackgroundPanel extends JPanel {
 	// Shared initialisation for both constructors
 	private void commonInit(){
 		setLayout(new BorderLayout());
+		setOpaque(true);
+		setBackground(Color.WHITE);
 
 		// Add mouse listener to open the context menu on right-click
 		addMouseListener(new java.awt.event.MouseAdapter() {
@@ -110,10 +112,15 @@ public class BackgroundPanel extends JPanel {
 		int w = img.getWidth(null);
 		int h = img.getHeight(null);
 		if(w <= 0 || h <= 0){ backgroundImage=null; return; }
-		// Convert to ARGB BufferedImage
+		// Flatten wallpapers against white so transparent pixels never reveal dark bands.
 		BufferedImage src = new BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB);
 		Graphics2D g2 = src.createGraphics();
-		g2.drawImage(img,0,0,null); g2.dispose();
+		g2.setComposite(AlphaComposite.Src);
+		g2.setColor(Color.WHITE);
+		g2.fillRect(0, 0, w, h);
+		g2.setComposite(AlphaComposite.SrcOver);
+		g2.drawImage(img,0,0,null);
+		g2.dispose();
 		backgroundImage = applyBlur(src);
 		cachedScaled=null;
 		scheduleRecompute();
@@ -187,6 +194,9 @@ public class BackgroundPanel extends JPanel {
 			currentWorker.cancel(true);
 		}
 		currentWorker = new SwingWorker<BufferedImage, Void>() {
+			private int renderPanelW;
+			private int renderPanelH;
+
 			@Override
 			protected BufferedImage doInBackground() {
 				if (backgroundImage == null) {
@@ -197,6 +207,8 @@ public class BackgroundPanel extends JPanel {
 				if (panelW <= 0 || panelH <= 0) {
 					return null;
 				}
+				renderPanelW = panelW;
+				renderPanelH = panelH;
 				// Get current opacity setting (per-instance override takes precedence)
 				float currentOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
 				// If opacity changed or we don't have a cached image, update the cache
@@ -229,10 +241,10 @@ public class BackgroundPanel extends JPanel {
 					BufferedImage result = get();
 					if (result != null) {
 						cachedScaled = result;
-						cachedPanelW = getWidth();
-						cachedPanelH = getHeight();
-						cachedX = (getWidth() - result.getWidth()) / 2;
-						cachedY = (getHeight() - result.getHeight()) / 2;
+						cachedPanelW = renderPanelW;
+						cachedPanelH = renderPanelH;
+						cachedX = (renderPanelW - result.getWidth()) / 2;
+						cachedY = (renderPanelH - result.getHeight()) / 2;
 						cachedOpacity = (opacityOverride != null) ? opacityOverride : SettingsStore.get().getBackgroundOpacity();
 						repaint();
 					}

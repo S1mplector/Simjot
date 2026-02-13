@@ -112,7 +112,7 @@ final class MoodChartModel {
                                 sample.sadness, sample.anger, sample.anxiety, sample.stress));
                     }
                 }
-            } else if (stats.sampleCount > 0 && stats.avgJoy >= 0) {
+            } else if (stats.sampleCount > 0 && hasAnyDetailAverages(stats)) {
                 detailsByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(
                     new Details(d.atStartOfDay(),
                         (int) Math.round(stats.avgJoy),
@@ -224,6 +224,12 @@ final class MoodChartModel {
             // Fall through to filename-based fallback.
         }
         return new EntryInfo(ts, fallbackTitle(f));
+    }
+
+    private boolean hasAnyDetailAverages(DailyStats stats) {
+        if (stats == null) return false;
+        return stats.avgJoy >= 0 || stats.avgCalm >= 0 || stats.avgGratitude >= 0 || stats.avgEnergy >= 0
+                || stats.avgSadness >= 0 || stats.avgAnger >= 0 || stats.avgAnxiety >= 0 || stats.avgStress >= 0;
     }
 
     private MetaHeader parseMetaHeader(String line) {

@@ -315,9 +315,11 @@ public class MainMenuPanel extends JPanel {
 
     private void buildUI() {
         String bgPath = SettingsStore.get().getBackgroundImage();
+        final boolean hasWallpaper = bgPath != null && !bgPath.isEmpty();
+        final Color wallpaperFallback = new Color(246, 249, 252);
         Color accent = AccentColorUtil.defaultAccent();
         JPanel content;
-        if (bgPath != null && !bgPath.isEmpty()) {
+        if (hasWallpaper) {
             if (bgPath.startsWith("gen:")) {
                 // Generated vector wallpaper (gradient variations)
                 String id = bgPath;
@@ -346,7 +348,7 @@ public class MainMenuPanel extends JPanel {
                 bg.setOpacityOverride(1.0f);
                 content = bg;
             }
-            content.setBackground(Color.BLACK);
+            content.setBackground(wallpaperFallback);
         } else {
             // Blank / default – just use a plain white panel
             content = new JPanel();
@@ -427,11 +429,7 @@ public class MainMenuPanel extends JPanel {
 
         // Container setup
         setLayout(new BorderLayout());
-        if (bgPath != null && !bgPath.isEmpty()) {
-            setBackground(Color.BLACK);
-        } else {
-            setBackground(Color.WHITE);
-        }
+        setBackground(hasWallpaper ? wallpaperFallback : Color.WHITE);
 
         // Widgets panel is disabled for now; keep the layeredPane for future use
         // widgetPanel = new JPanel();
@@ -451,25 +449,34 @@ public class MainMenuPanel extends JPanel {
 
             @Override
             public void doLayout() {
-                // Always stretch the main content to the full size immediately,
-                // so first paint is centered and not left-aligned.
-                if (contentRef.getParent() == this) {
-                    contentRef.setBounds(0, 0, getWidth(), getHeight());
-                }
+                super.doLayout();
+                syncLayeredContentBounds(contentRef);
             }
             
             @Override
             public void setBounds(int x, int y, int width, int height) {
                 super.setBounds(x, y, width, height);
-                // Force re-layout when bounds change to prevent black strips
-                doLayout();
+                syncLayeredContentBounds(contentRef);
             }
         };
         layeredPane.setLayout(null); // Absolute positioning for draggable widget; content is stretched in doLayout.
-        layeredPane.setOpaque(false); // Let parent background show through if needed
+        layeredPane.setOpaque(true);
+        layeredPane.setBackground(wallpaperFallback);
+        layeredPane.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                syncLayeredContentBounds(contentRef);
+            }
+
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                syncLayeredContentBounds(contentRef);
+            }
+        });
 
         // Add the main content panel (bounds will be set by doLayout before first paint)
         layeredPane.add(content, Integer.valueOf(JLayeredPane.DEFAULT_LAYER));
+        SwingUtilities.invokeLater(() -> syncLayeredContentBounds(contentRef));
 
         // Widget panel intentionally not added
 
@@ -615,6 +622,17 @@ public class MainMenuPanel extends JPanel {
                 SettingsStore.get().save();
             }
         });
+    }
+
+    private void syncLayeredContentBounds(JPanel contentRef) {
+        if (layeredPane == null || contentRef == null || contentRef.getParent() != layeredPane) {
+            return;
+        }
+        int w = Math.max(0, layeredPane.getWidth());
+        int h = Math.max(0, layeredPane.getHeight());
+        if (contentRef.getX() != 0 || contentRef.getY() != 0 || contentRef.getWidth() != w || contentRef.getHeight() != h) {
+            contentRef.setBounds(0, 0, w, h);
+        }
     }
 
     // Debounced resize handler to clamp the draggable widget after resizing settles
