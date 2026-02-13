@@ -51,7 +51,7 @@ public class ModernTemplateEditor extends JDialog {
         setLocationRelativeTo(parent);
         
         // ESC to close
-        getRootPane().registerKeyboardAction(e -> dispose(),
+        getRootPane().registerKeyboardAction(e -> editorPanel.attemptCancel(),
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
             JComponent.WHEN_IN_FOCUSED_WINDOW);
     }

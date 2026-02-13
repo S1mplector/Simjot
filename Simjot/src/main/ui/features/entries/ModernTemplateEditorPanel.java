@@ -18,6 +18,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DragSource;
@@ -26,28 +27,39 @@ import java.awt.dnd.DropTargetAdapter;
 import java.awt.dnd.DropTargetDragEvent;
 import java.awt.dnd.DropTargetDropEvent;
 import java.awt.dnd.DropTargetEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.border.EmptyBorder;
 
 import main.infrastructure.backup.NotebookInfo;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.input.AeroTextField;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.message.UIMessage;
 
 /**
@@ -61,17 +73,24 @@ public class ModernTemplateEditorPanel extends JPanel {
     private static final Color TEXT_SECONDARY = new Color(100, 110, 125);
     private static final Color TEXT_MUTED = new Color(140, 150, 165);
     private static final Color DRAG_HIGHLIGHT = new Color(200, 220, 255);
+    private static final int PREVIEW_MAX_QUESTIONS = 5;
     
     private final NotebookInfo notebook;
+    private final boolean readOnlyMode;
     private JournalTemplateManager.JournalTemplate template;
     private boolean isNew = false;
     private boolean saved = false;
+    private boolean dirty = false;
     
     private final AeroTextField nameField;
     private final AeroTextField descField;
     private final JPanel questionsPanel;
     private final List<QuestionRow> questionRows = new ArrayList<>();
     private final AeroTextField quickAddField;
+    private final JLabel questionCountLabel;
+    private final JLabel previewTitleLabel;
+    private final JLabel previewDescLabel;
+    private final JPanel previewQuestionsPanel;
     
     private int dragIndex = -1;
     private int dropIndex = -1;
@@ -83,6 +102,7 @@ public class ModernTemplateEditorPanel extends JPanel {
         this.notebook = notebook;
         this.template = existing;
         this.isNew = (existing == null);
+        this.readOnlyMode = !isNew && existing != null && !existing.isCustom();
         
         setOpaque(false);
         setLayout(new BorderLayout());
@@ -151,11 +171,20 @@ public class ModernTemplateEditorPanel extends JPanel {
         qLabel.setFont(qLabel.getFont().deriveFont(Font.BOLD, 14f));
         qLabel.setForeground(TEXT_PRIMARY);
         
-        JLabel qHint = new JLabel("Drag to reorder • Click to edit • Press Delete to remove");
+        questionCountLabel = new JLabel("0 questions");
+        questionCountLabel.setFont(questionCountLabel.getFont().deriveFont(Font.BOLD, 11f));
+        questionCountLabel.setForeground(TEXT_SECONDARY);
+
+        JLabel qHint = new JLabel("Drag to reorder • Click to edit • Remove duplicates automatically");
         qHint.setFont(qHint.getFont().deriveFont(11f));
         qHint.setForeground(TEXT_MUTED);
-        
-        questionsHeader.add(qLabel, BorderLayout.WEST);
+
+        JPanel qLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        qLeft.setOpaque(false);
+        qLeft.add(qLabel);
+        qLeft.add(questionCountLabel);
+
+        questionsHeader.add(qLeft, BorderLayout.WEST);
         questionsHeader.add(qHint, BorderLayout.EAST);
         form.add(questionsHeader);
         form.add(Box.createVerticalStrut(10));
@@ -168,7 +197,7 @@ public class ModernTemplateEditorPanel extends JPanel {
         
         if (!isNew && template.getQuestions() != null) {
             for (String q : template.getQuestions()) {
-                addQuestionRow(q);
+                addQuestionRow(q, false);
             }
         }
         
@@ -198,38 +227,67 @@ public class ModernTemplateEditorPanel extends JPanel {
         quickAddField = new AeroTextField(30);
         quickAddField.setFont(quickAddField.getFont().deriveFont(13f));
         quickAddField.putClientProperty("JTextField.placeholderText", "Type a question and press Enter to add...");
-        quickAddField.addActionListener(e -> {
-            String text = quickAddField.getText().trim();
-            if (!text.isEmpty()) {
-                addQuestionRow(text);
-                quickAddField.setText("");
-                questionsPanel.revalidate();
-                questionsPanel.repaint();
-            }
-        });
+        quickAddField.addActionListener(e -> addQuestionFromQuickField());
         
         RoundedButton addBtn = createActionButton("Quick Add", "new");
         addBtn.setPreferredSize(new Dimension(80, 36));
-        addBtn.addActionListener(e -> {
-            String text = quickAddField.getText().trim();
-            if (!text.isEmpty()) {
-                addQuestionRow(text);
-                quickAddField.setText("");
-            } else {
-                addQuestionRow("New question...");
-            }
-            questionsPanel.revalidate();
-            questionsPanel.repaint();
-        });
+        addBtn.addActionListener(e -> addQuestionFromQuickField());
+
+        RoundedButton bulkBtn = createActionButton("Bulk Add", "new");
+        bulkBtn.setPreferredSize(new Dimension(90, 36));
+        bulkBtn.addActionListener(e -> showBulkAddDialog());
         
         quickAddRow.add(quickAddField, BorderLayout.CENTER);
-        quickAddRow.add(addBtn, BorderLayout.EAST);
+        JPanel quickButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        quickButtons.setOpaque(false);
+        quickButtons.add(addBtn);
+        quickButtons.add(bulkBtn);
+        quickAddRow.add(quickButtons, BorderLayout.EAST);
         form.add(quickAddRow);
+
+        form.add(Box.createVerticalStrut(14));
+
+        JLabel previewLabel = new JLabel("Live Preview");
+        previewLabel.setFont(previewLabel.getFont().deriveFont(Font.BOLD, 13f));
+        previewLabel.setForeground(TEXT_PRIMARY);
+        previewLabel.setAlignmentX(LEFT_ALIGNMENT);
+        form.add(previewLabel);
+        form.add(Box.createVerticalStrut(8));
+
+        JPanel previewCard = new JPanel();
+        previewCard.setLayout(new BoxLayout(previewCard, BoxLayout.Y_AXIS));
+        previewCard.setAlignmentX(LEFT_ALIGNMENT);
+        previewCard.setOpaque(true);
+        previewCard.setBackground(new Color(250, 252, 255));
+        previewCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(225, 230, 238)),
+            new EmptyBorder(12, 12, 12, 12)
+        ));
+        previewCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
+
+        previewTitleLabel = new JLabel();
+        previewTitleLabel.setFont(previewTitleLabel.getFont().deriveFont(Font.BOLD, 14f));
+        previewTitleLabel.setForeground(TEXT_PRIMARY);
+
+        previewDescLabel = new JLabel();
+        previewDescLabel.setFont(previewDescLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        previewDescLabel.setForeground(TEXT_SECONDARY);
+
+        previewQuestionsPanel = new JPanel();
+        previewQuestionsPanel.setOpaque(false);
+        previewQuestionsPanel.setLayout(new BoxLayout(previewQuestionsPanel, BoxLayout.Y_AXIS));
+
+        previewCard.add(previewTitleLabel);
+        previewCard.add(Box.createVerticalStrut(4));
+        previewCard.add(previewDescLabel);
+        previewCard.add(Box.createVerticalStrut(10));
+        previewCard.add(previewQuestionsPanel);
+        form.add(previewCard);
         
         // Read-only notice for built-ins
-        if (!isNew && !template.isCustom()) {
+        if (readOnlyMode) {
             form.add(Box.createVerticalStrut(12));
-            JLabel roNotice = new JLabel("ℹ This is a built-in template. Duplicate it to make changes.");
+            JLabel roNotice = new JLabel("Built-in template. Duplicate it to make changes.");
             roNotice.setFont(roNotice.getFont().deriveFont(Font.ITALIC, 12f));
             roNotice.setForeground(new Color(180, 140, 80));
             roNotice.setAlignmentX(LEFT_ALIGNMENT);
@@ -238,6 +296,7 @@ public class ModernTemplateEditorPanel extends JPanel {
             nameField.setEnabled(false);
             descField.setEnabled(false);
             quickAddField.setEnabled(false);
+            bulkBtn.setEnabled(false);
         }
         
         main.add(form, BorderLayout.CENTER);
@@ -266,17 +325,13 @@ public class ModernTemplateEditorPanel extends JPanel {
         
         RoundedButton cancelBtn = createActionButton("Cancel", "exit");
         cancelBtn.setPreferredSize(new Dimension(100, 38));
-        cancelBtn.addActionListener(e -> {
-            if (onCancel != null) {
-                onCancel.run();
-            }
-        });
+        cancelBtn.addActionListener(e -> attemptCancel());
         
         RoundedButton saveBtn = createActionButton(isNew ? "Create" : "Save", "save");
         saveBtn.setPreferredSize(new Dimension(100, 38));
         saveBtn.addActionListener(e -> save());
         
-        if (!isNew && !template.isCustom()) {
+        if (readOnlyMode) {
             saveBtn.setEnabled(false);
             saveBtn.setToolTipText("Built-in templates cannot be edited");
         }
@@ -289,6 +344,12 @@ public class ModernTemplateEditorPanel extends JPanel {
         main.add(footer, BorderLayout.SOUTH);
         
         add(main, BorderLayout.CENTER);
+
+        installDirtyTracking();
+        installSaveShortcut();
+        refreshQuestionCount();
+        updatePreview();
+        dirty = false;
         
         SwingUtilities.invokeLater(() -> nameField.requestFocusInWindow());
     }
@@ -303,11 +364,60 @@ public class ModernTemplateEditorPanel extends JPanel {
     
     public boolean isSaved() { return saved; }
     
+    public void attemptCancel() {
+        if (!dirty || saved) {
+            runCancel();
+            return;
+        }
+        boolean confirm = CustomConfirmDialog.confirm(
+            this,
+            "Discard Changes?",
+            "You have unsaved template edits. Discard them and close?"
+        );
+        if (confirm) {
+            runCancel();
+        }
+    }
+
     public JournalTemplateManager.JournalTemplate getTemplate() { return template; }
     
     private RoundedButton createActionButton(String text, String iconId) {
         RoundedButton btn = new RoundedButton(text).withIcon(iconId);
         return btn;
+    }
+
+    private void runCancel() {
+        if (onCancel != null) {
+            onCancel.run();
+        }
+    }
+
+    private void installDirtyTracking() {
+        DocumentListener listener = new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { onModelMutated(); }
+            @Override public void removeUpdate(DocumentEvent e) { onModelMutated(); }
+            @Override public void changedUpdate(DocumentEvent e) { onModelMutated(); }
+        };
+        nameField.getDocument().addDocumentListener(listener);
+        descField.getDocument().addDocumentListener(listener);
+    }
+
+    private void installSaveShortcut() {
+        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        KeyStroke saveStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, mask);
+        getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(saveStroke, "save-template");
+        getActionMap().put("save-template", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                save();
+            }
+        });
+    }
+
+    private void onModelMutated() {
+        dirty = true;
+        refreshQuestionCount();
+        updatePreview();
     }
     
     private JPanel createFieldRow(String label, String placeholder) {
@@ -335,27 +445,100 @@ public class ModernTemplateEditorPanel extends JPanel {
     }
     
     private void addQuestionRow(String text) {
-        QuestionRow row = new QuestionRow(text, questionRows.size());
-        questionRows.add(row);
-        questionsPanel.add(row);
-        questionsPanel.add(Box.createVerticalStrut(6));
+        addQuestionRow(text, true);
     }
-    
+
+    private void addQuestionRow(String text, boolean markDirty) {
+        QuestionRow row = new QuestionRow(text, questionRows.size());
+        if (readOnlyMode) {
+            row.setEditableState(false);
+        }
+        questionRows.add(row);
+        rebuildQuestionListUI();
+        if (markDirty) {
+            onModelMutated();
+        }
+    }
+
+    private void addQuestionFromQuickField() {
+        String text = quickAddField.getText().trim();
+        if (text.isEmpty()) {
+            addQuestionRow("New question...");
+        } else {
+            addQuestionRow(text);
+        }
+        quickAddField.setText("");
+    }
+
+    private void showBulkAddDialog() {
+        JTextArea area = new JTextArea(10, 42);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(area.getFont().deriveFont(13f));
+        JScrollPane scroll = new JScrollPane(area);
+        scroll.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 225, 235)),
+            new EmptyBorder(4, 4, 4, 4)
+        ));
+
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            scroll,
+            "Paste Questions (one per line)",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE
+        );
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String value = area.getText();
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        List<String> parsed = new ArrayList<>();
+        for (String line : value.split("\\R")) {
+            String normalized = normalizeBulkQuestion(line);
+            if (!normalized.isEmpty()) {
+                parsed.add(normalized);
+            }
+        }
+        if (parsed.isEmpty()) {
+            UIMessage.warn(this, "No Questions Added",
+                "The pasted text did not contain valid questions.",
+                "Use one line per question.");
+            return;
+        }
+        addQuestionRows(parsed);
+    }
+
+    private String normalizeBulkQuestion(String text) {
+        if (text == null) return "";
+        String cleaned = text.trim();
+        cleaned = cleaned.replaceFirst("^(?:[-*•]|\\d+[\\.)]|[a-zA-Z][\\.)])\\s+", "");
+        return cleaned.trim();
+    }
+
+    private void addQuestionRows(List<String> questions) {
+        if (questions == null || questions.isEmpty()) return;
+        for (String question : questions) {
+            QuestionRow row = new QuestionRow(question, questionRows.size());
+            if (readOnlyMode) {
+                row.setEditableState(false);
+            }
+            questionRows.add(row);
+        }
+        rebuildQuestionListUI();
+        onModelMutated();
+    }
+
     private void removeQuestionRow(QuestionRow row) {
         int idx = questionRows.indexOf(row);
         if (idx >= 0) {
             questionRows.remove(idx);
-            questionsPanel.remove(row);
-            // Remove the spacer too
-            if (idx * 2 < questionsPanel.getComponentCount()) {
-                questionsPanel.remove(idx * 2);
-            }
-            // Update indices
-            for (int i = 0; i < questionRows.size(); i++) {
-                questionRows.get(i).updateIndex(i);
-            }
-            questionsPanel.revalidate();
-            questionsPanel.repaint();
+            rebuildQuestionListUI();
+            onModelMutated();
         }
     }
     
@@ -366,7 +549,11 @@ public class ModernTemplateEditorPanel extends JPanel {
         QuestionRow row = questionRows.remove(fromIndex);
         questionRows.add(toIndex, row);
         
-        // Rebuild panel
+        rebuildQuestionListUI();
+        onModelMutated();
+    }
+
+    private void rebuildQuestionListUI() {
         questionsPanel.removeAll();
         for (int i = 0; i < questionRows.size(); i++) {
             questionRows.get(i).updateIndex(i);
@@ -376,8 +563,101 @@ public class ModernTemplateEditorPanel extends JPanel {
         questionsPanel.revalidate();
         questionsPanel.repaint();
     }
+
+    private void refreshQuestionCount() {
+        int count = questionRows.size();
+        questionCountLabel.setText(count + (count == 1 ? " question" : " questions"));
+    }
+
+    private void updatePreview() {
+        String name = nameField.getText().trim();
+        String desc = descField.getText().trim();
+
+        previewTitleLabel.setText(name.isEmpty() ? "Untitled template" : name);
+        previewDescLabel.setText(desc.isEmpty() ? "No description yet." : desc);
+
+        previewQuestionsPanel.removeAll();
+        List<String> questions = collectQuestions(false).questions;
+        if (questions.isEmpty()) {
+            JLabel empty = new JLabel("No prompts yet. Add a question to see preview.");
+            empty.setFont(empty.getFont().deriveFont(Font.ITALIC, 12f));
+            empty.setForeground(TEXT_MUTED);
+            previewQuestionsPanel.add(empty);
+        } else {
+            int show = Math.min(questions.size(), PREVIEW_MAX_QUESTIONS);
+            for (int i = 0; i < show; i++) {
+                String question = escapeHtml(questions.get(i));
+                JLabel line = new JLabel("<html><body style='width: 470px'>" + (i + 1) + ". " + question + "</body></html>");
+                line.setFont(line.getFont().deriveFont(12f));
+                line.setForeground(TEXT_SECONDARY);
+                previewQuestionsPanel.add(line);
+                previewQuestionsPanel.add(Box.createVerticalStrut(2));
+            }
+            if (questions.size() > show) {
+                JLabel more = new JLabel("+" + (questions.size() - show) + " more question(s)");
+                more.setFont(more.getFont().deriveFont(Font.ITALIC, 11f));
+                more.setForeground(TEXT_MUTED);
+                previewQuestionsPanel.add(more);
+            }
+        }
+        previewQuestionsPanel.revalidate();
+        previewQuestionsPanel.repaint();
+    }
+
+    private String escapeHtml(String value) {
+        return value
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;");
+    }
+
+    private SanitizedQuestions collectQuestions(boolean dedupe) {
+        List<String> values = new ArrayList<>();
+        int blanks = 0;
+        int duplicates = 0;
+        Map<String, String> unique = new LinkedHashMap<>();
+        for (QuestionRow row : questionRows) {
+            String question = row.getText();
+            if (question != null) question = question.trim();
+            if (question == null || question.isEmpty()) {
+                blanks++;
+                continue;
+            }
+            values.add(question);
+            if (dedupe) {
+                String key = question.toLowerCase(Locale.ROOT);
+                if (unique.containsKey(key)) {
+                    duplicates++;
+                    continue;
+                }
+                unique.put(key, question);
+            }
+        }
+        List<String> finalList = dedupe ? new ArrayList<>(unique.values()) : values;
+        return new SanitizedQuestions(finalList, blanks, duplicates);
+    }
+
+    private void setRowsFromQuestions(List<String> questions) {
+        questionRows.clear();
+        for (int i = 0; i < questions.size(); i++) {
+            QuestionRow row = new QuestionRow(questions.get(i), i);
+            if (readOnlyMode) {
+                row.setEditableState(false);
+            }
+            questionRows.add(row);
+        }
+        rebuildQuestionListUI();
+        refreshQuestionCount();
+        updatePreview();
+    }
     
     private void save() {
+        if (readOnlyMode) {
+            UIMessage.warn(this, "Read-only Template",
+                "Built-in templates cannot be edited directly.",
+                "Use Duplicate to create an editable copy.");
+            return;
+        }
         String name = nameField.getText().trim();
         String desc = descField.getText().trim();
         
@@ -387,12 +667,11 @@ public class ModernTemplateEditorPanel extends JPanel {
             return;
         }
         
-        List<String> questions = new ArrayList<>();
-        for (QuestionRow row : questionRows) {
-            String q = row.getText().trim();
-            if (!q.isEmpty()) {
-                questions.add(q);
-            }
+        SanitizedQuestions sanitized = collectQuestions(true);
+        List<String> questions = sanitized.questions;
+        if (sanitized.blanksRemoved > 0 || sanitized.duplicatesRemoved > 0) {
+            setRowsFromQuestions(questions);
+            onModelMutated();
         }
         
         if (isNew) {
@@ -416,6 +695,7 @@ public class ModernTemplateEditorPanel extends JPanel {
             JournalTemplateManager.getInstance().updateTemplate(template);
         }
         
+        dirty = false;
         saved = true;
         if (onSave != null) {
             onSave.accept(template);
@@ -426,11 +706,7 @@ public class ModernTemplateEditorPanel extends JPanel {
         String name = nameField.getText().trim();
         String desc = descField.getText().trim();
         
-        List<String> questions = new ArrayList<>();
-        for (QuestionRow row : questionRows) {
-            String q = row.getText().trim();
-            if (!q.isEmpty()) questions.add(q);
-        }
+        List<String> questions = collectQuestions(true).questions;
         
         String id = "CUSTOM_" + System.currentTimeMillis();
         JournalTemplateManager.JournalTemplate copy = new JournalTemplateManager.JournalTemplate(
@@ -450,6 +726,18 @@ public class ModernTemplateEditorPanel extends JPanel {
             "Created '" + copy.getName() + "'", 
             "You can now edit this copy.");
     }
+
+    private static class SanitizedQuestions {
+        private final List<String> questions;
+        private final int blanksRemoved;
+        private final int duplicatesRemoved;
+
+        private SanitizedQuestions(List<String> questions, int blanksRemoved, int duplicatesRemoved) {
+            this.questions = questions;
+            this.blanksRemoved = blanksRemoved;
+            this.duplicatesRemoved = duplicatesRemoved;
+        }
+    }
     
     // ═══════════════════════════════════════════════════════════════════════════
     // QUESTION ROW - Draggable, editable question item
@@ -457,9 +745,9 @@ public class ModernTemplateEditorPanel extends JPanel {
     
     private class QuestionRow extends JPanel {
         private final JTextField textField;
+        private final JButton deleteBtn;
         private int index;
         private boolean hovered = false;
-        private boolean dragging = false;
         private boolean dropTarget = false;
         
         QuestionRow(String text, int index) {
@@ -506,9 +794,14 @@ public class ModernTemplateEditorPanel extends JPanel {
                 new EmptyBorder(6, 8, 6, 8)
             ));
             textField.setBackground(Color.WHITE);
+            textField.getDocument().addDocumentListener(new DocumentListener() {
+                @Override public void insertUpdate(DocumentEvent e) { onModelMutated(); }
+                @Override public void removeUpdate(DocumentEvent e) { onModelMutated(); }
+                @Override public void changedUpdate(DocumentEvent e) { onModelMutated(); }
+            });
             
             // Delete button
-            JButton deleteBtn = new JButton("×") {
+            deleteBtn = new JButton("×") {
                 @Override
                 protected void paintComponent(Graphics g) {
                     if (getModel().isRollover()) {
@@ -547,7 +840,9 @@ public class ModernTemplateEditorPanel extends JPanel {
             });
             
             // Drag and drop
-            installDragDrop();
+            if (!readOnlyMode) {
+                installDragDrop();
+            }
         }
         
         void updateIndex(int newIndex) {
@@ -560,6 +855,15 @@ public class ModernTemplateEditorPanel extends JPanel {
         
         String getText() {
             return textField.getText();
+        }
+
+        void setEditableState(boolean editable) {
+            textField.setEditable(editable);
+            textField.setEnabled(editable);
+            deleteBtn.setEnabled(editable);
+            setCursor(editable
+                ? Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR)
+                : Cursor.getDefaultCursor());
         }
         
         void setDropTarget(boolean target) {
@@ -589,7 +893,6 @@ public class ModernTemplateEditorPanel extends JPanel {
         private void installDragDrop() {
             DragSource ds = new DragSource();
             ds.createDefaultDragGestureRecognizer(this, DnDConstants.ACTION_MOVE, e -> {
-                dragging = true;
                 dragIndex = index;
                 e.startDrag(DragSource.DefaultMoveDrop, new StringSelection(String.valueOf(index)));
             });
@@ -617,7 +920,6 @@ public class ModernTemplateEditorPanel extends JPanel {
                     }
                     dragIndex = -1;
                     dropIndex = -1;
-                    dragging = false;
                 }
             });
         }

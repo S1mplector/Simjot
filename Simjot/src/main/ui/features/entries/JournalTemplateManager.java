@@ -8,14 +8,23 @@
 
 package main.ui.features.entries;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 
 /**
  * Manages custom and built-in journal entry templates.
- * Now supports per-notebook templates and hiding built-ins per notebook or globally.
+ * Supports per-notebook templates and hiding built-ins per notebook or globally.
  */
 public class JournalTemplateManager {
     private static JournalTemplateManager instance;
@@ -143,24 +152,24 @@ public class JournalTemplateManager {
 
     private JournalTemplate parseTemplate(String headerLine, BufferedReader reader, Scope scope, String notebookName) throws IOException {
         // Parse: [TEMPLATE:id|name|description]
-        int endIdx = headerLine.indexOf(']');
+        int endIdx = findClosingBracket(headerLine, 10);
         if (endIdx < 0) return null;
 
         String content = headerLine.substring(10, endIdx);
-        String[] parts = content.split("\\|", 3);
-        if (parts.length < 3) return null;
+        List<String> parts = splitEscaped(content, '|', 3);
+        if (parts.size() < 3) return null;
 
-        String id = parts[0];
-        String name = parts[1];
-        String description = parts[2];
+        String id = unescapeField(parts.get(0));
+        String name = unescapeField(parts.get(1));
+        String description = unescapeField(parts.get(2));
 
         List<String> questions = new ArrayList<>();
         String line;
         while ((line = reader.readLine()) != null) {
             if (line.startsWith("[Q:")) {
-                int qEndIdx = line.indexOf(']');
+                int qEndIdx = findClosingBracket(line, 3);
                 if (qEndIdx > 0) {
-                    String question = line.substring(3, qEndIdx);
+                    String question = unescapeField(line.substring(3, qEndIdx));
                     questions.add(question);
                 }
             } else if (line.trim().isEmpty() || line.startsWith("[")) {
@@ -175,9 +184,19 @@ public class JournalTemplateManager {
         try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
             for (JournalTemplate template : list) {
                 if (template.isCustom()) {
-                    writer.println("[TEMPLATE:" + template.getId() + "|" + template.getName() + "|" + template.getDescription() + "]");
-                    for (String question : template.getQuestions()) {
-                        writer.println("[Q:" + question + "]");
+                    writer.println("[TEMPLATE:"
+                        + escapeField(template.getId())
+                        + "|"
+                        + escapeField(template.getName())
+                        + "|"
+                        + escapeField(template.getDescription())
+                        + "]");
+                    String[] questions = template.getQuestions();
+                    if (questions == null) {
+                        questions = new String[0];
+                    }
+                    for (String question : questions) {
+                        writer.println("[Q:" + escapeField(question) + "]");
                     }
                     writer.println();
                 }
@@ -185,6 +204,105 @@ public class JournalTemplateManager {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private int findClosingBracket(String value, int startIndex) {
+        boolean escaped = false;
+        for (int i = startIndex; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == ']') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private List<String> splitEscaped(String value, char delimiter, int limit) {
+        List<String> parts = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean escaped = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (escaped) {
+                current.append(c);
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                current.append(c);
+                escaped = true;
+                continue;
+            }
+            if (c == delimiter && (limit <= 0 || parts.size() < limit - 1)) {
+                parts.add(current.toString());
+                current.setLength(0);
+                continue;
+            }
+            current.append(c);
+        }
+        parts.add(current.toString());
+        return parts;
+    }
+
+    private String escapeField(String value) {
+        if (value == null) return "";
+        StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '\\' -> out.append("\\\\");
+                case '|' -> out.append("\\|");
+                case ']' -> out.append("\\]");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                default -> out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    private String unescapeField(String value) {
+        if (value == null || value.isEmpty()) return "";
+        StringBuilder out = new StringBuilder(value.length());
+        boolean escaped = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (!escaped) {
+                if (c == '\\') {
+                    escaped = true;
+                } else {
+                    out.append(c);
+                }
+                continue;
+            }
+
+            switch (c) {
+                case 'n' -> out.append('\n');
+                case 'r' -> out.append('\r');
+                case 't' -> out.append('\t');
+                case '\\' -> out.append('\\');
+                case '|' -> out.append('|');
+                case ']' -> out.append(']');
+                default -> {
+                    out.append('\\');
+                    out.append(c);
+                }
+            }
+            escaped = false;
+        }
+        if (escaped) {
+            out.append('\\');
+        }
+        return out.toString();
     }
 
     private File notebookTemplatesFile(NotebookInfo nb) {
