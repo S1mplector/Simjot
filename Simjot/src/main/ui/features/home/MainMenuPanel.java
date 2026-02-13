@@ -32,12 +32,7 @@ import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -46,12 +41,10 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
-import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
@@ -185,28 +178,20 @@ public class MainMenuPanel extends JPanel {
 
     //  App Context Indicators (center of status bar)
     private static class AppContextIndicators extends JPanel {
-        private static final String[] RANGE_LABELS = {"7d", "30d", "90d", "1y", "All"};
-        private static final DateTimeFormatter RECENT_TS_FMT = DateTimeFormatter.ofPattern("MMM d • HH:mm");
-
         private final JournalApp app;
         private final JLabel countsLbl = new JLabel();
         private final JLabel autosaveLbl = new JLabel();
         private final JLabel sizeLbl = new JLabel();
-        private final JButton recentChip = new JButton("Recent: –");
         private final JButton moodPulseChip = new JButton("Mood avg – • Trend –");
-        private final JComboBox<String> moodRangeSelector = new JComboBox<>(RANGE_LABELS);
 
         private final NotebookStore nbStore = new NotebookStore();
 
         private volatile String lastSizeText = "…";
-        private List<RecentEntry> recentEntries = List.of();
         private List<Double> lastSparklineValues = List.of();
 
         private long lastCountsMillis = 0L;
-        private long lastRecentMillis = 0L;
         private long lastMoodMillis = 0L;
 
-        private JPopupMenu recentPopup;
         private JPopupMenu moodPopup;
 
         AppContextIndicators(JournalApp app) {
@@ -238,23 +223,10 @@ public class MainMenuPanel extends JPanel {
                 add(l);
             }
 
-            configureChip(recentChip, "clock");
             configureChip(moodPulseChip, "smile");
 
-            moodRangeSelector.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
-            moodRangeSelector.setSelectedIndex(1); // 30d default
-            moodRangeSelector.setFocusable(false);
-            moodRangeSelector.setOpaque(false);
-            moodRangeSelector.setPreferredSize(new Dimension(66, 24));
-            moodRangeSelector.addActionListener(e -> updateMoodPulse());
-
-            recentChip.addActionListener(e -> openLatestRecent());
-            recentChip.addMouseListener(new MouseAdapter() {
-                @Override public void mouseEntered(MouseEvent e) { showRecentPopup(); }
-            });
-
             moodPulseChip.addActionListener(e -> {
-                ElegantMoodChartPanel.requestRangeSelection(moodRangeSelector.getSelectedIndex());
+                ElegantMoodChartPanel.requestRangeSelection(1);
                 app.switchCard(JournalApp.MOOD_CHART);
             });
             moodPulseChip.addMouseListener(new MouseAdapter() {
@@ -267,12 +239,9 @@ public class MainMenuPanel extends JPanel {
             sizeLbl.setText(" |  Size: " + lastSizeText);
 
             add(Box.createHorizontalStrut(6));
-            add(recentChip);
             add(moodPulseChip);
-            add(moodRangeSelector);
 
             updateCounts();
-            updateRecentEntries();
             updateMoodPulse();
             updateAutosave();
 
@@ -306,10 +275,6 @@ public class MainMenuPanel extends JPanel {
             if (now / 10000 != (lastCountsMillis / 10000)) {
                 updateCounts();
                 lastCountsMillis = now;
-            }
-            if (now / 10000 != (lastRecentMillis / 10000)) {
-                updateRecentEntries();
-                lastRecentMillis = now;
             }
             if (now / 10000 != (lastMoodMillis / 10000)) {
                 updateMoodPulse();
@@ -366,75 +331,8 @@ public class MainMenuPanel extends JPanel {
             return total;
         }
 
-        private void updateRecentEntries() {
-            List<RecentEntry> recents = computeRecentEntries(5);
-            recentEntries = recents;
-            if (recents.isEmpty()) {
-                recentChip.setText("Recent: –");
-                return;
-            }
-            RecentEntry latest = recents.get(0);
-            recentChip.setText("Recent: " + trimLabel(latest.title, 20));
-        }
-
-        private List<RecentEntry> computeRecentEntries(int limit) {
-            List<RecentEntry> all = new ArrayList<>();
-            try {
-                List<NotebookInfo> notebooks = nbStore.list();
-                for (NotebookInfo nb : notebooks) {
-                    File folder = nb == null ? null : nb.getFolder();
-                    if (folder == null || !folder.exists() || !folder.isDirectory()) continue;
-                    File[] files = folder.listFiles();
-                    if (files == null) continue;
-                    for (File f : files) {
-                        if (f == null || !f.isFile()) continue;
-                        if (!isEntryFile(f.getName())) continue;
-                        all.add(new RecentEntry(nb, f, resolveEntryTitle(f), f.lastModified()));
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-
-            all.sort(Comparator.comparingLong((RecentEntry r) -> r.lastModified).reversed());
-            if (all.size() <= limit) return all;
-            return new ArrayList<>(all.subList(0, limit));
-        }
-
-        private void openLatestRecent() {
-            if (recentEntries.isEmpty()) return;
-            openRecent(recentEntries.get(0));
-        }
-
-        private void openRecent(RecentEntry recent) {
-            if (recent == null || recent.notebook == null || recent.file == null) return;
-            app.openExistingEntryEditor(recent.notebook, recent.file);
-        }
-
-        private void showRecentPopup() {
-            if (recentEntries.isEmpty()) return;
-            if (recentPopup != null && recentPopup.isVisible()) {
-                recentPopup.setVisible(false);
-            }
-
-            recentPopup = new JPopupMenu();
-            recentPopup.setBorder(BorderFactory.createLineBorder(new Color(184, 194, 208)));
-            for (RecentEntry entry : recentEntries) {
-                String time = LocalDateTime.ofInstant(Instant.ofEpochMilli(entry.lastModified), ZoneId.systemDefault())
-                        .format(RECENT_TS_FMT);
-                String txt = "<html><b>" + escapeHtml(trimLabel(entry.title, 34)) + "</b>"
-                        + "<br><span style='color:#667085'>" + time + " • "
-                        + escapeHtml(trimLabel(entry.notebook.getName(), 20)) + "</span></html>";
-                JMenuItem item = new JMenuItem(txt);
-                item.addActionListener(e -> openRecent(entry));
-                recentPopup.add(item);
-            }
-            recentPopup.show(recentChip, 0, recentChip.getHeight() + 4);
-        }
-
         private void updateMoodPulse() {
-            int rangeIdx = moodRangeSelector.getSelectedIndex();
-            int daysBack = daysForRangeIndex(rangeIdx);
-            AnalyticsResult scoped = MoodAnalyticsEngine.get().analyze(daysBack, 7);
+            AnalyticsResult scoped = MoodAnalyticsEngine.get().analyze(30, 7);
             if (scoped == null || scoped.dates == null || scoped.dates.isEmpty()) {
                 moodPulseChip.setText("Mood avg – • Trend –");
             } else {
@@ -479,16 +377,6 @@ public class MainMenuPanel extends JPanel {
             t.start();
         }
 
-        private int daysForRangeIndex(int rangeIdx) {
-            return switch (rangeIdx) {
-                case 0 -> 7;
-                case 1 -> 30;
-                case 2 -> 90;
-                case 3 -> 365;
-                default -> 0;
-            };
-        }
-
         private String trendArrow(List<Double> values) {
             if (values == null || values.isEmpty()) return "→";
             Double last = null;
@@ -510,26 +398,6 @@ public class MainMenuPanel extends JPanel {
             return "→";
         }
 
-        private String resolveEntryTitle(File file) {
-            if (file == null) return "Untitled";
-            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-                String first = br.readLine();
-                if (first != null && first.startsWith("SJMETA:")) {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        line = line.trim();
-                        if (!line.isEmpty()) return line;
-                    }
-                } else if (first != null && !first.trim().isEmpty()) {
-                    return first.trim();
-                }
-            } catch (Exception ignored) {
-            }
-            String name = file.getName();
-            int dot = name.lastIndexOf('.');
-            return dot > 0 ? name.substring(0, dot) : name;
-        }
-
         private boolean isEntryFile(String name) {
             if (name == null) return false;
             String s = name.toLowerCase(Locale.ROOT);
@@ -539,17 +407,6 @@ public class MainMenuPanel extends JPanel {
                     || s.endsWith(".note")
                     || s.endsWith(".poem")
                     || s.endsWith(".ntk");
-        }
-
-        private String trimLabel(String text, int max) {
-            if (text == null || text.isBlank()) return "Untitled";
-            if (text.length() <= max) return text;
-            return text.substring(0, Math.max(0, max - 1)) + "…";
-        }
-
-        private String escapeHtml(String text) {
-            if (text == null) return "";
-            return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         }
 
         private void updateAutosave() {
@@ -608,20 +465,6 @@ public class MainMenuPanel extends JPanel {
             int u = 0;
             while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
             return String.format(java.util.Locale.US, (u <= 1 ? "%.0f %s" : "%.2f %s"), v, units[u]);
-        }
-
-        private static final class RecentEntry {
-            private final NotebookInfo notebook;
-            private final File file;
-            private final String title;
-            private final long lastModified;
-
-            private RecentEntry(NotebookInfo notebook, File file, String title, long lastModified) {
-                this.notebook = notebook;
-                this.file = file;
-                this.title = title == null || title.isBlank() ? "Untitled" : title;
-                this.lastModified = lastModified;
-            }
         }
 
         private static final class MoodSparkline extends JComponent {
