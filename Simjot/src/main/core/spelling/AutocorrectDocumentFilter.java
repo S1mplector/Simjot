@@ -8,96 +8,218 @@
 
 package main.core.spelling;
 
+import java.awt.Color;
+import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
+import java.awt.event.MouseMotionListener;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.ActionMap;
-import javax.swing.InputMap;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.InputMap;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.event.CaretListener;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.DocumentFilter;
+import javax.swing.text.Highlighter;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.LayeredHighlighter;
+import javax.swing.text.Position;
+import javax.swing.text.View;
+
+import main.ui.components.popup.AnimatedGlassPopup;
 
 /**
- * AutocorrectDocumentFilter - Real-time autocorrect for JTextComponent.
- * 
- * Install on any JTextPane or JTextArea to enable automatic typo correction
- * as the user types. Corrections happen when user presses space or punctuation.
+ * AutocorrectDocumentFilter - non-intrusive autocorrect suggestions for JTextComponent.
+ *
+ * It preserves the same correction logic from IntelligentAutocorrect, but instead of
+ * immediately replacing typed words, it marks candidates with a red underline and shows
+ * a hover popup for explicit user approval.
  */
 public class AutocorrectDocumentFilter extends DocumentFilter {
-    
+
+    private static final String CLIENT_PROP_FILTER = "autocorrect.filter.instance";
+    private static final String CLIENT_PROP_UNDO_INSTALLED = "autocorrect.undo.installed";
+    private static final String CLIENT_PROP_UNDO_DELEGATE = "autocorrect.undo.delegate";
+    private static final int HOVER_SHOW_DELAY_MS = 120;
+    private static final int HOVER_HIDE_DELAY_MS = 180;
+
+    // Trigger characters that cause autocorrect detection to run.
+    private static final String TRIGGER_CHARS = " .,;:!?)\n\t";
+
     private final IntelligentAutocorrect autocorrect;
     private final JTextComponent textComponent;
+    private final List<PendingSuggestion> pendingSuggestions = new ArrayList<>();
+    private final Set<String> ignoredThisSession = new HashSet<>();
+    private final Highlighter.HighlightPainter suggestionPainter = new RedUnderlinePainter();
+
+    private final MouseMotionListener hoverMotionListener;
+    private final MouseAdapter hoverMouseListener;
+    private final CaretListener caretListener;
+    private final Timer popupShowTimer;
+    private final Timer popupHideTimer;
+
+    private AnimatedGlassPopup suggestionPopup;
+    private PendingSuggestion hoveredSuggestion;
+    private PendingSuggestion pendingHoverSuggestion;
+    private Point pendingHoverPoint;
+
     private boolean enabled = true;
     private boolean undoInProgress = false;
-    
-    // Track last correction for undo support
+
+    // Track last accepted correction for undo support.
     private String lastOriginal = null;
     private String lastCorrection = null;
     private int lastCorrectionStart = -1;
-    
-    // Trigger characters that cause autocorrect to run
-    private static final String TRIGGER_CHARS = " .,;:!?)\n\t";
-    
+
     public AutocorrectDocumentFilter(JTextComponent textComponent) {
         this.textComponent = textComponent;
         this.autocorrect = IntelligentAutocorrect.get();
+        this.hoverMotionListener = new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                onMouseMoved(e);
+            }
+        };
+        this.hoverMouseListener = new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                cancelHidePopup();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                scheduleHidePopup();
+            }
+        };
+        this.caretListener = e -> {
+            cancelShowPopup();
+            hideSuggestionPopup();
+        };
+        this.popupShowTimer = new Timer(HOVER_SHOW_DELAY_MS, e -> showPendingSuggestionPopup());
+        this.popupShowTimer.setRepeats(false);
+        this.popupHideTimer = new Timer(HOVER_HIDE_DELAY_MS, e -> hidePopupIfPointerIsOutside());
+        this.popupHideTimer.setRepeats(false);
         setupUndoShortcut();
+        installHoverSupport();
     }
-    
+
     /**
-     * Install autocorrect on a JTextComponent.
+     * Install autocorrect suggestions on a JTextComponent.
      */
     public static AutocorrectDocumentFilter install(JTextComponent component) {
         if (component == null) return null;
-        
+        uninstall(component);
+
         Document doc = component.getDocument();
         if (doc instanceof AbstractDocument) {
             AutocorrectDocumentFilter filter = new AutocorrectDocumentFilter(component);
             ((AbstractDocument) doc).setDocumentFilter(filter);
+            try {
+                component.putClientProperty(CLIENT_PROP_FILTER, filter);
+            } catch (Throwable ignored) {}
             return filter;
         }
         return null;
     }
-    
+
     /**
      * Remove autocorrect from a JTextComponent.
      */
     public static void uninstall(JTextComponent component) {
         if (component == null) return;
-        Document doc = component.getDocument();
-        if (doc instanceof AbstractDocument) {
-            ((AbstractDocument) doc).setDocumentFilter(null);
-        }
-    }
-    
-    private void setupUndoShortcut() {
         try {
-            Object installed = textComponent.getClientProperty("autocorrect.undo.installed");
-            if (Boolean.TRUE.equals(installed)) return;
+            Object existing = component.getClientProperty(CLIENT_PROP_FILTER);
+            if (existing instanceof AutocorrectDocumentFilter filter) {
+                filter.dispose();
+            }
         } catch (Throwable ignored) {}
+        try {
+            Object delegate = component.getClientProperty(CLIENT_PROP_UNDO_DELEGATE);
+            if (delegate instanceof Action action) {
+                component.getActionMap().put("undo", action);
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Document doc = component.getDocument();
+            if (doc instanceof AbstractDocument) {
+                ((AbstractDocument) doc).setDocumentFilter(null);
+            }
+        } catch (Throwable ignored) {}
+        try {
+            component.putClientProperty(CLIENT_PROP_FILTER, null);
+            component.putClientProperty(CLIENT_PROP_UNDO_INSTALLED, null);
+            component.putClientProperty(CLIENT_PROP_UNDO_DELEGATE, null);
+        } catch (Throwable ignored) {}
+    }
 
+    private void dispose() {
+        cancelShowPopup();
+        cancelHidePopup();
+        clearAllSuggestions();
+        hideSuggestionPopup();
+        try { textComponent.removeMouseMotionListener(hoverMotionListener); } catch (Throwable ignored) {}
+        try { textComponent.removeMouseListener(hoverMouseListener); } catch (Throwable ignored) {}
+        try { textComponent.removeCaretListener(caretListener); } catch (Throwable ignored) {}
+    }
+
+    private void installHoverSupport() {
+        textComponent.addMouseMotionListener(hoverMotionListener);
+        textComponent.addMouseListener(hoverMouseListener);
+        textComponent.addCaretListener(caretListener);
+    }
+
+    private void setupUndoShortcut() {
         InputMap im = textComponent.getInputMap(JComponent.WHEN_FOCUSED);
         ActionMap am = textComponent.getActionMap();
 
         KeyStroke ctrlZ = KeyStroke.getKeyStroke("control Z");
         KeyStroke metaZ = KeyStroke.getKeyStroke("meta Z");
 
-        Action delegate = am.get("undo");
+        Action delegate = null;
+        try {
+            Object cached = textComponent.getClientProperty(CLIENT_PROP_UNDO_DELEGATE);
+            if (cached instanceof Action action) {
+                delegate = action;
+            }
+        } catch (Throwable ignored) {}
+
         if (delegate == null) {
-            Object k1 = im.get(ctrlZ);
-            if (k1 != null) delegate = am.get(k1);
-        }
-        if (delegate == null) {
-            Object k2 = im.get(metaZ);
-            if (k2 != null) delegate = am.get(k2);
+            delegate = am.get("undo");
+            if (delegate == null) {
+                Object k1 = im.get(ctrlZ);
+                if (k1 != null) delegate = am.get(k1);
+            }
+            if (delegate == null) {
+                Object k2 = im.get(metaZ);
+                if (k2 != null) delegate = am.get(k2);
+            }
+            try { textComponent.putClientProperty(CLIENT_PROP_UNDO_DELEGATE, delegate); } catch (Throwable ignored) {}
         }
         final Action existingUndo = delegate;
 
@@ -115,189 +237,555 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
 
         im.put(ctrlZ, "undo");
         im.put(metaZ, "undo");
-        try { textComponent.putClientProperty("autocorrect.undo.installed", Boolean.TRUE); } catch (Throwable ignored) {}
+        try { textComponent.putClientProperty(CLIENT_PROP_UNDO_INSTALLED, Boolean.TRUE); } catch (Throwable ignored) {}
     }
-    
+
     @Override
-    public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) 
+    public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr)
             throws BadLocationException {
         super.insertString(fb, offset, string, attr);
-        
-        if (enabled && !undoInProgress && isTriggerChar(string)) {
-            SwingUtilities.invokeLater(() -> checkAndCorrectWord(offset));
+
+        if (!enabled || undoInProgress) return;
+        pruneSuggestionsAfterDocumentChange();
+        if (isTriggerChar(string)) {
+            SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
         }
     }
-    
+
     @Override
-    public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) 
+    public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
             throws BadLocationException {
         super.replace(fb, offset, length, text, attrs);
-        
-        if (enabled && !undoInProgress && text != null && isTriggerChar(text)) {
-            SwingUtilities.invokeLater(() -> checkAndCorrectWord(offset));
+
+        if (!enabled || undoInProgress) return;
+        pruneSuggestionsAfterDocumentChange();
+        if (text != null && isTriggerChar(text)) {
+            SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
         }
     }
-    
+
     @Override
     public void remove(FilterBypass fb, int offset, int length) throws BadLocationException {
         super.remove(fb, offset, length);
+        if (!enabled || undoInProgress) return;
+        pruneSuggestionsAfterDocumentChange();
     }
-    
+
     private boolean isTriggerChar(String text) {
         if (text == null || text.isEmpty()) return false;
         char c = text.charAt(0);
         return TRIGGER_CHARS.indexOf(c) >= 0;
     }
-    
-    private void checkAndCorrectWord(int triggerOffset) {
+
+    private void checkAndProposeWord(int triggerOffset) {
         try {
             Document doc = textComponent.getDocument();
             String text = doc.getText(0, doc.getLength());
-            
-            // Find the word that just ended (before the trigger character)
+
             int wordEnd = triggerOffset;
             int wordStart = wordEnd - 1;
-            
-            // Move back to find word start
             while (wordStart >= 0 && isWordChar(text.charAt(wordStart))) {
                 wordStart--;
             }
-            wordStart++; // Move forward to first letter
-            
-            if (wordStart >= wordEnd) return; // No word found
-            
+            wordStart++;
+
+            if (wordStart >= wordEnd) return;
             String word = text.substring(wordStart, wordEnd);
-            if (word.length() <= 1) return; // Don't correct single letters
-            
-            // Get context for better correction
+            if (word.length() <= 1) return;
+
+            if (ignoredThisSession.contains(word.toLowerCase(Locale.ROOT))) {
+                return;
+            }
+
             String prevWord = getPreviousWord(text, wordStart);
-            String nextWord = null; // We don't have next word yet since we just typed a trigger
-            
-            // Try context-aware correction first
+            String nextWord = null;
+
             String correction = autocorrect.getContextualCorrection(word, prevWord, nextWord);
             if (correction == null) {
                 correction = autocorrect.getCorrection(word);
             }
-            
+
             if (correction != null && !correction.equals(word)) {
-                applyCorrection(wordStart, wordEnd, word, correction);
+                proposeSuggestion(wordStart, wordEnd, word, correction);
             }
-        } catch (BadLocationException e) {
-            // Ignore
+        } catch (BadLocationException ignored) {
         }
     }
-    
+
+    private void proposeSuggestion(int start, int end, String original, String correction) {
+        if (start < 0 || end <= start || original == null || correction == null) return;
+        String lower = original.toLowerCase(Locale.ROOT);
+        if (ignoredThisSession.contains(lower)) return;
+
+        pruneSuggestionsAfterDocumentChange();
+
+        for (PendingSuggestion existing : pendingSuggestions) {
+            if (existing.start() == start
+                    && existing.end() == end
+                    && original.equals(existing.original)
+                    && correction.equals(existing.correction)) {
+                return;
+            }
+        }
+
+        try {
+            Document doc = textComponent.getDocument();
+            Position startPos = doc.createPosition(start);
+            Position endPos = doc.createPosition(end);
+
+            PendingSuggestion suggestion = new PendingSuggestion(startPos, endPos, original, correction, lower);
+            suggestion.highlightTag = textComponent.getHighlighter().addHighlight(start, end, suggestionPainter);
+            pendingSuggestions.add(suggestion);
+            textComponent.repaint();
+        } catch (BadLocationException ignored) {
+        }
+    }
+
+    private void pruneSuggestionsAfterDocumentChange() {
+        if (pendingSuggestions.isEmpty()) return;
+        List<PendingSuggestion> toRemove = new ArrayList<>();
+        for (PendingSuggestion suggestion : pendingSuggestions) {
+            if (!suggestion.matchesCurrentWord(textComponent.getDocument())) {
+                toRemove.add(suggestion);
+            }
+        }
+        for (PendingSuggestion suggestion : toRemove) {
+            removeSuggestion(suggestion);
+        }
+        if (hoveredSuggestion != null && !pendingSuggestions.contains(hoveredSuggestion)) {
+            hideSuggestionPopup();
+        }
+    }
+
+    private void onMouseMoved(MouseEvent e) {
+        if (!enabled || pendingSuggestions.isEmpty()) {
+            cancelShowPopup();
+            scheduleHidePopup();
+            return;
+        }
+        int offset = -1;
+        try {
+            offset = textComponent.viewToModel2D(e.getPoint());
+        } catch (Throwable ignored) {}
+        if (offset < 0) {
+            cancelShowPopup();
+            scheduleHidePopup();
+            return;
+        }
+
+        PendingSuggestion hit = null;
+        for (PendingSuggestion suggestion : pendingSuggestions) {
+            if (suggestion.containsOffset(offset)) {
+                hit = suggestion;
+                break;
+            }
+        }
+
+        if (hit == null) {
+            cancelShowPopup();
+            scheduleHidePopup();
+            return;
+        }
+
+        cancelHidePopup();
+        if (hit.equals(hoveredSuggestion)) return;
+        scheduleShowPopup(hit, e.getPoint());
+    }
+
+    private void showSuggestionPopup(PendingSuggestion suggestion, Point localPoint) {
+        AnimatedGlassPopup popup = ensureSuggestionPopup();
+        if (popup == null) return;
+
+        Point p = new Point(localPoint);
+        SwingUtilities.convertPointToScreen(p, textComponent);
+        int popupX = p.x + 26;
+        int popupY = p.y + 26;
+        popup.showAt(popupX, popupY, () -> buildSuggestionPanel(suggestion));
+    }
+
+    private void scheduleShowPopup(PendingSuggestion suggestion, Point localPoint) {
+        pendingHoverSuggestion = suggestion;
+        pendingHoverPoint = localPoint != null ? new Point(localPoint) : anchorPointForSuggestion(suggestion);
+        popupShowTimer.restart();
+    }
+
+    private void showPendingSuggestionPopup() {
+        PendingSuggestion suggestion = pendingHoverSuggestion;
+        if (!enabled || suggestion == null || !pendingSuggestions.contains(suggestion)) {
+            pendingHoverSuggestion = null;
+            pendingHoverPoint = null;
+            return;
+        }
+        hoveredSuggestion = suggestion;
+        Point anchor = pendingHoverPoint != null ? pendingHoverPoint : anchorPointForSuggestion(suggestion);
+        showSuggestionPopup(suggestion, anchor);
+        pendingHoverSuggestion = null;
+        pendingHoverPoint = null;
+    }
+
+    private void cancelShowPopup() {
+        popupShowTimer.stop();
+        pendingHoverSuggestion = null;
+        pendingHoverPoint = null;
+    }
+
+    private void scheduleHidePopup() {
+        popupHideTimer.restart();
+    }
+
+    private void cancelHidePopup() {
+        popupHideTimer.stop();
+    }
+
+    private void hidePopupIfPointerIsOutside() {
+        if (isPointerOverCurrentSuggestion()) {
+            popupHideTimer.restart();
+            return;
+        }
+        if (isPointerOverPopup()) {
+            popupHideTimer.restart();
+            return;
+        }
+        hideSuggestionPopup();
+    }
+
+    private boolean isPointerOverCurrentSuggestion() {
+        PendingSuggestion current = hoveredSuggestion;
+        if (current == null || !pendingSuggestions.contains(current)) return false;
+        try {
+            Point mouse = textComponent.getMousePosition();
+            if (mouse == null) return false;
+            int offset = textComponent.viewToModel2D(mouse);
+            return current.containsOffset(offset);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private boolean isPointerOverPopup() {
+        if (suggestionPopup == null || !suggestionPopup.isVisible()) return false;
+        try {
+            return suggestionPopup.getMousePosition() != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private Point anchorPointForSuggestion(PendingSuggestion suggestion) {
+        if (suggestion == null) return new Point(0, 0);
+        try {
+            int anchorOffset = Math.max(suggestion.start(), suggestion.end() - 1);
+            Shape shape = textComponent.modelToView2D(anchorOffset);
+            Rectangle r = shape != null ? shape.getBounds() : null;
+            if (r != null) {
+                return new Point(r.x + Math.max(8, r.width / 2), r.y + Math.max(6, r.height / 2));
+            }
+        } catch (Throwable ignored) {}
+        return new Point(0, 0);
+    }
+
+    private AnimatedGlassPopup ensureSuggestionPopup() {
+        Window owner = SwingUtilities.getWindowAncestor(textComponent);
+        if (owner == null) return null;
+        if (suggestionPopup == null || suggestionPopup.getOwner() != owner) {
+            suggestionPopup = new AnimatedGlassPopup(owner);
+        }
+        return suggestionPopup;
+    }
+
+    private JPanel buildSuggestionPanel(PendingSuggestion suggestion) {
+        JPanel root = new JPanel();
+        root.setOpaque(false);
+        root.setLayout(new javax.swing.BoxLayout(root, javax.swing.BoxLayout.Y_AXIS));
+        root.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+
+        JLabel title = new JLabel("<html><b>Autocorrect suggestion</b></html>");
+        title.setForeground(new Color(46, 50, 62));
+        title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD, 12f));
+
+        JLabel body = new JLabel("<html><span style='color:#444'>"
+                + escapeHtml(suggestion.original) + " → <b>" + escapeHtml(suggestion.correction)
+                + "</b></span></html>");
+        body.setForeground(new Color(65, 70, 84));
+        body.setFont(body.getFont().deriveFont(java.awt.Font.PLAIN, 12f));
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        actions.setOpaque(false);
+        JButton accept = actionButton("Accept");
+        accept.addActionListener(ev -> acceptSuggestion(suggestion));
+        JButton ignore = actionButton("Don't ask again");
+        ignore.addActionListener(ev -> ignoreSuggestion(suggestion));
+        actions.add(accept);
+        actions.add(ignore);
+
+        root.add(title);
+        root.add(javax.swing.Box.createVerticalStrut(4));
+        root.add(body);
+        root.add(javax.swing.Box.createVerticalStrut(6));
+        root.add(actions);
+        return root;
+    }
+
+    private JButton actionButton(String text) {
+        JButton btn = new JButton(text);
+        btn.setFocusPainted(false);
+        btn.setBorder(BorderFactory.createEmptyBorder(3, 10, 3, 10));
+        btn.setOpaque(true);
+        btn.setBackground(new Color(255, 255, 255, 230));
+        btn.setForeground(new Color(44, 49, 62));
+        btn.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        return btn;
+    }
+
+    private void acceptSuggestion(PendingSuggestion suggestion) {
+        if (suggestion == null) return;
+        applyCorrection(suggestion.start(), suggestion.end(), suggestion.original, suggestion.correction, false);
+        removeSuggestion(suggestion);
+        hideSuggestionPopup();
+    }
+
+    private void ignoreSuggestion(PendingSuggestion suggestion) {
+        if (suggestion == null) return;
+        ignoredThisSession.add(suggestion.originalLower);
+        autocorrect.ignore(suggestion.originalLower);
+        removeSuggestion(suggestion);
+        hideSuggestionPopup();
+    }
+
+    private void hideSuggestionPopup() {
+        cancelShowPopup();
+        cancelHidePopup();
+        hoveredSuggestion = null;
+        if (suggestionPopup != null) {
+            try { suggestionPopup.hidePopup(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private void clearAllSuggestions() {
+        if (pendingSuggestions.isEmpty()) return;
+        List<PendingSuggestion> copy = new ArrayList<>(pendingSuggestions);
+        for (PendingSuggestion suggestion : copy) {
+            removeSuggestion(suggestion);
+        }
+        hideSuggestionPopup();
+    }
+
+    private void removeSuggestion(PendingSuggestion suggestion) {
+        if (suggestion == null) return;
+        pendingSuggestions.remove(suggestion);
+        try {
+            if (suggestion.highlightTag != null) {
+                textComponent.getHighlighter().removeHighlight(suggestion.highlightTag);
+            }
+        } catch (Throwable ignored) {}
+        suggestion.highlightTag = null;
+        textComponent.repaint();
+    }
+
     private String getPreviousWord(String text, int beforeOffset) {
         int end = beforeOffset - 1;
         while (end >= 0 && !isWordChar(text.charAt(end))) {
             end--;
         }
         if (end < 0) return null;
-        
+
         int start = end;
         while (start > 0 && isWordChar(text.charAt(start - 1))) {
             start--;
         }
-        
+
         if (start <= end) {
             return text.substring(start, end + 1);
         }
         return null;
     }
-    
+
     private boolean isWordChar(char c) {
         return Character.isLetter(c) || c == '\'';
     }
-    
-    private void applyCorrection(int start, int end, String original, String correction) {
+
+    private void applyCorrection(int start, int end, String original, String correction, boolean advancePastTrigger) {
         undoInProgress = true;
         try {
             Document doc = textComponent.getDocument();
-
             AttributeSet attrs = null;
             if (doc instanceof javax.swing.text.StyledDocument sd) {
                 try {
                     attrs = sd.getCharacterElement(Math.max(0, start)).getAttributes();
                 } catch (Throwable ignored) {}
             }
-            
-            // Store for undo
+
             lastOriginal = original;
             lastCorrection = correction;
             lastCorrectionStart = start;
-            
-            // Apply the correction
+
             doc.remove(start, end - start);
             doc.insertString(start, correction, attrs);
-            
-            // Move caret to end of corrected word + 1 (after trigger char)
-            textComponent.setCaretPosition(Math.min(start + correction.length() + 1, doc.getLength()));
-            
-        } catch (BadLocationException e) {
-            // Ignore
+
+            int caretPos = start + correction.length();
+            if (advancePastTrigger) caretPos++;
+            textComponent.setCaretPosition(Math.min(caretPos, doc.getLength()));
+        } catch (BadLocationException ignored) {
         } finally {
             undoInProgress = false;
         }
     }
-    
+
     /**
-     * Undo the last autocorrection.
+     * Undo the last accepted correction.
+     *
      * @return true if an undo was performed
      */
     public boolean undoLastCorrection() {
         if (lastOriginal == null || lastCorrection == null || lastCorrectionStart < 0) {
             return false;
         }
-        
+
         undoInProgress = true;
         try {
             Document doc = textComponent.getDocument();
             String currentText = doc.getText(lastCorrectionStart, lastCorrection.length());
-            
-            // Verify the correction is still there
+
             if (currentText.equals(lastCorrection)) {
                 doc.remove(lastCorrectionStart, lastCorrection.length());
                 doc.insertString(lastCorrectionStart, lastOriginal, null);
-                
-                // Learn that user doesn't want this correction
+
                 autocorrect.ignore(lastOriginal.toLowerCase(Locale.ROOT));
-                
-                // Clear undo state
+
                 lastOriginal = null;
                 lastCorrection = null;
                 lastCorrectionStart = -1;
-                
+
                 return true;
             }
-        } catch (BadLocationException e) {
-            // Ignore
+        } catch (BadLocationException ignored) {
         } finally {
             undoInProgress = false;
         }
-        
+
         return false;
     }
-    
+
     /**
-     * Enable or disable autocorrect.
+     * Enable or disable autocorrect suggestions.
      */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        if (!enabled) {
+            clearAllSuggestions();
+        }
     }
-    
+
     /**
-     * Check if autocorrect is enabled.
+     * Check if autocorrect suggestions are enabled.
      */
     public boolean isEnabled() {
         return enabled;
     }
-    
+
     /**
-     * Clear the undo state.
+     * Clear undo state for accepted corrections.
      */
     public void clearUndoState() {
         lastOriginal = null;
         lastCorrection = null;
         lastCorrectionStart = -1;
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private static final class PendingSuggestion {
+        private final Position startPos;
+        private final Position endPos;
+        private final String original;
+        private final String correction;
+        private final String originalLower;
+        private Object highlightTag;
+
+        private PendingSuggestion(Position startPos,
+                                  Position endPos,
+                                  String original,
+                                  String correction,
+                                  String originalLower) {
+            this.startPos = startPos;
+            this.endPos = endPos;
+            this.original = original;
+            this.correction = correction;
+            this.originalLower = originalLower;
+        }
+
+        private int start() {
+            return startPos.getOffset();
+        }
+
+        private int end() {
+            return endPos.getOffset();
+        }
+
+        private boolean containsOffset(int offset) {
+            int s = start();
+            int e = end();
+            return offset >= s && offset < e;
+        }
+
+        private boolean matchesCurrentWord(Document doc) {
+            if (doc == null) return false;
+            int s = start();
+            int e = end();
+            if (s < 0 || e <= s || e > doc.getLength()) return false;
+            try {
+                return original.equals(doc.getText(s, e - s));
+            } catch (BadLocationException ex) {
+                return false;
+            }
+        }
+    }
+
+    private static final class RedUnderlinePainter extends LayeredHighlighter.LayerPainter {
+        private static final Color STROKE = new Color(212, 64, 64, 220);
+        private static final Color GLOW = new Color(255, 142, 142, 96);
+
+        @Override
+        public void paint(Graphics g, int offs0, int offs1, Shape bounds, JTextComponent c) {
+            // Handled by paintLayer.
+        }
+
+        @Override
+        public Shape paintLayer(Graphics g, int offs0, int offs1, Shape bounds, JTextComponent c, View view) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            try {
+                Shape s = view.modelToView(offs0, Position.Bias.Forward, offs1, Position.Bias.Backward, bounds);
+                Rectangle r = (s instanceof Rectangle) ? (Rectangle) s : s.getBounds();
+                if (r.width <= 0 || r.height <= 0) return r;
+
+                int y = r.y + r.height - 2;
+                g2.setColor(GLOW);
+                g2.fillRect(r.x, y - 1, r.width, 2);
+
+                g2.setColor(STROKE);
+                int step = 4;
+                int amp = 1;
+                int x = r.x;
+                while (x < r.x + r.width) {
+                    int x2 = Math.min(r.x + r.width, x + step);
+                    int mid = (x + x2) / 2;
+                    g2.drawLine(x, y, mid, y + amp);
+                    g2.drawLine(mid, y + amp, x2, y);
+                    x = x2;
+                }
+                return r;
+            } catch (BadLocationException ex) {
+                return null;
+            } finally {
+                g2.dispose();
+            }
+        }
     }
 }

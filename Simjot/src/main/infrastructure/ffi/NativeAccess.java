@@ -421,10 +421,21 @@ public final class NativeAccess {
             if (spellInitAttempted) return false;
             spellInitAttempted = true;
             NativeLibrary lib = library();
-            if (lib == null || !lib.hasSpellSupport()) return false;
+            if (lib == null || !lib.hasSpellSupport()) {
+                IoLog.warn("native-spell-init", "Native spell functions are unavailable; using Java spell checker.", null);
+                return false;
+            }
             Path basePath = resolveSpellDictionaryPath();
-            if (basePath == null) return false;
+            if (basePath == null) {
+                IoLog.warn("native-spell-init",
+                        "Native spell dictionary path not found; expected simple-english-dictionary/data.", null);
+                return false;
+            }
             spellReady = lib.initSpellDictionary(basePath.toString());
+            if (!spellReady) {
+                IoLog.warn("native-spell-init",
+                        "Native spell dictionary initialization failed for path: " + basePath, null);
+            }
             return spellReady;
         }
     }
@@ -494,28 +505,60 @@ public final class NativeAccess {
             override = System.getenv("SIMJOT_SPELL_PATH");
         }
         if (override != null && !override.isBlank()) {
-            Path candidate = Paths.get(override);
-            if (Files.isDirectory(candidate)) return candidate.toAbsolutePath();
+            Path candidate = resolveSpellDictionaryCandidate(Paths.get(override));
+            if (candidate != null) return candidate;
         }
 
         try {
+            URL url = ResourceLoader.getResource("simple-english-dictionary/data");
+            if (url != null && "file".equalsIgnoreCase(url.getProtocol())) {
+                Path path = resolveSpellDictionaryCandidate(Paths.get(url.toURI()));
+                if (path != null) return path;
+            }
+        } catch (Throwable ignored) {}
+
+        // Legacy fallback in case callers pass ".../processed"; map to sibling ".../data".
+        try {
             URL url = ResourceLoader.getResource("simple-english-dictionary/processed");
             if (url != null && "file".equalsIgnoreCase(url.getProtocol())) {
-                Path path = Paths.get(url.toURI());
-                if (Files.isDirectory(path)) return path.toAbsolutePath();
+                Path path = resolveSpellDictionaryCandidate(Paths.get(url.toURI()));
+                if (path != null) return path;
             }
         } catch (Throwable ignored) {}
 
         String[] fallbacks = {
+            "src/main/resources/simple-english-dictionary/data",
+            "Simjot/src/main/resources/simple-english-dictionary/data",
+            "simple-english-dictionary/data",
             "src/main/resources/simple-english-dictionary/processed",
             "Simjot/src/main/resources/simple-english-dictionary/processed",
             "simple-english-dictionary/processed"
         };
         for (String fb : fallbacks) {
-            Path path = Paths.get(fb);
-            if (Files.isDirectory(path)) return path.toAbsolutePath();
+            Path path = resolveSpellDictionaryCandidate(Paths.get(fb));
+            if (path != null) return path;
         }
         return null;
+    }
+
+    private static Path resolveSpellDictionaryCandidate(Path candidate) {
+        if (candidate == null) return null;
+        Path normalized = candidate.toAbsolutePath().normalize();
+        if (isSpellDictionaryDirectory(normalized)) return normalized;
+
+        Path childData = normalized.resolve("data");
+        if (isSpellDictionaryDirectory(childData)) return childData;
+
+        Path siblingData = normalized.resolveSibling("data");
+        if (isSpellDictionaryDirectory(siblingData)) return siblingData;
+
+        return null;
+    }
+
+    private static boolean isSpellDictionaryDirectory(Path path) {
+        if (path == null || !Files.isDirectory(path)) return false;
+        return Files.isRegularFile(path.resolve("a.json"))
+                && Files.isRegularFile(path.resolve("z.json"));
     }
 
     private static List<String> readStringList(ByteBuffer buf, int count) {

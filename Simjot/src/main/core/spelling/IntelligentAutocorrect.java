@@ -230,7 +230,20 @@ public class IntelligentAutocorrect {
         if (correction != null) {
             return preserveCase(word, correction);
         }
-        
+
+        // Prefer native combined autocorrect when available.
+        // This path uses the native spell dictionary and ranked corrections.
+        if (NativeAccess.spellReady()) {
+            correction = NativeAccess.autocorrectCorrect(word);
+            if (correction != null && !correction.isBlank()) {
+                String trimmed = correction.trim();
+                if (!trimmed.equalsIgnoreCase(word)
+                        && levenshteinDistance(lower, trimmed.toLowerCase(Locale.ROOT)) <= 2) {
+                    return preserveCase(word, trimmed);
+                }
+            }
+        }
+
         // Try phonetic matching
         correction = findPhoneticCorrection(lower);
         if (correction != null) {
