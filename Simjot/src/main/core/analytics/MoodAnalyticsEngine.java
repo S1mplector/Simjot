@@ -57,7 +57,7 @@ public final class MoodAnalyticsEngine {
 
     private MoodAnalyticsEngine() {}
 
-    // ========== Data Structures ==========
+    // Data structures 
 
     /** A single mood sample as parsed from the log */
     public static final class MoodSample {
