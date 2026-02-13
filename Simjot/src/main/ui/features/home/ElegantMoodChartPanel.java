@@ -76,6 +76,7 @@ public class ElegantMoodChartPanel extends JPanel {
     private static final Color TEXT_PRIMARY = new Color(32, 38, 48);
     private static final Color TEXT_SECONDARY = new Color(98, 110, 126);
     private static final Color TEXT_MUTED = new Color(130, 140, 156);
+    private static final int EMOTION_COUNT = 8;
 
     private static final int CHART_MARGIN = 60;
 
@@ -310,27 +311,30 @@ public class ElegantMoodChartPanel extends JPanel {
 
         LocalDate latest = days.get(days.size() - 1);
         LocalDate weekStart = latest.minusDays(6);
-        double[] sums = new double[8];
-        int[] counts = new int[8];
+        double[] intensitySums = new double[EMOTION_COUNT];
+        double[] valueSums = new double[EMOTION_COUNT];
+        int[] counts = new int[EMOTION_COUNT];
 
         for (LocalDate day : days) {
             if (day.isBefore(weekStart)) continue;
             double[] avg = averageEmotionValuesForDay(day);
             if (avg == null) continue;
-            for (int i = 0; i < avg.length; i++) {
+            double[] intensities = intensityByEmotion(avg);
+            for (int i = 0; i < EMOTION_COUNT; i++) {
                 if (avg[i] < 0) continue;
-                sums[i] += avg[i];
+                intensitySums[i] += intensities[i];
+                valueSums[i] += avg[i];
                 counts[i]++;
             }
         }
 
         int dominantIndex = -1;
-        double dominantAvg = -1d;
-        for (int i = 0; i < sums.length; i++) {
+        double dominantIntensity = -1d;
+        for (int i = 0; i < intensitySums.length; i++) {
             if (counts[i] <= 0) continue;
-            double avg = sums[i] / counts[i];
-            if (avg > dominantAvg) {
-                dominantAvg = avg;
+            double avgIntensity = intensitySums[i] / counts[i];
+            if (avgIntensity > dominantIntensity) {
+                dominantIntensity = avgIntensity;
                 dominantIndex = i;
             }
         }
@@ -340,11 +344,12 @@ public class ElegantMoodChartPanel extends JPanel {
             return;
         }
 
-        int rounded = (int) Math.round(dominantAvg);
-        int intensity = Math.max(0, Math.min(100, Math.abs(rounded - 50) * 2));
+        int rounded = (int) Math.round(valueSums[dominantIndex] / counts[dominantIndex]);
+        int intensity = (int) Math.round(Math.max(0d, Math.min(100d, dominantIntensity)));
+        String semantic = main.ui.features.entries.DetailedMoodPanel.semanticIntensityLabel(dominantIndex, rounded);
         dominantEmotionLabel.setText("Dominant this week: "
                 + main.ui.features.entries.DetailedMoodPanel.emotionName(dominantIndex)
-                + " • " + rounded + " (" + intensity + "% intensity)");
+                + " • " + semantic + " (" + intensity + "% intensity)");
     }
 
     private double[] averageEmotionValuesForDay(LocalDate day) {
@@ -375,6 +380,23 @@ public class ElegantMoodChartPanel extends JPanel {
             }
         }
         return any ? out : null;
+    }
+
+    private double[] intensityByEmotion(double[] avg) {
+        double[] intensity = new double[EMOTION_COUNT];
+        if (avg == null) {
+            for (int i = 0; i < intensity.length; i++) intensity[i] = -1d;
+            return intensity;
+        }
+        for (int i = 0; i < EMOTION_COUNT; i++) {
+            double value = i < avg.length ? avg[i] : -1d;
+            if (value < 0) {
+                intensity[i] = -1d;
+                continue;
+            }
+            intensity[i] = Math.max(0d, Math.min(100d, Math.abs(value - 50d) * 2d));
+        }
+        return intensity;
     }
 
     private int detailAt(MoodChartModel.Details detail, int index) {
@@ -617,24 +639,53 @@ public class ElegantMoodChartPanel extends JPanel {
                 LocalDate day = days.get(i);
                 double[] avg = averageEmotionValuesForDay(day);
                 if (avg == null) continue;
-
-                double sum = 0d;
-                for (double v : avg) {
-                    if (v >= 0) sum += v;
+                double[] intensity = intensityByEmotion(avg);
+                double intensitySum = 0d;
+                int activeCount = 0;
+                for (double v : intensity) {
+                    if (v < 0) continue;
+                    intensitySum += v;
+                    activeCount++;
                 }
-                if (sum <= 0d) continue;
                 anyDetailedDay = true;
 
                 int x = Math.round(MARGIN_LEFT + i * slotW + (slotW - barW) * 0.5f);
+                if (activeCount <= 0) continue;
+
+                if (intensitySum <= 0d) {
+                    // Neutral day: details exist but all selected emotions were close to baseline.
+                    g2.setColor(new Color(170, 178, 192, 185));
+                    g2.fillRoundRect(x, baseY - 2, barW, 2, 2, 2);
+                    continue;
+                }
+
+                double avgIntensity = intensitySum / activeCount;
+                int stackHeight = Math.max(2, (int) Math.round((avgIntensity / 100d) * chartH));
                 int yCursor = baseY;
-                for (int emotionIdx = 0; emotionIdx < avg.length; emotionIdx++) {
-                    double v = avg[emotionIdx];
-                    if (v < 0) continue;
-                    int segH = Math.max(1, (int) Math.round((v / sum) * chartH));
+                int remainingHeight = stackHeight;
+                int remainingSegments = 0;
+                for (double v : intensity) {
+                    if (v > 0d) remainingSegments++;
+                }
+                double remainingIntensity = intensitySum;
+
+                for (int emotionIdx = 0; emotionIdx < intensity.length; emotionIdx++) {
+                    double v = intensity[emotionIdx];
+                    if (v <= 0d) continue;
+                    int segH;
+                    if (remainingSegments <= 1 || remainingIntensity <= 0d) {
+                        segH = Math.max(1, remainingHeight);
+                    } else {
+                        segH = Math.max(1, (int) Math.round((v / remainingIntensity) * remainingHeight));
+                    }
+                    segH = Math.min(segH, remainingHeight);
                     int y = Math.max(MARGIN_TOP, yCursor - segH);
                     Color fill = main.ui.features.entries.DetailedMoodPanel.emotionColor(emotionIdx);
                     g2.setColor(new Color(fill.getRed(), fill.getGreen(), fill.getBlue(), 205));
                     g2.fillRect(x, y, barW, yCursor - y);
+                    remainingHeight -= (yCursor - y);
+                    remainingIntensity -= v;
+                    remainingSegments--;
                     yCursor = y;
                     if (yCursor <= MARGIN_TOP) break;
                 }

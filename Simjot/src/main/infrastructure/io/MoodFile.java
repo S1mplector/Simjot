@@ -401,10 +401,23 @@ public final class MoodFile {
         if (parts.length >= 10) {
             details = new int[8];
             for (int i = 0; i < 8; i++) {
-                details[i] = parseMoodValue(parts[i + 2].trim());
+                details[i] = parseDetailValue(parts[i + 2]);
             }
         }
         return new MoodRecord(ts, composite, details);
+    }
+
+    private static int parseDetailValue(String s) {
+        if (s == null) return -1;
+        String trimmed = s.trim();
+        if (trimmed.isEmpty()) return -1;
+        try {
+            int value = Integer.parseInt(trimmed);
+            if (value < 0) return -1;
+            return clamp(value);
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
     }
 
     private static LocalDateTime parseTimestamp(String s) {
