@@ -29,9 +29,8 @@ import main.ui.util.AccentColorUtil;
 public class HeaderPanel extends JPanel {
     private float textAlpha = 0f;
     private float heartScale = 1f;
-    private float ecgDraw = 0f;    // 0 = not drawn, 1 = fully drawn
+    private float ecgDraw = 1f;    // reused as sweep position [0..1]
     private float ecgOpacity = 0f; // current alpha of ECG line
-    private boolean beatPeak = false; // tracks heart peak to trigger ECG
     private Timer fadeTimer, pulseTimer;
     private Timer fullscreenFadeTimer;
     // Quote rotation
@@ -44,10 +43,14 @@ public class HeaderPanel extends JPanel {
     private boolean panelHover = false;
     private boolean fullscreenHover = false;
     private float fullscreenAlpha = 0f;
-    // Animation state for eased pulse
-    private double phase = 0;       // continuous time phase
-    private double lastBeatValue = 0; // for peak detection on eased curve
-    private float spring = 0f;      // small overshoot that decays after peak
+    // Heartbeat state (time-based for stable animation across frame-rate changes)
+    private double phase = 0; // subtle drift for timing variation
+    private float beatCycleSec = 0.94f;
+    private float beatClockSec = 0f;
+    private float beatDrive = 0f;
+    private float spring = 0f; // small overshoot that decays after peak
+    private long lastPulseNanos = 0L;
+    private final EcgTraceRenderer ecgTrace = new EcgTraceRenderer();
     private String quote;
     private String quoteAuthor;
     private java.util.List<QuoteLibrary.QuoteEntry> quotePool;
@@ -144,9 +147,19 @@ public class HeaderPanel extends JPanel {
         };
         addMouseMotionListener(mx);
         addMouseListener(mx);
+
+        ecgTrace.setCapacity(190);
+        ecgTrace.setStep(0.0105);
+        ecgTrace.advance(ecgTrace.getCapacity());
     }
     
     public void startAnimation() {
+        lastPulseNanos = 0L;
+        beatClockSec = 0f;
+        spring = 0f;
+        ecgOpacity = 0f;
+        ecgDraw = 1f;
+
         fadeTimer = new Timer(50, new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 textAlpha += 0.05f;
@@ -163,43 +176,17 @@ public class HeaderPanel extends JPanel {
         if (!SettingsStore.get().isMainMenuAnimationsDisabled()) {
             pulseTimer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() { // centralized FPS
                 public void actionPerformed(ActionEvent e) {
-                    // Advance phase and compute eased beat using native math
-                    phase += 0.05; // speed
-                    double eased = NativeAccess.easeCosine((float) (phase % (2 * Math.PI) / (2 * Math.PI)));
-
-                    // Small overshoot spring right after peak
-                    boolean justPeaked = (eased > 0.98 && lastBeatValue <= 0.98);
-                    if (justPeaked) {
-                        beatPeak = true;
-                        spring = 0.08f;     // overshoot amount
-                        ecgDraw = 0f;       // restart ECG drawing
-                        ecgOpacity = 1f;    // full opacity at start
+                    long now = System.nanoTime();
+                    if (lastPulseNanos == 0L) {
+                        lastPulseNanos = now;
                     }
-                    if (eased < 0.5) {
-                        beatPeak = false; // allow next peak
-                    }
-                    lastBeatValue = eased;
-
-                    // Decay spring using native math
-                    spring = NativeAccess.springDecay(spring, 0.90f, 0.001f);
-
-                    // Calculate heartbeat scale using native math
-                    float baseAmp = 0.06f;
-                    heartScale = NativeAccess.heartbeatScale((float) phase, baseAmp, spring);
-
-                    // ECG drawing progression (left→right draw then fade)
-                    if(ecgOpacity > 0f){
-                        if(ecgDraw < 1f){
-                            ecgDraw += 0.06f; // draw speed
-                            if(ecgDraw > 1f) ecgDraw = 1f;
-                        } else {
-                            ecgOpacity -= 0.02f; // fade after fully drawn
-                            if(ecgOpacity < 0f) ecgOpacity = 0f;
-                        }
-                    }
+                    float dt = (now - lastPulseNanos) / 1_000_000_000f;
+                    lastPulseNanos = now;
+                    advancePulse(dt);
                     repaint();
                 }
             });
+            pulseTimer.setCoalesce(true);
             pulseTimer.start();
         }
 
@@ -208,6 +195,54 @@ public class HeaderPanel extends JPanel {
         try { periodSec = SettingsStore.get().getHeaderQuoteRotationSeconds(); } catch (Throwable ignored) {}
         rotateTimer = new Timer(Math.max(5, periodSec) * 1000, e -> advanceQuote());
         rotateTimer.start();
+    }
+
+    private void advancePulse(float dt) {
+        // Keep animation stable across timer jitter and frame drops.
+        dt = Math.max(1f / 240f, Math.min(0.05f, dt));
+
+        phase += dt * 0.85;
+        beatCycleSec = 0.92f + 0.06f * (float) Math.sin(phase * 0.55);
+        beatClockSec += dt;
+        while (beatClockSec >= beatCycleSec) {
+            beatClockSec -= beatCycleSec;
+            onBeatTrigger();
+        }
+
+        float t = beatClockSec / Math.max(0.001f, beatCycleSec);
+        float lub = gaussianPulse(t, 0.14f, 0.045f);
+        float dub = gaussianPulse(t, 0.30f, 0.055f) * 0.62f;
+        float settle = gaussianPulse(t, 0.45f, 0.09f) * -0.20f;
+        beatDrive = lub + dub + settle;
+
+        // Exponential damping per elapsed time instead of per frame.
+        float damping = (float) Math.pow(0.90f, dt * 60f);
+        spring = NativeAccess.springDecay(spring, damping, 0.0008f);
+
+        float targetScale = 1f + beatDrive * 0.11f + spring * 0.95f;
+        float follow = Math.min(1f, dt * 15f);
+        heartScale += (targetScale - heartScale) * follow;
+
+        int samples = Math.max(1, Math.min(14, Math.round(dt * 240f)));
+        ecgTrace.advance(samples);
+
+        ecgDraw = Math.min(1f, ecgDraw + dt * 2.3f);
+        if (ecgOpacity > 0f) {
+            ecgOpacity = Math.max(0f, ecgOpacity - dt * 0.72f);
+        }
+    }
+
+    private void onBeatTrigger() {
+        spring = 0.08f;
+        ecgDraw = 0f;
+        ecgOpacity = 1f;
+        ecgTrace.onBeatSync();
+    }
+
+    private static float gaussianPulse(float t, float center, float width) {
+        float safeWidth = Math.max(0.001f, width);
+        float d = (t - center) / safeWidth;
+        return (float) Math.exp(-0.5f * d * d);
     }
 
     private void animateFullscreenVisibility(boolean show) {
@@ -428,33 +463,48 @@ public class HeaderPanel extends JPanel {
             }
             g2.setTransform(old);
         
-            // Draw ECG pulse line under heart (solid, with slight beat bump)
-            if (ecgOpacity > 0f) {
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, ecgOpacity));
-                float bump = 12f + spring * 160f; // amplitude bump at beat
-                g2.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(new Color(255,255,255, 220));
-                int ecgWidth = 150;
-                int startX = width/2 - ecgWidth/2;
-                int yBase = height/2 - 8;
-                Path2D path = new Path2D.Double();
-                path.moveTo(startX, yBase);
-                path.lineTo(startX+20, yBase);
-                path.lineTo(startX+35, yBase-bump);
-                path.lineTo(startX+50, yBase+0.75*bump);
-                path.lineTo(startX+70, yBase);
-                path.lineTo(startX+ecgWidth, yBase);
-                // Clip to progressive width
-                Shape oldClip2 = g2.getClip();
-                g2.setClip(startX, yBase-25, (int)(ecgWidth*ecgDraw), 50);
-                g2.draw(path);
-                // subtle crisp overlay
-                g2.setStroke(new BasicStroke(1f));
-                g2.setColor(new Color(255,255,255, 160));
-                g2.draw(path);
-                g2.setClip(oldClip2);
-                // reset composite for subsequent drawings
-                g2.setComposite(AlphaComposite.SrcOver);
+            // Draw ECG trace under heart (buffered waveform with glow and sweep highlight).
+            float lineAlpha = textAlpha * (0.16f + ecgOpacity * 0.84f);
+            if (lineAlpha > 0.01f) {
+                int ecgWidth = 190;
+                int startX = width / 2 - ecgWidth / 2;
+                int yBase = height / 2 - 8;
+                float amplitude = 12f + Math.max(0f, beatDrive) * 6f + spring * 72f;
+                Path2D tracePath = ecgTrace.createPath(startX, yBase, amplitude);
+
+                Graphics2D eg = (Graphics2D) g2.create();
+                eg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Subtle baseline for continuity
+                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha * 0.28f)));
+                eg.setStroke(new BasicStroke(1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                eg.setColor(new Color(255, 255, 255, 145));
+                eg.drawLine(startX, yBase, startX + ecgWidth, yBase);
+
+                // Outer glow
+                Color glow = AccentColorUtil.lighten(accent, 0.42f);
+                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha * 0.46f)));
+                eg.setStroke(new BasicStroke(5.4f + spring * 20f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                eg.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 225));
+                eg.draw(tracePath);
+
+                // Main white trace
+                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha)));
+                eg.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                eg.setColor(new Color(255, 255, 255, 236));
+                eg.draw(tracePath);
+
+                // Beat-synced traveling highlight
+                int sweepX = startX + Math.round(ecgWidth * ecgDraw);
+                Shape oldClip2 = eg.getClip();
+                eg.setClip(sweepX - 30, yBase - 42, 60, 84);
+                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha * 0.95f)));
+                eg.setStroke(new BasicStroke(3.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                Color sweep = AccentColorUtil.lighten(accent, 0.55f);
+                eg.setColor(new Color(sweep.getRed(), sweep.getGreen(), sweep.getBlue(), 248));
+                eg.draw(tracePath);
+                eg.setClip(oldClip2);
+                eg.dispose();
             }
 
         // Apply overall alpha for fade-in

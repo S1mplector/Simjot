@@ -28,11 +28,13 @@ import java.awt.Point;
 import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
+import java.awt.geom.RoundRectangle2D;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -1267,6 +1269,9 @@ public class ElegantMoodChartPanel extends JPanel {
             int chartW = Math.max(1, w - MARGIN_LEFT - MARGIN_RIGHT);
             int chartH = Math.max(1, h - MARGIN_TOP - MARGIN_BOTTOM);
             int baseY = MARGIN_TOP + chartH;
+            int chartX = MARGIN_LEFT;
+            int chartY = MARGIN_TOP;
+            int rightX = w - MARGIN_RIGHT;
 
             List<LocalDate> days = model.getDays();
             if (days.isEmpty()) {
@@ -1275,9 +1280,31 @@ public class ElegantMoodChartPanel extends JPanel {
                 return;
             }
 
+            // Soft panel treatment for the stack plotting area.
+            RoundRectangle2D plotRect = new RoundRectangle2D.Float(chartX, chartY, chartW, chartH, 12, 12);
+            g2.setPaint(new LinearGradientPaint(
+                    0, chartY, 0, baseY,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                            new Color(248, 252, 255, 145),
+                            new Color(234, 241, 249, 115)
+                    }));
+            g2.fill(plotRect);
+            g2.setColor(new Color(185, 198, 214, 110));
+            g2.setStroke(new BasicStroke(1f));
+            g2.draw(plotRect);
+
+            // Quiet reference lines for intensity depth.
+            g2.setColor(new Color(166, 178, 194, 88));
+            g2.setStroke(new BasicStroke(1f));
+            for (int i = 1; i <= 3; i++) {
+                int y = chartY + Math.round((chartH * i) / 4f);
+                g2.drawLine(chartX + 4, y, rightX - 4, y);
+            }
+
             int n = days.size();
             float slotW = chartW / (float) n;
-            int barW = Math.max(3, Math.min(18, Math.round(slotW - 3f)));
+            int barW = Math.max(4, Math.min(20, Math.round(slotW * 0.62f)));
 
             boolean anyDetailedDay = false;
             for (int i = 0; i < n; i++) {
@@ -1314,6 +1341,13 @@ public class ElegantMoodChartPanel extends JPanel {
                     if (pct > 0d) remainingSegments++;
                 }
                 double remainingPct = 100d;
+                int stackY = Math.max(chartY, baseY - stackHeight);
+                int stackH = Math.max(1, baseY - stackY);
+                int stackArc = Math.min(10, Math.max(6, barW - 1));
+                RoundRectangle2D stackShape = new RoundRectangle2D.Float(x, stackY, barW, stackH, stackArc, stackArc);
+
+                Shape oldClip = g2.getClip();
+                g2.setClip(stackShape);
 
                 for (int emotionIdx = 0; emotionIdx < stack.percentages.length; emotionIdx++) {
                     double pct = stack.percentages[emotionIdx];
@@ -1326,9 +1360,22 @@ public class ElegantMoodChartPanel extends JPanel {
                     }
                     segH = Math.min(segH, remainingHeight);
                     int y = Math.max(MARGIN_TOP, yCursor - segH);
+                    int drawH = Math.max(1, yCursor - y);
                     Color fill = main.ui.features.entries.DetailedMoodPanel.emotionColor(emotionIdx);
-                    g2.setColor(new Color(fill.getRed(), fill.getGreen(), fill.getBlue(), 205));
-                    g2.fillRect(x, y, barW, yCursor - y);
+                    Color segTop = mix(fill, Color.WHITE, 0.22f, 208);
+                    Color segBottom = mix(fill, new Color(34, 42, 58), 0.08f, 226);
+                    g2.setPaint(new LinearGradientPaint(
+                            x, y, x, y + drawH,
+                            new float[]{0f, 1f},
+                            new Color[]{segTop, segBottom}
+                    ));
+                    g2.fillRect(x, y, barW, drawH);
+
+                    // Hairline separators between emotion layers.
+                    if (drawH > 1 && y > chartY + 1) {
+                        g2.setColor(new Color(255, 255, 255, 56));
+                        g2.drawLine(x, y, x + barW - 1, y);
+                    }
                     remainingHeight -= (yCursor - y);
                     remainingPct -= pct;
                     remainingSegments--;
@@ -1337,12 +1384,38 @@ public class ElegantMoodChartPanel extends JPanel {
                     if (yCursor <= MARGIN_TOP) break;
                 }
 
+                g2.setClip(oldClip);
+
+                // Top sheen and outer edge for a polished stack silhouette.
+                Shape oldClip2 = g2.getClip();
+                g2.setClip(stackShape);
+                g2.setPaint(new LinearGradientPaint(
+                        x, stackY, x, stackY + Math.max(1, stackH / 2f),
+                        new float[]{0f, 1f},
+                        new Color[]{
+                                new Color(255, 255, 255, 78),
+                                new Color(255, 255, 255, 0)
+                        }
+                ));
+                g2.fillRect(x, stackY, barW, Math.max(2, stackH / 2));
+                g2.setClip(oldClip2);
+
+                g2.setColor(new Color(72, 88, 112, 84));
+                g2.setStroke(new BasicStroke(1f));
+                g2.draw(stackShape);
+
                 if (i == hoveredEmotionDayIndex && stackTop < baseY) {
-                    int hoverY = Math.max(MARGIN_TOP, stackTop - 2);
-                    int hoverH = Math.max(4, baseY - stackTop + 3);
-                    g2.setColor(new Color(70, 120, 190, 180));
-                    g2.setStroke(new BasicStroke(1.2f));
-                    g2.drawRoundRect(x - 2, hoverY, barW + 4, hoverH, 6, 6);
+                    int hoverY = Math.max(chartY, stackTop - 3);
+                    int hoverH = Math.max(5, baseY - stackTop + 4);
+                    Rectangle glowRect = new Rectangle(x - 4, hoverY - 2, barW + 8, hoverH + 4);
+                    AeroPainters.paintOuterGlow(g2, glowRect, 8, new Color(86, 152, 224, 138), 4, 96);
+                    g2.setColor(new Color(74, 128, 198, 205));
+                    g2.setStroke(new BasicStroke(1.35f));
+                    g2.drawRoundRect(x - 2, hoverY, barW + 4, hoverH, 8, 8);
+                    g2.setColor(new Color(128, 154, 186, 96));
+                    g2.setStroke(new BasicStroke(1f));
+                    int guideX = x + barW / 2;
+                    g2.drawLine(guideX, chartY + 2, guideX, baseY);
                 }
             }
 
@@ -1352,10 +1425,11 @@ public class ElegantMoodChartPanel extends JPanel {
                 return;
             }
 
-            g2.setColor(new Color(176, 188, 204, 190));
-            g2.setStroke(new BasicStroke(1f));
-            g2.drawLine(MARGIN_LEFT, baseY, w - MARGIN_RIGHT, baseY);
-            g2.drawLine(MARGIN_LEFT, MARGIN_TOP, MARGIN_LEFT, baseY);
+            g2.setColor(new Color(162, 176, 196, 198));
+            g2.setStroke(new BasicStroke(1.1f));
+            g2.drawLine(chartX, baseY, rightX, baseY);
+            g2.setColor(new Color(170, 184, 202, 172));
+            g2.drawLine(chartX, chartY, chartX, baseY);
 
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d");
             int labelStep = Math.max(1, n / 6);
@@ -1377,6 +1451,16 @@ public class ElegantMoodChartPanel extends JPanel {
             String msg = "Detailed emotion stacks appear after using emotion chips while saving entries.";
             int sw = g2.getFontMetrics().stringWidth(msg);
             g2.drawString(msg, Math.max(8, (w - sw) / 2), Math.max(24, h / 2));
+        }
+
+        private Color mix(Color a, Color b, double ratioA, int alpha) {
+            double r = Math.max(0d, Math.min(1d, ratioA));
+            double inv = 1d - r;
+            int rr = (int) Math.round(a.getRed() * r + b.getRed() * inv);
+            int gg = (int) Math.round(a.getGreen() * r + b.getGreen() * inv);
+            int bb = (int) Math.round(a.getBlue() * r + b.getBlue() * inv);
+            int aa = Math.max(0, Math.min(255, alpha));
+            return new Color(rr, gg, bb, aa);
         }
 
         private int dayIndexForX(int x) {
