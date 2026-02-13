@@ -31,6 +31,12 @@ public class GlassDockBar extends JPanel {
     private float[] itemX;
     private float[] itemY;
     private float[] itemSize;
+    private float[] scatterOffsetX;
+    private float[] scatterOffsetY;
+    private float[] scatterRotationDeg;
+    private float[] scatterScale;
+    private float scatterCloudRadiusX = 48f;
+    private float scatterCloudRadiusY = 24f;
     private float dockX;
     private float dockWidth;
     private float dockHeight;
@@ -49,9 +55,14 @@ public class GlassDockBar extends JPanel {
     private static final int ICON_SIZE = 42;
     private static final float MAX_SCALE = 1.12f;
     private static final float MAX_GLOW = 1f;
-    private static final float COLLAPSED_ITEM_SCALE = 0.9f;
-    private static final float STACK_SPREAD_X = 1.5f;
-    private static final float STACK_SPREAD_Y = 2.2f;
+    private static final float SCATTER_COLLAPSED_SCALE = 0.72f;
+    private static final float SCATTER_BASE_RADIUS_X = 40f;
+    private static final float SCATTER_BASE_RADIUS_Y = 21f;
+    private static final float SCATTER_EXTRA_RADIUS_PER_ITEM_X = 6f;
+    private static final float SCATTER_EXTRA_RADIUS_PER_ITEM_Y = 3f;
+    private static final float SCATTER_MIN_ICON_GAP = 6f;
+    private static final float SCATTER_MAX_ROTATION_DEG = 15f;
+    private static final float MIN_COLLAPSED_ITEM_SIZE = 40f;
     private static final float ANIMATION_RATE = 10.5f;
     private static final long COLLAPSE_LINGER_NS = 170_000_000L;
     private static final float LAYOUT_EPSILON = 0.001f;
@@ -126,10 +137,15 @@ public class GlassDockBar extends JPanel {
         itemX = new float[items.size()];
         itemY = new float[items.size()];
         itemSize = new float[items.size()];
+        scatterOffsetX = new float[items.size()];
+        scatterOffsetY = new float[items.size()];
+        scatterRotationDeg = new float[items.size()];
+        scatterScale = new float[items.size()];
         for (int i = 0; i < items.size(); i++) {
             itemScales[i] = 1f;
             itemGlows[i] = 0f;
         }
+        rebuildScatterLayout();
         updatePreferredSize();
         updateLayoutCache(getPreferredSize().width, expandProgress);
         repaint();
@@ -156,15 +172,215 @@ public class GlassDockBar extends JPanel {
         if (p == null || itemX == null || itemY == null || itemSize == null) {
             return -1;
         }
-        for (int i = items.size() - 1; i >= 0; i--) {
-            float x = itemX[i];
-            float y = itemY[i];
-            float size = itemSize[i];
+        int[] drawOrder = buildDrawOrder();
+        for (int i = drawOrder.length - 1; i >= 0; i--) {
+            int idx = drawOrder[i];
+            float x = itemX[idx];
+            float y = itemY[idx];
+            float size = itemSize[idx];
             if (p.x >= x && p.x < x + size && p.y >= y && p.y < y + size) {
-                return i;
+                return idx;
             }
         }
         return -1;
+    }
+
+    private int[] buildDrawOrder() {
+        int n = items.size();
+        int[] order = new int[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+        }
+        if (n <= 1 || itemY == null || itemSize == null) {
+            return order;
+        }
+
+        // Front-most items should render last. Sort by baseline Y, then by X.
+        for (int i = 1; i < n; i++) {
+            int key = order[i];
+            float keyY = itemY[key] + itemSize[key] * 0.45f;
+            float keyX = itemX != null ? itemX[key] : key;
+            int j = i - 1;
+            while (j >= 0) {
+                int idx = order[j];
+                float idxY = itemY[idx] + itemSize[idx] * 0.45f;
+                float idxX = itemX != null ? itemX[idx] : idx;
+                if (idxY < keyY - 0.05f || (Math.abs(idxY - keyY) <= 0.05f && idxX <= keyX)) {
+                    break;
+                }
+                order[j + 1] = idx;
+                j--;
+            }
+            order[j + 1] = key;
+        }
+
+        // Keep hovered icon on top so hover glow never gets buried.
+        if (hoveredIndex >= 0 && hoveredIndex < n) {
+            int found = -1;
+            for (int i = 0; i < n; i++) {
+                if (order[i] == hoveredIndex) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found >= 0 && found < n - 1) {
+                int v = order[found];
+                System.arraycopy(order, found + 1, order, found, n - found - 1);
+                order[n - 1] = v;
+            }
+        }
+        return order;
+    }
+
+    private void rebuildScatterLayout() {
+        int n = items.size();
+        if (n <= 0 || scatterOffsetX == null || scatterOffsetY == null
+                || scatterRotationDeg == null || scatterScale == null) {
+            return;
+        }
+
+        java.util.Random random = new java.util.Random(0x51F15D0C7A11L ^ (n * 0x9E3779B97F4A7C15L));
+        for (int i = 0; i < n; i++) {
+            scatterRotationDeg[i] = (random.nextFloat() * 2f - 1f) * (SCATTER_MAX_ROTATION_DEG * 0.55f);
+            scatterScale[i] = 0.96f + random.nextFloat() * 0.08f;
+        }
+
+        float[] bestX = new float[n];
+        float[] bestY = new float[n];
+        float[] trialX = new float[n];
+        float[] trialY = new float[n];
+        float bestOverlap = Float.MAX_VALUE;
+        float phaseSeed = random.nextFloat() * (float) (Math.PI * 2.0);
+        float baseRadiusX = SCATTER_BASE_RADIUS_X + Math.max(0, n - 4) * SCATTER_EXTRA_RADIUS_PER_ITEM_X;
+        float baseRadiusY = SCATTER_BASE_RADIUS_Y + Math.max(0, n - 4) * SCATTER_EXTRA_RADIUS_PER_ITEM_Y;
+        float bestRadiusX = baseRadiusX;
+        float bestRadiusY = baseRadiusY;
+
+        for (int attempt = 0; attempt < 7; attempt++) {
+            float radiusX = baseRadiusX + attempt * 7f;
+            float radiusY = baseRadiusY + attempt * 3.6f;
+
+            for (int i = 0; i < n; i++) {
+                float angle = phaseSeed + i * 2.3999632f;
+                float radial = 0.28f + 0.64f * (float) Math.sqrt((i + 1f) / (n + 0.75f));
+                float jitterX = (random.nextFloat() * 2f - 1f) * 3.6f;
+                float jitterY = (random.nextFloat() * 2f - 1f) * 2.6f;
+                trialX[i] = (float) Math.cos(angle) * radiusX * radial + jitterX;
+                trialY[i] = (float) Math.sin(angle) * radiusY * radial + jitterY;
+            }
+
+            relaxScatterPoints(trialX, trialY, radiusX, radiusY);
+            float overlap = computeMaxIconOverlap(trialX, trialY);
+            if (overlap < bestOverlap) {
+                bestOverlap = overlap;
+                bestRadiusX = radiusX;
+                bestRadiusY = radiusY;
+                System.arraycopy(trialX, 0, bestX, 0, n);
+                System.arraycopy(trialY, 0, bestY, 0, n);
+            }
+            if (overlap <= 0.40f) {
+                break;
+            }
+        }
+
+        // Hard fallback: guarantee non-overlapping positions.
+        if (bestOverlap > 0.50f) {
+            float maxIcon = 0f;
+            for (int i = 0; i < n; i++) {
+                maxIcon = Math.max(maxIcon, estimateCollapsedIconSize(i));
+            }
+            float spacing = maxIcon + SCATTER_MIN_ICON_GAP;
+            float startX = -0.5f * spacing * (n - 1);
+            float altY = Math.min(8f, spacing * 0.16f);
+            for (int i = 0; i < n; i++) {
+                bestX[i] = startX + i * spacing;
+                bestY[i] = ((i & 1) == 0 ? -altY : altY);
+            }
+            bestRadiusX = Math.max(baseRadiusX, Math.abs(startX) + spacing * 0.55f + 6f);
+            bestRadiusY = Math.max(baseRadiusY, altY + maxIcon * 0.45f + 4f);
+        }
+
+        System.arraycopy(bestX, 0, scatterOffsetX, 0, n);
+        System.arraycopy(bestY, 0, scatterOffsetY, 0, n);
+        scatterCloudRadiusX = bestRadiusX + 4f;
+        scatterCloudRadiusY = bestRadiusY + 3f;
+    }
+
+    private void relaxScatterPoints(float[] x, float[] y, float radiusX, float radiusY) {
+        int n = x.length;
+        for (int iter = 0; iter < 72; iter++) {
+            float maxOverlap = 0f;
+            for (int i = 0; i < n; i++) {
+                for (int j = i + 1; j < n; j++) {
+                    float dx = x[j] - x[i];
+                    float dy = y[j] - y[i];
+                    float distSq = dx * dx + dy * dy;
+                    float minSep = computeMinIconSeparation(i, j);
+                    if (distSq < minSep * minSep) {
+                        float dist = (float) Math.sqrt(Math.max(0.0001f, distSq));
+                        float push = (minSep - dist) * 0.5f;
+                        float nx = dx / dist;
+                        float ny = dy / dist;
+                        x[i] -= nx * push;
+                        y[i] -= ny * push;
+                        x[j] += nx * push;
+                        y[j] += ny * push;
+                        maxOverlap = Math.max(maxOverlap, minSep - dist);
+                    }
+                }
+            }
+
+            for (int i = 0; i < n; i++) {
+                clampPointToEllipse(x, y, i, radiusX, radiusY);
+            }
+            if (maxOverlap <= 0.25f) {
+                break;
+            }
+        }
+    }
+
+    private float computeMaxIconOverlap(float[] x, float[] y) {
+        int n = x.length;
+        float maxOverlap = 0f;
+        for (int i = 0; i < n; i++) {
+            for (int j = i + 1; j < n; j++) {
+                float dx = x[j] - x[i];
+                float dy = y[j] - y[i];
+                float dist = (float) Math.sqrt(Math.max(0.0001f, dx * dx + dy * dy));
+                float minSep = computeMinIconSeparation(i, j);
+                maxOverlap = Math.max(maxOverlap, minSep - dist);
+            }
+        }
+        return maxOverlap;
+    }
+
+    private void clampPointToEllipse(float[] x, float[] y, int index, float radiusX, float radiusY) {
+        if (radiusX <= 0f || radiusY <= 0f) {
+            return;
+        }
+        float nx = x[index] / radiusX;
+        float ny = y[index] / radiusY;
+        float len = (float) Math.sqrt(nx * nx + ny * ny);
+        if (len > 1f) {
+            float inv = 1f / len;
+            x[index] *= inv;
+            y[index] *= inv;
+        }
+    }
+
+    private float computeMinIconSeparation(int i, int j) {
+        float iconI = estimateCollapsedIconSize(i);
+        float iconJ = estimateCollapsedIconSize(j);
+        return (iconI + iconJ) * 0.5f + SCATTER_MIN_ICON_GAP;
+    }
+
+    private float estimateCollapsedIconSize(int index) {
+        float collapsedItemBase = ITEM_SIZE * SCATTER_COLLAPSED_SCALE;
+        float scale = (scatterScale != null && index >= 0 && index < scatterScale.length) ? scatterScale[index] : 1f;
+        float collapsedSize = Math.max(MIN_COLLAPSED_ITEM_SIZE, collapsedItemBase * scale);
+        float iconBaseScale = collapsedSize / ITEM_SIZE;
+        float collapsedIconScale = 0.92f + (scale - 0.92f) * 0.35f;
+        return Math.max(18f, ICON_SIZE * iconBaseScale * collapsedIconScale);
     }
     
     private void animateItems() {
@@ -252,30 +468,37 @@ public class GlassDockBar extends JPanel {
         if (items.isEmpty() || itemX == null || componentWidth <= 0) {
             return;
         }
+        if (scatterOffsetX == null || scatterOffsetX.length != items.size()) {
+            rebuildScatterLayout();
+        }
         float t = easeInOut(progress);
         float itemExpandedSize = ITEM_SIZE;
-        float itemCollapsedSize = ITEM_SIZE * COLLAPSED_ITEM_SCALE;
+        float itemCollapsedBaseSize = ITEM_SIZE * SCATTER_COLLAPSED_SCALE;
         float expandedWidth = DOCK_PADDING_H * 2f + items.size() * itemExpandedSize + Math.max(0, items.size() - 1) * ITEM_SPACING;
-        float collapsedWidth = DOCK_PADDING_H * 2f + itemCollapsedSize + 18f;
+        float cloudWidth = itemCollapsedBaseSize + scatterCloudRadiusX * 2f + 14f;
+        float collapsedWidth = DOCK_PADDING_H * 2f + cloudWidth;
         dockWidth = lerp(collapsedWidth, expandedWidth, t);
         dockHeight = DOCK_PADDING_V * 2f + ITEM_SIZE + 8f;
         dockX = (componentWidth - dockWidth) * 0.5f;
 
         float expandedStartX = dockX + DOCK_PADDING_H;
         float expandedY = DOCK_PADDING_V;
-        float collapsedStartX = dockX + (dockWidth - itemCollapsedSize) * 0.5f;
-        float collapsedY = DOCK_PADDING_V + 4f;
-        float centerIndex = (items.size() - 1) * 0.5f;
+        float collapsedCenterX = dockX + (dockWidth - itemCollapsedBaseSize) * 0.5f;
+        float collapsedY = DOCK_PADDING_V + 6f;
 
         for (int i = 0; i < items.size(); i++) {
-            float stackedOffsetX = (i - centerIndex) * STACK_SPREAD_X;
-            float stackedOffsetY = (items.size() - 1 - i) * STACK_SPREAD_Y;
-            float collapsedX = collapsedStartX + stackedOffsetX;
-            float collapsedItemY = collapsedY + stackedOffsetY;
+            float collapsedScale = (scatterScale != null && i < scatterScale.length) ? scatterScale[i] : 1f;
+            float collapsedSize = Math.max(MIN_COLLAPSED_ITEM_SIZE, itemCollapsedBaseSize * collapsedScale);
+            float centeredOffsetX = (itemCollapsedBaseSize - collapsedSize) * 0.5f;
+            float centeredOffsetY = (itemCollapsedBaseSize - collapsedSize) * 0.5f;
+            float sx = (scatterOffsetX != null && i < scatterOffsetX.length) ? scatterOffsetX[i] : 0f;
+            float sy = (scatterOffsetY != null && i < scatterOffsetY.length) ? scatterOffsetY[i] : 0f;
+            float collapsedX = collapsedCenterX + sx + centeredOffsetX;
+            float collapsedItemY = collapsedY + sy + centeredOffsetY;
             float expandedX = expandedStartX + i * (ITEM_SIZE + ITEM_SPACING);
             itemX[i] = lerp(collapsedX, expandedX, t);
             itemY[i] = lerp(collapsedItemY, expandedY, t);
-            itemSize[i] = lerp(itemCollapsedSize, itemExpandedSize, t);
+            itemSize[i] = lerp(collapsedSize, itemExpandedSize, t);
         }
     }
 
@@ -365,9 +588,13 @@ public class GlassDockBar extends JPanel {
         g2.setFont(LABEL_FONT);
         FontMetrics labelFm = g2.getFontMetrics();
 
-        float labelAlpha = Math.max(0f, Math.min(1f, (expandProgress - 0.22f) / 0.78f));
+        float buttonReveal = easeInOut((expandProgress - 0.12f) / 0.62f);
+        float iconScatterReveal = 1f - buttonReveal;
+        float labelAlpha = Math.max(0f, Math.min(1f, (expandProgress - 0.32f) / 0.68f));
 
-        for (int i = 0; i < items.size(); i++) {
+        int[] drawOrder = buildDrawOrder();
+        for (int drawIdx = 0; drawIdx < drawOrder.length; drawIdx++) {
+            int i = drawOrder[drawIdx];
             DockItem item = items.get(i);
             float scale = itemScales[i];
             float glow = itemGlows[i];
@@ -376,58 +603,66 @@ public class GlassDockBar extends JPanel {
             float y = itemY[i];
             float baseSize = itemSize[i];
 
+            float alpha = Math.max(0.5f, 0.76f + buttonReveal * 0.24f);
+            Composite oldComposite = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, alpha)));
+
             // Calculate scaled position (scale from center-bottom for bounce effect)
-            float scaledSize = baseSize * scale;
+            float interactionScale = 1f + (scale - 1f) * buttonReveal;
+            float scaledSize = baseSize * interactionScale;
             float offsetX = (baseSize - scaledSize) * 0.5f;
             float offsetY = baseSize - scaledSize; // Anchor to bottom
 
             float drawX = x + offsetX;
             float drawY = y + offsetY;
 
-            // Draw item background with glow
-            drawItemBackground(g2, drawX, drawY, scaledSize, glow);
+            if (buttonReveal > 0.02f) {
+                // Draw item background only after expansion starts.
+                float backgroundRadius = Math.max(16f, scaledSize * 0.30f);
+                drawItemBackground(g2, drawX, drawY, scaledSize, glow * buttonReveal, backgroundRadius, buttonReveal);
+            }
 
-            // Draw icon with hover transform (scale + tilt)
             float iconBaseScale = baseSize / ITEM_SIZE;
-            int iconScaledSize = Math.max(22, Math.round(ICON_SIZE * iconBaseScale * scale));
+            float scatterScaleAdjust = (scatterScale != null && i < scatterScale.length) ? scatterScale[i] : 1f;
+            float collapsedIconScale = 0.92f + (scatterScaleAdjust - 0.92f) * 0.35f;
+            float iconPhaseScale = lerp(collapsedIconScale, 1f, buttonReveal);
+            int iconScaledSize = Math.max(18, Math.round(ICON_SIZE * iconBaseScale * iconPhaseScale));
             int iconX = Math.round(drawX + (scaledSize - iconScaledSize) * 0.5f);
-            int iconY = Math.round(drawY + (scaledSize - iconScaledSize) * 0.5f - 4f * iconBaseScale);
+            int iconY = Math.round(drawY + (scaledSize - iconScaledSize) * 0.5f - 4f * iconBaseScale * buttonReveal);
 
             String resPath = item.resourcePath;
             if (resPath != null) {
-                // Apply subtle scale and tilt on hover
-                if (glow > 0.01f) {
-                    java.awt.geom.AffineTransform oldTransform = g2.getTransform();
-                    
-                    // Calculate icon center
-                    float iconCenterX = iconX + iconScaledSize / 2f;
-                    float iconCenterY = iconY + iconScaledSize / 2f;
-                    
-                    // Apply transforms: translate to center, rotate, scale, translate back
-                    float extraScale = 1f + (0.08f * glow); // Up to 8% bigger
-                    float tiltAngle = -0.08f * glow; // Tilt left (negative = counterclockwise)
-
-                    g2.translate(iconCenterX, iconCenterY);
-                    g2.rotate(tiltAngle);
-                    g2.scale(extraScale, extraScale);
-                    g2.translate(-iconCenterX, -iconCenterY);
-
-                    ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconScaledSize, this, true);
-
-                    g2.setTransform(oldTransform);
-                } else {
-                    ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconScaledSize, this, true);
-                }
+                AffineTransform oldTransform = g2.getTransform();
+                float iconCenterX = iconX + iconScaledSize / 2f;
+                float iconCenterY = iconY + iconScaledSize / 2f;
+                float scatterTiltDeg = (scatterRotationDeg != null && i < scatterRotationDeg.length) ? scatterRotationDeg[i] : 0f;
+                float scatterTilt = (float) Math.toRadians(scatterTiltDeg) * iconScatterReveal;
+                float hoverTilt = -0.08f * glow * buttonReveal;
+                float totalTilt = scatterTilt + hoverTilt;
+                float hoverScale = 1f + (0.08f * glow * buttonReveal);
+                g2.translate(iconCenterX, iconCenterY);
+                g2.rotate(totalTilt);
+                g2.scale(hoverScale, hoverScale);
+                g2.translate(-iconCenterX, -iconCenterY);
+                ImageIconRenderer.draw(g2, resPath, iconX, iconY, iconScaledSize, this, true);
+                g2.setTransform(oldTransform);
             }
 
             // Draw label
-            drawItemLabel(g2, labelFm, item.label, x, y + baseSize + 4f, baseSize, glow, labelAlpha);
+            if (labelAlpha > 0.01f) {
+                drawItemLabel(g2, labelFm, item.label, x, y + baseSize + 4f, baseSize, glow, labelAlpha);
+            }
+            g2.setComposite(oldComposite);
         }
     }
-    
-    private void drawItemBackground(Graphics2D g2, float x, float y, float size, float glow) {
-        float radius = 22f; // Very rounded corners for item buttons
+
+    private void drawItemBackground(Graphics2D g2, float x, float y, float size, float glow, float radius, float reveal) {
         RoundRectangle2D.Float shape = new RoundRectangle2D.Float(x, y, size, size, radius, radius);
+        float collapsed = 1f - Math.max(0f, Math.min(1f, expandProgress));
+        float revealClamped = Math.max(0f, Math.min(1f, reveal));
+        if (revealClamped <= 0.001f) {
+            return;
+        }
         
         // Glow effect when hovered - using native aero for smooth falloff
         if (glow > 0.01f) {
@@ -443,15 +678,16 @@ public class GlassDockBar extends JPanel {
             }
         }
         
-        // Item background - very subtle, lerp between base and hover states
-        int baseBg = 0x18FFFFFF;  // More transparent base
-        int hoverBg = 0x35FFFFFF;
+        // Item background; increase opacity while collapsed to block icon bleed-through.
+        int collapsedBaseAlpha = Math.round((18 + (26 * collapsed)) * revealClamped);
+        int baseBg = (Math.max(0, Math.min(255, collapsedBaseAlpha)) << 24) | 0x00FFFFFF;
+        int hoverBg = ((Math.round(53 * revealClamped) & 0xFF) << 24) | 0x00FFFFFF;
         int bgColor = NativeAccess.aeroLerpColor(baseBg, hoverBg, glow);
         g2.setColor(new Color(bgColor, true));
         g2.fill(shape);
         
         // Top gloss - subtle
-        int glossAlpha = (int)(50 + 40 * glow);
+        int glossAlpha = Math.round((36 + 34 * glow) * revealClamped);
         GradientPaint itemGloss = new GradientPaint(
             x, y, new Color(255, 255, 255, glossAlpha),
             x, y + size * 0.4f, new Color(255, 255, 255, 0)
@@ -460,12 +696,12 @@ public class GlassDockBar extends JPanel {
         g2.fill(new RoundRectangle2D.Float(x + 1, y + 1, size - 2, size * 0.35f, radius - 1, radius - 1));
         
         // Border - subtle
-        int borderAlpha = (int)(35 + 50 * glow);
+        int borderAlpha = Math.round((28 + 42 * glow) * revealClamped);
         g2.setColor(new Color(255, 255, 255, borderAlpha));
         g2.setStroke(new BasicStroke(0.8f));
         g2.draw(shape);
     }
-    
+
     private void drawItemLabel(Graphics2D g2, FontMetrics fm, String label, float x, float y, float width, float glow, float visibility) {
         if (visibility <= 0.01f) {
             return;
