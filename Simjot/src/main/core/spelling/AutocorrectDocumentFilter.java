@@ -12,6 +12,7 @@ import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -22,6 +23,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.event.MouseMotionListener;
+import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -71,6 +73,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
 
     // Trigger characters that cause autocorrect detection to run.
     private static final String TRIGGER_CHARS = " .,;:!?)\n\t";
+    private static final int SMART_SYMBOL_WINDOW_RADIUS = 6;
 
     private final IntelligentAutocorrect autocorrect;
     private final JTextComponent textComponent;
@@ -250,6 +253,10 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         super.insertString(fb, offset, string, attr);
 
         if (!enabled || undoInProgress) return;
+        if (string != null && !string.isEmpty()) {
+            int pivot = offset + string.length();
+            applySmartSymbolSubstitutionsAround(pivot);
+        }
         pruneSuggestionsAfterDocumentChange();
         if (isTriggerChar(string)) {
             SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
@@ -262,6 +269,10 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         super.replace(fb, offset, length, text, attrs);
 
         if (!enabled || undoInProgress) return;
+        if (text != null && !text.isEmpty()) {
+            int pivot = offset + text.length();
+            applySmartSymbolSubstitutionsAround(pivot);
+        }
         pruneSuggestionsAfterDocumentChange();
         if (text != null && isTriggerChar(text)) {
             SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
@@ -279,6 +290,64 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         if (text == null || text.isEmpty()) return false;
         char c = text.charAt(0);
         return TRIGGER_CHARS.indexOf(c) >= 0;
+    }
+
+    private void applySmartSymbolSubstitutionsAround(int pivotOffset) {
+        if (undoInProgress) return;
+        try {
+            Document doc = textComponent.getDocument();
+            int docLen = doc.getLength();
+            if (docLen <= 1) return;
+
+            int pivot = Math.max(0, Math.min(pivotOffset, docLen));
+            int start = Math.max(0, pivot - SMART_SYMBOL_WINDOW_RADIUS);
+            int end = Math.min(docLen, pivot + SMART_SYMBOL_WINDOW_RADIUS);
+            if (end <= start) return;
+
+            String before = doc.getText(start, end - start);
+            String after = substituteSmartSymbols(before);
+            if (before.equals(after)) return;
+
+            AttributeSet attrs = null;
+            if (doc instanceof javax.swing.text.StyledDocument sd) {
+                int attrOffset = Math.max(0, Math.min(start, Math.max(0, docLen - 1)));
+                try {
+                    attrs = sd.getCharacterElement(attrOffset).getAttributes();
+                } catch (Throwable ignored) {}
+            }
+
+            int caret = textComponent.getCaretPosition();
+            int delta = after.length() - before.length();
+
+            undoInProgress = true;
+            try {
+                doc.remove(start, before.length());
+                doc.insertString(start, after, attrs);
+            } finally {
+                undoInProgress = false;
+            }
+
+            int newCaret = Math.max(0, Math.min(doc.getLength(), caret + delta));
+            if (newCaret != caret) {
+                textComponent.setCaretPosition(newCaret);
+            }
+        } catch (BadLocationException ignored) {
+        }
+    }
+
+    private String substituteSmartSymbols(String value) {
+        if (value == null || value.isEmpty()) return value;
+        // Longest first to avoid partial overlaps.
+        String out = value
+                .replace("<->", "↔")
+                .replace("--", "—")
+                .replace("->", "→")
+                .replace("<-", "←")
+                .replace(">=", "≥")
+                .replace("<=", "≤")
+                .replace("!=", "≠")
+                .replace("...", "…");
+        return out;
     }
 
     private void checkAndProposeWord(int triggerOffset) {
@@ -508,8 +577,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD, 12f));
 
         JLabel body = new JLabel("<html><span style='color:#444'>"
-                + escapeHtml(suggestion.original)
-                + "</span><br><span style='color:#2f3744'>&rarr; <b>"
+                + escapeHtml(suggestion.original) + " &rarr; <b>"
                 + escapeHtml(suggestion.correction)
                 + "</b></span></html>");
         body.setForeground(new Color(65, 70, 84));
@@ -534,14 +602,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     }
 
     private JButton actionButton(String text) {
-        JButton btn = new JButton(text);
-        btn.setFocusPainted(false);
-        btn.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
-        btn.setOpaque(true);
-        btn.setBackground(new Color(255, 255, 255, 230));
-        btn.setForeground(new Color(44, 49, 62));
-        btn.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
-        return btn;
+        return new SnapshotHoverButton(text);
     }
 
     private void acceptSuggestion(PendingSuggestion suggestion) {
@@ -751,6 +812,55 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
             } catch (BadLocationException ex) {
                 return false;
             }
+        }
+    }
+
+    /**
+     * Uses the same hover plate treatment as ToolbarMenuIconButton (clock/snapshot button).
+     */
+    private static final class SnapshotHoverButton extends JButton {
+        private boolean hovering;
+
+        private SnapshotHoverButton(String text) {
+            super(text);
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setRolloverEnabled(true);
+            setForeground(new Color(44, 49, 62));
+            setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
+            setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { hovering = true; repaint(); }
+                @Override public void mouseExited(MouseEvent e) { hovering = false; repaint(); }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            boolean pressed = getModel().isArmed() && getModel().isPressed();
+
+            Shape plate = new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, 10, 10);
+            if (hovering || pressed) {
+                Color top = pressed ? new Color(235, 238, 243, 220) : new Color(245, 248, 252, 210);
+                Color bot = pressed ? new Color(215, 220, 230, 220) : new Color(225, 230, 238, 210);
+                g2.setPaint(new GradientPaint(0, 0, top, 0, h, bot));
+                g2.fill(plate);
+                g2.setColor(new Color(170, 180, 195, 200));
+                g2.draw(plate);
+            } else {
+                g2.setColor(new Color(255, 255, 255, 235));
+                g2.fill(plate);
+                g2.setColor(new Color(205, 211, 220, 210));
+                g2.draw(plate);
+            }
+            g2.dispose();
+            super.paintComponent(g);
         }
     }
 

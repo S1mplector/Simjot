@@ -9,15 +9,13 @@
 package main.ui.components.popup;
 
 import java.awt.AWTEvent;
-import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.KeyboardFocusManager;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
@@ -57,8 +55,6 @@ public class AdvancedSuggestionPopup extends JWindow {
     private JPanel chromePanel;
     private JPanel contentHost;
     private Timer animationTimer;
-    private boolean opacitySupported = true;
-    private float panelAlpha = 1f;
 
     public AdvancedSuggestionPopup(Window owner) {
         super(owner);
@@ -107,13 +103,7 @@ public class AdvancedSuggestionPopup extends JWindow {
 
         ensureUiShell();
         contentHost.removeAll();
-
-        JPanel wrapped = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        wrapped.setOpaque(false);
-        for (Component c : content.getComponents()) {
-            wrapped.add(c);
-        }
-        contentHost.add(wrapped, BorderLayout.CENTER);
+        contentHost.add(content, BorderLayout.CENTER);
         contentHost.revalidate();
         contentHost.repaint();
 
@@ -128,29 +118,29 @@ public class AdvancedSuggestionPopup extends JWindow {
             Rectangle startBounds = new Rectangle(targetX, targetY + SHOW_OFFSET_Y, width, height);
             setBounds(startBounds);
             setVisible(true);
-            applyOpacity(0f);
-            animate(startBounds, targetBounds, 0f, 1f, SHOW_DURATION_MS, null);
+            animateLocation(new Point(startBounds.x, startBounds.y),
+                    new Point(targetBounds.x, targetBounds.y),
+                    SHOW_DURATION_MS, null);
             return;
         }
 
         Rectangle startBounds = getBounds();
-        float startOpacity = currentOpacity();
-        if (startBounds.equals(targetBounds) && startOpacity >= 0.99f) {
+        if (startBounds.equals(targetBounds)) {
             return;
         }
-        animate(startBounds, targetBounds, startOpacity, 1f, UPDATE_DURATION_MS, null);
+        // Keep updates stable while visible: no fade/scale, just smooth relocation.
+        setSize(targetBounds.width, targetBounds.height);
+        animateLocation(new Point(startBounds.x, startBounds.y),
+                new Point(targetBounds.x, targetBounds.y),
+                UPDATE_DURATION_MS, null);
     }
 
     public void hidePopup() {
         if (!isVisible()) return;
         Rectangle startBounds = getBounds();
-        Rectangle endBounds = new Rectangle(startBounds.x, startBounds.y + SHOW_OFFSET_Y,
-                startBounds.width, startBounds.height);
-        float startOpacity = currentOpacity();
-        animate(startBounds, endBounds, startOpacity, 0f, HIDE_DURATION_MS, () -> {
-            setVisible(false);
-            applyOpacity(1f);
-        });
+        Point from = new Point(startBounds.x, startBounds.y);
+        Point to = new Point(startBounds.x, startBounds.y + SHOW_OFFSET_Y);
+        animateLocation(from, to, HIDE_DURATION_MS, () -> setVisible(false));
     }
 
     private void ensureUiShell() {
@@ -162,10 +152,6 @@ public class AdvancedSuggestionPopup extends JWindow {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                float alpha = opacitySupported ? 1f : panelAlpha;
-                if (alpha < 1f) {
-                    g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
-                }
 
                 int w = getWidth();
                 int h = getHeight();
@@ -198,40 +184,29 @@ public class AdvancedSuggestionPopup extends JWindow {
         setContentPane(chromePanel);
     }
 
-    private void animate(Rectangle startBounds, Rectangle endBounds,
-                         float startOpacity, float endOpacity,
-                         long durationMs, Runnable onComplete) {
+    private void animateLocation(Point start, Point end, long durationMs, Runnable onComplete) {
         stopAnimation();
 
         if (durationMs <= 0L) {
-            setBounds(endBounds);
-            applyOpacity(endOpacity);
+            setLocation(end);
             if (onComplete != null) onComplete.run();
             return;
         }
 
-        final long start = System.nanoTime();
+        final long startTime = System.nanoTime();
         animationTimer = new Timer(ANIM_TICK_MS, null);
         animationTimer.addActionListener(e -> {
-            double elapsedMs = (System.nanoTime() - start) / 1_000_000.0;
+            double elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0;
             float t = (float) Math.min(1.0, elapsedMs / durationMs);
             float ease = easeOutCubic(t);
 
-            int x = lerp(startBounds.x, endBounds.x, ease);
-            int y = lerp(startBounds.y, endBounds.y, ease);
-            int w = lerp(startBounds.width, endBounds.width, ease);
-            int h = lerp(startBounds.height, endBounds.height, ease);
-            float opacity = startOpacity + (endOpacity - startOpacity) * ease;
-
-            setBounds(x, y, w, h);
-            applyOpacity(opacity);
-            revalidate();
-            repaint();
+            int x = lerp(start.x, end.x, ease);
+            int y = lerp(start.y, end.y, ease);
+            setLocation(x, y);
 
             if (t >= 1f) {
                 stopAnimation();
-                setBounds(endBounds);
-                applyOpacity(endOpacity);
+                setLocation(end);
                 if (onComplete != null) onComplete.run();
             }
         });
@@ -241,33 +216,6 @@ public class AdvancedSuggestionPopup extends JWindow {
     private void stopAnimation() {
         if (animationTimer != null && animationTimer.isRunning()) {
             animationTimer.stop();
-        }
-    }
-
-    private float currentOpacity() {
-        if (opacitySupported) {
-            try {
-                return getOpacity();
-            } catch (Throwable ignored) {
-                opacitySupported = false;
-            }
-        }
-        return panelAlpha;
-    }
-
-    private void applyOpacity(float value) {
-        float clamped = Math.max(0f, Math.min(1f, value));
-        if (opacitySupported) {
-            try {
-                setOpacity(clamped);
-                return;
-            } catch (Throwable ignored) {
-                opacitySupported = false;
-            }
-        }
-        panelAlpha = clamped;
-        if (chromePanel != null) {
-            chromePanel.repaint();
         }
     }
 
