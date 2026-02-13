@@ -159,6 +159,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private JPanel toolbarGroup;
     private JPanel moodContainer;
     private JPanel moodSummaryPills;
+    private MoodTrendBaseline moodTrendBaseline;
     private ToolbarMenuIconButton moodDetailsToggleButton;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
@@ -335,6 +336,7 @@ public class EntryPanel extends AbstractEditorPanel {
         }
 
         titleField.setText(title);
+        refreshMoodTrendBaselineFromHistory();
         updateMoodSummaryPills(loadedMoodDetails, moodSlider != null ? moodSlider.getValue() : 50);
 
         // Check for guided mode metadata
@@ -723,6 +725,7 @@ public class EntryPanel extends AbstractEditorPanel {
             toolbarGroup.add(Box.createVerticalStrut(6));
             toolbarGroup.add(moodContainer);
             refreshDetailedMoodToggleVisual();
+            refreshMoodTrendBaselineFromHistory();
             updateMoodSummaryPills(null, moodSlider.getValue());
         }
 
@@ -1836,6 +1839,7 @@ public class EntryPanel extends AbstractEditorPanel {
             // Log mood only after the entry file is successfully persisted,
             // based on the exact metadata that was written for this save.
             logMoodFromPersistedMetadata(meta);
+            setMoodTrendBaseline(meta.mood, meta.moodDetails);
 
             // Record versioned snapshot
             try {
@@ -2192,11 +2196,82 @@ public class EntryPanel extends AbstractEditorPanel {
         }
     }
 
+    private void refreshMoodTrendBaselineFromHistory() {
+        try {
+            List<MoodFile.MoodRecord> records = MoodFile.readAllRecords();
+            if (records == null || records.isEmpty()) {
+                moodTrendBaseline = null;
+                return;
+            }
+
+            MoodFile.MoodRecord latest = null;
+            for (MoodFile.MoodRecord record : records) {
+                if (record == null || record.timestamp == null) continue;
+                if (latest == null || record.timestamp.isAfter(latest.timestamp)) {
+                    latest = record;
+                }
+            }
+
+            if (latest == null) {
+                latest = records.get(records.size() - 1);
+            }
+            moodTrendBaseline = baselineFromRecord(latest);
+        } catch (Throwable ignored) {
+            moodTrendBaseline = null;
+        }
+    }
+
+    private void setMoodTrendBaseline(int composite, int[] details) {
+        moodTrendBaseline = new MoodTrendBaseline(
+                Math.max(0, Math.min(100, composite)),
+                normalizeDetailArray(details)
+        );
+    }
+
+    private static MoodTrendBaseline baselineFromRecord(MoodFile.MoodRecord record) {
+        if (record == null) return null;
+        return new MoodTrendBaseline(
+                Math.max(0, Math.min(100, record.composite)),
+                normalizeDetailArray(record.details)
+        );
+    }
+
+    private static int[] normalizeDetailArray(int[] values) {
+        int[] out = new int[8];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = -1;
+        }
+        if (values == null) return out;
+        int limit = Math.min(values.length, out.length);
+        for (int i = 0; i < limit; i++) {
+            int v = values[i];
+            out[i] = v < 0 ? -1 : Math.max(0, Math.min(100, v));
+        }
+        return out;
+    }
+
+    private static String trendArrowSuffix(int current, int previous, int threshold) {
+        if (previous < 0) return "";
+        int delta = current - previous;
+        if (delta >= threshold) return "↑";
+        if (delta <= -threshold) return "↓";
+        return "";
+    }
+
+    private static String trendLabel(int current, int previous, int threshold) {
+        if (previous < 0) return "";
+        int delta = current - previous;
+        if (delta >= threshold) return "up";
+        if (delta <= -threshold) return "down";
+        return "steady";
+    }
+
     private void updateMoodSummaryPills(DetailedMoodPanel.DetailedMoodSnapshot snapshot, int composite) {
         if (moodSummaryPills == null) return;
         int safeComposite = Math.max(0, Math.min(100, composite));
         java.util.List<DetailedMoodPanel.EmotionIntensity> strongest =
                 DetailedMoodPanel.strongestEmotions(snapshot, 2);
+        MoodTrendBaseline baseline = moodTrendBaseline;
         moodSummaryPills.removeAll();
 
         if (strongest.isEmpty()) {
@@ -2206,21 +2281,38 @@ public class EntryPanel extends AbstractEditorPanel {
             return;
         }
 
-        moodSummaryPills.add(new MoodSummaryPill(
-                "Mood " + safeComposite,
+        String moodTrend = baseline != null ? trendArrowSuffix(safeComposite, baseline.composite, 3) : "";
+        MoodSummaryPill moodPill = new MoodSummaryPill(
+                "Mood " + safeComposite + moodTrend,
                 new Color(196, 208, 226),
                 new Color(224, 232, 244),
                 new Color(150, 164, 184)
-        ));
+        );
+        if (baseline != null) {
+            moodPill.setToolTipText("Previous mood " + baseline.composite + " (" +
+                    trendLabel(safeComposite, baseline.composite, 3) + ")");
+        }
+        moodSummaryPills.add(moodPill);
 
         for (DetailedMoodPanel.EmotionIntensity emotion : strongest) {
             Color base = DetailedMoodPanel.emotionColor(emotion.index);
-            moodSummaryPills.add(new MoodSummaryPill(
-                    emotion.name + " " + emotion.intensity + "%",
+            int previousValue = baseline != null ? baseline.detailAt(emotion.index) : -1;
+            String trend = trendArrowSuffix(emotion.value, previousValue, 4);
+            MoodSummaryPill pill = new MoodSummaryPill(
+                    emotion.name + trend,
                     blend(base, Color.WHITE, 0.44f),
                     blend(base, Color.WHITE, 0.70f),
                     blend(base, new Color(90, 96, 112), 0.34f)
-            ));
+            );
+            String semantic = DetailedMoodPanel.semanticIntensityLabel(emotion.index, emotion.value);
+            if (previousValue >= 0) {
+                pill.setToolTipText(emotion.name + " · " + semantic + " (" + emotion.value
+                        + ") · previous " + previousValue + " ("
+                        + trendLabel(emotion.value, previousValue, 4) + ")");
+            } else {
+                pill.setToolTipText(emotion.name + " · " + semantic + " (" + emotion.value + ")");
+            }
+            moodSummaryPills.add(pill);
         }
 
         moodSummaryPills.setVisible(true);
@@ -2278,6 +2370,21 @@ public class EntryPanel extends AbstractEditorPanel {
         }
     }
 
+    private static final class MoodTrendBaseline {
+        private final int composite;
+        private final int[] details;
+
+        private MoodTrendBaseline(int composite, int[] details) {
+            this.composite = Math.max(0, Math.min(100, composite));
+            this.details = normalizeDetailArray(details);
+        }
+
+        private int detailAt(int index) {
+            if (index < 0 || index >= details.length) return -1;
+            return details[index];
+        }
+    }
+
     private void recordMood(int moodValue) {
         try {
             MoodFile.appendNow(moodValue);
@@ -2331,6 +2438,7 @@ public class EntryPanel extends AbstractEditorPanel {
         titleField.setText("");
         contentArea.setText("");
         try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
+        refreshMoodTrendBaselineFromHistory();
         updateMoodSummaryPills(null, moodSlider != null ? moodSlider.getValue() : 50);
         try {
             if (detailedMoodPanel != null) {
