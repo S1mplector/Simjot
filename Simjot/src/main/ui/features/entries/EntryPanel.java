@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -54,6 +55,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 import javax.imageio.ImageIO;
 import javax.swing.Action;
@@ -67,6 +69,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
 import javax.swing.AbstractAction;
@@ -424,16 +427,8 @@ public class EntryPanel extends AbstractEditorPanel {
             CustomMessageDialog.display(this, "Restore", "No saved versions yet.", true);
             return;
         }
-        int max = Math.min(5, snaps.size());
-        String[] options = new String[max + 1];
-        for (int i = 0; i < max; i++) {
-            EntryHistoryManager.Snapshot s = snaps.get(snaps.size() - 1 - i);
-            options[i] = formatSnapshotLabel(s);
-        }
-        options[max] = "Cancel";
-        int choice = CustomChoiceDialog.choose(this, "Restore Entry", "Select a previous version to restore:", options);
-        if (choice < 0 || choice >= max) return;
-        EntryHistoryManager.Snapshot selected = snaps.get(snaps.size() - 1 - choice);
+        EntryHistoryManager.Snapshot selected = chooseSnapshotWithDiffPreview(snaps);
+        if (selected == null) return;
         if (EntryHistoryManager.restoreSnapshot(currentFile, selected)) {
             loadExistingEntry(currentFile);
         } else {
@@ -450,6 +445,435 @@ public class EntryPanel extends AbstractEditorPanel {
             return out.format(d);
         } catch (Exception e) {
             return ts;
+        }
+    }
+
+    private EntryHistoryManager.Snapshot chooseSnapshotWithDiffPreview(
+            java.util.List<EntryHistoryManager.Snapshot> snapshots) {
+        if (snapshots == null || snapshots.isEmpty()) return null;
+
+        java.util.List<EntryHistoryManager.Snapshot> choices = new java.util.ArrayList<>(snapshots);
+        java.util.Collections.reverse(choices); // newest first
+
+        java.awt.Window owner = SwingUtilities.getWindowAncestor(this);
+        javax.swing.JDialog dialog;
+        if (owner instanceof java.awt.Frame frameOwner) {
+            dialog = new javax.swing.JDialog(frameOwner, "Restore Entry", true);
+        } else if (owner instanceof java.awt.Dialog dialogOwner) {
+            dialog = new javax.swing.JDialog(dialogOwner, "Restore Entry", true);
+        } else {
+            dialog = new javax.swing.JDialog((java.awt.Frame) null, "Restore Entry", true);
+        }
+        dialog.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        dialog.setLayout(new BorderLayout(10, 10));
+
+        JPanel root = new JPanel(new BorderLayout(10, 10));
+        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        root.setOpaque(true);
+        root.setBackground(Color.WHITE);
+
+        JLabel subtitle = new JLabel("Select a version and preview mini diff before restoring.");
+        subtitle.setForeground(new Color(95, 103, 118));
+        subtitle.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        root.add(subtitle, BorderLayout.NORTH);
+
+        javax.swing.DefaultListModel<SnapshotListItem> model = new javax.swing.DefaultListModel<>();
+        for (EntryHistoryManager.Snapshot snap : choices) {
+            model.addElement(new SnapshotListItem(snap, formatSnapshotLabel(snap)));
+        }
+        javax.swing.JList<SnapshotListItem> snapshotList = new javax.swing.JList<>(model);
+        snapshotList.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        snapshotList.setVisibleRowCount(8);
+        snapshotList.setCellRenderer((list, value, index, isSelected, cellHasFocus) -> {
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.setOpaque(true);
+            panel.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+            panel.setBackground(isSelected ? new Color(235, 244, 255) : Color.WHITE);
+
+            JLabel line1 = new JLabel(value == null ? "" : value.label);
+            line1.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 12f));
+            line1.setForeground(new Color(38, 44, 56));
+
+            String meta = value == null || value.snapshot == null
+                    ? ""
+                    : formatSnapshotSize(value.snapshot.size) + " · " + safeShortChecksum(value.snapshot.checksum);
+            JLabel line2 = new JLabel(meta);
+            line2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+            line2.setForeground(new Color(112, 122, 138));
+
+            panel.add(line1, BorderLayout.NORTH);
+            panel.add(line2, BorderLayout.SOUTH);
+            return panel;
+        });
+
+        javax.swing.JScrollPane leftScroll = new javax.swing.JScrollPane(snapshotList);
+        leftScroll.setPreferredSize(new Dimension(260, 220));
+        leftScroll.getViewport().setBackground(Color.WHITE);
+
+        JTextArea diffPreview = new JTextArea();
+        diffPreview.setEditable(false);
+        diffPreview.setFocusable(false);
+        diffPreview.setLineWrap(false);
+        diffPreview.setWrapStyleWord(false);
+        diffPreview.setFont(new Font("Menlo", Font.PLAIN, 12));
+        diffPreview.setForeground(new Color(42, 48, 59));
+        diffPreview.setBackground(new Color(252, 253, 255));
+        diffPreview.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JLabel titleDelta = new JLabel("Title: -");
+        titleDelta.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        titleDelta.setForeground(new Color(72, 82, 98));
+        JLabel moodDelta = new JLabel("Mood: -");
+        moodDelta.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+        moodDelta.setForeground(new Color(72, 82, 98));
+
+        JPanel previewMeta = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        previewMeta.setOpaque(false);
+        previewMeta.add(titleDelta);
+        previewMeta.add(moodDelta);
+
+        JPanel right = new JPanel(new BorderLayout(0, 6));
+        right.setOpaque(false);
+        right.add(previewMeta, BorderLayout.NORTH);
+        right.add(new javax.swing.JScrollPane(diffPreview), BorderLayout.CENTER);
+
+        javax.swing.JSplitPane split = new javax.swing.JSplitPane(javax.swing.JSplitPane.HORIZONTAL_SPLIT, leftScroll, right);
+        split.setResizeWeight(0.35);
+        split.setDividerLocation(270);
+        root.add(split, BorderLayout.CENTER);
+
+        RoundedButton restoreButton = new RoundedButton("Restore");
+        RoundedButton cancelButton = new RoundedButton("Cancel");
+        restoreButton.setEnabled(false);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+        actions.add(cancelButton);
+        actions.add(restoreButton);
+        root.add(actions, BorderLayout.SOUTH);
+
+        java.util.Map<File, EntryPreviewData> previewCache = new java.util.HashMap<>();
+        EntryPreviewData current = readEntryPreviewData(currentFile);
+        EntryHistoryManager.Snapshot[] selected = new EntryHistoryManager.Snapshot[1];
+
+        Runnable updatePreview = () -> {
+            SnapshotListItem item = snapshotList.getSelectedValue();
+            if (item == null || item.snapshot == null) {
+                restoreButton.setEnabled(false);
+                titleDelta.setText("Title: -");
+                moodDelta.setText("Mood: -");
+                diffPreview.setText("Select a snapshot to preview changes.");
+                return;
+            }
+            restoreButton.setEnabled(true);
+            EntryPreviewData snapPreview = previewCache.computeIfAbsent(item.snapshot.file, this::readEntryPreviewData);
+            titleDelta.setText("Title: " + previewTitleDelta(current.title, snapPreview.title));
+            moodDelta.setText("Mood: " + previewMoodDelta(current.mood, snapPreview.mood));
+            diffPreview.setText(buildMiniDiffPreview(current.text, snapPreview.text));
+            diffPreview.setCaretPosition(0);
+        };
+
+        snapshotList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) updatePreview.run();
+        });
+        snapshotList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() >= 2 && snapshotList.getSelectedValue() != null) {
+                    selected[0] = snapshotList.getSelectedValue().snapshot;
+                    dialog.dispose();
+                }
+            }
+        });
+
+        restoreButton.addActionListener(e -> {
+            SnapshotListItem item = snapshotList.getSelectedValue();
+            selected[0] = item == null ? null : item.snapshot;
+            dialog.dispose();
+        });
+        cancelButton.addActionListener(e -> dialog.dispose());
+
+        dialog.setContentPane(root);
+        dialog.setSize(new Dimension(920, 520));
+        dialog.setLocationRelativeTo(this);
+        if (!model.isEmpty()) {
+            snapshotList.setSelectedIndex(0);
+            updatePreview.run();
+        }
+        dialog.setVisible(true);
+        return selected[0];
+    }
+
+    private EntryPreviewData readEntryPreviewData(File file) {
+        if (file == null || !file.exists()) {
+            return new EntryPreviewData("", -1, "");
+        }
+        try (BufferedReader reader = openEntryReader(file)) {
+            if (reader == null) return new EntryPreviewData("", -1, "");
+            String firstLine = reader.readLine();
+            if (firstLine == null) return new EntryPreviewData("", -1, "");
+
+            EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
+            String title = "";
+            int mood = -1;
+            String firstBodyLine;
+            if (meta != null) {
+                title = meta.title == null ? "" : meta.title;
+                mood = meta.mood;
+                firstBodyLine = reader.readLine();
+                if (firstBodyLine != null && firstBodyLine.isBlank()) {
+                    firstBodyLine = reader.readLine();
+                }
+            } else {
+                title = firstLine.trim();
+                reader.readLine(); // legacy separator
+                firstBodyLine = reader.readLine();
+            }
+
+            StringBuilder rest = new StringBuilder();
+            if (firstBodyLine != null) {
+                rest.append(firstBodyLine).append('\n');
+            }
+            String line;
+            while ((line = reader.readLine()) != null) {
+                rest.append(line).append('\n');
+            }
+
+            String plain = previewToPlainText(rest.toString());
+            return new EntryPreviewData(title, mood, plain);
+        } catch (Exception ignored) {
+            return new EntryPreviewData("", -1, "");
+        }
+    }
+
+    private static String previewToPlainText(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        String body = raw.stripLeading();
+        if (body.startsWith("IMGMAP:")) {
+            int nl = body.indexOf('\n');
+            body = nl >= 0 ? body.substring(nl + 1).stripLeading() : "";
+        }
+        if (body.startsWith("{\\rtf")) {
+            try {
+                RTFEditorKit kit = new RTFEditorKit();
+                StyledDocument doc = (StyledDocument) kit.createDefaultDocument();
+                kit.read(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)), doc, 0);
+                body = doc.getText(0, doc.getLength());
+            } catch (Exception ignored) {
+                // Keep raw fallback when RTF parse fails
+            }
+        }
+        body = stripGuidedMarkersForPreview(body);
+        body = stripImageTokens(body);
+        return body.replace("\r\n", "\n").replace('\r', '\n').strip();
+    }
+
+    private static String stripGuidedMarkersForPreview(String text) {
+        if (text == null || text.isBlank()) return "";
+        StringBuilder out = new StringBuilder(text.length());
+        try (BufferedReader br = new BufferedReader(new StringReader(text))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("[GUIDED_MODE:")) continue;
+                if (trimmed.startsWith("[Q") && trimmed.endsWith("]")) continue;
+                out.append(line).append('\n');
+            }
+        } catch (IOException ignored) {}
+        return out.toString();
+    }
+
+    private static String previewTitleDelta(String current, String snapshot) {
+        String c = current == null ? "" : current.trim();
+        String s = snapshot == null ? "" : snapshot.trim();
+        if (Objects.equals(c, s)) {
+            return "unchanged";
+        }
+        if (c.isBlank() && !s.isBlank()) {
+            return "set to \"" + s + "\"";
+        }
+        if (!c.isBlank() && s.isBlank()) {
+            return "cleared";
+        }
+        return "\"" + c + "\" → \"" + s + "\"";
+    }
+
+    private static String previewMoodDelta(int currentMood, int snapshotMood) {
+        if (snapshotMood < 0 && currentMood < 0) return "unavailable";
+        if (snapshotMood < 0) return "snapshot unavailable";
+        if (currentMood < 0) return "snapshot " + snapshotMood;
+        int delta = snapshotMood - currentMood;
+        if (delta == 0) return snapshotMood + " (no change)";
+        String direction = delta > 0 ? "↑" : "↓";
+        return snapshotMood + " (" + direction + " " + Math.abs(delta) + " vs current)";
+    }
+
+    private static String safeShortChecksum(String checksum) {
+        if (checksum == null || checksum.isBlank()) return "no checksum";
+        return checksum.length() <= 10 ? checksum : checksum.substring(0, 10) + "...";
+    }
+
+    private static String formatSnapshotSize(long bytes) {
+        double b = Math.max(0L, bytes);
+        String[] units = {"B", "KB", "MB", "GB", "TB"};
+        int idx = 0;
+        while (b >= 1024.0 && idx < units.length - 1) {
+            b /= 1024.0;
+            idx++;
+        }
+        return String.format(idx == 0 ? "%.0f %s" : "%.1f %s", b, units[idx]);
+    }
+
+    private static String buildMiniDiffPreview(String currentText, String snapshotText) {
+        String[] current = splitPreviewLines(currentText, 130);
+        String[] snapshot = splitPreviewLines(snapshotText, 130);
+        java.util.List<DiffLine> diff = computeLineDiff(current, snapshot);
+
+        int added = 0;
+        int removed = 0;
+        for (DiffLine line : diff) {
+            if (line.type == DiffType.ADD) added++;
+            else if (line.type == DiffType.REMOVE) removed++;
+        }
+        if (added == 0 && removed == 0) {
+            return "No text differences detected between current entry and this snapshot.";
+        }
+
+        StringBuilder out = new StringBuilder(2048);
+        out.append("Legend: '-' removed from current, '+' added from snapshot")
+                .append("\n")
+                .append("Changes: +").append(added).append(" / -").append(removed)
+                .append("\n\n");
+
+        boolean[] include = new boolean[diff.size()];
+        for (int i = 0; i < diff.size(); i++) {
+            if (diff.get(i).type == DiffType.KEEP) continue;
+            int start = Math.max(0, i - 2);
+            int end = Math.min(diff.size() - 1, i + 2);
+            for (int j = start; j <= end; j++) include[j] = true;
+        }
+
+        int hidden = 0;
+        int shown = 0;
+        int maxShown = 160;
+        for (int i = 0; i < diff.size(); i++) {
+            if (!include[i]) {
+                hidden++;
+                continue;
+            }
+            if (hidden > 0) {
+                out.append("  ... ").append(hidden).append(" unchanged line(s) ...").append('\n');
+                hidden = 0;
+            }
+            if (shown >= maxShown) {
+                out.append("\n… diff preview truncated …");
+                return out.toString();
+            }
+            DiffLine line = diff.get(i);
+            switch (line.type) {
+                case ADD -> out.append("+ ");
+                case REMOVE -> out.append("- ");
+                case KEEP -> out.append("  ");
+            }
+            out.append(trimPreviewDiffLine(line.text, 180)).append('\n');
+            shown++;
+        }
+        if (hidden > 0) {
+            out.append("  ... ").append(hidden).append(" unchanged line(s) ...").append('\n');
+        }
+        return out.toString();
+    }
+
+    private static String[] splitPreviewLines(String text, int maxLines) {
+        if (text == null || text.isBlank()) return new String[0];
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+        int limit = Math.min(maxLines, lines.length);
+        String[] out = new String[limit];
+        for (int i = 0; i < limit; i++) {
+            out[i] = lines[i];
+        }
+        return out;
+    }
+
+    private static java.util.List<DiffLine> computeLineDiff(String[] fromLines, String[] toLines) {
+        int n = fromLines == null ? 0 : fromLines.length;
+        int m = toLines == null ? 0 : toLines.length;
+        int[][] lcs = new int[n + 1][m + 1];
+        for (int i = n - 1; i >= 0; i--) {
+            for (int j = m - 1; j >= 0; j--) {
+                if (Objects.equals(fromLines[i], toLines[j])) {
+                    lcs[i][j] = lcs[i + 1][j + 1] + 1;
+                } else {
+                    lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+                }
+            }
+        }
+
+        java.util.List<DiffLine> out = new java.util.ArrayList<>(n + m);
+        int i = 0;
+        int j = 0;
+        while (i < n && j < m) {
+            if (Objects.equals(fromLines[i], toLines[j])) {
+                out.add(new DiffLine(DiffType.KEEP, fromLines[i]));
+                i++;
+                j++;
+            } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+                out.add(new DiffLine(DiffType.REMOVE, fromLines[i]));
+                i++;
+            } else {
+                out.add(new DiffLine(DiffType.ADD, toLines[j]));
+                j++;
+            }
+        }
+        while (i < n) {
+            out.add(new DiffLine(DiffType.REMOVE, fromLines[i]));
+            i++;
+        }
+        while (j < m) {
+            out.add(new DiffLine(DiffType.ADD, toLines[j]));
+            j++;
+        }
+        return out;
+    }
+
+    private static String trimPreviewDiffLine(String line, int maxLen) {
+        if (line == null) return "";
+        if (line.length() <= maxLen) return line;
+        return line.substring(0, maxLen - 1) + "…";
+    }
+
+    private static final class SnapshotListItem {
+        private final EntryHistoryManager.Snapshot snapshot;
+        private final String label;
+
+        private SnapshotListItem(EntryHistoryManager.Snapshot snapshot, String label) {
+            this.snapshot = snapshot;
+            this.label = label == null ? "" : label;
+        }
+    }
+
+    private static final class EntryPreviewData {
+        private final String title;
+        private final int mood;
+        private final String text;
+
+        private EntryPreviewData(String title, int mood, String text) {
+            this.title = title == null ? "" : title;
+            this.mood = mood;
+            this.text = text == null ? "" : text;
+        }
+    }
+
+    private enum DiffType { KEEP, ADD, REMOVE }
+
+    private static final class DiffLine {
+        private final DiffType type;
+        private final String text;
+
+        private DiffLine(DiffType type, String text) {
+            this.type = type;
+            this.text = text == null ? "" : text;
         }
     }
 

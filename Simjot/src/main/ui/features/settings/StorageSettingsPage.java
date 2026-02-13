@@ -25,6 +25,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.Arrays;
+import java.util.Locale;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -77,6 +78,11 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
     private DefaultTreeModel treeModel;
     private final Timer spinnerTimer;
     private float spinnerAngle = 0f;
+    private final StorageHealthRing storageHealthRing = new StorageHealthRing();
+    private final JLabel storageHealthStatus = new JLabel("Calculating...");
+    private final JLabel storageHealthForecast = new JLabel("Projected days remaining: --");
+    private final JLabel storageHealthDetails = new JLabel("Growth estimate: --");
+    private SwingWorker<StorageHealthSnapshot, Void> storageHealthWorker;
 
     // Backup controls
     private final JComboBox<String> backupFreqBox;
@@ -118,6 +124,40 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
         rootBody.add(pathLbl);
         rootInfo.add(rootBody, BorderLayout.CENTER);
         content.add(rootInfo);
+
+        content.add(Box.createVerticalStrut(12));
+
+        JPanel healthCard = createSectionPanel("Storage health", "Capacity risk and projected runway");
+        JPanel healthBody = new JPanel(new BorderLayout(12, 0));
+        healthBody.setOpaque(false);
+
+        storageHealthRing.setPreferredSize(new Dimension(96, 96));
+        storageHealthRing.setMinimumSize(new Dimension(96, 96));
+        storageHealthRing.setMaximumSize(new Dimension(96, 96));
+        healthBody.add(storageHealthRing, BorderLayout.WEST);
+
+        JPanel healthText = new JPanel();
+        healthText.setOpaque(false);
+        healthText.setLayout(new BoxLayout(healthText, BoxLayout.Y_AXIS));
+
+        storageHealthStatus.setFont(storageHealthStatus.getFont().deriveFont(Font.BOLD, 13f));
+        storageHealthStatus.setForeground(new Color(44, 58, 78));
+
+        storageHealthForecast.setFont(storageHealthForecast.getFont().deriveFont(Font.PLAIN, 12f));
+        storageHealthForecast.setForeground(new Color(70, 78, 92));
+
+        storageHealthDetails.setFont(storageHealthDetails.getFont().deriveFont(Font.PLAIN, 11f));
+        storageHealthDetails.setForeground(new Color(0, 0, 0, 130));
+
+        healthText.add(storageHealthStatus);
+        healthText.add(Box.createVerticalStrut(4));
+        healthText.add(storageHealthForecast);
+        healthText.add(Box.createVerticalStrut(2));
+        healthText.add(storageHealthDetails);
+        healthBody.add(healthText, BorderLayout.CENTER);
+
+        healthCard.add(healthBody, BorderLayout.CENTER);
+        content.add(healthCard);
 
         content.add(Box.createVerticalStrut(12));
 
@@ -346,6 +386,7 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
         // Compute sizes asynchronously on load
         computeSizesAsync();
+        refreshStorageHealthAsync(null);
 
         // Spinner animation timer for renderer
         spinnerTimer = new Timer(AppPerf.getAnimationDelay(), e -> {
@@ -727,6 +768,9 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
 
     // ---- Async sizes ----
     private void computeSizesAsync() {
+        storageHealthStatus.setText("Calculating...");
+        storageHealthForecast.setText("Projected days remaining: --");
+        storageHealthDetails.setText("Growth estimate: --");
         // Mark as loading
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) treeModel.getRoot();
         for (int i = 0; i < root.getChildCount(); i++) {
@@ -765,12 +809,192 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
                     }
                 }
             }
+
+            @Override protected void done() {
+                refreshStorageHealthAsync(sumKnownTreeSize());
+            }
         }.execute();
     }
 
     private static class NodeSizeUpdate {
         final DefaultMutableTreeNode node; final long size;
         NodeSizeUpdate(DefaultMutableTreeNode node, long size) { this.node = node; this.size = size; }
+    }
+
+    private long sumKnownTreeSize() {
+        if (treeModel == null) return -1L;
+        Object rootObj = treeModel.getRoot();
+        if (!(rootObj instanceof DefaultMutableTreeNode root)) return -1L;
+        long total = 0L;
+        int counted = 0;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            Object childObj = ((DefaultMutableTreeNode) root.getChildAt(i)).getUserObject();
+            if (!(childObj instanceof StorageNode node)) continue;
+            if (node.size == null) continue;
+            total += Math.max(0L, node.size);
+            counted++;
+        }
+        return counted > 0 ? total : -1L;
+    }
+
+    private void refreshStorageHealthAsync(Long knownDataBytes) {
+        if (storageHealthWorker != null && !storageHealthWorker.isDone()) {
+            storageHealthWorker.cancel(true);
+        }
+        storageHealthWorker = new SwingWorker<>() {
+            @Override
+            protected StorageHealthSnapshot doInBackground() {
+                File root = AppDirectories.getRoot();
+                long dataBytes = knownDataBytes != null && knownDataBytes >= 0
+                        ? knownDataBytes
+                        : folderSize(root);
+
+                long totalSpace = Math.max(0L, root.getTotalSpace());
+                long freeSpace = Math.max(0L, root.getUsableSpace());
+                long dailyGrowth = estimateRecentDailyGrowth(root, 21);
+                if (dailyGrowth <= 0) {
+                    // Small floor to avoid infinity when data is mostly static.
+                    dailyGrowth = Math.max(128L * 1024L, dataBytes / 365L);
+                }
+
+                double daysRemaining = freeSpace > 0
+                        ? freeSpace / (double) Math.max(1L, dailyGrowth)
+                        : 0d;
+                double diskUsedRatio = totalSpace > 0
+                        ? (totalSpace - freeSpace) / (double) totalSpace
+                        : 0d;
+
+                HealthBand band;
+                if (freeSpace < 2L * 1024L * 1024L * 1024L || daysRemaining < 14d) {
+                    band = HealthBand.CRITICAL;
+                } else if (freeSpace < 10L * 1024L * 1024L * 1024L || daysRemaining < 60d) {
+                    band = HealthBand.TIGHT;
+                } else {
+                    band = HealthBand.SAFE;
+                }
+
+                return new StorageHealthSnapshot(
+                        dataBytes,
+                        totalSpace,
+                        freeSpace,
+                        dailyGrowth,
+                        daysRemaining,
+                        diskUsedRatio,
+                        band
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    StorageHealthSnapshot snapshot = get();
+                    applyStorageHealth(snapshot);
+                } catch (Throwable ignored) {
+                    storageHealthRing.setState(0f, new Color(145, 156, 178), "N/A");
+                    storageHealthStatus.setText("Storage health unavailable");
+                    storageHealthForecast.setText("Projected days remaining: --");
+                    storageHealthDetails.setText("Growth estimate: --");
+                }
+            }
+        };
+        storageHealthWorker.execute();
+    }
+
+    private static long estimateRecentDailyGrowth(File root, int daysWindow) {
+        if (root == null || !root.exists() || daysWindow <= 0) return 0L;
+        long cutoff = System.currentTimeMillis() - daysWindow * 86_400_000L;
+        long recentBytes = sumRecentBytes(root, cutoff);
+        return recentBytes / daysWindow;
+    }
+
+    private static long sumRecentBytes(File file, long cutoff) {
+        if (file == null || !file.exists()) return 0L;
+        if (file.isFile()) {
+            return file.lastModified() >= cutoff ? Math.max(0L, file.length()) : 0L;
+        }
+        long total = 0L;
+        File[] children = file.listFiles();
+        if (children == null) return 0L;
+        for (File child : children) {
+            total += sumRecentBytes(child, cutoff);
+        }
+        return total;
+    }
+
+    private void applyStorageHealth(StorageHealthSnapshot snapshot) {
+        if (snapshot == null) return;
+        storageHealthRing.setState((float) snapshot.diskUsedRatio, snapshot.band.color, snapshot.band.label);
+
+        storageHealthStatus.setText(snapshot.band.label + " · " + formatSize(snapshot.freeSpace) + " free");
+        storageHealthStatus.setForeground(snapshot.band.textColor);
+
+        String daysText = formatDaysRemaining(snapshot.daysRemaining);
+        storageHealthForecast.setText("Projected runway: " + daysText);
+        storageHealthDetails.setText(
+                "Growth " + formatSize(snapshot.dailyGrowth) + "/day"
+                        + " · Data " + formatSize(snapshot.dataBytes)
+                        + " · Disk " + formatSize(snapshot.totalSpace)
+        );
+    }
+
+    private static String formatDaysRemaining(double daysRemaining) {
+        if (Double.isNaN(daysRemaining) || Double.isInfinite(daysRemaining) || daysRemaining <= 0) {
+            return "< 1 day";
+        }
+        if (daysRemaining >= 3650) {
+            return "> 10 years";
+        }
+        if (daysRemaining >= 365) {
+            return String.format(Locale.ROOT, "%.1f years", daysRemaining / 365.0);
+        }
+        if (daysRemaining >= 60) {
+            return String.format(Locale.ROOT, "%.1f months", daysRemaining / 30.0);
+        }
+        if (daysRemaining >= 1) {
+            return String.format(Locale.ROOT, "%.0f days", daysRemaining);
+        }
+        if (daysRemaining >= (1.0 / 24.0)) {
+            return String.format(Locale.ROOT, "%.0f hours", daysRemaining * 24.0);
+        }
+        return "< 1 hour";
+    }
+
+    private enum HealthBand {
+        SAFE("Safe", new Color(86, 160, 112), new Color(56, 105, 74)),
+        TIGHT("Tight", new Color(220, 161, 63), new Color(125, 88, 27)),
+        CRITICAL("Critical", new Color(205, 95, 95), new Color(128, 52, 52));
+
+        final String label;
+        final Color color;
+        final Color textColor;
+
+        HealthBand(String label, Color color, Color textColor) {
+            this.label = label;
+            this.color = color;
+            this.textColor = textColor;
+        }
+    }
+
+    private static final class StorageHealthSnapshot {
+        final long dataBytes;
+        final long totalSpace;
+        final long freeSpace;
+        final long dailyGrowth;
+        final double daysRemaining;
+        final double diskUsedRatio;
+        final HealthBand band;
+
+        private StorageHealthSnapshot(long dataBytes, long totalSpace, long freeSpace,
+                                      long dailyGrowth, double daysRemaining,
+                                      double diskUsedRatio, HealthBand band) {
+            this.dataBytes = Math.max(0L, dataBytes);
+            this.totalSpace = Math.max(0L, totalSpace);
+            this.freeSpace = Math.max(0L, freeSpace);
+            this.dailyGrowth = Math.max(0L, dailyGrowth);
+            this.daysRemaining = daysRemaining;
+            this.diskUsedRatio = Math.max(0d, Math.min(1d, diskUsedRatio));
+            this.band = band == null ? HealthBand.SAFE : band;
+        }
     }
 
     // ---- Model ----
@@ -926,6 +1150,54 @@ class StorageSettingsPage extends JPanel implements SettingsPage {
             int textX = x + padX;
             int textY = y + padY + fm.getAscent();
             g2.drawString(text, textX, textY);
+            g2.dispose();
+        }
+    }
+
+    private static final class StorageHealthRing extends JComponent {
+        private float usedRatio = 0f;
+        private Color accent = new Color(86, 160, 112);
+        private String centerLabel = "Safe";
+
+        void setState(float usedRatio, Color accent, String centerLabel) {
+            this.usedRatio = Math.max(0f, Math.min(1f, usedRatio));
+            this.accent = accent == null ? new Color(86, 160, 112) : accent;
+            this.centerLabel = centerLabel == null ? "" : centerLabel;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+            int size = Math.min(w, h) - 10;
+            int x = (w - size) / 2;
+            int y = (h - size) / 2;
+            int stroke = Math.max(8, size / 10);
+
+            g2.setStroke(new BasicStroke(stroke, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(new Color(220, 228, 238));
+            g2.drawArc(x, y, size, size, 90, -360);
+
+            int usedAngle = Math.round(360f * usedRatio);
+            g2.setColor(accent);
+            g2.drawArc(x, y, size, size, 90, -usedAngle);
+
+            int inner = size - stroke * 2;
+            g2.setColor(new Color(255, 255, 255, 210));
+            g2.fillOval(x + stroke, y + stroke, inner, inner);
+
+            g2.setFont(getFont().deriveFont(Font.BOLD, 12f));
+            g2.setColor(new Color(56, 66, 84));
+            FontMetrics fm = g2.getFontMetrics();
+            String text = centerLabel;
+            int tx = x + (size - fm.stringWidth(text)) / 2;
+            int ty = y + size / 2 + fm.getAscent() / 2 - 2;
+            g2.drawString(text, tx, ty);
+
             g2.dispose();
         }
     }

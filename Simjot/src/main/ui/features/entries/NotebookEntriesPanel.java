@@ -56,6 +56,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
@@ -73,7 +74,6 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
@@ -128,6 +128,7 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File, Long> entryTimestamps = new java.util.HashMap<>();
     private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
     private final java.util.Map<File, PreviewSnapshot> previewCache = new java.util.HashMap<>();
+    private final java.util.Map<File, int[]> moodTrendCache = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
     private SwingWorker<Void, PreviewSnapshot> previewLoader;
 
@@ -279,7 +280,9 @@ public class NotebookEntriesPanel extends JPanel {
         private final JLabel wordsLabel = new JLabel();
         private final JLabel createdLabel = new JLabel();
         private final JLabel editedLabel = new JLabel();
-        private final JTextArea snippet = new JTextArea();
+        private final JLabel snippet = new JLabel();
+        private final JLabel editedContextLabel = new JLabel();
+        private final MoodSparkline sparkline = new MoodSparkline();
         private final Color cardBg = new Color(252, 253, 255);
         private final Color cardBorder = new Color(190, 200, 214);
         private final Color metaColor = new Color(105, 110, 120);
@@ -375,16 +378,22 @@ public class NotebookEntriesPanel extends JPanel {
             
             snippet.setFont(snippet.getFont().deriveFont(Font.PLAIN, 12f));
             snippet.setForeground(new Color(90, 95, 110));
-            snippet.setLineWrap(true);
-            snippet.setWrapStyleWord(true);
-            snippet.setEditable(false);
-            snippet.setOpaque(false);
-            snippet.setFocusable(false);
+            snippet.setVerticalAlignment(JLabel.TOP);
             snippet.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
-            snippet.setRows(2);
-            
+
+            editedContextLabel.setFont(snippet.getFont().deriveFont(Font.PLAIN, 11f));
+            editedContextLabel.setForeground(new Color(118, 126, 141));
+            editedContextLabel.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+
+            sparkline.setPreferredSize(new Dimension(140, 24));
+            sparkline.setMaximumSize(new Dimension(180, 24));
+            sparkline.setMinimumSize(new Dimension(120, 24));
+
             content.add(titleWrapper);
             content.add(snippet);
+            content.add(editedContextLabel);
+            content.add(Box.createVerticalStrut(2));
+            content.add(sparkline);
             add(content, BorderLayout.CENTER);
             
             // Right stats panel: vertically stacked stats
@@ -441,6 +450,10 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
             @SuppressWarnings("unchecked") Map<File, PreviewSnapshot> previews = (Map<File, PreviewSnapshot>) list.getClientProperty("previews");
+            @SuppressWarnings("unchecked") Map<File, int[]> moodTrends = (Map<File, int[]>) list.getClientProperty("moodTrends");
+            String searchQuery = String.valueOf(list.getClientProperty("searchQuery") == null
+                    ? ""
+                    : list.getClientProperty("searchQuery"));
             File file = value != null ? value.file : null;
             String fallback = file != null ? file.getName() : "";
             int dotIdx = fallback.lastIndexOf('.');
@@ -490,9 +503,17 @@ public class NotebookEntriesPanel extends JPanel {
             editedLabel.setText("Edited " + df.format(modified));
             PreviewSnapshot snap = (file != null && previews != null) ? previews.get(file) : null;
             String previewText = snap != null ? snap.snippet : "";
-            snippet.setText(previewText == null ? "" : previewText);
+            int wrapWidth = list.getWidth() > 0 ? Math.max(260, list.getWidth() - 360) : 540;
+            snippet.setText(buildHighlightedSnippetHtml(previewText, searchQuery, wrapWidth));
+            editedContextLabel.setText(formatLastEditedContext(modified.getTime()));
+
+            int[] trendValues = file != null && moodTrends != null ? moodTrends.get(file) : null;
+            if ((trendValues == null || trendValues.length == 0) && moodValue >= 0) {
+                trendValues = new int[] { moodValue };
+            }
+            sparkline.setValues(trendValues, moodValue);
             this.selected = isSelected;
-            setPreferredSize(new Dimension(1, 108));
+            setPreferredSize(new Dimension(1, 126));
             return this;
         }
 
@@ -638,6 +659,140 @@ public class NotebookEntriesPanel extends JPanel {
             g2.dispose();
             super.paintComponent(g);
         }
+
+        private static String formatLastEditedContext(long modifiedAt) {
+            long now = System.currentTimeMillis();
+            long deltaMs = Math.max(0L, now - modifiedAt);
+            long minutes = deltaMs / 60_000L;
+            if (minutes < 1) return "Last edited just now";
+            if (minutes < 60) return "Last edited " + minutes + "m ago";
+            long hours = minutes / 60;
+            if (hours < 24) return "Last edited " + hours + "h ago";
+            long days = hours / 24;
+            if (days < 30) return "Last edited " + days + "d ago";
+            long months = days / 30;
+            if (months < 12) return "Last edited " + months + "mo ago";
+            long years = months / 12;
+            return "Last edited " + years + "y ago";
+        }
+
+        private static String buildHighlightedSnippetHtml(String snippet, String query, int wrapPx) {
+            String src = snippet == null ? "" : snippet.trim();
+            if (src.isEmpty()) {
+                return "<html><div style='color:#8A92A3'>No preview available.</div></html>";
+            }
+            String token = firstQueryToken(query);
+            String rendered;
+            if (token.isEmpty()) {
+                rendered = escapeHtml(src);
+            } else {
+                rendered = highlightToken(src, token);
+            }
+            return "<html><div style='width:" + Math.max(220, wrapPx) + "px;'>"
+                    + rendered + "</div></html>";
+        }
+
+        private static String firstQueryToken(String query) {
+            if (query == null) return "";
+            for (String part : query.trim().split("\\s+")) {
+                String token = part.trim();
+                if (token.length() >= 2) return token;
+            }
+            return "";
+        }
+
+        private static String highlightToken(String src, String token) {
+            if (src == null || src.isEmpty() || token == null || token.isEmpty()) {
+                return escapeHtml(src == null ? "" : src);
+            }
+            String lower = src.toLowerCase(Locale.ROOT);
+            String needle = token.toLowerCase(Locale.ROOT);
+            StringBuilder out = new StringBuilder(src.length() + 48);
+            int from = 0;
+            while (from < src.length()) {
+                int idx = lower.indexOf(needle, from);
+                if (idx < 0) {
+                    out.append(escapeHtml(src.substring(from)));
+                    break;
+                }
+                out.append(escapeHtml(src.substring(from, idx)));
+                String hit = src.substring(idx, idx + needle.length());
+                out.append("<span style='background:#FFE8A3;color:#37445A;padding:0 1px;border-radius:3px;'>")
+                        .append(escapeHtml(hit))
+                        .append("</span>");
+                from = idx + needle.length();
+            }
+            return out.toString();
+        }
+
+        private static String escapeHtml(String text) {
+            if (text == null || text.isEmpty()) return "";
+            return text.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;");
+        }
+
+        private static final class MoodSparkline extends JComponent {
+            private int[] values = new int[0];
+            private int currentMood = -1;
+
+            private void setValues(int[] values, int currentMood) {
+                this.values = values == null ? new int[0] : Arrays.copyOf(values, values.length);
+                this.currentMood = currentMood;
+                repaint();
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                if (w <= 2 || h <= 2) {
+                    g2.dispose();
+                    return;
+                }
+
+                g2.setColor(new Color(235, 240, 247, 210));
+                g2.fillRoundRect(0, 0, w - 1, h - 1, 10, 10);
+                g2.setColor(new Color(205, 214, 226, 220));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
+
+                if (values.length < 2) {
+                    Color dot = currentMood >= 0 ? moodColorAt(currentMood) : new Color(165, 176, 194);
+                    g2.setColor(dot);
+                    int r = 4;
+                    g2.fillOval(w / 2 - r, h / 2 - r, r * 2, r * 2);
+                    g2.dispose();
+                    return;
+                }
+
+                int left = 6;
+                int right = w - 7;
+                int top = 5;
+                int bottom = h - 6;
+                float dx = values.length > 1 ? (right - left) / (float) (values.length - 1) : 0f;
+
+                g2.setStroke(new java.awt.BasicStroke(1.8f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+                int prevX = -1;
+                int prevY = -1;
+                for (int i = 0; i < values.length; i++) {
+                    int mood = Math.max(0, Math.min(100, values[i]));
+                    int x = Math.round(left + i * dx);
+                    int y = bottom - Math.round((bottom - top) * (mood / 100f));
+                    if (prevX >= 0) {
+                        g2.setColor(moodColorAt((values[i - 1] + mood) / 2));
+                        g2.drawLine(prevX, prevY, x, y);
+                    }
+                    prevX = x;
+                    prevY = y;
+                }
+                int lastMood = Math.max(0, Math.min(100, values[values.length - 1]));
+                g2.setColor(moodColorAt(lastMood));
+                g2.fillOval(prevX - 3, prevY - 3, 6, 6);
+                g2.dispose();
+            }
+        }
     }
 
     private static final class DateDividerRenderer extends JComponent {
@@ -768,6 +923,8 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
         list.putClientProperty("dashedBorderPhase", dashedBorderPhase);
         list.putClientProperty("previews", previewCache);
+        list.putClientProperty("moodTrends", moodTrendCache);
+        list.putClientProperty("searchQuery", "");
         list.putClientProperty("hoverIndex", -1);
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(-1);
@@ -921,6 +1078,7 @@ public class NotebookEntriesPanel extends JPanel {
             synchronized (metaQueued) { metaQueued.retainAll(current); }
             metaCache.keySet().retainAll(current);
             previewCache.keySet().retainAll(current);
+            moodTrendCache.keySet().retainAll(current);
 
             // Seed provisional values for new files
             java.util.Map<File, MetaSnapshot> refreshedCache = new java.util.HashMap<>();
@@ -961,6 +1119,7 @@ public class NotebookEntriesPanel extends JPanel {
             metaQueued.clear();
             metaCache.clear();
             previewCache.clear();
+            moodTrendCache.clear();
         }
     }
 
@@ -1027,6 +1186,9 @@ public class NotebookEntriesPanel extends JPanel {
             default -> withinDate = Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER);
         }
         List<File> ordered = orderByDateGroups(filtered, dateDesc, withinDate);
+        rebuildMoodTrendCache(ordered);
+        String rawQuery = searchField.getText() == null ? "" : searchField.getText().trim();
+        list.putClientProperty("searchQuery", rawQuery);
         List<EntryRow> rows = buildGroupedRows(ordered);
         // If order hasn't changed, skip rebuild to avoid flicker
         boolean sameOrder = (model.size() == rows.size());
@@ -1054,6 +1216,40 @@ public class NotebookEntriesPanel extends JPanel {
         // After resort/filter, make sure visible items are prioritized
         ensureMetaForVisibleRange();
         ensurePreviewForVisibleRange();
+    }
+
+    private void rebuildMoodTrendCache(List<File> orderedFiles) {
+        if (orderedFiles == null || orderedFiles.isEmpty()) {
+            moodTrendCache.clear();
+            return;
+        }
+
+        java.util.Set<File> keep = new java.util.HashSet<>(orderedFiles);
+        moodTrendCache.keySet().retainAll(keep);
+
+        List<File> timeline = new ArrayList<>(orderedFiles);
+        timeline.sort(Comparator.comparingLong(this::entrySortTimestampCached));
+
+        for (int i = 0; i < timeline.size(); i++) {
+            File anchor = timeline.get(i);
+            if (anchor == null) continue;
+            int start = Math.max(0, i - 6);
+            java.util.List<Integer> samples = new ArrayList<>(7);
+            for (int j = start; j <= i; j++) {
+                File point = timeline.get(j);
+                int mood = moodValues.getOrDefault(point, -1);
+                if (mood >= 0) samples.add(Math.max(0, Math.min(100, mood)));
+            }
+            if (samples.isEmpty()) {
+                int mood = moodValues.getOrDefault(anchor, -1);
+                if (mood >= 0) {
+                    samples.add(Math.max(0, Math.min(100, mood)));
+                }
+            }
+            int[] arr = new int[samples.size()];
+            for (int k = 0; k < samples.size(); k++) arr[k] = samples.get(k);
+            moodTrendCache.put(anchor, arr);
+        }
     }
 
     // Returns set of files that were inserted or moved

@@ -24,7 +24,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -52,6 +54,7 @@ import main.ui.components.containers.RoundedPanel;
 import main.ui.components.fields.ModernTextField;
 import main.ui.components.spinner.ModernSpinnerUI;
 import main.core.service.SettingsStore;
+import main.infrastructure.io.MoodFile;
 import main.ui.features.entries.BackgroundPainter;
 import main.ui.theme.aero.AeroTheme;
 
@@ -70,8 +73,11 @@ public class GlobalSearchDialog extends JDialog {
     private final JLabel statusLabel;
     private final DefaultListModel<GlobalSearchEngine.SearchResult> model = new DefaultListModel<>();
     private final JList<GlobalSearchEngine.SearchResult> list = new JList<>(model);
+    private final java.util.List<MoodPoint> moodTimeline = new java.util.ArrayList<>();
+    private final java.util.Map<String, int[]> resultTrendCache = new java.util.HashMap<>();
     private SwingWorker<Void, GlobalSearchEngine.SearchResult> worker;
     private final Timer debounce;
+    private String activeHighlightQuery = "";
 
     public GlobalSearchDialog(Frame owner, JournalApp app) {
         super(owner, "Search", false);
@@ -186,6 +192,7 @@ public class GlobalSearchDialog extends JDialog {
         topStack.add(filterCard);
         root.add(topStack, BorderLayout.NORTH);
 
+        refreshMoodTimeline();
         list.setCellRenderer(new SearchResultRenderer());
         list.setOpaque(false);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -303,6 +310,8 @@ public class GlobalSearchDialog extends JDialog {
         moodMin.setValue(0);
         moodMax.setValue(100);
         model.clear();
+        activeHighlightQuery = "";
+        resultTrendCache.clear();
         list.clearSelection();
         statusLabel.setText("Type to search.");
     }
@@ -320,6 +329,10 @@ public class GlobalSearchDialog extends JDialog {
             statusLabel.setText("Type to search.");
             return;
         }
+
+        activeHighlightQuery = query.q == null ? "" : query.q.trim();
+        resultTrendCache.clear();
+        refreshMoodTimeline();
 
         statusLabel.setText("Searching...");
         worker = new SwingWorker<>() {
@@ -396,10 +409,169 @@ public class GlobalSearchDialog extends JDialog {
         }
     }
 
-    private static class SearchResultRenderer extends JPanel implements ListCellRenderer<GlobalSearchEngine.SearchResult> {
+    private void refreshMoodTimeline() {
+        moodTimeline.clear();
+        try {
+            List<MoodFile.MoodRecord> records = MoodFile.readAllRecords();
+            for (MoodFile.MoodRecord rec : records) {
+                if (rec == null || rec.timestamp == null) continue;
+                long ts = rec.timestamp.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                moodTimeline.add(new MoodPoint(ts, rec.composite));
+            }
+            moodTimeline.sort(java.util.Comparator.comparingLong(p -> p.timestampMs));
+        } catch (Throwable ignored) {
+            moodTimeline.clear();
+        }
+    }
+
+    private int[] trendForResult(GlobalSearchEngine.SearchResult value) {
+        if (value == null) return new int[0];
+        String key = (value.file == null ? "?" : value.file.getAbsolutePath()) + "|" + value.savedAt + "|" + value.mood;
+        int[] cached = resultTrendCache.get(key);
+        if (cached != null) return Arrays.copyOf(cached, cached.length);
+
+        List<Integer> out = new java.util.ArrayList<>(8);
+        long anchor = value.savedAt > 0
+                ? value.savedAt
+                : (value.file != null ? value.file.lastModified() : System.currentTimeMillis());
+
+        if (!moodTimeline.isEmpty()) {
+            int nearest = nearestMoodIndex(anchor);
+            int start = Math.max(0, nearest - 4);
+            int end = Math.min(moodTimeline.size() - 1, nearest + 3);
+            for (int i = start; i <= end; i++) {
+                int mood = moodTimeline.get(i).mood;
+                if (mood >= 0) out.add(Math.max(0, Math.min(100, mood)));
+            }
+        }
+        if (out.isEmpty() && value.mood >= 0) {
+            out.add(Math.max(0, Math.min(100, value.mood)));
+        }
+        int[] trend = new int[out.size()];
+        for (int i = 0; i < out.size(); i++) trend[i] = out.get(i);
+        resultTrendCache.put(key, trend);
+        return Arrays.copyOf(trend, trend.length);
+    }
+
+    private int nearestMoodIndex(long anchorMs) {
+        if (moodTimeline.isEmpty()) return 0;
+        int lo = 0;
+        int hi = moodTimeline.size() - 1;
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (moodTimeline.get(mid).timestampMs < anchorMs) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        int idx = lo;
+        int prev = Math.max(0, idx - 1);
+        long d1 = Math.abs(moodTimeline.get(idx).timestampMs - anchorMs);
+        long d0 = Math.abs(moodTimeline.get(prev).timestampMs - anchorMs);
+        return d0 <= d1 ? prev : idx;
+    }
+
+    private static String formatLastEditedContext(long timestampMs) {
+        long deltaMs = Math.max(0L, System.currentTimeMillis() - timestampMs);
+        long minutes = deltaMs / 60_000L;
+        if (minutes < 1) return "Last edited just now";
+        if (minutes < 60) return "Last edited " + minutes + "m ago";
+        long hours = minutes / 60;
+        if (hours < 24) return "Last edited " + hours + "h ago";
+        long days = hours / 24;
+        if (days < 30) return "Last edited " + days + "d ago";
+        long months = days / 30;
+        if (months < 12) return "Last edited " + months + "mo ago";
+        long years = months / 12;
+        return "Last edited " + years + "y ago";
+    }
+
+    private static String buildHighlightedSnippetHtml(String snippet, String query, int wrapPx) {
+        String src = snippet == null ? "" : snippet.trim();
+        if (src.isEmpty()) {
+            return "<html><div style='color:#8A92A3'>No snippet available.</div></html>";
+        }
+        String token = firstQueryToken(query);
+        String rendered = token.isEmpty() ? escapeHtml(src) : highlightToken(src, token);
+        return "<html><div style='width:" + Math.max(220, wrapPx) + "px;'>" + rendered + "</div></html>";
+    }
+
+    private static String firstQueryToken(String query) {
+        if (query == null) return "";
+        for (String part : query.trim().split("\\s+")) {
+            String token = part.trim();
+            if (token.length() >= 2) return token;
+        }
+        return "";
+    }
+
+    private static String highlightToken(String src, String token) {
+        if (src == null || src.isEmpty() || token == null || token.isEmpty()) {
+            return escapeHtml(src == null ? "" : src);
+        }
+        String lower = src.toLowerCase(Locale.ROOT);
+        String needle = token.toLowerCase(Locale.ROOT);
+        StringBuilder out = new StringBuilder(src.length() + 48);
+        int from = 0;
+        while (from < src.length()) {
+            int idx = lower.indexOf(needle, from);
+            if (idx < 0) {
+                out.append(escapeHtml(src.substring(from)));
+                break;
+            }
+            out.append(escapeHtml(src.substring(from, idx)));
+            String hit = src.substring(idx, idx + needle.length());
+            out.append("<span style='background:#FFE8A3;color:#37445A;padding:0 1px;border-radius:3px;'>")
+                    .append(escapeHtml(hit))
+                    .append("</span>");
+            from = idx + needle.length();
+        }
+        return out.toString();
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null || s.isEmpty()) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static Color moodColorAt(int mood) {
+        int clamped = Math.max(0, Math.min(100, mood));
+        float v = clamped / 100f;
+        Color cool = new Color(90, 151, 224);
+        Color mid = new Color(200, 200, 200);
+        Color warm = new Color(236, 133, 77);
+        if (v <= 0.5f) {
+            return lerp(cool, mid, v / 0.5f);
+        }
+        return lerp(mid, warm, (v - 0.5f) / 0.5f);
+    }
+
+    private static Color lerp(Color a, Color b, float t) {
+        float clamped = Math.max(0f, Math.min(1f, t));
+        int r = Math.round(a.getRed() + (b.getRed() - a.getRed()) * clamped);
+        int g = Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * clamped);
+        int bl = Math.round(a.getBlue() + (b.getBlue() - a.getBlue()) * clamped);
+        int al = Math.round(a.getAlpha() + (b.getAlpha() - a.getAlpha()) * clamped);
+        return new Color(r, g, bl, al);
+    }
+
+    private static final class MoodPoint {
+        final long timestampMs;
+        final int mood;
+
+        private MoodPoint(long timestampMs, int mood) {
+            this.timestampMs = timestampMs;
+            this.mood = Math.max(0, Math.min(100, mood));
+        }
+    }
+
+    private final class SearchResultRenderer extends JPanel implements ListCellRenderer<GlobalSearchEngine.SearchResult> {
         private final JLabel titleLine = new JLabel();
         private final JLabel snippetLine = new JLabel();
+        private final JLabel editedContext = new JLabel();
         private final JLabel meta = new JLabel();
+        private final MoodSparkline sparkline = new MoodSparkline();
         private boolean selected;
 
         SearchResultRenderer() {
@@ -409,10 +581,16 @@ public class GlobalSearchDialog extends JDialog {
             titleLine.setForeground(new Color(30, 36, 46));
             snippetLine.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
             snippetLine.setForeground(new Color(105, 115, 130));
+            editedContext.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+            editedContext.setForeground(new Color(125, 135, 150));
             meta.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
             meta.setForeground(new Color(135, 145, 160));
+            sparkline.setPreferredSize(new Dimension(170, 24));
+            sparkline.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
             add(titleLine);
             add(snippetLine);
+            add(editedContext);
+            add(sparkline);
             add(meta);
             setBorder(new EmptyBorder(10, 12, 10, 12));
         }
@@ -432,17 +610,22 @@ public class GlobalSearchDialog extends JDialog {
                 } else {
                     snippetLine.setVisible(true);
                     int wrap = list.getWidth() > 0 ? Math.max(320, list.getWidth() - 80) : 520;
-                    snippetLine.setText("<html><div style='width:" + wrap + "px;'>" + escapeHtml(snippet) + "</div></html>");
+                    snippetLine.setText(buildHighlightedSnippetHtml(snippet, activeHighlightQuery, wrap));
                 }
 
                 String date = DateTimeFormatter.ofPattern("yyyy-MM-dd")
                         .format(Instant.ofEpochMilli(value.savedAt).atZone(ZoneId.systemDefault()).toLocalDate());
-                StringBuilder sb = new StringBuilder("📓 ").append(nbName).append("  •  ").append(date);
+                StringBuilder sb = new StringBuilder(nbName).append("  •  ").append(date);
                 if (value.mood >= 0) sb.append("  •  Mood ").append(value.mood);
                 if (value.tags != null && !value.tags.isEmpty()) {
                     sb.append("  •  #").append(String.join(" #", value.tags));
                 }
                 meta.setText(sb.toString());
+                long editedTs = value.savedAt > 0
+                        ? value.savedAt
+                        : (value.file != null ? value.file.lastModified() : System.currentTimeMillis());
+                editedContext.setText(formatLastEditedContext(editedTs));
+                sparkline.setValues(trendForResult(value), value.mood);
             }
             this.selected = isSelected;
             return this;
@@ -464,9 +647,68 @@ public class GlobalSearchDialog extends JDialog {
             g2.dispose();
             super.paintComponent(g);
         }
+    }
 
-        private static String escapeHtml(String s) {
-            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    private static final class MoodSparkline extends JComponent {
+        private int[] values = new int[0];
+        private int currentMood = -1;
+
+        private void setValues(int[] values, int currentMood) {
+            this.values = values == null ? new int[0] : Arrays.copyOf(values, values.length);
+            this.currentMood = currentMood;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 2 || h <= 2) {
+                g2.dispose();
+                return;
+            }
+
+            g2.setColor(new Color(238, 243, 249, 220));
+            g2.fillRoundRect(0, 0, w - 1, h - 1, 10, 10);
+            g2.setColor(new Color(214, 223, 236));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
+
+            if (values.length < 2) {
+                Color dot = currentMood >= 0 ? moodColorAt(currentMood) : new Color(165, 176, 194);
+                g2.setColor(dot);
+                int r = 4;
+                g2.fillOval(w / 2 - r, h / 2 - r, r * 2, r * 2);
+                g2.dispose();
+                return;
+            }
+
+            int left = 8;
+            int right = w - 9;
+            int top = 5;
+            int bottom = h - 6;
+            float dx = values.length > 1 ? (right - left) / (float) (values.length - 1) : 0f;
+            g2.setStroke(new java.awt.BasicStroke(1.8f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+
+            int prevX = -1;
+            int prevY = -1;
+            for (int i = 0; i < values.length; i++) {
+                int mood = Math.max(0, Math.min(100, values[i]));
+                int x = Math.round(left + i * dx);
+                int y = bottom - Math.round((bottom - top) * (mood / 100f));
+                if (prevX >= 0) {
+                    g2.setColor(moodColorAt((values[i - 1] + mood) / 2));
+                    g2.drawLine(prevX, prevY, x, y);
+                }
+                prevX = x;
+                prevY = y;
+            }
+
+            int finalMood = Math.max(0, Math.min(100, values[values.length - 1]));
+            g2.setColor(moodColorAt(finalMood));
+            g2.fillOval(prevX - 3, prevY - 3, 6, 6);
+            g2.dispose();
         }
     }
 
