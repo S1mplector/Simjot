@@ -52,7 +52,7 @@ import javax.swing.text.LayeredHighlighter;
 import javax.swing.text.Position;
 import javax.swing.text.View;
 
-import main.ui.components.popup.AnimatedGlassPopup;
+import main.ui.components.popup.AdvancedSuggestionPopup;
 
 /**
  * AutocorrectDocumentFilter - non-intrusive autocorrect suggestions for JTextComponent.
@@ -84,7 +84,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     private final Timer popupShowTimer;
     private final Timer popupHideTimer;
 
-    private AnimatedGlassPopup suggestionPopup;
+    private AdvancedSuggestionPopup suggestionPopup;
     private PendingSuggestion hoveredSuggestion;
     private PendingSuggestion pendingHoverSuggestion;
     private Point pendingHoverPoint;
@@ -183,6 +183,10 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         cancelHidePopup();
         clearAllSuggestions();
         hideSuggestionPopup();
+        if (suggestionPopup != null) {
+            try { suggestionPopup.dispose(); } catch (Throwable ignored) {}
+            suggestionPopup = null;
+        }
         try { textComponent.removeMouseMotionListener(hoverMotionListener); } catch (Throwable ignored) {}
         try { textComponent.removeMouseListener(hoverMouseListener); } catch (Throwable ignored) {}
         try { textComponent.removeCaretListener(caretListener); } catch (Throwable ignored) {}
@@ -393,7 +397,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     }
 
     private void showSuggestionPopup(PendingSuggestion suggestion, Point localPoint) {
-        AnimatedGlassPopup popup = ensureSuggestionPopup();
+        AdvancedSuggestionPopup popup = ensureSuggestionPopup();
         if (popup == null) return;
 
         Point p = new Point(localPoint);
@@ -484,11 +488,11 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         return new Point(0, 0);
     }
 
-    private AnimatedGlassPopup ensureSuggestionPopup() {
+    private AdvancedSuggestionPopup ensureSuggestionPopup() {
         Window owner = SwingUtilities.getWindowAncestor(textComponent);
         if (owner == null) return null;
         if (suggestionPopup == null || suggestionPopup.getOwner() != owner) {
-            suggestionPopup = new AnimatedGlassPopup(owner);
+            suggestionPopup = new AdvancedSuggestionPopup(owner);
         }
         return suggestionPopup;
     }
@@ -497,20 +501,23 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         JPanel root = new JPanel();
         root.setOpaque(false);
         root.setLayout(new javax.swing.BoxLayout(root, javax.swing.BoxLayout.Y_AXIS));
-        root.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        root.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
 
         JLabel title = new JLabel("<html><b>Autocorrect suggestion</b></html>");
         title.setForeground(new Color(46, 50, 62));
         title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD, 12f));
 
         JLabel body = new JLabel("<html><span style='color:#444'>"
-                + escapeHtml(suggestion.original) + " → <b>" + escapeHtml(suggestion.correction)
+                + escapeHtml(suggestion.original)
+                + "</span><br><span style='color:#2f3744'>&rarr; <b>"
+                + escapeHtml(suggestion.correction)
                 + "</b></span></html>");
         body.setForeground(new Color(65, 70, 84));
         body.setFont(body.getFont().deriveFont(java.awt.Font.PLAIN, 12f));
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actions.setOpaque(false);
+        actions.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
         JButton accept = actionButton("Accept");
         accept.addActionListener(ev -> acceptSuggestion(suggestion));
         JButton ignore = actionButton("Don't ask again");
@@ -519,9 +526,9 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         actions.add(ignore);
 
         root.add(title);
-        root.add(javax.swing.Box.createVerticalStrut(4));
+        root.add(javax.swing.Box.createVerticalStrut(8));
         root.add(body);
-        root.add(javax.swing.Box.createVerticalStrut(6));
+        root.add(javax.swing.Box.createVerticalStrut(10));
         root.add(actions);
         return root;
     }
@@ -529,7 +536,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     private JButton actionButton(String text) {
         JButton btn = new JButton(text);
         btn.setFocusPainted(false);
-        btn.setBorder(BorderFactory.createEmptyBorder(3, 10, 3, 10));
+        btn.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
         btn.setOpaque(true);
         btn.setBackground(new Color(255, 255, 255, 230));
         btn.setForeground(new Color(44, 49, 62));

@@ -25,6 +25,10 @@ public class AnimatedGlassPopup extends JWindow {
     private static final int SHADOW = 6;
     private static final int COLLAPSED_W = 50;
     private static final int COLLAPSED_H = 50;
+    private static final int ANIM_TICK_MS = 15;
+    private static final long SHOW_DURATION_MS = 190;
+    private static final long HIDE_DURATION_MS = 160;
+    private static final long UPDATE_DURATION_MS = 130;
 
     private JPanel chromePanel; // paints glass background; hosts content
     private int width;
@@ -56,6 +60,7 @@ public class AnimatedGlassPopup extends JWindow {
 
     /** Show at screen coordinates using a deferred content factory. */
     public void showAt(int screenX, int screenY, Supplier<JPanel> contentFactory) {
+        boolean wasVisible = isVisible();
         JPanel content = contentFactory.get();
         content.setOpaque(false);
 
@@ -98,61 +103,75 @@ public class AnimatedGlassPopup extends JWindow {
         targetY = screenY - height - 8;
 
         setContentPane(chromePanel);
-        setBounds(targetX, targetY, COLLAPSED_W, COLLAPSED_H);
-        setVisible(true);
-        requestFocusInWindow();
+        if (resizeTimer != null && resizeTimer.isRunning()) {
+            resizeTimer.stop();
+        }
 
-        // Animate expand
-        if (resizeTimer != null && resizeTimer.isRunning()) resizeTimer.stop();
-        final Dimension start = new Dimension(COLLAPSED_W, COLLAPSED_H);
-        final Dimension end = new Dimension(width, height);
-        final long duration = 220;
-        final long startTime = System.currentTimeMillis();
-        final Point pos = new Point(targetX, targetY);
+        Rectangle endBounds = new Rectangle(targetX, targetY, width, height);
+        if (!wasVisible) {
+            Rectangle startBounds = new Rectangle(targetX, targetY, COLLAPSED_W, COLLAPSED_H);
+            setBounds(startBounds);
+            setVisible(true);
+            if (getFocusableWindowState()) {
+                requestFocusInWindow();
+            }
+            animateBounds(startBounds, endBounds, SHOW_DURATION_MS, null);
+            return;
+        }
 
-        resizeTimer = new javax.swing.Timer(15, null);
-        resizeTimer.addActionListener(e -> {
-            long now = System.currentTimeMillis();
-            float t = Math.min(1f, (now - startTime) / (float) duration);
-            float tt = (float) (0.5 - 0.5 * Math.cos(Math.PI * t));
-            int w = (int) (start.width + (end.width - start.width) * tt);
-            int h = (int) (start.height + (end.height - start.height) * tt);
-            setBounds(pos.x, pos.y, w, h);
+        Rectangle startBounds = getBounds();
+        if (startBounds.equals(endBounds)) {
             revalidate();
             repaint();
-            if (t >= 1f) {
-                resizeTimer.stop();
-                setBounds(pos.x, pos.y, end.width, end.height);
-            }
-        });
-        resizeTimer.start();
+            return;
+        }
+        animateBounds(startBounds, endBounds, UPDATE_DURATION_MS, null);
     }
 
     /** Animate collapse then hide. */
     public void hidePopup() {
         if (!isVisible()) return;
-        if (resizeTimer != null && resizeTimer.isRunning()) resizeTimer.stop();
+        if (resizeTimer != null && resizeTimer.isRunning()) {
+            resizeTimer.stop();
+        }
 
-        final Rectangle startBounds = getBounds();
-        final Dimension start = new Dimension(startBounds.width, startBounds.height);
-        final Dimension end = new Dimension(COLLAPSED_W, COLLAPSED_H);
-        final long duration = 220;
+        Rectangle startBounds = getBounds();
+        Rectangle endBounds = new Rectangle(startBounds.x, startBounds.y, COLLAPSED_W, COLLAPSED_H);
+        if (startBounds.width <= COLLAPSED_W && startBounds.height <= COLLAPSED_H) {
+            setVisible(false);
+            return;
+        }
+        animateBounds(startBounds, endBounds, HIDE_DURATION_MS, () -> setVisible(false));
+    }
+
+    private void animateBounds(Rectangle startBounds, Rectangle endBounds, long durationMs, Runnable onComplete) {
+        if (durationMs <= 0L) {
+            setBounds(endBounds);
+            revalidate();
+            repaint();
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+
         final long startTime = System.currentTimeMillis();
-        final Point pos = new Point(startBounds.x, startBounds.y);
-
-        resizeTimer = new javax.swing.Timer(15, null);
+        resizeTimer = new javax.swing.Timer(ANIM_TICK_MS, null);
         resizeTimer.addActionListener(e -> {
             long now = System.currentTimeMillis();
-            float t = Math.min(1f, (now - startTime) / (float) duration);
-            float tt = (float) (0.5 - 0.5 * Math.cos(Math.PI * t));
-            int w = (int) (start.width + (end.width - start.width) * tt);
-            int h = (int) (start.height + (end.height - start.height) * tt);
-            setBounds(pos.x, pos.y, w, h);
+            float t = Math.min(1f, (now - startTime) / (float) durationMs);
+            float ease = (float) (0.5 - 0.5 * Math.cos(Math.PI * t));
+
+            int x = (int) (startBounds.x + (endBounds.x - startBounds.x) * ease);
+            int y = (int) (startBounds.y + (endBounds.y - startBounds.y) * ease);
+            int w = (int) (startBounds.width + (endBounds.width - startBounds.width) * ease);
+            int h = (int) (startBounds.height + (endBounds.height - startBounds.height) * ease);
+
+            setBounds(x, y, w, h);
             revalidate();
             repaint();
             if (t >= 1f) {
                 resizeTimer.stop();
-                setVisible(false);
+                setBounds(endBounds);
+                if (onComplete != null) onComplete.run();
             }
         });
         resizeTimer.start();
