@@ -83,6 +83,7 @@ import main.ui.components.clocks.SegmentClock;
 import main.ui.components.clocks.SunburstClock;
 import main.ui.components.clocks.SwissRailwayClock;
 import main.ui.components.clocks.WordClock;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
@@ -193,6 +194,10 @@ public class MainMenuPanel extends JPanel {
         private long lastMoodMillis = 0L;
 
         private JPopupMenu moodPopup;
+        private MoodSparkline moodSparklineView;
+        private Timer moodPopupHideTimer;
+        private boolean moodChipHovered = false;
+        private boolean moodPopupHovered = false;
 
         AppContextIndicators(JournalApp app) {
             this.app = app;
@@ -230,8 +235,15 @@ public class MainMenuPanel extends JPanel {
                 app.switchCard(JournalApp.MOOD_CHART);
             });
             moodPulseChip.addMouseListener(new MouseAdapter() {
-                @Override public void mouseEntered(MouseEvent e) { showMoodSparklinePopup(); }
-                @Override public void mouseExited(MouseEvent e) { hideMoodPopupSoon(); }
+                @Override public void mouseEntered(MouseEvent e) {
+                    moodChipHovered = true;
+                    showMoodSparklinePopup();
+                }
+
+                @Override public void mouseExited(MouseEvent e) {
+                    moodChipHovered = false;
+                    hideMoodPopupSoon();
+                }
             });
 
             countsLbl.setText("– notebooks  •  – entries");
@@ -349,32 +361,64 @@ public class MainMenuPanel extends JPanel {
             if (lastSparklineValues == null || lastSparklineValues.isEmpty()) {
                 return;
             }
-            if (moodPopup != null && moodPopup.isVisible()) {
-                moodPopup.setVisible(false);
+            ensureMoodPopup();
+            cancelMoodPopupHide();
+            if (moodSparklineView != null) {
+                moodSparklineView.setValues(lastSparklineValues);
             }
+            if (!moodPopup.isVisible()) {
+                moodPopup.show(moodPulseChip, 0, moodPulseChip.getHeight() + 4);
+            }
+        }
 
+        private void hideMoodPopupSoon() {
+            cancelMoodPopupHide();
+            moodPopupHideTimer = new Timer(360, e -> {
+                if (!moodChipHovered && !moodPopupHovered && moodPopup != null) {
+                    moodPopup.setVisible(false);
+                }
+            });
+            moodPopupHideTimer.setRepeats(false);
+            moodPopupHideTimer.start();
+        }
+
+        private void ensureMoodPopup() {
+            if (moodPopup != null) return;
             moodPopup = new JPopupMenu();
             moodPopup.setBorder(BorderFactory.createLineBorder(new Color(184, 194, 208)));
+
             JPanel wrap = new JPanel(new BorderLayout(0, 6));
             wrap.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
             wrap.setBackground(Color.WHITE);
+            wrap.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    moodPopupHovered = true;
+                    cancelMoodPopupHide();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    moodPopupHovered = false;
+                    hideMoodPopupSoon();
+                }
+            });
+
             JLabel title = new JLabel("30-day mood pulse");
             title.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
             title.setForeground(AeroTheme.TEXT_PRIMARY);
             wrap.add(title, BorderLayout.NORTH);
-            wrap.add(new MoodSparkline(lastSparklineValues), BorderLayout.CENTER);
+
+            moodSparklineView = new MoodSparkline(lastSparklineValues);
+            wrap.add(moodSparklineView, BorderLayout.CENTER);
             moodPopup.add(wrap);
-            moodPopup.show(moodPulseChip, 0, moodPulseChip.getHeight() + 4);
         }
 
-        private void hideMoodPopupSoon() {
-            Timer t = new Timer(260, e -> {
-                if (moodPopup != null) {
-                    moodPopup.setVisible(false);
-                }
-            });
-            t.setRepeats(false);
-            t.start();
+        private void cancelMoodPopupHide() {
+            if (moodPopupHideTimer != null) {
+                moodPopupHideTimer.stop();
+                moodPopupHideTimer = null;
+            }
         }
 
         private String trendArrow(List<Double> values) {
@@ -468,12 +512,17 @@ public class MainMenuPanel extends JPanel {
         }
 
         private static final class MoodSparkline extends JComponent {
-            private final List<Double> values;
+            private List<Double> values;
 
             private MoodSparkline(List<Double> values) {
                 this.values = values == null ? List.of() : values;
                 setPreferredSize(new Dimension(210, 48));
                 setOpaque(false);
+            }
+
+            private void setValues(List<Double> values) {
+                this.values = values == null ? List.of() : values;
+                repaint();
             }
 
             @Override
@@ -694,37 +743,11 @@ public class MainMenuPanel extends JPanel {
         // Prime the debounce so first layout settles quickly
         scheduleResizeClamp();
 
-        // South Status Bar (Aero-themed)
-        JPanel southPanel = new JPanel(new BorderLayout()) {
+        // South status bar as a frosted glass strip.
+        FrostedGlassPanel southPanel = new FrostedGlassPanel(new BorderLayout(), 14) {
             @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                int w = getWidth();
-                int h = getHeight();
-                Rectangle r = new Rectangle(0, 0, w, h);
-
-                if (Theme.isPlainWhite()) {
-                    g2.setColor(Color.WHITE);
-                    g2.fillRect(0, 0, w, h);
-                    g2.setColor(new Color(200, 200, 200));
-                    g2.drawLine(0, 0, w, 0);
-                } else {
-                    AeroPainters.paintOuterGlow(g2, new Rectangle(2, 0, w - 4, h), 12,
-                            new Color(0, 120, 215, 120), 6, 70);
-
-                    AeroPainters.paintVerticalGradient(g2, r,
-                            new Color(250, 250, 250, 220), new Color(226, 226, 226, 220), 12);
-                    AeroPainters.paintGlassOverlay(g2, r, 12);
-                    AeroPainters.paintInnerStroke(g2, r, 12, new Color(180, 180, 180, 180));
-
-                    g2.setColor(new Color(0, 120, 215));
-                    g2.fillRect(0, 0, w, 1);
-                }
-
-                g2.dispose();
+            protected float getOpacityScale() {
+                return Theme.isPlainWhite() ? 0.45f : 0.42f;
             }
         };
         southPanel.setOpaque(false);

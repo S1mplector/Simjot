@@ -2587,46 +2587,6 @@ public class EntryPanel extends AbstractEditorPanel {
         }
     }
 
-    private File watercolorSidecarFile(File entryFile) {
-        if (entryFile == null) return null;
-        return new File(entryFile.getAbsolutePath() + WATERCOLOR_SIDECAR_EXT);
-    }
-
-    private void clearWatercolorOverlay() {
-        if (watercolorOverlay == null) return;
-        try { watercolorOverlay.clearStrokes(); } catch (Throwable ignored) {}
-    }
-
-    private void loadWatercolorSidecar(File entryFile) {
-        if (watercolorOverlay == null) return;
-        clearWatercolorOverlay();
-        File sidecar = watercolorSidecarFile(entryFile);
-        if (sidecar == null || !sidecar.exists() || sidecar.length() <= 0L) return;
-        try {
-            byte[] data = Files.readAllBytes(sidecar.toPath());
-            watercolorOverlay.deserialize(data);
-        } catch (IOException e) {
-            IoLog.warn("watercolor-load", "Failed to load watercolor sidecar: " + sidecar, e);
-            clearWatercolorOverlay();
-        }
-    }
-
-    private void saveWatercolorSidecar(File entryFile) {
-        if (watercolorOverlay == null || entryFile == null) return;
-        File sidecar = watercolorSidecarFile(entryFile);
-        if (sidecar == null) return;
-        try {
-            if (!watercolorOverlay.hasStrokes()) {
-                if (sidecar.exists()) sidecar.delete();
-                return;
-            }
-            byte[] data = watercolorOverlay.serialize();
-            FileIO.atomicWrite(sidecar.toPath(), data, true, true);
-        } catch (IOException e) {
-            IoLog.warn("watercolor-save", "Failed to save watercolor sidecar: " + sidecar, e);
-        }
-    }
-
     private static int countWordsInGuidedResponses(java.util.Map<Integer, String> responses, String[] questions) {
         if (responses == null || responses.isEmpty()) return 0;
         if (questions == null || questions.length == 0) {
@@ -2886,8 +2846,6 @@ public class EntryPanel extends AbstractEditorPanel {
     @Override
     protected void safeLoadFile(File f) {
         loadExistingEntry(f);
-        loadWatercolorSidecar(f);
-        setWatercolorBrushEnabled(false);
         if (saveIndicator != null && f != null) {
             saveIndicator.setSavedFromTimestamp(f.lastModified());
         }
@@ -2903,8 +2861,6 @@ public class EntryPanel extends AbstractEditorPanel {
     protected void clearEditor() {
         titleField.setText("");
         contentArea.setText("");
-        clearWatercolorOverlay();
-        setWatercolorBrushEnabled(false);
         try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
         refreshMoodTrendBaselineFromHistory();
         updateMoodSummaryPills(null, moodSlider != null ? moodSlider.getValue() : 50);
