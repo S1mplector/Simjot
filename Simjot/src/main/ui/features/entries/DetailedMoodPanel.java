@@ -17,7 +17,6 @@ import java.awt.Font;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.LinearGradientPaint;
 import java.awt.RenderingHints;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -213,7 +212,7 @@ public class DetailedMoodPanel extends JPanel {
 
         JPanel chipsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         chipsRow.setOpaque(false);
-        chipsRow.setBorder(new EmptyBorder(2, 0, 0, 0));
+            chipsRow.setBorder(new EmptyBorder(2, 0, 1, 0));
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
             EmotionChipButton chip = new EmotionChipButton(EMOTION_NAMES[i], EMOTION_COLORS[i], POSITIVE_EMOTIONS[i]);
             final int idx = i;
@@ -250,7 +249,7 @@ public class DetailedMoodPanel extends JPanel {
         sliderStack = new JPanel();
         sliderStack.setOpaque(false);
         sliderStack.setLayout(new BoxLayout(sliderStack, BoxLayout.Y_AXIS));
-        sliderStack.setBorder(new EmptyBorder(1, 0, 0, 0));
+        sliderStack.setBorder(new EmptyBorder(0, 0, 0, 0));
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
             EmotionSliderRow row = createSliderRow(EMOTION_NAMES[i], sliders[i]);
             row.setVisible(false);
