@@ -65,10 +65,12 @@ import main.core.analytics.MoodAnalyticsEngine.AnalyticsResult;
 import main.core.analytics.MoodAnalyticsEngine.DailyStats;
 import main.core.analytics.MoodAnalyticsEngine.MoodSample;
 import main.core.analytics.mood.EmotionBalanceEngine;
+import main.core.analytics.mood.EmotionCoMovementAnalyzer;
 import main.core.analytics.mood.EmotionDominanceEngine;
 import main.core.analytics.mood.EmotionStackAggregator;
 import main.core.analytics.mood.MoodAnalysisCache;
 import main.core.analytics.mood.MoodAnomalyDetector;
+import main.core.analytics.mood.MoodChangePointDetector;
 import main.core.analytics.mood.MoodCoverageAnalyzer;
 import main.core.analytics.mood.MoodEmotionCatalog;
 import main.core.analytics.mood.MoodInsightComposer;
@@ -127,10 +129,14 @@ public class ElegantMoodChartPanel extends JPanel {
     private AtlasMetricCard samplesMetricCard;
     private AtlasMetricCard detailCoverageMetricCard;
     private JLabel atlasHintLabel;
+    private InspectorDrawer inspectorDrawer;
 
     private int hoveredEmotionDayIndex = -1;
+    private int hoveredChartIndex = -1;
+    private int selectedChartIndex = -1;
     private List<EmotionStackAggregator.EmotionStack> emotionStacks = List.of();
     private Map<LocalDate, EmotionStackAggregator.EmotionStack> emotionStacksByDay = Map.of();
+    private Map<LocalDate, double[]> emotionAveragesByDay = Map.of();
     private EmotionDominanceEngine.Result currentDominance = EmotionDominanceEngine.Result.empty();
     private EmotionDominanceEngine.Result previousDominance = EmotionDominanceEngine.Result.empty();
     private EmotionBalanceEngine.BalanceResult balanceResult = EmotionBalanceEngine.BalanceResult.empty();
@@ -139,15 +145,21 @@ public class ElegantMoodChartPanel extends JPanel {
     private MoodMomentumEngine.MomentumResult momentumResult = MoodMomentumEngine.MomentumResult.empty();
     private List<MoodAnomalyDetector.AnomalyPoint> anomalyPoints = List.of();
     private List<MoodRegimeSegmenter.RegimeSegment> regimeSegments = List.of();
+    private List<MoodChangePointDetector.ChangePoint> changePoints = List.of();
+    private EmotionCoMovementAnalyzer.Result coMovementResult = EmotionCoMovementAnalyzer.Result.empty();
+    private Map<Integer, MoodAnomalyDetector.AnomalyPoint> anomalyByIndex = Map.of();
+    private Map<Integer, MoodChangePointDetector.ChangePoint> changePointByIndex = Map.of();
 
     private final MoodSeriesResampler seriesResampler = new MoodSeriesResampler();
     private final MoodVolatilityEngine volatilityEngine = new MoodVolatilityEngine();
     private final MoodMomentumEngine momentumEngine = new MoodMomentumEngine();
     private final EmotionStackAggregator emotionStackAggregator = new EmotionStackAggregator();
+    private final EmotionCoMovementAnalyzer coMovementAnalyzer = new EmotionCoMovementAnalyzer();
     private final EmotionDominanceEngine dominanceEngine = new EmotionDominanceEngine();
     private final EmotionBalanceEngine balanceEngine = new EmotionBalanceEngine();
     private final MoodCoverageAnalyzer coverageAnalyzer = new MoodCoverageAnalyzer();
     private final MoodAnomalyDetector anomalyDetector = new MoodAnomalyDetector();
+    private final MoodChangePointDetector changePointDetector = new MoodChangePointDetector();
     private final MoodRegimeSegmenter regimeSegmenter = new MoodRegimeSegmenter();
     private final MoodSemanticLabeler semanticLabeler = new MoodSemanticLabeler();
     private final MoodInsightComposer insightComposer = new MoodInsightComposer();
@@ -263,10 +275,13 @@ public class ElegantMoodChartPanel extends JPanel {
         chartCard.setLayout(new BorderLayout());
         chartCard.setOpaque(false);
         chartCanvas = new ChartCanvas();
-        JPanel chartInset = new JPanel(new BorderLayout());
+        inspectorDrawer = new InspectorDrawer();
+
+        JPanel chartInset = new JPanel(new BorderLayout(12, 0));
         chartInset.setOpaque(false);
         chartInset.setBorder(new EmptyBorder(14, 14, 16, 14));
         chartInset.add(chartCanvas, BorderLayout.CENTER);
+        chartInset.add(inspectorDrawer, BorderLayout.EAST);
         chartCard.add(chartInset, BorderLayout.CENTER);
 
         atlasHintLabel = new JLabel("Tip: Click a point to open the nearest entry. Hold Cmd for closest by time.");
@@ -293,8 +308,10 @@ public class ElegantMoodChartPanel extends JPanel {
     private void loadData() {
         model.load(selectedRangeIndex);
         hoveredEmotionDayIndex = -1;
+        hoveredChartIndex = -1;
         renderer.invalidate();
         recomputeDerivedAnalytics();
+        ensureValidInspectorSelection();
         if (chartCanvas != null) {
             chartCanvas.repaint();
         }
@@ -305,6 +322,7 @@ public class ElegantMoodChartPanel extends JPanel {
         refreshAtlasMetrics();
         refreshEmotionSummaries();
         refreshHintSummary();
+        refreshInspectorDrawer();
         repaint();
     }
 
@@ -333,6 +351,7 @@ public class ElegantMoodChartPanel extends JPanel {
         if (days.isEmpty() || values.isEmpty()) {
             emotionStacks = List.of();
             emotionStacksByDay = Map.of();
+            emotionAveragesByDay = Map.of();
             currentDominance = EmotionDominanceEngine.Result.empty();
             previousDominance = EmotionDominanceEngine.Result.empty();
             balanceResult = EmotionBalanceEngine.BalanceResult.empty();
@@ -341,6 +360,10 @@ public class ElegantMoodChartPanel extends JPanel {
             momentumResult = MoodMomentumEngine.MomentumResult.empty();
             anomalyPoints = List.of();
             regimeSegments = List.of();
+            changePoints = List.of();
+            coMovementResult = EmotionCoMovementAnalyzer.Result.empty();
+            anomalyByIndex = Map.of();
+            changePointByIndex = Map.of();
             return;
         }
 
@@ -364,7 +387,7 @@ public class ElegantMoodChartPanel extends JPanel {
                 )
         );
 
-        Map<LocalDate, double[]> emotionAverages = analysisCache.getOrCompute(
+        emotionAveragesByDay = analysisCache.getOrCompute(
                 cachePrefix + "emotionAverages",
                 fingerprint,
                 30_000L,
@@ -377,7 +400,7 @@ public class ElegantMoodChartPanel extends JPanel {
                 30_000L,
                 () -> emotionStackAggregator.aggregate(
                         days,
-                        emotionAverages,
+                        emotionAveragesByDay,
                         EmotionStackAggregator.WeightingMode.HYBRID
                 )
         );
@@ -403,12 +426,34 @@ public class ElegantMoodChartPanel extends JPanel {
                 30_000L,
                 () -> anomalyDetector.detect(days, values, 2.8d)
         );
+        anomalyByIndex = indexAnomalies(anomalyPoints);
+
+        changePoints = analysisCache.getOrCompute(
+                cachePrefix + "changePoints",
+                fingerprint,
+                30_000L,
+                () -> changePointDetector.detect(
+                        interpolatedSeries.days,
+                        interpolatedSeries.values,
+                        4,
+                        14.0d,
+                        4.5d
+                )
+        );
+        changePointByIndex = indexChangePoints(changePoints);
 
         regimeSegments = analysisCache.getOrCompute(
                 cachePrefix + "regimes",
                 fingerprint,
                 30_000L,
                 () -> regimeSegmenter.segment(interpolatedSeries.days, interpolatedSeries.values, 4)
+        );
+
+        coMovementResult = analysisCache.getOrCompute(
+                cachePrefix + "coMovement",
+                fingerprint,
+                30_000L,
+                () -> coMovementAnalyzer.analyze(days, emotionAveragesByDay)
         );
 
         LocalDate latest = days.get(days.size() - 1);
@@ -460,6 +505,143 @@ public class ElegantMoodChartPanel extends JPanel {
         return out;
     }
 
+    private Map<Integer, MoodAnomalyDetector.AnomalyPoint> indexAnomalies(List<MoodAnomalyDetector.AnomalyPoint> anomalies) {
+        if (anomalies == null || anomalies.isEmpty()) return Map.of();
+        Map<Integer, MoodAnomalyDetector.AnomalyPoint> out = new HashMap<>();
+        for (MoodAnomalyDetector.AnomalyPoint anomaly : anomalies) {
+            if (anomaly == null || anomaly.index < 0) continue;
+            out.put(anomaly.index, anomaly);
+        }
+        return out;
+    }
+
+    private Map<Integer, MoodChangePointDetector.ChangePoint> indexChangePoints(List<MoodChangePointDetector.ChangePoint> points) {
+        if (points == null || points.isEmpty()) return Map.of();
+        Map<Integer, MoodChangePointDetector.ChangePoint> out = new HashMap<>();
+        for (MoodChangePointDetector.ChangePoint point : points) {
+            if (point == null || point.index < 0) continue;
+            out.put(point.index, point);
+        }
+        return out;
+    }
+
+    private void ensureValidInspectorSelection() {
+        if (model.getDays().isEmpty()) {
+            selectedChartIndex = -1;
+            return;
+        }
+        if (!isValidMoodIndex(selectedChartIndex)) {
+            selectedChartIndex = findLatestMoodIndex();
+        }
+    }
+
+    private int findLatestMoodIndex() {
+        List<Double> values = model.getValues();
+        for (int i = values.size() - 1; i >= 0; i--) {
+            Double v = values.get(i);
+            if (v != null) return i;
+        }
+        return -1;
+    }
+
+    private boolean isValidMoodIndex(int idx) {
+        if (idx < 0 || idx >= model.getDays().size()) return false;
+        List<Double> values = model.getValues();
+        return idx < values.size() && values.get(idx) != null;
+    }
+
+    private void refreshInspectorDrawer() {
+        if (inspectorDrawer == null) return;
+        if (!isValidMoodIndex(selectedChartIndex)) {
+            inspectorDrawer.showNoSelection(coMovementResult, regimeSegments, changePoints);
+            return;
+        }
+        int idx = hoveredChartIndex >= 0 ? hoveredChartIndex : selectedChartIndex;
+        if (!isValidMoodIndex(idx)) {
+            idx = selectedChartIndex;
+        }
+        inspectorDrawer.showDay(buildInspectorState(idx), coMovementResult);
+    }
+
+    private InspectorState buildInspectorState(int idx) {
+        LocalDate day = model.getDays().get(idx);
+        Double mood = model.getValues().get(idx);
+        Double delta = null;
+        for (int i = idx - 1; i >= 0; i--) {
+            Double previous = model.getValues().get(i);
+            if (previous != null) {
+                delta = mood - previous;
+                break;
+            }
+        }
+
+        MoodAnomalyDetector.AnomalyPoint anomaly = anomalyByIndex.get(idx);
+        MoodChangePointDetector.ChangePoint changePoint = nearestChangePoint(idx);
+        MoodRegimeSegmenter.RegimeSegment regime = regimeAt(day);
+        EmotionStackAggregator.EmotionStack stack = emotionStacksByDay.get(day);
+        List<EmotionScore> topEmotions = topEmotionScores(stack, 3);
+
+        return new InspectorState(
+                idx,
+                day,
+                mood,
+                delta,
+                MoodAnalyticsEngine.categorize(mood),
+                anomaly,
+                changePoint,
+                regime,
+                topEmotions
+        );
+    }
+
+    private MoodChangePointDetector.ChangePoint nearestChangePoint(int idx) {
+        MoodChangePointDetector.ChangePoint exact = changePointByIndex.get(idx);
+        if (exact != null) return exact;
+        if (changePoints == null || changePoints.isEmpty()) return null;
+        MoodChangePointDetector.ChangePoint best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (MoodChangePointDetector.ChangePoint point : changePoints) {
+            if (point == null) continue;
+            int distance = Math.abs(point.index - idx);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = point;
+            }
+        }
+        if (bestDistance > 7) {
+            return null;
+        }
+        return best;
+    }
+
+    private MoodRegimeSegmenter.RegimeSegment regimeAt(LocalDate day) {
+        if (day == null || regimeSegments == null || regimeSegments.isEmpty()) return null;
+        for (MoodRegimeSegmenter.RegimeSegment segment : regimeSegments) {
+            if (segment == null || segment.start == null || segment.end == null) continue;
+            if (!day.isBefore(segment.start) && !day.isAfter(segment.end)) {
+                return segment;
+            }
+        }
+        return null;
+    }
+
+    private List<EmotionScore> topEmotionScores(EmotionStackAggregator.EmotionStack stack, int maxCount) {
+        if (stack == null || !stack.hasData) return List.of();
+        List<EmotionScore> scores = new ArrayList<>(EMOTION_COUNT);
+        for (int i = 0; i < EMOTION_COUNT; i++) {
+            double valueRaw = i < stack.values.length ? stack.values[i] : -1d;
+            if (valueRaw < 0) continue;
+            int value = (int) Math.round(valueRaw);
+            int intensity = (int) Math.round(i < stack.intensities.length ? stack.intensities[i] : 0d);
+            scores.add(new EmotionScore(i, value, intensity));
+        }
+        scores.sort(Comparator
+                .comparingInt((EmotionScore s) -> s.intensity).reversed()
+                .thenComparingInt((EmotionScore s) -> s.value).reversed());
+        if (scores.size() <= maxCount) return scores;
+        return new ArrayList<>(scores.subList(0, maxCount));
+    }
+
     private long computeModelFingerprint(List<LocalDate> days,
                                          List<Double> values,
                                          Map<LocalDate, List<MoodChartModel.Details>> detailsByDay) {
@@ -496,7 +678,32 @@ public class ElegantMoodChartPanel extends JPanel {
         String trend = insightComposer.composeMomentumLine(momentumResult);
         String regime = insightComposer.composeRegimeLine(regimeSegments);
         String anomalies = insightComposer.composeAnomalyLine(anomalyPoints);
-        atlasHintLabel.setText(trend + " • " + regime + " • " + anomalies + " • Cmd-click opens nearest entry.");
+        String shifts = describeChangePointSummary();
+        String coMove = describeCoMovementSummary();
+        atlasHintLabel.setText(trend + " • " + regime + " • " + anomalies + " • " + shifts + " • " + coMove);
+    }
+
+    private String describeChangePointSummary() {
+        if (changePoints == null || changePoints.isEmpty()) {
+            return "Shifts: none";
+        }
+        MoodChangePointDetector.ChangePoint latest = changePoints.get(changePoints.size() - 1);
+        String direction = latest.type == MoodChangePointDetector.ShiftType.UPWARD ? "upward" : "downward";
+        return "Shifts: " + changePoints.size() + " (" + direction + " near " + latest.day + ")";
+    }
+
+    private String describeCoMovementSummary() {
+        if (coMovementResult == null || !coMovementResult.hasData()) {
+            return "Co-movement: insufficient detail";
+        }
+        EmotionCoMovementAnalyzer.Pair pair = coMovementResult.strongestPositive;
+        if (pair == null) {
+            pair = coMovementResult.strongestNegative;
+        }
+        if (pair == null) {
+            return "Co-movement: insufficient detail";
+        }
+        return "Co-movement: " + coMovementAnalyzer.describePair(pair);
     }
 
     private void refreshAtlasMetrics() {
@@ -864,8 +1071,32 @@ public class ElegantMoodChartPanel extends JPanel {
 
             addMouseListener(new MouseAdapter() {
                 @Override
+                public void mouseExited(MouseEvent e) {
+                    hoveredChartIndex = -1;
+                    refreshInspectorDrawer();
+                    repaint();
+                }
+
+                @Override
                 public void mouseClicked(MouseEvent e) {
+                    int idx = resolveMoodIndexAtX(e.getX());
+                    if (idx >= 0) {
+                        selectedChartIndex = idx;
+                        refreshInspectorDrawer();
+                    }
                     handleChartClick(e);
+                }
+            });
+
+            addMouseMotionListener(new MouseMotionAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    int idx = resolveMoodIndexAtX(e.getX());
+                    if (hoveredChartIndex != idx) {
+                        hoveredChartIndex = idx;
+                        refreshInspectorDrawer();
+                        repaint();
+                    }
                 }
             });
 
@@ -896,10 +1127,53 @@ public class ElegantMoodChartPanel extends JPanel {
                 return;
             }
 
-            renderer.paint(g2, this, model.getDays(), model.getValues(), model.getEntriesByDate(), null);
+            int focusIdx = hoveredChartIndex >= 0 ? hoveredChartIndex : selectedChartIndex;
+            renderer.paint(g2, this, model.getDays(), model.getValues(), model.getEntriesByDate(),
+                    focusIdx >= 0 ? focusIdx : null);
+            paintChangePointMarkers(g2);
             paintAnomalyMarkers(g2);
 
             g2.dispose();
+        }
+
+        private int resolveMoodIndexAtX(int x) {
+            if (model.getDays().isEmpty()) return -1;
+            int n = model.getDays().size();
+            int idx = renderer.indexForX(getWidth(), x, n);
+            if (!isValidMoodIndex(idx)) return -1;
+            return idx;
+        }
+
+        private void paintChangePointMarkers(Graphics2D g2) {
+            if (changePoints == null || changePoints.isEmpty()) {
+                return;
+            }
+            int top = Math.max(12, getHeight() / 10);
+            int bottom = Math.max(top + 8, getHeight() - 58);
+            java.awt.Stroke oldStroke = g2.getStroke();
+            for (MoodChangePointDetector.ChangePoint point : changePoints) {
+                if (point == null || point.index < 0) continue;
+                int x = renderer.getX(point.index);
+                if (x < 0) continue;
+
+                Color color = point.type == MoodChangePointDetector.ShiftType.UPWARD
+                        ? new Color(88, 168, 110, 170)
+                        : new Color(206, 108, 88, 170);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(
+                        1.1f,
+                        BasicStroke.CAP_ROUND,
+                        BasicStroke.JOIN_ROUND,
+                        10f,
+                        new float[]{3f, 3f},
+                        0f));
+                g2.drawLine(x, top, x, bottom);
+
+                int markerY = top - 2;
+                g2.setStroke(oldStroke);
+                g2.fillOval(x - 3, markerY - 3, 6, 6);
+            }
+            g2.setStroke(oldStroke);
         }
 
         private void paintAnomalyMarkers(Graphics2D g2) {
@@ -1206,6 +1480,318 @@ public class ElegantMoodChartPanel extends JPanel {
             g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 205));
             g2.fillRoundRect(10, 8, Math.max(14, w - 20), 3, 3, 3);
             g2.dispose();
+        }
+    }
+
+    private static final class InspectorState {
+        private final int index;
+        private final LocalDate day;
+        private final double mood;
+        private final Double delta;
+        private final String category;
+        private final MoodAnomalyDetector.AnomalyPoint anomaly;
+        private final MoodChangePointDetector.ChangePoint changePoint;
+        private final MoodRegimeSegmenter.RegimeSegment regime;
+        private final List<EmotionScore> topEmotions;
+
+        private InspectorState(int index,
+                               LocalDate day,
+                               double mood,
+                               Double delta,
+                               String category,
+                               MoodAnomalyDetector.AnomalyPoint anomaly,
+                               MoodChangePointDetector.ChangePoint changePoint,
+                               MoodRegimeSegmenter.RegimeSegment regime,
+                               List<EmotionScore> topEmotions) {
+            this.index = index;
+            this.day = day;
+            this.mood = mood;
+            this.delta = delta;
+            this.category = category;
+            this.anomaly = anomaly;
+            this.changePoint = changePoint;
+            this.regime = regime;
+            this.topEmotions = topEmotions == null ? List.of() : topEmotions;
+        }
+    }
+
+    private final class InspectorDrawer extends JPanel {
+        private final JLabel dateLabel = new JLabel("Inspector");
+        private final JLabel moodLabel = new JLabel("Mood: --");
+        private final JLabel deltaLabel = new JLabel("Delta: --");
+        private final JLabel phaseLabel = new JLabel("Phase: --");
+        private final JLabel anomalyLabel = new JLabel("Anomaly: --");
+        private final JLabel shiftLabel = new JLabel("Shift: --");
+        private final JLabel topEmotionLabel = new JLabel("Top emotions: --");
+        private final JLabel coMoveLabel = new JLabel("Co-movement: --");
+        private final JLabel antiMoveLabel = new JLabel("Counter-movement: --");
+        private final CoMovementHeatmap heatmap = new CoMovementHeatmap();
+
+        private InspectorDrawer() {
+            setOpaque(false);
+            setLayout(new BorderLayout(0, 8));
+            setPreferredSize(new Dimension(292, 10));
+            setMinimumSize(new Dimension(248, 10));
+            setBorder(new EmptyBorder(8, 0, 0, 0));
+
+            JPanel stack = new JPanel();
+            stack.setOpaque(false);
+            stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+            stack.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+            dateLabel.setFont(AeroTheme.defaultBoldFont(13.5f));
+            dateLabel.setForeground(TEXT_PRIMARY);
+
+            configureLine(moodLabel, TEXT_SECONDARY, 12f);
+            configureLine(deltaLabel, TEXT_MUTED, 11.5f);
+            configureLine(phaseLabel, TEXT_MUTED, 11.5f);
+            configureLine(anomalyLabel, TEXT_MUTED, 11.5f);
+            configureLine(shiftLabel, TEXT_MUTED, 11.5f);
+            configureLine(topEmotionLabel, TEXT_SECONDARY, 11.5f);
+            configureLine(coMoveLabel, TEXT_MUTED, 11f);
+            configureLine(antiMoveLabel, TEXT_MUTED, 11f);
+
+            stack.add(dateLabel);
+            stack.add(Box.createVerticalStrut(8));
+            stack.add(moodLabel);
+            stack.add(Box.createVerticalStrut(3));
+            stack.add(deltaLabel);
+            stack.add(Box.createVerticalStrut(2));
+            stack.add(phaseLabel);
+            stack.add(Box.createVerticalStrut(2));
+            stack.add(anomalyLabel);
+            stack.add(Box.createVerticalStrut(2));
+            stack.add(shiftLabel);
+            stack.add(Box.createVerticalStrut(6));
+            stack.add(topEmotionLabel);
+            stack.add(Box.createVerticalStrut(6));
+            stack.add(coMoveLabel);
+            stack.add(Box.createVerticalStrut(2));
+            stack.add(antiMoveLabel);
+            stack.add(Box.createVerticalStrut(10));
+            stack.add(heatmap);
+
+            add(stack, BorderLayout.CENTER);
+        }
+
+        private void configureLine(JLabel label, Color color, float size) {
+            label.setForeground(color);
+            label.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, size));
+            label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        }
+
+        private void showNoSelection(EmotionCoMovementAnalyzer.Result coMovement,
+                                     List<MoodRegimeSegmenter.RegimeSegment> regimes,
+                                     List<MoodChangePointDetector.ChangePoint> points) {
+            dateLabel.setText("Inspector");
+            moodLabel.setText("Mood: hover or click a point");
+            deltaLabel.setText("Delta: --");
+            phaseLabel.setText("Phase: " + describeLatestRegime(regimes));
+            anomalyLabel.setText("Anomaly: --");
+            shiftLabel.setText("Shifts: " + (points == null ? 0 : points.size()));
+            topEmotionLabel.setText("Top emotions: --");
+            applyCoMovement(coMovement);
+            heatmap.setResult(coMovement);
+        }
+
+        private void showDay(InspectorState state, EmotionCoMovementAnalyzer.Result coMovement) {
+            if (state == null) {
+                showNoSelection(coMovement, regimeSegments, changePoints);
+                return;
+            }
+
+            dateLabel.setText(state.day + "  •  Index " + (state.index + 1));
+            moodLabel.setText("Mood: " + Math.round(state.mood) + " / 100  (" + state.category + ")");
+
+            if (state.delta == null) {
+                deltaLabel.setText("Delta: no previous day in range");
+            } else {
+                String arrow = state.delta >= 0 ? "↑" : "↓";
+                deltaLabel.setText("Delta: " + arrow + " " + Math.abs(Math.round(state.delta)));
+            }
+
+            phaseLabel.setText("Phase: " + describeRegime(state.regime));
+
+            if (state.anomaly == null) {
+                anomalyLabel.setText("Anomaly: none");
+            } else {
+                String kind = state.anomaly.type == MoodAnomalyDetector.Type.SPIKE ? "spike" : "dip";
+                anomalyLabel.setText("Anomaly: " + kind + " (z="
+                        + String.format(java.util.Locale.ROOT, "%.2f", state.anomaly.score) + ")");
+            }
+
+            if (state.changePoint == null) {
+                shiftLabel.setText("Shift: none nearby");
+            } else {
+                String dir = state.changePoint.type == MoodChangePointDetector.ShiftType.UPWARD ? "upward" : "downward";
+                shiftLabel.setText("Shift: " + dir + " Δ"
+                        + String.format(java.util.Locale.ROOT, "%.1f", state.changePoint.delta));
+            }
+
+            if (state.topEmotions.isEmpty()) {
+                topEmotionLabel.setText("Top emotions: no detail");
+            } else {
+                StringBuilder sb = new StringBuilder("Top emotions: ");
+                for (int i = 0; i < state.topEmotions.size(); i++) {
+                    if (i > 0) sb.append(" · ");
+                    EmotionScore score = state.topEmotions.get(i);
+                    sb.append(MoodEmotionCatalog.emotionName(score.index))
+                            .append(" ")
+                            .append(score.value);
+                }
+                topEmotionLabel.setText(sb.toString());
+            }
+
+            applyCoMovement(coMovement);
+            heatmap.setResult(coMovement);
+        }
+
+        private void applyCoMovement(EmotionCoMovementAnalyzer.Result coMovement) {
+            if (coMovement == null || !coMovement.hasData()) {
+                coMoveLabel.setText("Co-movement: insufficient detail");
+                antiMoveLabel.setText("Counter-movement: insufficient detail");
+                return;
+            }
+            coMoveLabel.setText("Co-movement: " + coMovementAnalyzer.describePair(coMovement.strongestPositive));
+            antiMoveLabel.setText("Counter-movement: " + coMovementAnalyzer.describePair(coMovement.strongestNegative));
+        }
+
+        private String describeRegime(MoodRegimeSegmenter.RegimeSegment regime) {
+            if (regime == null) {
+                return "unknown";
+            }
+            return switch (regime.regime) {
+                case RECOVERY -> "Recovery";
+                case DIP -> "Dip";
+                case PLATEAU -> "Plateau";
+            };
+        }
+
+        private String describeLatestRegime(List<MoodRegimeSegmenter.RegimeSegment> regimes) {
+            if (regimes == null || regimes.isEmpty()) {
+                return "unknown";
+            }
+            MoodRegimeSegmenter.RegimeSegment last = regimes.get(regimes.size() - 1);
+            return describeRegime(last);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = 16;
+
+            if (Theme.isPlainWhite()) {
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                g2.setColor(new Color(214, 220, 230));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            } else {
+                Color top = new Color(255, 255, 255, 228);
+                Color bottom = new Color(242, 247, 252, 222);
+                g2.setPaint(new LinearGradientPaint(0, 0, 0, h, new float[]{0f, 1f}, new Color[]{top, bottom}));
+                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                g2.setColor(new Color(192, 202, 216, 170));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    private static final class CoMovementHeatmap extends JComponent {
+        private EmotionCoMovementAnalyzer.Result result = EmotionCoMovementAnalyzer.Result.empty();
+
+        private CoMovementHeatmap() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(252, 152));
+            setMinimumSize(new Dimension(220, 136));
+            setAlignmentX(Component.LEFT_ALIGNMENT);
+        }
+
+        private void setResult(EmotionCoMovementAnalyzer.Result result) {
+            this.result = result == null ? EmotionCoMovementAnalyzer.Result.empty() : result;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+
+            int n = EMOTION_COUNT;
+            int leftPad = 34;
+            int topPad = 16;
+            int w = Math.max(10, getWidth() - leftPad - 8);
+            int h = Math.max(10, getHeight() - topPad - 18);
+            int cell = Math.max(8, Math.min(18, Math.min(w / n, h / n)));
+            int gridW = cell * n;
+            int gridH = cell * n;
+            int x0 = leftPad;
+            int y0 = topPad;
+
+            g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 9.5f));
+            for (int i = 0; i < n; i++) {
+                String label = MoodEmotionCatalog.emotionName(i).substring(0, 1);
+                g2.setColor(new Color(96, 108, 124));
+                g2.drawString(label, 12, y0 + i * cell + cell - 4);
+                int tx = x0 + i * cell + cell / 2 - g2.getFontMetrics().stringWidth(label) / 2;
+                g2.drawString(label, tx, y0 - 4);
+            }
+
+            for (int row = 0; row < n; row++) {
+                for (int col = 0; col < n; col++) {
+                    double corr = correlationAt(row, col);
+                    int samples = samplesAt(row, col);
+                    Color fill = colorForCorrelation(corr, samples);
+                    int x = x0 + col * cell;
+                    int y = y0 + row * cell;
+                    g2.setColor(fill);
+                    g2.fillRect(x, y, cell, cell);
+                    g2.setColor(new Color(255, 255, 255, 95));
+                    g2.drawRect(x, y, cell, cell);
+                }
+            }
+
+            g2.setColor(new Color(170, 182, 198, 190));
+            g2.drawRect(x0 - 1, y0 - 1, gridW + 1, gridH + 1);
+            g2.setColor(new Color(110, 122, 138));
+            g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 10f));
+            g2.drawString("Emotion Co-movement", x0, y0 + gridH + 14);
+            g2.dispose();
+        }
+
+        private double correlationAt(int row, int col) {
+            if (result == null || result.correlations == null) return 0d;
+            if (row < 0 || col < 0 || row >= result.correlations.length || col >= result.correlations[row].length) {
+                return 0d;
+            }
+            return result.correlations[row][col];
+        }
+
+        private int samplesAt(int row, int col) {
+            if (result == null || result.sampleCounts == null) return 0;
+            if (row < 0 || col < 0 || row >= result.sampleCounts.length || col >= result.sampleCounts[row].length) {
+                return 0;
+            }
+            return result.sampleCounts[row][col];
+        }
+
+        private Color colorForCorrelation(double correlation, int samples) {
+            double strength = Math.max(0d, Math.min(1d, Math.abs(correlation)));
+            double reliability = Math.max(0d, Math.min(1d, samples / 10d));
+            int alpha = 50 + (int) Math.round(170d * strength * reliability);
+
+            if (!Double.isFinite(correlation)) {
+                return new Color(210, 216, 226, 70);
+            }
+            if (correlation >= 0d) {
+                return new Color(95, 176, 132, alpha);
+            }
+            return new Color(212, 112, 90, alpha);
         }
     }
 
