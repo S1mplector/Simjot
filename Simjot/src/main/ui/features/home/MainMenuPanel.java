@@ -29,24 +29,41 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import main.core.AppInfo;
+import main.core.analytics.MoodAnalyticsEngine;
+import main.core.analytics.MoodAnalyticsEngine.AnalyticsResult;
 import main.core.service.LastSaveTracker;
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
+import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
@@ -83,8 +100,6 @@ import main.ui.util.AccentColorUtil;
  * Main menu panel shown on app launch, and accessible from the header.
  * Sectioned layout with buttons for primary features.
  * Contains header, clock, calendar, quick access buttons.
- * Orchestrates layout and theming.
- * Handles user interactions and events.
  * Manages the lifecycle of child components.
  */
 
@@ -170,21 +185,37 @@ public class MainMenuPanel extends JPanel {
 
     //  App Context Indicators (center of status bar)
     private static class AppContextIndicators extends JPanel {
+        private static final String[] RANGE_LABELS = {"7d", "30d", "90d", "1y", "All"};
+        private static final DateTimeFormatter RECENT_TS_FMT = DateTimeFormatter.ofPattern("MMM d • HH:mm");
+
+        private final JournalApp app;
         private final JLabel countsLbl = new JLabel();
         private final JLabel autosaveLbl = new JLabel();
         private final JLabel sizeLbl = new JLabel();
+        private final JButton recentChip = new JButton("Recent: –");
+        private final JButton moodPulseChip = new JButton("Mood avg – • Trend –");
+        private final JComboBox<String> moodRangeSelector = new JComboBox<>(RANGE_LABELS);
 
         private final NotebookStore nbStore = new NotebookStore();
 
         private volatile String lastSizeText = "…";
+        private List<RecentEntry> recentEntries = List.of();
+        private List<Double> lastSparklineValues = List.of();
 
-        AppContextIndicators() {
+        private long lastCountsMillis = 0L;
+        private long lastRecentMillis = 0L;
+        private long lastMoodMillis = 0L;
+
+        private JPopupMenu recentPopup;
+        private JPopupMenu moodPopup;
+
+        AppContextIndicators(JournalApp app) {
+            this.app = app;
             setOpaque(false);
             setLayout(new FlowLayout(FlowLayout.CENTER, 8, 0));
             Font bradleyHand = new Font("Bradley Hand", Font.PLAIN, 13);
             Color c = AeroTheme.TEXT_PRIMARY;
 
-            // Notebook icon
             JPanel nbIcon = new JPanel() {
                 @Override protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
@@ -207,31 +238,87 @@ public class MainMenuPanel extends JPanel {
                 add(l);
             }
 
+            configureChip(recentChip, "clock");
+            configureChip(moodPulseChip, "smile");
+
+            moodRangeSelector.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            moodRangeSelector.setSelectedIndex(1); // 30d default
+            moodRangeSelector.setFocusable(false);
+            moodRangeSelector.setOpaque(false);
+            moodRangeSelector.setPreferredSize(new Dimension(66, 24));
+            moodRangeSelector.addActionListener(e -> updateMoodPulse());
+
+            recentChip.addActionListener(e -> openLatestRecent());
+            recentChip.addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { showRecentPopup(); }
+            });
+
+            moodPulseChip.addActionListener(e -> {
+                ElegantMoodChartPanel.requestRangeSelection(moodRangeSelector.getSelectedIndex());
+                app.switchCard(JournalApp.MOOD_CHART);
+            });
+            moodPulseChip.addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { showMoodSparklinePopup(); }
+                @Override public void mouseExited(MouseEvent e) { hideMoodPopupSoon(); }
+            });
+
             countsLbl.setText("– notebooks  •  – entries");
             autosaveLbl.setText(" |  Autosave: –  •  Last: –");
             sizeLbl.setText(" |  Size: " + lastSizeText);
 
+            add(Box.createHorizontalStrut(6));
+            add(recentChip);
+            add(moodPulseChip);
+            add(moodRangeSelector);
+
+            updateCounts();
+            updateRecentEntries();
+            updateMoodPulse();
+            updateAutosave();
+
             javax.swing.Timer uiTimer = new javax.swing.Timer(1000, e -> updateFast());
             uiTimer.start();
 
-            // Size recompute on a slower cadence, off-EDT
             javax.swing.Timer sizeTimer = new javax.swing.Timer(30000, e -> computeSizeAsync());
             sizeTimer.setInitialDelay(0);
             sizeTimer.start();
         }
 
+        private void configureChip(JButton chip, String iconId) {
+            chip.setFocusPainted(false);
+            chip.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(190, 198, 210)),
+                    BorderFactory.createEmptyBorder(3, 8, 3, 8)));
+            chip.setBackground(new Color(255, 255, 255, 235));
+            chip.setOpaque(true);
+            chip.setForeground(AeroTheme.TEXT_PRIMARY);
+            chip.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            String res = ImageIconRenderer.mapIdToResource(iconId);
+            if (res != null) {
+                chip.setIcon(ImageIconRenderer.icon(res, 14, false));
+                chip.setIconTextGap(5);
+            }
+        }
+
         private void updateFast() {
-            // Notebooks and entries every 10s to reduce FS churn
             long now = System.currentTimeMillis();
             if (now / 10000 != (lastCountsMillis / 10000)) {
                 updateCounts();
                 lastCountsMillis = now;
             }
+            if (now / 10000 != (lastRecentMillis / 10000)) {
+                updateRecentEntries();
+                lastRecentMillis = now;
+            }
+            if (now / 10000 != (lastMoodMillis / 10000)) {
+                updateMoodPulse();
+                lastMoodMillis = now;
+            }
+
             updateAutosave();
             sizeLbl.setText(" |  Size: " + lastSizeText);
         }
-
-        private long lastCountsMillis = 0L;
 
         private void updateCounts() {
             int notebooks = 0;
@@ -239,17 +326,230 @@ public class MainMenuPanel extends JPanel {
                 notebooks = nbStore.list().size();
             } catch (Exception ignore) { }
 
-            int entries = countFilesSafe(AppDirectories.folder(AppDirectories.Type.ENTRIES));
+            int entries = countEntriesSafe();
             countsLbl.setText(notebooks + " notebooks  •  " + entries + " entries");
         }
 
-        private int countFilesSafe(java.io.File dir) {
+        private int countEntriesSafe() {
             try {
-                java.io.File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".txt"));
-                return files == null ? 0 : files.length;
+                int total = 0;
+                List<NotebookInfo> notebooks = nbStore.list();
+                for (NotebookInfo nb : notebooks) {
+                    total += countEntryFilesInFolder(nb == null ? null : nb.getFolder());
+                }
+                if (total > 0) {
+                    return total;
+                }
+            } catch (Exception ignore) {
+                // Fall back to legacy folders below.
+            }
+
+            int legacyTotal = 0;
+            legacyTotal += countEntryFilesInFolder(AppDirectories.folder(AppDirectories.Type.ENTRIES));
+            legacyTotal += countEntryFilesInFolder(AppDirectories.folder(AppDirectories.Type.POEMS));
+            return legacyTotal;
+        }
+
+        private int countEntryFilesInFolder(File dir) {
+            if (dir == null || !dir.exists() || !dir.isDirectory()) return 0;
+            int total = 0;
+            try {
+                File[] files = dir.listFiles();
+                if (files == null) return 0;
+                for (File f : files) {
+                    if (f == null || !f.isFile()) continue;
+                    if (isEntryFile(f.getName())) total++;
+                }
             } catch (Exception e) {
                 return 0;
             }
+            return total;
+        }
+
+        private void updateRecentEntries() {
+            List<RecentEntry> recents = computeRecentEntries(5);
+            recentEntries = recents;
+            if (recents.isEmpty()) {
+                recentChip.setText("Recent: –");
+                return;
+            }
+            RecentEntry latest = recents.get(0);
+            recentChip.setText("Recent: " + trimLabel(latest.title, 20));
+        }
+
+        private List<RecentEntry> computeRecentEntries(int limit) {
+            List<RecentEntry> all = new ArrayList<>();
+            try {
+                List<NotebookInfo> notebooks = nbStore.list();
+                for (NotebookInfo nb : notebooks) {
+                    File folder = nb == null ? null : nb.getFolder();
+                    if (folder == null || !folder.exists() || !folder.isDirectory()) continue;
+                    File[] files = folder.listFiles();
+                    if (files == null) continue;
+                    for (File f : files) {
+                        if (f == null || !f.isFile()) continue;
+                        if (!isEntryFile(f.getName())) continue;
+                        all.add(new RecentEntry(nb, f, resolveEntryTitle(f), f.lastModified()));
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+
+            all.sort(Comparator.comparingLong((RecentEntry r) -> r.lastModified).reversed());
+            if (all.size() <= limit) return all;
+            return new ArrayList<>(all.subList(0, limit));
+        }
+
+        private void openLatestRecent() {
+            if (recentEntries.isEmpty()) return;
+            openRecent(recentEntries.get(0));
+        }
+
+        private void openRecent(RecentEntry recent) {
+            if (recent == null || recent.notebook == null || recent.file == null) return;
+            app.openExistingEntryEditor(recent.notebook, recent.file);
+        }
+
+        private void showRecentPopup() {
+            if (recentEntries.isEmpty()) return;
+            if (recentPopup != null && recentPopup.isVisible()) {
+                recentPopup.setVisible(false);
+            }
+
+            recentPopup = new JPopupMenu();
+            recentPopup.setBorder(BorderFactory.createLineBorder(new Color(184, 194, 208)));
+            for (RecentEntry entry : recentEntries) {
+                String time = LocalDateTime.ofInstant(Instant.ofEpochMilli(entry.lastModified), ZoneId.systemDefault())
+                        .format(RECENT_TS_FMT);
+                String txt = "<html><b>" + escapeHtml(trimLabel(entry.title, 34)) + "</b>"
+                        + "<br><span style='color:#667085'>" + time + " • "
+                        + escapeHtml(trimLabel(entry.notebook.getName(), 20)) + "</span></html>";
+                JMenuItem item = new JMenuItem(txt);
+                item.addActionListener(e -> openRecent(entry));
+                recentPopup.add(item);
+            }
+            recentPopup.show(recentChip, 0, recentChip.getHeight() + 4);
+        }
+
+        private void updateMoodPulse() {
+            int rangeIdx = moodRangeSelector.getSelectedIndex();
+            int daysBack = daysForRangeIndex(rangeIdx);
+            AnalyticsResult scoped = MoodAnalyticsEngine.get().analyze(daysBack, 7);
+            if (scoped == null || scoped.dates == null || scoped.dates.isEmpty()) {
+                moodPulseChip.setText("Mood avg – • Trend –");
+            } else {
+                int avg = (int) Math.round(scoped.overallAverage);
+                String arrow = trendArrow(scoped.smoothedAverages);
+                moodPulseChip.setText("Mood avg " + avg + " • Trend " + arrow);
+            }
+
+            AnalyticsResult spark = MoodAnalyticsEngine.get().analyze(30, 3);
+            lastSparklineValues = spark == null ? List.of() : spark.dailyAverages;
+        }
+
+        private void showMoodSparklinePopup() {
+            if (lastSparklineValues == null || lastSparklineValues.isEmpty()) {
+                return;
+            }
+            if (moodPopup != null && moodPopup.isVisible()) {
+                moodPopup.setVisible(false);
+            }
+
+            moodPopup = new JPopupMenu();
+            moodPopup.setBorder(BorderFactory.createLineBorder(new Color(184, 194, 208)));
+            JPanel wrap = new JPanel(new BorderLayout(0, 6));
+            wrap.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+            wrap.setBackground(Color.WHITE);
+            JLabel title = new JLabel("30-day mood pulse");
+            title.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            title.setForeground(AeroTheme.TEXT_PRIMARY);
+            wrap.add(title, BorderLayout.NORTH);
+            wrap.add(new MoodSparkline(lastSparklineValues), BorderLayout.CENTER);
+            moodPopup.add(wrap);
+            moodPopup.show(moodPulseChip, 0, moodPulseChip.getHeight() + 4);
+        }
+
+        private void hideMoodPopupSoon() {
+            Timer t = new Timer(260, e -> {
+                if (moodPopup != null) {
+                    moodPopup.setVisible(false);
+                }
+            });
+            t.setRepeats(false);
+            t.start();
+        }
+
+        private int daysForRangeIndex(int rangeIdx) {
+            return switch (rangeIdx) {
+                case 0 -> 7;
+                case 1 -> 30;
+                case 2 -> 90;
+                case 3 -> 365;
+                default -> 0;
+            };
+        }
+
+        private String trendArrow(List<Double> values) {
+            if (values == null || values.isEmpty()) return "→";
+            Double last = null;
+            Double prev = null;
+            for (int i = values.size() - 1; i >= 0; i--) {
+                Double v = values.get(i);
+                if (v == null) continue;
+                if (last == null) {
+                    last = v;
+                } else {
+                    prev = v;
+                    break;
+                }
+            }
+            if (last == null || prev == null) return "→";
+            double delta = last - prev;
+            if (delta > 1.0d) return "↑";
+            if (delta < -1.0d) return "↓";
+            return "→";
+        }
+
+        private String resolveEntryTitle(File file) {
+            if (file == null) return "Untitled";
+            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+                String first = br.readLine();
+                if (first != null && first.startsWith("SJMETA:")) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        line = line.trim();
+                        if (!line.isEmpty()) return line;
+                    }
+                } else if (first != null && !first.trim().isEmpty()) {
+                    return first.trim();
+                }
+            } catch (Exception ignored) {
+            }
+            String name = file.getName();
+            int dot = name.lastIndexOf('.');
+            return dot > 0 ? name.substring(0, dot) : name;
+        }
+
+        private boolean isEntryFile(String name) {
+            if (name == null) return false;
+            String s = name.toLowerCase(Locale.ROOT);
+            return s.endsWith(".txt")
+                    || s.endsWith(".md")
+                    || s.endsWith(".rtf")
+                    || s.endsWith(".note")
+                    || s.endsWith(".poem")
+                    || s.endsWith(".ntk");
+        }
+
+        private String trimLabel(String text, int max) {
+            if (text == null || text.isBlank()) return "Untitled";
+            if (text.length() <= max) return text;
+            return text.substring(0, Math.max(0, max - 1)) + "…";
+        }
+
+        private String escapeHtml(String text) {
+            if (text == null) return "";
+            return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         }
 
         private void updateAutosave() {
@@ -265,7 +565,6 @@ public class MainMenuPanel extends JPanel {
             String lastTxt = (last == 0L) ? "–" : java.time.LocalTime.now()
                     .withNano(0)
                     .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
-            // Prefer showing the actual time of save if desired: formatInstant(last)
             if (last > 0) {
                 java.time.LocalDateTime dt = java.time.Instant.ofEpochMilli(last)
                         .atZone(java.time.ZoneId.systemDefault())
@@ -284,20 +583,19 @@ public class MainMenuPanel extends JPanel {
                     }
                 } catch (Exception ignored) {}
                 lastSizeText = humanSize(size);
-                // Trigger EDT repaint
                 SwingUtilities.invokeLater(() -> sizeLbl.setText(" |  Size: " + lastSizeText));
             }, "lib-size-worker");
             t.setDaemon(true);
             t.start();
         }
 
-        private long folderSize(java.io.File f) {
+        private long folderSize(File f) {
             if (f == null || !f.exists()) return 0L;
             if (f.isFile()) return f.length();
             long total = 0L;
-            java.io.File[] list = f.listFiles();
+            File[] list = f.listFiles();
             if (list != null) {
-                for (java.io.File ch : list) {
+                for (File ch : list) {
                     total += folderSize(ch);
                 }
             }
@@ -310,6 +608,76 @@ public class MainMenuPanel extends JPanel {
             int u = 0;
             while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
             return String.format(java.util.Locale.US, (u <= 1 ? "%.0f %s" : "%.2f %s"), v, units[u]);
+        }
+
+        private static final class RecentEntry {
+            private final NotebookInfo notebook;
+            private final File file;
+            private final String title;
+            private final long lastModified;
+
+            private RecentEntry(NotebookInfo notebook, File file, String title, long lastModified) {
+                this.notebook = notebook;
+                this.file = file;
+                this.title = title == null || title.isBlank() ? "Untitled" : title;
+                this.lastModified = lastModified;
+            }
+        }
+
+        private static final class MoodSparkline extends JComponent {
+            private final List<Double> values;
+
+            private MoodSparkline(List<Double> values) {
+                this.values = values == null ? List.of() : values;
+                setPreferredSize(new Dimension(210, 48));
+                setOpaque(false);
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                int l = 6, r = 6, t = 6, b = 6;
+                int cw = Math.max(1, w - l - r);
+                int ch = Math.max(1, h - t - b);
+
+                g2.setColor(new Color(236, 242, 249));
+                g2.fillRoundRect(0, 0, w - 1, h - 1, 8, 8);
+                g2.setColor(new Color(201, 211, 224));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 8, 8);
+
+                List<Point> pts = new ArrayList<>();
+                int n = values.size();
+                for (int i = 0; i < n; i++) {
+                    Double v = values.get(i);
+                    if (v == null) continue;
+                    int x = l + (int) Math.round((i / (double) Math.max(1, n - 1)) * cw);
+                    int y = t + ch - (int) Math.round((Math.max(0, Math.min(100, v)) / 100.0) * ch);
+                    pts.add(new Point(x, y));
+                }
+                g2.setColor(new Color(145, 156, 172, 120));
+                g2.drawLine(l, t + ch / 2, l + cw, t + ch / 2);
+
+                if (pts.size() >= 2) {
+                    g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    g2.setColor(new Color(66, 138, 223));
+                    Point prev = pts.get(0);
+                    for (int i = 1; i < pts.size(); i++) {
+                        Point p = pts.get(i);
+                        g2.drawLine(prev.x, prev.y, p.x, p.y);
+                        prev = p;
+                    }
+                    Point last = pts.get(pts.size() - 1);
+                    g2.fillOval(last.x - 2, last.y - 2, 4, 4);
+                } else if (pts.size() == 1) {
+                    Point p = pts.get(0);
+                    g2.setColor(new Color(66, 138, 223));
+                    g2.fillOval(p.x - 2, p.y - 2, 4, 4);
+                }
+                g2.dispose();
+            }
         }
     }
 
@@ -551,7 +919,7 @@ public class MainMenuPanel extends JPanel {
         // Center: App context indicators (entries/notebooks, autosave, size)
         JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 4));
         center.setOpaque(false);
-        center.add(new AppContextIndicators());
+        center.add(new AppContextIndicators(app));
         southPanel.add(center, BorderLayout.CENTER);
 
         // Right: RAM usage

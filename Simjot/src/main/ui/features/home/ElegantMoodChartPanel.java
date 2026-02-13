@@ -104,6 +104,14 @@ public class ElegantMoodChartPanel extends JPanel {
     private static final Color TEXT_SECONDARY = new Color(98, 110, 126);
     private static final Color TEXT_MUTED = new Color(130, 140, 156);
     private static final int EMOTION_COUNT = 8;
+    private static volatile Integer requestedRangeIndex = null;
+
+    public static void requestRangeSelection(int rangeIndex) {
+        requestedRangeIndex = switch (rangeIndex) {
+            case 0, 1, 2, 3, 4 -> rangeIndex;
+            default -> 1;
+        };
+    }
 
     private final MoodChartModel model = new MoodChartModel();
     private final MoodChartSettings settings = new MoodChartSettings();
@@ -175,12 +183,14 @@ public class ElegantMoodChartPanel extends JPanel {
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
 
+        applyRequestedRangeIfPresent();
         loadData();
         startReveal();
 
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
+                applyRequestedRangeIfPresent();
                 loadData();
                 startReveal();
             }
@@ -190,6 +200,14 @@ public class ElegantMoodChartPanel extends JPanel {
                 renderer.invalidate();
             }
         });
+    }
+
+    private void applyRequestedRangeIfPresent() {
+        Integer requested = requestedRangeIndex;
+        if (requested != null) {
+            selectedRangeIndex = requested;
+            requestedRangeIndex = null;
+        }
     }
 
     private JPanel createHeader() {
