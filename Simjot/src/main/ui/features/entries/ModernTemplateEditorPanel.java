@@ -44,10 +44,8 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
@@ -232,17 +230,9 @@ public class ModernTemplateEditorPanel extends JPanel {
         RoundedButton addBtn = createActionButton("Quick Add", "new");
         addBtn.setPreferredSize(new Dimension(80, 36));
         addBtn.addActionListener(e -> addQuestionFromQuickField());
-
-        RoundedButton bulkBtn = createActionButton("Bulk Add", "new");
-        bulkBtn.setPreferredSize(new Dimension(90, 36));
-        bulkBtn.addActionListener(e -> showBulkAddDialog());
         
         quickAddRow.add(quickAddField, BorderLayout.CENTER);
-        JPanel quickButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        quickButtons.setOpaque(false);
-        quickButtons.add(addBtn);
-        quickButtons.add(bulkBtn);
-        quickAddRow.add(quickButtons, BorderLayout.EAST);
+        quickAddRow.add(addBtn, BorderLayout.EAST);
         form.add(quickAddRow);
 
         form.add(Box.createVerticalStrut(14));
@@ -296,7 +286,6 @@ public class ModernTemplateEditorPanel extends JPanel {
             nameField.setEnabled(false);
             descField.setEnabled(false);
             quickAddField.setEnabled(false);
-            bulkBtn.setEnabled(false);
         }
         
         main.add(form, BorderLayout.CENTER);
@@ -468,69 +457,6 @@ public class ModernTemplateEditorPanel extends JPanel {
             addQuestionRow(text);
         }
         quickAddField.setText("");
-    }
-
-    private void showBulkAddDialog() {
-        JTextArea area = new JTextArea(10, 42);
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
-        area.setFont(area.getFont().deriveFont(13f));
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(220, 225, 235)),
-            new EmptyBorder(4, 4, 4, 4)
-        ));
-
-        int result = JOptionPane.showConfirmDialog(
-            this,
-            scroll,
-            "Paste Questions (one per line)",
-            JOptionPane.OK_CANCEL_OPTION,
-            JOptionPane.PLAIN_MESSAGE
-        );
-        if (result != JOptionPane.OK_OPTION) {
-            return;
-        }
-
-        String value = area.getText();
-        if (value == null || value.isBlank()) {
-            return;
-        }
-
-        List<String> parsed = new ArrayList<>();
-        for (String line : value.split("\\R")) {
-            String normalized = normalizeBulkQuestion(line);
-            if (!normalized.isEmpty()) {
-                parsed.add(normalized);
-            }
-        }
-        if (parsed.isEmpty()) {
-            UIMessage.warn(this, "No Questions Added",
-                "The pasted text did not contain valid questions.",
-                "Use one line per question.");
-            return;
-        }
-        addQuestionRows(parsed);
-    }
-
-    private String normalizeBulkQuestion(String text) {
-        if (text == null) return "";
-        String cleaned = text.trim();
-        cleaned = cleaned.replaceFirst("^(?:[-*•]|\\d+[\\.)]|[a-zA-Z][\\.)])\\s+", "");
-        return cleaned.trim();
-    }
-
-    private void addQuestionRows(List<String> questions) {
-        if (questions == null || questions.isEmpty()) return;
-        for (String question : questions) {
-            QuestionRow row = new QuestionRow(question, questionRows.size());
-            if (readOnlyMode) {
-                row.setEditableState(false);
-            }
-            questionRows.add(row);
-        }
-        rebuildQuestionListUI();
-        onModelMutated();
     }
 
     private void removeQuestionRow(QuestionRow row) {
