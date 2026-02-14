@@ -103,6 +103,7 @@ public class MainMenuPanel extends JPanel {
 
     // Toggle to quickly hide the Gallery feature without removing code/resources.
     private static final boolean SHOW_GALLERY = false;
+    private static final float MAIN_MENU_DOCK_SCALE = 1.18f;
 
     private final JournalApp app;
     private main.ui.features.widgets.WidgetManager widgetManager = new main.ui.features.widgets.WidgetManager();
@@ -666,7 +667,7 @@ public class MainMenuPanel extends JPanel {
         }
 
         // Glass Dock Bar - Frutiger Aero style
-        main.ui.components.dock.GlassDockBar dockBar = new main.ui.components.dock.GlassDockBar();
+        main.ui.components.dock.GlassDockBar dockBar = new main.ui.components.dock.GlassDockBar(MAIN_MENU_DOCK_SCALE, true);
         dockBar.addItem("Write", "fountain_pen", () -> app.switchCard(JournalApp.NOTEBOOK_MANAGER));
         if (SHOW_GALLERY) {
             dockBar.addItem("Gallery", "image", () -> app.switchCard(JournalApp.GALLERY));

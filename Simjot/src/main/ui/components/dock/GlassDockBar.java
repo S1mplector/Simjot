@@ -19,6 +19,7 @@ import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import main.infrastructure.ffi.NativeAccess;
@@ -47,7 +49,7 @@ public class GlassDockBar extends JPanel {
     private float[] itemGlows;
     private float[] itemX;
     private float[] itemY;
-    private float[] itemSize;
+    private float[] itemSizes;
     private float[] scatterOffsetX;
     private float[] scatterOffsetY;
     private float[] scatterRotationDeg;
@@ -63,13 +65,25 @@ public class GlassDockBar extends JPanel {
     private long lastHoverNanos;
     private long lastFrameNanos;
     private Timer animationTimer;
+    private final float uiScale;
+    private final boolean showLabels;
+    private final int itemSize;
+    private final int itemSpacing;
+    private final int dockPaddingH;
+    private final int dockPaddingV;
+    private final int iconSize;
+    private final float minCollapsedItemSize;
+    private final float hoverZoneMargin;
+    private final int labelArea;
+    private final int cornerRadius;
+    private final Font labelFont;
     
     // Visual constants
-    private static final int ITEM_SIZE = 72;
-    private static final int ITEM_SPACING = 16;
-    private static final int DOCK_PADDING_H = 28;
-    private static final int DOCK_PADDING_V = 18;
-    private static final int ICON_SIZE = 42;
+    private static final int BASE_ITEM_SIZE = 72;
+    private static final int BASE_ITEM_SPACING = 16;
+    private static final int BASE_DOCK_PADDING_H = 28;
+    private static final int BASE_DOCK_PADDING_V = 18;
+    private static final int BASE_ICON_SIZE = 42;
     private static final float MAX_SCALE = 1.12f;
     private static final float MAX_GLOW = 1f;
     private static final float SCATTER_COLLAPSED_SCALE = 0.85f;
@@ -79,20 +93,37 @@ public class GlassDockBar extends JPanel {
     private static final float SCATTER_EXTRA_RADIUS_PER_ITEM_Y = 3f;
     private static final float SCATTER_MIN_ICON_GAP = 6f;
     private static final float SCATTER_MAX_ROTATION_DEG = 15f;
-    private static final float MIN_COLLAPSED_ITEM_SIZE = 46f;
+    private static final float BASE_MIN_COLLAPSED_ITEM_SIZE = 46f;
     private static final float ANIMATION_RATE = 10.5f;
     private static final long COLLAPSE_LINGER_NS = 170_000_000L;
     private static final float LAYOUT_EPSILON = 0.001f;
-    private static final float HOVER_ZONE_MARGIN = 14f;
-    private static final int LABEL_AREA = 18;
-    private static final int CORNER_RADIUS = 36;
-    private static final Font LABEL_FONT = new Font("SF Pro Text", Font.PLAIN, 11);
+    private static final float BASE_HOVER_ZONE_MARGIN = 14f;
+    private static final int BASE_LABEL_AREA = 18;
+    private static final int BASE_CORNER_RADIUS = 36;
+    private static final Font BASE_LABEL_FONT = new Font("SF Pro Text", Font.PLAIN, 11);
     
     // Text colors
     private static final Color TEXT_COLOR = new Color(50, 55, 65);
     private static final Color TEXT_SHADOW = new Color(255, 255, 255, 180);
 
     public GlassDockBar() {
+        this(1f, true);
+    }
+
+    public GlassDockBar(float scale, boolean showLabels) {
+        this.uiScale = Math.max(0.56f, Math.min(1.25f, scale));
+        this.showLabels = showLabels;
+        this.itemSize = Math.max(44, Math.round(BASE_ITEM_SIZE * this.uiScale));
+        this.itemSpacing = Math.max(8, Math.round(BASE_ITEM_SPACING * this.uiScale));
+        this.dockPaddingH = Math.max(14, Math.round(BASE_DOCK_PADDING_H * this.uiScale));
+        this.dockPaddingV = Math.max(10, Math.round(BASE_DOCK_PADDING_V * this.uiScale));
+        this.iconSize = Math.max(20, Math.round(BASE_ICON_SIZE * this.uiScale));
+        this.minCollapsedItemSize = Math.max(28f, BASE_MIN_COLLAPSED_ITEM_SIZE * this.uiScale);
+        this.hoverZoneMargin = BASE_HOVER_ZONE_MARGIN * Math.max(0.8f, this.uiScale);
+        this.labelArea = showLabels ? Math.max(0, Math.round(BASE_LABEL_AREA * this.uiScale)) : 0;
+        this.cornerRadius = Math.max(16, Math.round(BASE_CORNER_RADIUS * this.uiScale));
+        this.labelFont = BASE_LABEL_FONT.deriveFont(Math.max(9f, 11f * this.uiScale));
+
         setOpaque(false);
         setLayout(null); // Custom positioning
         setDoubleBuffered(true);
@@ -130,10 +161,7 @@ public class GlassDockBar extends JPanel {
 
             @Override
             public void mouseExited(MouseEvent e) {
-                mouseInside = false;
-                mousePoint = null;
-                hoveredIndex = -1;
-                setCursor(Cursor.getDefaultCursor());
+                clearMouseTrackingState();
             }
             
             @Override
@@ -153,7 +181,7 @@ public class GlassDockBar extends JPanel {
         itemGlows = new float[items.size()];
         itemX = new float[items.size()];
         itemY = new float[items.size()];
-        itemSize = new float[items.size()];
+        itemSizes = new float[items.size()];
         scatterOffsetX = new float[items.size()];
         scatterOffsetY = new float[items.size()];
         scatterRotationDeg = new float[items.size()];
@@ -169,8 +197,11 @@ public class GlassDockBar extends JPanel {
     }
     
     private void updatePreferredSize() {
-        int width = DOCK_PADDING_H * 2 + items.size() * ITEM_SIZE + Math.max(0, items.size() - 1) * ITEM_SPACING;
-        int height = DOCK_PADDING_V * 2 + ITEM_SIZE + LABEL_AREA; // Extra for label
+        int width = dockPaddingH * 2 + items.size() * itemSize + Math.max(0, items.size() - 1) * itemSpacing;
+        // Include painted dock curvature/shadow budget to avoid bottom clipping in compact toolbars.
+        int dockBodyHeight = Math.round(dockPaddingV * 2f + itemSize + 8f * uiScale);
+        int shadowBudget = Math.max(4, Math.round(8f * uiScale));
+        int height = dockBodyHeight + shadowBudget + labelArea;
         setPreferredSize(new Dimension(width, height));
         setMinimumSize(new Dimension(width, height));
         setMaximumSize(new Dimension(width, height));
@@ -184,9 +215,43 @@ public class GlassDockBar extends JPanel {
             setCursor(targetCursor);
         }
     }
+
+    private void clearMouseTrackingState() {
+        mouseInside = false;
+        mousePoint = null;
+        hoveredIndex = -1;
+        if (getCursor().getType() != Cursor.DEFAULT_CURSOR) {
+            setCursor(Cursor.getDefaultCursor());
+        }
+    }
+
+    private void refreshMouseStateFromPointer() {
+        if (!isShowing() || getWidth() <= 0 || getHeight() <= 0) {
+            clearMouseTrackingState();
+            return;
+        }
+        try {
+            java.awt.PointerInfo pointerInfo = MouseInfo.getPointerInfo();
+            if (pointerInfo == null) {
+                clearMouseTrackingState();
+                return;
+            }
+            Point p = pointerInfo.getLocation();
+            SwingUtilities.convertPointFromScreen(p, this);
+            boolean insideNow = p.x >= 0 && p.x < getWidth() && p.y >= 0 && p.y < getHeight();
+            if (insideNow) {
+                mouseInside = true;
+                mousePoint = p;
+            } else {
+                clearMouseTrackingState();
+            }
+        } catch (Throwable ignored) {
+            // Keep existing state if pointer lookup is unavailable on this platform/mode.
+        }
+    }
     
     private int getItemAtPoint(Point p) {
-        if (p == null || itemX == null || itemY == null || itemSize == null) {
+        if (p == null || itemX == null || itemY == null || itemSizes == null) {
             return -1;
         }
         int[] drawOrder = buildDrawOrder();
@@ -194,7 +259,7 @@ public class GlassDockBar extends JPanel {
             int idx = drawOrder[i];
             float x = itemX[idx];
             float y = itemY[idx];
-            float size = itemSize[idx];
+            float size = itemSizes[idx];
             if (p.x >= x && p.x < x + size && p.y >= y && p.y < y + size) {
                 return idx;
             }
@@ -208,19 +273,19 @@ public class GlassDockBar extends JPanel {
         for (int i = 0; i < n; i++) {
             order[i] = i;
         }
-        if (n <= 1 || itemY == null || itemSize == null) {
+        if (n <= 1 || itemY == null || itemSizes == null) {
             return order;
         }
 
         // Front-most items should render last. Sort by baseline Y, then by X.
         for (int i = 1; i < n; i++) {
             int key = order[i];
-            float keyY = itemY[key] + itemSize[key] * 0.45f;
+            float keyY = itemY[key] + itemSizes[key] * 0.45f;
             float keyX = itemX != null ? itemX[key] : key;
             int j = i - 1;
             while (j >= 0) {
                 int idx = order[j];
-                float idxY = itemY[idx] + itemSize[idx] * 0.45f;
+                float idxY = itemY[idx] + itemSizes[idx] * 0.45f;
                 float idxX = itemX != null ? itemX[idx] : idx;
                 if (idxY < keyY - 0.05f || (Math.abs(idxY - keyY) <= 0.05f && idxX <= keyX)) {
                     break;
@@ -392,16 +457,17 @@ public class GlassDockBar extends JPanel {
     }
 
     private float estimateCollapsedIconSize(int index) {
-        float collapsedItemBase = ITEM_SIZE * SCATTER_COLLAPSED_SCALE;
+        float collapsedItemBase = itemSize * SCATTER_COLLAPSED_SCALE;
         float scale = (scatterScale != null && index >= 0 && index < scatterScale.length) ? scatterScale[index] : 1f;
-        float collapsedSize = Math.max(MIN_COLLAPSED_ITEM_SIZE, collapsedItemBase * scale);
-        float iconBaseScale = collapsedSize / ITEM_SIZE;
+        float collapsedSize = Math.max(minCollapsedItemSize, collapsedItemBase * scale);
+        float iconBaseScale = collapsedSize / itemSize;
         float collapsedIconScale = 0.98f + (scale - 0.98f) * 0.35f;
-        return Math.max(18f, ICON_SIZE * iconBaseScale * collapsedIconScale);
+        return Math.max(18f, iconSize * iconBaseScale * collapsedIconScale);
     }
     
     private void animateItems() {
         if (itemScales == null) return;
+        refreshMouseStateFromPointer();
         long now = System.nanoTime();
         if (lastFrameNanos == 0L) {
             lastFrameNanos = now;
@@ -469,14 +535,14 @@ public class GlassDockBar extends JPanel {
         if (dockWidth <= 0f || dockHeight <= 0f) {
             return false;
         }
-        float margin = HOVER_ZONE_MARGIN;
+        float margin = hoverZoneMargin;
         RoundRectangle2D.Float activeZone = new RoundRectangle2D.Float(
             dockX - margin,
             -margin * 0.5f,
             dockWidth + margin * 2f,
-            dockHeight + LABEL_AREA + margin,
-            CORNER_RADIUS + margin,
-            CORNER_RADIUS + margin
+            dockHeight + labelArea + margin,
+            cornerRadius + margin,
+            cornerRadius + margin
         );
         return activeZone.contains(p);
     }
@@ -489,33 +555,33 @@ public class GlassDockBar extends JPanel {
             rebuildScatterLayout();
         }
         float t = easeInOut(progress);
-        float itemExpandedSize = ITEM_SIZE;
-        float itemCollapsedBaseSize = ITEM_SIZE * SCATTER_COLLAPSED_SCALE;
-        float expandedWidth = DOCK_PADDING_H * 2f + items.size() * itemExpandedSize + Math.max(0, items.size() - 1) * ITEM_SPACING;
+        float itemExpandedSize = itemSize;
+        float itemCollapsedBaseSize = itemSize * SCATTER_COLLAPSED_SCALE;
+        float expandedWidth = dockPaddingH * 2f + items.size() * itemExpandedSize + Math.max(0, items.size() - 1) * itemSpacing;
         float cloudWidth = itemCollapsedBaseSize + scatterCloudRadiusX * 2f + 14f;
-        float collapsedWidth = DOCK_PADDING_H * 2f + cloudWidth;
+        float collapsedWidth = dockPaddingH * 2f + cloudWidth;
         dockWidth = lerp(collapsedWidth, expandedWidth, t);
-        dockHeight = DOCK_PADDING_V * 2f + ITEM_SIZE + 8f;
+        dockHeight = dockPaddingV * 2f + itemSize + 8f * uiScale;
         dockX = (componentWidth - dockWidth) * 0.5f;
 
-        float expandedStartX = dockX + DOCK_PADDING_H;
-        float expandedY = DOCK_PADDING_V;
+        float expandedStartX = dockX + dockPaddingH;
+        float expandedY = dockPaddingV;
         float collapsedCenterX = dockX + (dockWidth - itemCollapsedBaseSize) * 0.5f;
-        float collapsedY = DOCK_PADDING_V + 6f;
+        float collapsedY = dockPaddingV + 6f * uiScale;
 
         for (int i = 0; i < items.size(); i++) {
             float collapsedScale = (scatterScale != null && i < scatterScale.length) ? scatterScale[i] : 1f;
-            float collapsedSize = Math.max(MIN_COLLAPSED_ITEM_SIZE, itemCollapsedBaseSize * collapsedScale);
+            float collapsedSize = Math.max(minCollapsedItemSize, itemCollapsedBaseSize * collapsedScale);
             float centeredOffsetX = (itemCollapsedBaseSize - collapsedSize) * 0.5f;
             float centeredOffsetY = (itemCollapsedBaseSize - collapsedSize) * 0.5f;
             float sx = (scatterOffsetX != null && i < scatterOffsetX.length) ? scatterOffsetX[i] : 0f;
             float sy = (scatterOffsetY != null && i < scatterOffsetY.length) ? scatterOffsetY[i] : 0f;
             float collapsedX = collapsedCenterX + sx + centeredOffsetX;
             float collapsedItemY = collapsedY + sy + centeredOffsetY;
-            float expandedX = expandedStartX + i * (ITEM_SIZE + ITEM_SPACING);
+            float expandedX = expandedStartX + i * (itemSize + itemSpacing);
             itemX[i] = lerp(collapsedX, expandedX, t);
             itemY[i] = lerp(collapsedItemY, expandedY, t);
-            itemSize[i] = lerp(collapsedSize, itemExpandedSize, t);
+            itemSizes[i] = lerp(collapsedSize, itemExpandedSize, t);
         }
     }
 
@@ -555,7 +621,7 @@ public class GlassDockBar extends JPanel {
         float dockH = dockHeight;
         
         // Main shape - pill-like with equal corner radius
-        RoundRectangle2D.Float shape = new RoundRectangle2D.Float(dockX, 0, dockWidth, dockH, CORNER_RADIUS, CORNER_RADIUS);
+        RoundRectangle2D.Float shape = new RoundRectangle2D.Float(dockX, 0, dockWidth, dockH, cornerRadius, cornerRadius);
         
         // Soft outer shadow - ensure all corners stay rounded
         int shadowLayers = 8;
@@ -564,7 +630,7 @@ public class GlassDockBar extends JPanel {
             g2.setColor(new Color(0, 0, 0, alpha));
             float spread = (shadowLayers - i) * 1.2f;
             // Corner radius grows with spread to maintain roundness
-            float cornerR = CORNER_RADIUS + spread * 0.5f;
+            float cornerR = cornerRadius + spread * 0.5f;
             g2.fill(new RoundRectangle2D.Float(
                 dockX - spread, 
                 spread * 0.3f, 
@@ -591,18 +657,18 @@ public class GlassDockBar extends JPanel {
             dockX, dockH * 0.35f, new Color(255, 255, 255, 0)
         );
         g2.setPaint(gloss);
-        g2.fill(new RoundRectangle2D.Float(dockX + 1, 1, dockWidth - 2, dockH * 0.35f, CORNER_RADIUS - 1, CORNER_RADIUS - 1));
+        g2.fill(new RoundRectangle2D.Float(dockX + 1, 1, dockWidth - 2, dockH * 0.35f, cornerRadius - 1, cornerRadius - 1));
         
         // Border - subtle
         g2.setColor(new Color(255, 255, 255, 45));
         g2.setStroke(new BasicStroke(1f));
-        g2.draw(new RoundRectangle2D.Float(dockX + 0.5f, 0.5f, dockWidth - 1, dockH - 1, CORNER_RADIUS, CORNER_RADIUS));
+        g2.draw(new RoundRectangle2D.Float(dockX + 0.5f, 0.5f, dockWidth - 1, dockH - 1, cornerRadius, cornerRadius));
     }
     
     private void drawItems(Graphics2D g2) {
-        if (items.isEmpty() || itemScales == null || itemX == null || itemY == null || itemSize == null) return;
+        if (items.isEmpty() || itemScales == null || itemX == null || itemY == null || itemSizes == null) return;
 
-        g2.setFont(LABEL_FONT);
+        g2.setFont(labelFont);
         FontMetrics labelFm = g2.getFontMetrics();
 
         float buttonReveal = easeInOut((expandProgress - 0.12f) / 0.62f);
@@ -618,7 +684,7 @@ public class GlassDockBar extends JPanel {
 
             float x = itemX[i];
             float y = itemY[i];
-            float baseSize = itemSize[i];
+            float baseSize = itemSizes[i];
 
             float alpha = Math.max(0.5f, 0.76f + buttonReveal * 0.24f);
             Composite oldComposite = g2.getComposite();
@@ -639,11 +705,11 @@ public class GlassDockBar extends JPanel {
                 drawItemBackground(g2, drawX, drawY, scaledSize, glow * buttonReveal, backgroundRadius, buttonReveal);
             }
 
-            float iconBaseScale = baseSize / ITEM_SIZE;
+            float iconBaseScale = baseSize / itemSize;
             float scatterScaleAdjust = (scatterScale != null && i < scatterScale.length) ? scatterScale[i] : 1f;
             float collapsedIconScale = 0.98f + (scatterScaleAdjust - 0.98f) * 0.35f;
             float iconPhaseScale = lerp(collapsedIconScale, 1f, buttonReveal);
-            int iconScaledSize = Math.max(18, Math.round(ICON_SIZE * iconBaseScale * iconPhaseScale));
+            int iconScaledSize = Math.max(18, Math.round(iconSize * iconBaseScale * iconPhaseScale));
             int iconX = Math.round(drawX + (scaledSize - iconScaledSize) * 0.5f);
             int iconY = Math.round(drawY + (scaledSize - iconScaledSize) * 0.5f - 4f * iconBaseScale * buttonReveal);
 
@@ -742,13 +808,24 @@ public class GlassDockBar extends JPanel {
         ));
         g2.drawString(label, textX, textY);
     }
-    
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        lastFrameNanos = 0L;
+        refreshMouseStateFromPointer();
+        if (animationTimer != null && !animationTimer.isRunning()) {
+            animationTimer.start();
+        }
+    }
+
     @Override
     public void removeNotify() {
-        super.removeNotify();
         if (animationTimer != null) {
             animationTimer.stop();
         }
+        clearMouseTrackingState();
+        super.removeNotify();
     }
     
     private static class DockItem {

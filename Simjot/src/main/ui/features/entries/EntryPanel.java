@@ -107,10 +107,10 @@ import main.infrastructure.io.IoLog;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.buttons.RoundedToggleButton;
-import main.ui.components.buttons.QuestionMarkButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.dock.GlassDockBar;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.CurrentLineGlowHighlighter;
@@ -1002,17 +1002,33 @@ public class EntryPanel extends AbstractEditorPanel {
         backgroundPainter.paint(g, this, bgPath, opacity, false);
     }
 
+    private void openEntryBackgroundSettings() {
+        EntryBackgroundDialog dialog = new EntryBackgroundDialog((Frame) SwingUtilities.getWindowAncestor(this));
+        dialog.setVisible(true);
+        repaint();
+    }
+
     private void initUI() {
         // Build right-side controls (journal-specific) that live inside the main frosted bar
-        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        JPanel rightToolbar = new JPanel();
         rightToolbar.setOpaque(false);
-        if (supportsClockButton()) {
-            ToolbarMenuIconButton clockBtn = new ToolbarMenuIconButton("", "clock");
-            clockBtn.setToolTipText("Insert time snapshot");
-            clockBtn.addActionListener(e -> insertClockSnapshot());
-            rightToolbar.add(clockBtn);
-            rightToolbar.add(Box.createHorizontalStrut(6));
+        rightToolbar.setLayout(new BoxLayout(rightToolbar, BoxLayout.X_AXIS));
+        JPanel extraToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        extraToolbar.setOpaque(false);
+        installExtraRightToolbarButtons(extraToolbar);
+        if (extraToolbar.getComponentCount() > 0) {
+            rightToolbar.add(extraToolbar);
+            rightToolbar.add(Box.createHorizontalStrut(8));
         }
+        GlassDockBar actionsDock = new GlassDockBar(0.56f, false);
+        actionsDock.setAlignmentY(Component.CENTER_ALIGNMENT);
+        if (supportsClockButton()) {
+            actionsDock.addItem("Time", "clock", this::insertClockSnapshot);
+        }
+        actionsDock.addItem("Fullscreen", "fullscreen", this::toggleDistractionFree);
+        actionsDock.addItem("Background", "backgroundoptions", this::openEntryBackgroundSettings);
+        rightToolbar.add(actionsDock);
+
         // Create shared poetry-style toolbar
         NotebookInfo nbInfo = new NotebookInfo(
                 journalFolder.getName(),
@@ -1021,7 +1037,6 @@ public class EntryPanel extends AbstractEditorPanel {
                 journalFolder.lastModified(),
                 null
         );
-        installExtraRightToolbarButtons(rightToolbar);
         main.ui.components.toolbars.PoetryStyleToolbar sharedToolbar = new main.ui.components.toolbars.PoetryStyleToolbar(
                 app,
                 nbInfo,
@@ -1049,29 +1064,6 @@ public class EntryPanel extends AbstractEditorPanel {
                 () -> RichTextStyler.applyHeaderToSelection(contentArea),
                 this::insertTextDivider
         );
-
-        // Place fullscreen and background settings at the far right (after any child-provided buttons)
-        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("", "fullscreen");
-        dfBtn.setToolTipText("Distraction-Free Mode");
-        dfBtn.addActionListener(e -> toggleDistractionFree());
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        rightToolbar.add(dfBtn);
-
-        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("", "backgroundoptions");
-        settingsBtn.setToolTipText("Background Settings");
-        settingsBtn.addActionListener(e -> {
-            EntryBackgroundDialog dialog = new EntryBackgroundDialog((java.awt.Frame) SwingUtilities.getWindowAncestor(this));
-            dialog.setVisible(true);
-            repaint();
-        });
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        rightToolbar.add(settingsBtn);
-
-        QuestionMarkButton helpBtn = new QuestionMarkButton();
-        helpBtn.setToolTipText("Editor tips");
-        helpBtn.addActionListener(e -> showHelpDialog());
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        rightToolbar.add(helpBtn);
 
         // Bind the shared title field to our reference used elsewhere
         titleField = sharedToolbar.getTitleField();

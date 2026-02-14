@@ -88,11 +88,11 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedToggleButton;
-import main.ui.components.buttons.QuestionMarkButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.dock.GlassDockBar;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.CurrentLineGlowHighlighter;
@@ -283,69 +283,51 @@ public class PoemPanel extends AbstractEditorPanel {
         backgroundPainter.paint(g, this, bgPath, opacity, true);
     }
 
+    private void toggleStatsSidebar() {
+        if (statsPanel != null) {
+            statsPanel.setVisible(!statsPanel.isVisible());
+            revalidate();
+            repaint();
+        }
+    }
+
+    private void toggleRhymesDock() {
+        if (rhymesDock != null) {
+            boolean vis = !rhymesDock.isVisible();
+            rhymesDock.setVisible(vis);
+            if (vis) {
+                String text = poemEditor.getText();
+                String w = getWordAtCaret(text);
+                updateRhymesDock(w, text, true);
+                updateWordHighlight(text);
+            } else {
+                clearWordHighlight();
+            }
+            revalidate();
+            repaint();
+        }
+    }
+
+    private void openPoemBackgroundSettings() {
+        PoemBackgroundDialog dialog = new PoemBackgroundDialog((Frame) SwingUtilities.getWindowAncestor(this));
+        dialog.setVisible(true);
+        repaint();
+    }
+
     private void initUI() {
         // Build right-side controls to pass into the shared toolbar
-        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel rightToolbar = new JPanel();
         rightToolbar.setOpaque(false);
-        // Toggles for poetry helpers
-        ToolbarMenuIconButton statsToggle = new ToolbarMenuIconButton("", "stats");
-        statsToggle.setToolTipText("Toggle Stats Sidebar");
-        statsToggle.addActionListener(e -> {
-            if (statsPanel != null) {
-                boolean vis = !statsPanel.isVisible();
-                statsPanel.setVisible(vis);
-                statsToggle.setSelected(vis);
-                revalidate(); repaint();
-            }
-        });
-        ToolbarMenuIconButton rhymesToggle = new ToolbarMenuIconButton("", "rhyme");
-        rhymesToggle.setToolTipText("Toggle Rhymes & Thesaurus Dock");
-        rhymesToggle.addActionListener(e -> {
-            if (rhymesDock != null) {
-                boolean vis = !rhymesDock.isVisible();
-                rhymesDock.setVisible(vis);
-                rhymesToggle.setSelected(vis);
-                if (vis) {
-                    String text = poemEditor.getText();
-                    String w = getWordAtCaret(text);
-                    updateRhymesDock(w, text, true);
-                    updateWordHighlight(text);
-                } else {
-                    clearWordHighlight();
-                }
-                revalidate(); repaint();
-            }
-        });
-        ToolbarMenuIconButton settingsBtn = new ToolbarMenuIconButton("", "backgroundoptions");
-        settingsBtn.setToolTipText("Background Settings");
-        settingsBtn.addActionListener(e -> {
-            PoemBackgroundDialog dialog = new PoemBackgroundDialog((java.awt.Frame)SwingUtilities.getWindowAncestor(this));
-            dialog.setVisible(true);
-            repaint();
-        });
-        // Distraction-free toggle
-        ToolbarMenuIconButton dfBtn = new ToolbarMenuIconButton("", "fullscreen");
-        dfBtn.setToolTipText("Distraction-Free Mode");
-        dfBtn.addActionListener(e -> toggleDistractionFree());
-        // Export button (advanced)
-        ToolbarMenuIconButton exportBtn = new ToolbarMenuIconButton("", "export");
-        exportBtn.setToolTipText("Export poem (Markdown/HTML/TXT/PNG)");
-        exportBtn.addActionListener(e -> exportPoem());
-        // Analysis button - opens detailed poetry analysis panel
-        ToolbarMenuIconButton analyzeBtn = new ToolbarMenuIconButton("", "analyze");
-        analyzeBtn.setToolTipText("Open Detailed Poetry Analysis");
-        analyzeBtn.addActionListener(e -> showPoemAnalysis());
-        rightToolbar.add(statsToggle);
-        rightToolbar.add(rhymesToggle);
-        rightToolbar.add(analyzeBtn);
-        rightToolbar.add(exportBtn);
-        rightToolbar.add(dfBtn);
-        rightToolbar.add(settingsBtn);
-        QuestionMarkButton helpBtn = new QuestionMarkButton();
-        helpBtn.setToolTipText("Poem editor tips");
-        helpBtn.addActionListener(e -> showHelpDialog());
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        rightToolbar.add(helpBtn);
+        rightToolbar.setLayout(new BoxLayout(rightToolbar, BoxLayout.X_AXIS));
+        GlassDockBar actionsDock = new GlassDockBar(0.56f, false);
+        actionsDock.setAlignmentY(Component.CENTER_ALIGNMENT);
+        actionsDock.addItem("Stats", "stats", this::toggleStatsSidebar);
+        actionsDock.addItem("Rhymes", "rhyme", this::toggleRhymesDock);
+        actionsDock.addItem("Analyze", "analyze", this::showPoemAnalysis);
+        actionsDock.addItem("Export", "export", this::exportPoem);
+        actionsDock.addItem("Fullscreen", "fullscreen", this::toggleDistractionFree);
+        actionsDock.addItem("Background", "backgroundoptions", this::openPoemBackgroundSettings);
+        rightToolbar.add(actionsDock);
         // Create shared toolbar and wire callbacks
         NotebookInfo nbInfo = new NotebookInfo(
                 journalFolder.getName(),

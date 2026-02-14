@@ -55,6 +55,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -129,6 +130,8 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File, MetaSnapshot> metaCache = new java.util.HashMap<>();
     private final java.util.Map<File, PreviewSnapshot> previewCache = new java.util.HashMap<>();
     private final java.util.Map<File, int[]> moodTrendCache = new java.util.HashMap<>();
+    private final java.util.Map<File, Boolean> encryptedFlags = new java.util.HashMap<>();
+    private final java.util.Map<File, Integer> rowIndexByFile = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
     private SwingWorker<Void, PreviewSnapshot> previewLoader;
 
@@ -137,7 +140,7 @@ public class NotebookEntriesPanel extends JPanel {
     private SwingWorker<Void, FileMeta> metaLoader;
 
     // Debounced list rebuild to avoid frequent model churn on metadata updates
-    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(50, e -> applyFilterSort());
+    private final javax.swing.Timer listUpdateDebounce = new javax.swing.Timer(120, e -> applyFilterSort());
     // Track which files have computed metadata and which are enqueued
     private final java.util.Set<File> metaComputed = new java.util.HashSet<>();
     private final java.util.Set<File> metaQueued = new java.util.HashSet<>();
@@ -170,7 +173,7 @@ public class NotebookEntriesPanel extends JPanel {
                 performActualDelete(toDelete);
             } else {
                 deleteAnimProgress.put(pendingDeleteFile, v);
-                list.repaint();
+                repaintFileRow(pendingDeleteFile, 24);
             }
         } catch (Throwable ignored) {}
     });
@@ -178,6 +181,7 @@ public class NotebookEntriesPanel extends JPanel {
     private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(16, e -> {
         try {
             java.util.List<File> toRemove = new java.util.ArrayList<>();
+            java.util.List<File> toRepaint = new java.util.ArrayList<>();
             for (java.util.Map.Entry<File, Float> en : reorderAnimProgress.entrySet()) {
                 Float fv = en.getValue();
                 float v = (fv == null ? 0f : fv.floatValue());
@@ -186,31 +190,36 @@ public class NotebookEntriesPanel extends JPanel {
                     toRemove.add(en.getKey());
                 } else {
                     en.setValue(v);
+                    toRepaint.add(en.getKey());
                 }
             }
             for (File f : toRemove) reorderAnimProgress.remove(f);
             if (reorderAnimProgress.isEmpty()) {
                 ((javax.swing.Timer) e.getSource()).stop();
             }
-            list.repaint();
+            repaintFileRows(toRepaint, 18);
         } catch (Throwable ignored) {}
     });
 
+    private int hoverIndex = -1;
+    private File hoverFile = null;
     private final float[] selectionSweepPhase = new float[]{0f};
     private final javax.swing.Timer selectionSweepTimer = new javax.swing.Timer(33, e -> {
         try {
             selectionSweepPhase[0] += 0.018f;
             if (selectionSweepPhase[0] > 1f) selectionSweepPhase[0] -= 1f;
-            list.repaint();
+            repaintRow(hoverIndex, 12);
         } catch (Throwable ignored) {}
     });
     
     private final float[] dashedBorderPhase = new float[]{0f};
+    private int dashedAnimatedIndex = -1;
     private final javax.swing.Timer dashedBorderTimer = new javax.swing.Timer(50, e -> {
         try {
             dashedBorderPhase[0] += 0.8f; // Speed of conveyor belt movement
             if (dashedBorderPhase[0] > 10f) dashedBorderPhase[0] -= 10f; // Reset after full cycle
-            list.repaint();
+            if (dashedAnimatedIndex < 0) dashedAnimatedIndex = list.getSelectedIndex();
+            repaintRow(dashedAnimatedIndex, 8);
         } catch (Throwable ignored) {}
     });
 
@@ -219,8 +228,6 @@ public class NotebookEntriesPanel extends JPanel {
     private Thread watchThread;
     private volatile boolean watchRunning;
     private volatile boolean disposed = false;
-    private int hoverIndex = -1;
-    private File hoverFile = null;
     private static final int PREVIEW_MAX_CHARS = 260;
 
     private static class FileMeta {
@@ -298,6 +305,23 @@ public class NotebookEntriesPanel extends JPanel {
         private boolean hovered = false;
         private boolean encrypted = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
+        private static final int SNIPPET_CACHE_MAX = 768;
+        private static final int TIME_CACHE_MAX = 1024;
+        private static final int[] EMPTY_VALUES = new int[0];
+        private final Map<File, SnippetHtmlCache> snippetHtmlCache =
+                new LinkedHashMap<>(128, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<File, SnippetHtmlCache> eldest) {
+                        return size() > SNIPPET_CACHE_MAX;
+                    }
+                };
+        private final Map<File, TimeLabelCache> timeLabelCache =
+                new LinkedHashMap<>(128, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<File, TimeLabelCache> eldest) {
+                        return size() > TIME_CACHE_MAX;
+                    }
+                };
 
         // Background image cache (scaled+blurred per size)
         private static BufferedImage ENTRY_BG_BASE;
@@ -355,6 +379,42 @@ public class NotebookEntriesPanel extends JPanel {
             op.filter(cropped, blurred);
             BG_CACHE.put(key, blurred);
             return blurred;
+        }
+
+        private static final class SnippetHtmlCache {
+            final long modifiedAt;
+            final long length;
+            final String token;
+            final int wrapWidth;
+            final String snippet;
+            final String html;
+
+            private SnippetHtmlCache(long modifiedAt, long length, String token, int wrapWidth, String snippet, String html) {
+                this.modifiedAt = modifiedAt;
+                this.length = length;
+                this.token = token == null ? "" : token;
+                this.wrapWidth = wrapWidth;
+                this.snippet = snippet == null ? "" : snippet;
+                this.html = html == null ? "" : html;
+            }
+        }
+
+        private static final class TimeLabelCache {
+            final long createdTs;
+            final long modifiedTs;
+            final long minuteBucket;
+            final String createdText;
+            final String editedText;
+            final String editedContextText;
+
+            private TimeLabelCache(long createdTs, long modifiedTs, long minuteBucket, String createdText, String editedText, String editedContextText) {
+                this.createdTs = createdTs;
+                this.modifiedTs = modifiedTs;
+                this.minuteBucket = minuteBucket;
+                this.createdText = createdText == null ? "" : createdText;
+                this.editedText = editedText == null ? "" : editedText;
+                this.editedContextText = editedContextText == null ? "" : editedContextText;
+            }
         }
 
         EntryCardRenderer() {
@@ -434,6 +494,7 @@ public class NotebookEntriesPanel extends JPanel {
             
             // Minimal left padding - title should be at very left
             setBorder(BorderFactory.createEmptyBorder(8, 18, 8, 12));
+            setPreferredSize(new Dimension(1, 126));
         }
 
         @Override
@@ -451,9 +512,11 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
             @SuppressWarnings("unchecked") Map<File, PreviewSnapshot> previews = (Map<File, PreviewSnapshot>) list.getClientProperty("previews");
             @SuppressWarnings("unchecked") Map<File, int[]> moodTrends = (Map<File, int[]>) list.getClientProperty("moodTrends");
+            @SuppressWarnings("unchecked") Map<File, Boolean> encryptedState = (Map<File, Boolean>) list.getClientProperty("encryptedFlags");
             String searchQuery = String.valueOf(list.getClientProperty("searchQuery") == null
                     ? ""
                     : list.getClientProperty("searchQuery"));
+            String token = firstQueryToken(searchQuery);
             File file = value != null ? value.file : null;
             String fallback = file != null ? file.getName() : "";
             int dotIdx = fallback.lastIndexOf('.');
@@ -465,7 +528,19 @@ public class NotebookEntriesPanel extends JPanel {
             Float delProg = file != null && deleteAnim != null ? deleteAnim.get(file) : null;
             deleteProgress = delProg == null ? 0f : delProg;
             moodValue = file != null && moods != null ? moods.getOrDefault(file, -1) : -1;
-            encrypted = file != null && EncryptionManager.isEncrypted(file);
+            encrypted = false;
+            if (file != null) {
+                if (encryptedState != null) {
+                    Boolean cachedEncrypted = encryptedState.get(file);
+                    if (cachedEncrypted == null) {
+                        cachedEncrypted = EncryptionManager.isEncrypted(file);
+                        encryptedState.put(file, cachedEncrypted);
+                    }
+                    encrypted = cachedEncrypted;
+                } else {
+                    encrypted = EncryptionManager.isEncrypted(file);
+                }
+            }
             Object phaseObj = list.getClientProperty("selectionSweepPhase");
             if (phaseObj instanceof float[] arr && arr.length > 0) {
                 selectionSweepPhase = arr[0];
@@ -488,8 +563,7 @@ public class NotebookEntriesPanel extends JPanel {
                 createdTs = entrySortTimestamp(file);
                 if (timestamps != null) timestamps.put(file, createdTs);
             }
-            Date created = createdTs > 0 ? new Date(createdTs) : new Date();
-            Date modified = file != null ? new Date(file.lastModified()) : new Date();
+            long modifiedTs = file != null ? file.lastModified() : System.currentTimeMillis();
 
             String displayTitle = (t==null||t.isBlank()) ? fallback : t;
             title.setText(displayTitle);
@@ -498,14 +572,14 @@ public class NotebookEntriesPanel extends JPanel {
             // Update individual stat labels
             sizeLabel.setText(size);
             wordsLabel.setText(wc + " words");
-            SimpleDateFormat df = ENTRY_LIST_DATE_FORMAT.get();
-            createdLabel.setText("Created " + df.format(created));
-            editedLabel.setText("Edited " + df.format(modified));
+            TimeLabelCache labels = resolveTimeLabels(file, createdTs, modifiedTs);
+            createdLabel.setText(labels.createdText);
+            editedLabel.setText(labels.editedText);
             PreviewSnapshot snap = (file != null && previews != null) ? previews.get(file) : null;
-            String previewText = snap != null ? snap.snippet : "";
             int wrapWidth = list.getWidth() > 0 ? Math.max(260, list.getWidth() - 360) : 540;
-            snippet.setText(buildHighlightedSnippetHtml(previewText, searchQuery, wrapWidth));
-            editedContextLabel.setText(formatLastEditedContext(modified.getTime()));
+            wrapWidth = (wrapWidth / 24) * 24;
+            snippet.setText(resolveSnippetHtml(file, snap, token, wrapWidth));
+            editedContextLabel.setText(labels.editedContextText);
 
             int[] trendValues = file != null && moodTrends != null ? moodTrends.get(file) : null;
             if ((trendValues == null || trendValues.length == 0) && moodValue >= 0) {
@@ -513,7 +587,6 @@ public class NotebookEntriesPanel extends JPanel {
             }
             sparkline.setValues(trendValues, moodValue);
             this.selected = isSelected;
-            setPreferredSize(new Dimension(1, 126));
             return this;
         }
 
@@ -660,9 +733,68 @@ public class NotebookEntriesPanel extends JPanel {
             super.paintComponent(g);
         }
 
-        private static String formatLastEditedContext(long modifiedAt) {
-            long now = System.currentTimeMillis();
-            long deltaMs = Math.max(0L, now - modifiedAt);
+        private TimeLabelCache resolveTimeLabels(File file, long createdTs, long modifiedTs) {
+            long minuteBucket = System.currentTimeMillis() / 60_000L;
+            if (file == null) {
+                Date created = createdTs > 0 ? new Date(createdTs) : new Date();
+                Date modified = modifiedTs > 0 ? new Date(modifiedTs) : new Date();
+                SimpleDateFormat df = ENTRY_LIST_DATE_FORMAT.get();
+                return new TimeLabelCache(
+                        createdTs,
+                        modifiedTs,
+                        minuteBucket,
+                        "Created " + df.format(created),
+                        "Edited " + df.format(modified),
+                        formatLastEditedContext(modifiedTs, minuteBucket)
+                );
+            }
+            TimeLabelCache cached = timeLabelCache.get(file);
+            if (cached != null
+                    && cached.createdTs == createdTs
+                    && cached.modifiedTs == modifiedTs
+                    && cached.minuteBucket == minuteBucket) {
+                return cached;
+            }
+            Date created = createdTs > 0 ? new Date(createdTs) : new Date();
+            Date modified = modifiedTs > 0 ? new Date(modifiedTs) : new Date();
+            SimpleDateFormat df = ENTRY_LIST_DATE_FORMAT.get();
+            TimeLabelCache computed = new TimeLabelCache(
+                    createdTs,
+                    modifiedTs,
+                    minuteBucket,
+                    "Created " + df.format(created),
+                    "Edited " + df.format(modified),
+                    formatLastEditedContext(modifiedTs, minuteBucket)
+            );
+            timeLabelCache.put(file, computed);
+            return computed;
+        }
+
+        private String resolveSnippetHtml(File file, PreviewSnapshot snap, String token, int wrapPx) {
+            String src = snap != null ? snap.snippet : "";
+            if (file == null) {
+                return buildHighlightedSnippetHtml(src, token, wrapPx);
+            }
+            long modifiedAt = snap != null ? snap.lastModified : file.lastModified();
+            long length = snap != null ? snap.length : file.length();
+            String normalizedToken = token == null ? "" : token;
+            SnippetHtmlCache cached = snippetHtmlCache.get(file);
+            if (cached != null
+                    && cached.modifiedAt == modifiedAt
+                    && cached.length == length
+                    && cached.wrapWidth == wrapPx
+                    && Objects.equals(cached.token, normalizedToken)
+                    && Objects.equals(cached.snippet, src)) {
+                return cached.html;
+            }
+            String html = buildHighlightedSnippetHtml(src, normalizedToken, wrapPx);
+            snippetHtmlCache.put(file, new SnippetHtmlCache(modifiedAt, length, normalizedToken, wrapPx, src, html));
+            return html;
+        }
+
+        private static String formatLastEditedContext(long modifiedAt, long minuteBucket) {
+            long now = minuteBucket * 60_000L;
+            long deltaMs = Math.max(0L, now - Math.max(0L, modifiedAt));
             long minutes = deltaMs / 60_000L;
             if (minutes < 1) return "Last edited just now";
             if (minutes < 60) return "Last edited " + minutes + "m ago";
@@ -676,12 +808,11 @@ public class NotebookEntriesPanel extends JPanel {
             return "Last edited " + years + "y ago";
         }
 
-        private static String buildHighlightedSnippetHtml(String snippet, String query, int wrapPx) {
+        private static String buildHighlightedSnippetHtml(String snippet, String token, int wrapPx) {
             String src = snippet == null ? "" : snippet.trim();
             if (src.isEmpty()) {
                 return "<html><div style='color:#8A92A3'>No preview available.</div></html>";
             }
-            String token = firstQueryToken(query);
             String rendered;
             if (token.isEmpty()) {
                 rendered = escapeHtml(src);
@@ -737,9 +868,12 @@ public class NotebookEntriesPanel extends JPanel {
             private int currentMood = -1;
 
             private void setValues(int[] values, int currentMood) {
-                this.values = values == null ? new int[0] : Arrays.copyOf(values, values.length);
+                int[] nextValues = values == null ? EMPTY_VALUES : values;
+                if (this.values == nextValues && this.currentMood == currentMood) {
+                    return;
+                }
+                this.values = nextValues;
                 this.currentMood = currentMood;
-                repaint();
             }
 
             @Override
@@ -924,6 +1058,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("dashedBorderPhase", dashedBorderPhase);
         list.putClientProperty("previews", previewCache);
         list.putClientProperty("moodTrends", moodTrendCache);
+        list.putClientProperty("encryptedFlags", encryptedFlags);
         list.putClientProperty("searchQuery", "");
         list.putClientProperty("hoverIndex", -1);
         list.setBackground(new Color(247, 247, 249));
@@ -1079,6 +1214,8 @@ public class NotebookEntriesPanel extends JPanel {
             metaCache.keySet().retainAll(current);
             previewCache.keySet().retainAll(current);
             moodTrendCache.keySet().retainAll(current);
+            encryptedFlags.keySet().retainAll(current);
+            rowIndexByFile.keySet().retainAll(current);
 
             // Seed provisional values for new files
             java.util.Map<File, MetaSnapshot> refreshedCache = new java.util.HashMap<>();
@@ -1093,6 +1230,7 @@ public class NotebookEntriesPanel extends JPanel {
                 } else {
                     metaComputed.remove(f);
                     synchronized (metaQueued) { metaQueued.remove(f); }
+                    encryptedFlags.remove(f);
                 }
                 if (!titles.containsKey(f)) {
                     String nm = f.getName();
@@ -1120,6 +1258,8 @@ public class NotebookEntriesPanel extends JPanel {
             metaCache.clear();
             previewCache.clear();
             moodTrendCache.clear();
+            encryptedFlags.clear();
+            rowIndexByFile.clear();
         }
     }
 
@@ -1199,7 +1339,10 @@ public class NotebookEntriesPanel extends JPanel {
         }
         if (!sameOrder) {
             java.util.Set<File> changed = updateModelWithMinimalChanges(rows);
+            rebuildRowIndexCache();
             bumpReorderAnimation(changed);
+        } else if (rowIndexByFile.size() != ordered.size()) {
+            rebuildRowIndexCache();
         }
 
         // Restore selection without forcing scroll
@@ -1289,10 +1432,61 @@ public class NotebookEntriesPanel extends JPanel {
         return -1;
     }
 
+    private void rebuildRowIndexCache() {
+        rowIndexByFile.clear();
+        for (int i = 0; i < model.size(); i++) {
+            EntryRow row = model.get(i);
+            if (row != null && !row.isHeader() && row.file != null) {
+                rowIndexByFile.put(row.file, i);
+            }
+        }
+    }
+
+    private int rowIndexForFile(File file) {
+        if (file == null) return -1;
+        Integer idx = rowIndexByFile.get(file);
+        if (idx != null && idx >= 0 && idx < model.size()) {
+            EntryRow row = model.get(idx);
+            if (row != null && !row.isHeader() && Objects.equals(row.file, file)) {
+                return idx;
+            }
+        }
+        for (int i = 0; i < model.size(); i++) {
+            EntryRow row = model.get(i);
+            if (row != null && !row.isHeader() && Objects.equals(row.file, file)) {
+                rowIndexByFile.put(file, i);
+                return i;
+            }
+        }
+        rowIndexByFile.remove(file);
+        return -1;
+    }
+
+    private void repaintRow(int index, int padding) {
+        if (index < 0 || index >= model.size()) return;
+        java.awt.Rectangle bounds = list.getCellBounds(index, index);
+        if (bounds == null) return;
+        int pad = Math.max(0, padding);
+        int x = Math.max(0, bounds.x - pad);
+        int y = Math.max(0, bounds.y - pad);
+        int w = bounds.width + (pad * 2);
+        int h = bounds.height + (pad * 2);
+        list.repaint(x, y, w, h);
+    }
+
+    private void repaintFileRow(File file, int padding) {
+        repaintRow(rowIndexForFile(file), padding);
+    }
+
+    private void repaintFileRows(List<File> files, int padding) {
+        if (files == null || files.isEmpty()) return;
+        for (File file : files) repaintFileRow(file, padding);
+    }
+
     private void bumpReorderAnimation(java.util.Set<File> files){
         if (files == null || files.isEmpty()) return;
         for (File f : files) reorderAnimProgress.put(f, 1f);
-        list.repaint();
+        repaintFileRows(new ArrayList<>(files), 16);
         if (!reorderAnimTimer.isRunning()) {
             try { reorderAnimTimer.start(); } catch (Throwable ignored) {}
         }
@@ -1319,7 +1513,7 @@ public class NotebookEntriesPanel extends JPanel {
         if (!deleteAnimTimer.isRunning()) {
             deleteAnimTimer.start();
         }
-        list.repaint();
+        repaintFileRow(f, 24);
     }
     
     private void performActualDelete(File f) {
@@ -1368,6 +1562,8 @@ public class NotebookEntriesPanel extends JPanel {
         entryTimestamps.remove(file);
         metaCache.remove(file);
         previewCache.remove(file);
+        encryptedFlags.remove(file);
+        rowIndexByFile.remove(file);
         metaComputed.remove(file);
         synchronized (metaQueued) {
             metaQueued.remove(file);
@@ -1762,6 +1958,8 @@ public class NotebookEntriesPanel extends JPanel {
         pendingDeleteFile = null;
         model.clear();
         previewCache.clear();
+        encryptedFlags.clear();
+        rowIndexByFile.clear();
     }
     
 
@@ -1882,6 +2080,7 @@ public class NotebookEntriesPanel extends JPanel {
                 return null;
             }
             @Override protected void process(java.util.List<FileMeta> chunks) {
+                java.util.List<File> changedFiles = new ArrayList<>(chunks.size());
                 for (FileMeta m : chunks) {
                     if (m == null || m.file == null || !m.file.exists()) continue;
                     titles.put(m.file, m.title);
@@ -1895,7 +2094,10 @@ public class NotebookEntriesPanel extends JPanel {
                             m.title,
                             m.mood
                     ));
+                    changedFiles.add(m.file);
                 }
+                if (changedFiles.isEmpty()) return;
+                repaintFileRows(changedFiles, 12);
                 update();
             }
         };
@@ -1974,18 +2176,24 @@ public class NotebookEntriesPanel extends JPanel {
         } else {
             if (selectionSweepTimer.isRunning()) selectionSweepTimer.stop();
             selectionSweepPhase[0] = 0f;
-            list.repaint();
         }
     }
     
     private void updateDashedBorderState() {
-        boolean hasSelection = list.getSelectedIndex() >= 0;
+        int selectedIndex = list.getSelectedIndex();
+        boolean hasSelection = selectedIndex >= 0;
         if (hasSelection) {
+            if (dashedAnimatedIndex != selectedIndex) {
+                repaintRow(dashedAnimatedIndex, 8);
+                dashedAnimatedIndex = selectedIndex;
+                repaintRow(dashedAnimatedIndex, 8);
+            }
             if (!dashedBorderTimer.isRunning()) dashedBorderTimer.start();
         } else {
             if (dashedBorderTimer.isRunning()) dashedBorderTimer.stop();
             dashedBorderPhase[0] = 0f;
-            list.repaint();
+            repaintRow(dashedAnimatedIndex, 8);
+            dashedAnimatedIndex = -1;
         }
     }
 
@@ -2006,20 +2214,23 @@ public class NotebookEntriesPanel extends JPanel {
             return;
         }
         if (idx == hoverIndex && Objects.equals(row.file, hoverFile)) return;
+        int oldHoverIndex = hoverIndex;
         hoverIndex = idx;
         hoverFile = row.file;
         list.putClientProperty("hoverIndex", hoverIndex);
         updateSelectionSweepState();
-        list.repaint();
+        repaintRow(oldHoverIndex, 12);
+        repaintRow(hoverIndex, 12);
     }
 
     private void clearHoverIndex() {
         if (hoverIndex < 0) return;
+        int oldHoverIndex = hoverIndex;
         hoverIndex = -1;
         hoverFile = null;
         list.putClientProperty("hoverIndex", -1);
         updateSelectionSweepState();
-        list.repaint();
+        repaintRow(oldHoverIndex, 12);
     }
 
     private void ensurePreviewForVisibleRange() {
@@ -2066,11 +2277,13 @@ public class NotebookEntriesPanel extends JPanel {
                 return null;
             }
             @Override protected void process(java.util.List<PreviewSnapshot> chunks) {
+                java.util.List<File> changedFiles = new ArrayList<>(chunks.size());
                 for (PreviewSnapshot snap : chunks) {
                     if (snap == null || snap.file == null) continue;
                     previewCache.put(snap.file, snap);
+                    changedFiles.add(snap.file);
                 }
-                list.repaint();
+                repaintFileRows(changedFiles, 12);
             }
         };
         previewLoader.execute();
