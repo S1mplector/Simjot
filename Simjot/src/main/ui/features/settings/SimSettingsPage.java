@@ -20,7 +20,7 @@ public class SimSettingsPage implements SettingsPage {
     private final JComboBox<String> personality = new JComboBox<>(new String[]{"gentle","neutral","proactive"});
     private final JComboBox<String> engagementMode = new JComboBox<>(new String[]{"on_call","hybrid","proactive"});
     private final JCheckBox useLlm = new JCheckBox("Allow AI model");
-    private final JComboBox<String> llmProvider = new JComboBox<>(new String[]{"ollama","openai"});
+    private final JComboBox<String> llmProvider = new JComboBox<>(new String[]{"ollama","openai","magi"});
     private final JTextField quietHours = new JTextField(12);
     private final JSpinner nudgeMinutes = new JSpinner(new SpinnerNumberModel(30, 5, 120, 5));
     private final JTextField ollamaEndpoint = new JTextField(18);
@@ -28,6 +28,8 @@ public class SimSettingsPage implements SettingsPage {
     private final JPasswordField openaiApiKey = new JPasswordField(24);
     private final JTextField openaiModel = new JTextField(18);
     private final JTextField openaiBaseUrl = new JTextField(18);
+    private final JTextField magiPythonCommand = new JTextField(18);
+    private final JTextField magiModel = new JTextField(18);
 
     public SimSettingsPage(){
         panel.setOpaque(true);
@@ -107,6 +109,15 @@ public class SimSettingsPage implements SettingsPage {
         gc.gridx = 1;
         panel.add(openaiBaseUrl, gc);
 
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("MAGI python command"), gc);
+        gc.gridx = 1;
+        panel.add(magiPythonCommand, gc);
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("MAGI model"), gc);
+        gc.gridx = 1;
+        panel.add(magiModel, gc);
+
         // Load current settings
         SimSettings s = SimSettings.get();
         enableSim.setSelected(s.isEnabled());
@@ -125,6 +136,8 @@ public class SimSettingsPage implements SettingsPage {
         openaiApiKey.setText(s.getOpenAIApiKey());
         openaiModel.setText(s.getOpenAIModel());
         openaiBaseUrl.setText(s.getOpenAIBaseUrl());
+        magiPythonCommand.setText(s.getMagiPythonCommand());
+        magiModel.setText(s.getMagiModel());
 
         // Enable/disable provider-specific fields based on checkbox and provider
         Runnable toggleLlmFields = () -> {
@@ -133,11 +146,14 @@ public class SimSettingsPage implements SettingsPage {
             String provider = (String) llmProvider.getSelectedItem();
             boolean isOllama = llmOn && "ollama".equalsIgnoreCase(provider);
             boolean isOpenAI = llmOn && "openai".equalsIgnoreCase(provider);
+            boolean isMagi = llmOn && "magi".equalsIgnoreCase(provider);
             ollamaEndpoint.setEnabled(isOllama);
             ollamaModel.setEnabled(isOllama);
-            openaiApiKey.setEnabled(isOpenAI);
+            openaiApiKey.setEnabled(isOpenAI || isMagi);
             openaiModel.setEnabled(isOpenAI);
             openaiBaseUrl.setEnabled(isOpenAI);
+            magiPythonCommand.setEnabled(isMagi);
+            magiModel.setEnabled(isMagi);
         };
         useLlm.addActionListener(e -> toggleLlmFields.run());
         llmProvider.addActionListener(e -> toggleLlmFields.run());
@@ -170,5 +186,7 @@ public class SimSettingsPage implements SettingsPage {
             s.setOpenAIModel(openaiModel.getText());
             s.setOpenAIBaseUrl(openaiBaseUrl.getText());
         }
+        s.setMagiPythonCommand(magiPythonCommand.getText());
+        s.setMagiModel(magiModel.getText());
     }
 }

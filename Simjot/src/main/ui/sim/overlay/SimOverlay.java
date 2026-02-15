@@ -68,6 +68,11 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final int ORB_RADIUS = 16; // circle radius
     private static final int ORB_RING_RADIUS = 42; // distance from center
     private static final int HEART_CLEARANCE = 8; // extra spacing between heart and orbs
+    private static final int MAGI_BRAIN_COUNT = 3;
+    private static final int MAGI_RING_RADIUS = ORB_RING_RADIUS + HEART_CLEARANCE + ORB_RADIUS + 22;
+    private static final int MAGI_BRAIN_RADIUS = 10;
+    private static final int ORBIT_LAYOUT_PADDING = 22;
+    private static final int ORBIT_LAYOUT_WIDTH = 140;
     private static final float ORB_PHASE_STAGGER = 0.62f; // overlap between adjacent orb transitions
     private static final float ORB_ENTRY_PHASE_SPEED = 0.072f;
     private static final float ORB_EXIT_PHASE_SPEED = 0.078f;
@@ -88,9 +93,35 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private int typingTick = 0; // advances in anim timer to animate dots
     // Special "thinking" motion when Sim is preparing guidance
     private boolean guidanceThinking = false;
+    private boolean templateRequestInFlight = false;
     private double thinkingPhase = 0.0;
     private float thinkingPulse = 0f;
     private float thinkingOrbScale = 1f;
+    private double magiSpinAngle = 0.0;
+    private boolean magiDeliberating = false;
+    private String guidanceConsensus = "";
+    private String[] guidanceOutcomeEmotions = new String[0];
+    private ConsensusType guidanceConsensusType = ConsensusType.NONE;
+    private final MagiDecision[] magiConsensusDecisions = new MagiDecision[MAGI_BRAIN_COUNT];
+    private final String[] magiConsensusCodes = new String[MAGI_BRAIN_COUNT];
+    private OutcomeLabel outcomeLabel;
+
+    private enum ConsensusType {
+        NONE,
+        UNANIMOUS,
+        MAJORITY,
+        CONDITIONAL,
+        DEADLOCK,
+        INFORMATIONAL
+    }
+
+    private enum MagiDecision {
+        NEUTRAL,
+        AGREE,
+        DISAGREE,
+        CONDITIONAL,
+        INFORMATIONAL
+    }
 
     // New: scrollable chat components
     private final ChatTranscriptModel transcript = new ChatTranscriptModel();
@@ -114,6 +145,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         setOpaque(false);
         setVisible(true);
         setLayout(null); // we'll position children manually
+        clearGuidanceOutcomeVisuals();
         // Listen for speak events
         try { SimEventBus.get().addListener(this); } catch (Throwable ignored) {}
 
@@ -122,6 +154,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         chatView.getScrollPane().setVisible(false);
         add(chatView.getScrollPane());
         ensureActionButtons();
+        ensureOutcomeLabel();
 
         // Drag to move
         MouseAdapter ma = new MouseAdapter() {
@@ -267,6 +300,13 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             }
             spinAngle += speed * tickScale;
             if (spinAngle > Math.PI * 2) spinAngle -= Math.PI * 2;
+            double magiSpeed = speed * 0.72;
+            if (guidanceThinking) {
+                magiSpeed *= 0.95 + 0.35 * thinkingPulse;
+            }
+            magiSpinAngle -= magiSpeed * tickScale;
+            if (magiSpinAngle < -Math.PI * 2) magiSpinAngle += Math.PI * 2;
+            if (magiSpinAngle > Math.PI * 2) magiSpinAngle -= Math.PI * 2;
 
             // Emotion orb highlight easing (driven by onEmotionTagged events)
             for (int i = 0; i < ORB_COUNT; i++) {
@@ -411,6 +451,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     public void onGuidanceRequested(String text) {
         SwingUtilities.invokeLater(() -> {
             if (!userInvokedActive || chatMode) return;
+            magiDeliberating = true;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(true);
             message = "Sim is thinking…";
             refreshActionButtonsState();
@@ -419,12 +461,26 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     @Override
+    public void onGuidanceOutcome(String consensus, String[] emotions) {
+        SwingUtilities.invokeLater(() -> {
+            guidanceConsensus = consensus == null ? "" : consensus.trim();
+            applyGuidanceConsensusVisuals(guidanceConsensus);
+            guidanceOutcomeEmotions = sanitizeEmotionLabels(emotions);
+            emphasizeOutcomeEmotions(guidanceOutcomeEmotions);
+            updateOutcomeLabelText();
+            repaint();
+        });
+    }
+
+    @Override
     public void onGuidanceProduced(String text) {
         SwingUtilities.invokeLater(() -> {
+            magiDeliberating = false;
             setGuidanceThinking(false);
             if (!userInvokedActive || chatMode) return;
             String out = text == null ? "" : text.strip();
             message = out.isEmpty() ? "I could not generate guidance this time." : "Guidance added to your entry.";
+            updateOutcomeLabelText();
             refreshActionButtonsState();
             repaint();
         });
@@ -433,7 +489,10 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     @Override
     public void onTemplateGenerationRequested(String text, String notebookName) {
         SwingUtilities.invokeLater(() -> {
+            if (!templateRequestInFlight) return;
             if (!userInvokedActive || chatMode) return;
+            magiDeliberating = false;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(true);
             message = "Sim is generating a template…";
             refreshActionButtonsState();
@@ -444,6 +503,10 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     @Override
     public void onTemplateGenerated(String notebookName, String name, String description, String[] questions) {
         SwingUtilities.invokeLater(() -> {
+            if (!templateRequestInFlight) return;
+            templateRequestInFlight = false;
+            magiDeliberating = false;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(false);
             if (!userInvokedActive || chatMode) return;
             boolean saved = false;
@@ -462,6 +525,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     public void onQuitRequested() {
         // Gracefully end chat (if any) and dispose the overlay with animation
         SwingUtilities.invokeLater(() -> {
+            templateRequestInFlight = false;
+            magiDeliberating = false;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(false);
             try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
             try { endChatModeInternal(true); } catch (Throwable ignored) {}
@@ -504,8 +570,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
         // No outer frame/background — keep canvas transparent.
         // Layout keeps orbs on the left and floating controls on the right.
-        int padding = 14;
-        int leftW = 140; // space for orbs
+        int padding = ORBIT_LAYOUT_PADDING;
+        int leftW = ORBIT_LAYOUT_WIDTH; // space for orbs
         int centerX = padding + leftW / 2;
         int centerY = h / 2 + 6; // slightly lower to balance header
 
@@ -683,10 +749,13 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             g2.drawOval(ox - rr, oy - rr, d, d);
         }
 
+        paintMagiBrainLayer(g2, centerX, centerY, accent);
+
         // Overlay menu is now floating buttons only (no text panel/chat panel).
         lastPanelRect = null;
         chatView.getScrollPane().setVisible(false);
         layoutActionButtons();
+        layoutOutcomeLabel();
 
         // restore
         g2.setComposite(oldComp);
@@ -708,6 +777,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         if (thinking) {
             thinkingPhase = 0.0;
             thinkingPulse = Math.max(thinkingPulse, 0.35f);
+        } else {
+            magiDeliberating = false;
         }
     }
 
@@ -730,6 +801,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         if (!isVisible()) setVisible(true);
         // Open in compact menu mode first (chat is a selectable action)
         chatMode = false;
+        magiDeliberating = false;
+        clearGuidanceOutcomeVisuals();
         setGuidanceThinking(false);
         try { transcript.clear(); } catch (Throwable ignored) {}
         typingInProgress = false;
@@ -832,6 +905,14 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         return path;
     }
 
+    private float orbVisibilityProgress() {
+        float max = 0f;
+        for (int i = 0; i < ORB_COUNT; i++) {
+            max = Math.max(max, (float) orbT[i]);
+        }
+        return clamp01(max);
+    }
+
     // Emotion palette mapping for orb accents and symbol tints
     private Color getEmotionColor(int idx) {
         switch (idx % ORB_COUNT) {
@@ -841,6 +922,191 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             case 3: return new Color(244, 111, 111);    // anger/stress
             default: return new Color(87, 210, 180);    // calm
         }
+    }
+
+    private void clearGuidanceOutcomeVisuals() {
+        guidanceConsensus = "";
+        guidanceOutcomeEmotions = new String[0];
+        guidanceConsensusType = ConsensusType.NONE;
+        for (int i = 0; i < MAGI_BRAIN_COUNT; i++) {
+            magiConsensusDecisions[i] = MagiDecision.NEUTRAL;
+            magiConsensusCodes[i] = "";
+        }
+        updateOutcomeLabelText();
+    }
+
+    private void applyGuidanceConsensusVisuals(String rawConsensus) {
+        guidanceConsensusType = parseConsensusType(rawConsensus);
+        MagiDecision[] pattern = switch (guidanceConsensusType) {
+            case UNANIMOUS -> new MagiDecision[]{MagiDecision.AGREE, MagiDecision.AGREE, MagiDecision.AGREE};
+            case MAJORITY -> new MagiDecision[]{MagiDecision.AGREE, MagiDecision.AGREE, MagiDecision.DISAGREE};
+            case CONDITIONAL -> new MagiDecision[]{MagiDecision.CONDITIONAL, MagiDecision.AGREE, MagiDecision.CONDITIONAL};
+            case DEADLOCK -> new MagiDecision[]{MagiDecision.AGREE, MagiDecision.DISAGREE, MagiDecision.CONDITIONAL};
+            case INFORMATIONAL -> new MagiDecision[]{MagiDecision.INFORMATIONAL, MagiDecision.INFORMATIONAL, MagiDecision.INFORMATIONAL};
+            default -> new MagiDecision[]{MagiDecision.NEUTRAL, MagiDecision.NEUTRAL, MagiDecision.NEUTRAL};
+        };
+        for (int i = 0; i < MAGI_BRAIN_COUNT; i++) {
+            MagiDecision d = pattern[i % pattern.length];
+            magiConsensusDecisions[i] = d;
+            magiConsensusCodes[i] = decisionCode(d);
+        }
+    }
+
+    private ConsensusType parseConsensusType(String rawConsensus) {
+        String raw = rawConsensus == null ? "" : rawConsensus.trim();
+        if (raw.isEmpty()) return ConsensusType.NONE;
+        String c = raw.toLowerCase(java.util.Locale.ROOT);
+        if (c.contains("unanim") || raw.contains("合意")) return ConsensusType.UNANIMOUS;
+        if (c.contains("majorit")) return ConsensusType.MAJORITY;
+        if (c.contains("conditional") || raw.contains("状態")) return ConsensusType.CONDITIONAL;
+        if (c.contains("deadlock")) return ConsensusType.DEADLOCK;
+        if (c.contains("inform") || c.contains("info") || raw.contains("情報")) return ConsensusType.INFORMATIONAL;
+        return ConsensusType.INFORMATIONAL;
+    }
+
+    private String decisionCode(MagiDecision d) {
+        if (d == null) return "";
+        return switch (d) {
+            case AGREE -> "AG";
+            case DISAGREE -> "NO";
+            case CONDITIONAL -> "IF";
+            case INFORMATIONAL -> "IN";
+            default -> "";
+        };
+    }
+
+    private String consensusTitle(ConsensusType type) {
+        if (type == null) return "";
+        return switch (type) {
+            case UNANIMOUS -> "UNANIMOUS";
+            case MAJORITY -> "MAJORITY";
+            case CONDITIONAL -> "CONDITIONAL";
+            case DEADLOCK -> "DEADLOCK";
+            case INFORMATIONAL -> "INFORMATIONAL";
+            default -> "";
+        };
+    }
+
+    private Color getMagiBrainColor(MagiDecision decision) {
+        if (decision == null) decision = MagiDecision.NEUTRAL;
+        return switch (decision) {
+            case AGREE -> new Color(112, 214, 150);
+            case DISAGREE -> new Color(241, 112, 112);
+            case CONDITIONAL -> new Color(247, 198, 104);
+            case INFORMATIONAL -> new Color(128, 190, 255);
+            default -> new Color(250, 252, 255);
+        };
+    }
+
+    private void paintMagiBrainLayer(Graphics2D g2, int centerX, int centerY, Color accent) {
+        float visibility = orbVisibilityProgress();
+        if (visibility <= 0.02f) return;
+        float idleWave = (float) ((Math.sin(magiSpinAngle * 1.25) + 1.0) * 0.5);
+        float pulse = magiDeliberating || guidanceThinking
+                ? clamp01(0.45f + 0.55f * thinkingPulse)
+                : clamp01(0.25f + 0.35f * idleWave);
+        float alpha = clamp01(visibility * (magiDeliberating || guidanceThinking
+                ? (0.55f + 0.45f * pulse)
+                : (0.44f + 0.26f * pulse)));
+
+        int ringRadius = MAGI_RING_RADIUS + (magiDeliberating || guidanceThinking
+                ? (int) Math.round(2.8 * Math.sin(thinkingPhase * 0.8))
+                : 0);
+        float ringAlpha = alpha * (0.62f + 0.26f * pulse);
+        Graphics2D go = (Graphics2D) g2.create();
+        go.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // Outer circular layer
+        go.setStroke(new BasicStroke(1.4f));
+        go.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), (int) (130 * ringAlpha)));
+        go.drawOval(centerX - ringRadius, centerY - ringRadius, ringRadius * 2, ringRadius * 2);
+        go.setColor(new Color(255, 255, 255, (int) (82 * ringAlpha)));
+        go.drawOval(centerX - ringRadius + 1, centerY - ringRadius + 1, ringRadius * 2 - 2, ringRadius * 2 - 2);
+
+        int[] xs = new int[MAGI_BRAIN_COUNT];
+        int[] ys = new int[MAGI_BRAIN_COUNT];
+        for (int i = 0; i < MAGI_BRAIN_COUNT; i++) {
+            double theta = magiSpinAngle + (Math.PI * 2.0 * i / MAGI_BRAIN_COUNT) - (Math.PI / 2.0);
+            xs[i] = (int) Math.round(centerX + ringRadius * Math.cos(theta));
+            ys[i] = (int) Math.round(centerY + ringRadius * Math.sin(theta));
+        }
+
+        // Triangle links between MAGI brains
+        Path2D triangle = new Path2D.Double();
+        triangle.moveTo(xs[0], ys[0]);
+        triangle.lineTo(xs[1], ys[1]);
+        triangle.lineTo(xs[2], ys[2]);
+        triangle.closePath();
+        go.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        go.setColor(new Color(178, 210, 255, (int) (166 * alpha)));
+        go.draw(triangle);
+        go.setColor(new Color(255, 255, 255, (int) (65 * alpha)));
+        go.setStroke(new BasicStroke(1.0f));
+        go.draw(triangle);
+
+        String consensusLabel = consensusTitle(guidanceConsensusType);
+        if (!consensusLabel.isBlank()) {
+            Font old = go.getFont();
+            go.setFont(old.deriveFont(Font.BOLD, 9.4f));
+            FontMetrics fm = go.getFontMetrics();
+            int tw = fm.stringWidth(consensusLabel);
+            int tx = centerX - tw / 2;
+            int ty = centerY - ringRadius + Math.max(14, MAGI_BRAIN_RADIUS + 4);
+            go.setColor(new Color(16, 24, 32, (int) (185 * alpha)));
+            go.drawString(consensusLabel, tx, ty);
+            go.setFont(old);
+        }
+
+        for (int i = 0; i < MAGI_BRAIN_COUNT; i++) {
+            MagiDecision decision = magiConsensusDecisions[i] == null ? MagiDecision.NEUTRAL : magiConsensusDecisions[i];
+            Color c = getMagiBrainColor(decision);
+            double phaseRef = (magiDeliberating || guidanceThinking) ? thinkingPhase : (magiSpinAngle * 1.6);
+            float localWave = (float) ((Math.sin(phaseRef * 1.38 + i * 2.1) + 1.0) * 0.5);
+            int rr = Math.max(6, Math.round(MAGI_BRAIN_RADIUS * (0.92f + 0.22f * localWave)));
+            int d = rr * 2;
+            int x = xs[i];
+            int y = ys[i];
+
+            go.setColor(new Color(0, 0, 0, (int) (50 * alpha)));
+            go.fillOval(x - rr, y - rr + 2, d, d);
+
+            Color top = AccentColorUtil.lighten(c, 0.42f);
+            Color bottom = AccentColorUtil.darken(c, 0.24f);
+            Paint old = go.getPaint();
+            RadialGradientPaint body = new RadialGradientPaint(
+                    new Point2D.Float(x - rr * 0.18f, y - rr * 0.28f), rr * 1.03f,
+                    new float[]{0f, 0.68f, 1f},
+                    new Color[]{
+                            new Color(top.getRed(), top.getGreen(), top.getBlue(), (int) (235 * alpha)),
+                            new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (220 * alpha)),
+                            new Color(bottom.getRed(), bottom.getGreen(), bottom.getBlue(), (int) (220 * alpha))
+                    }
+            );
+            go.setPaint(body);
+            go.fillOval(x - rr, y - rr, d, d);
+            go.setPaint(old);
+
+            go.setColor(new Color(255, 255, 255, (int) (130 * alpha)));
+            go.setStroke(new BasicStroke(1.25f));
+            go.drawOval(x - rr, y - rr, d, d);
+            go.setColor(new Color(0, 0, 0, (int) (80 * alpha)));
+            go.drawOval(x - rr, y - rr, d, d);
+
+            String code = magiConsensusCodes[i];
+            if (code != null && !code.isBlank()) {
+                Font oldFont = go.getFont();
+                go.setFont(oldFont.deriveFont(Font.BOLD, 8.5f));
+                FontMetrics fm = go.getFontMetrics();
+                int tw = fm.stringWidth(code);
+                int tx = x - tw / 2;
+                int ty = y + (fm.getAscent() - fm.getDescent()) / 2;
+                go.setColor(new Color(28, 34, 42, (int) (225 * alpha)));
+                go.drawString(code, tx, ty);
+                go.setFont(oldFont);
+            }
+        }
+
+        go.dispose();
     }
 
     private int emotionToOrbIndex(String emotionLabel) {
@@ -1030,14 +1296,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     private void layoutOverlayChildren() {
         layoutActionButtons();
+        layoutOutcomeLabel();
         layoutInputField();
     }
 
     private void layoutActionButtons() {
         if (chatsButton == null || templateButton == null || hideButton == null) return;
         refreshActionButtonsState();
-        int padding = 14;
-        int leftW = 140;
+        int padding = ORBIT_LAYOUT_PADDING;
+        int leftW = ORBIT_LAYOUT_WIDTH;
         int rightX = padding + leftW + 10;
         int availableW = Math.max(120, getWidth() - rightX - padding);
         int btnY = (getHeight() / 2) - 12 + entranceOffsetY;
@@ -1062,6 +1329,23 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         if (hideButton != null) hideButton.setVisible(visible);
     }
 
+    private void ensureOutcomeLabel() {
+        if (outcomeLabel != null) return;
+        outcomeLabel = new OutcomeLabel();
+        outcomeLabel.setVisible(false);
+        add(outcomeLabel);
+    }
+
+    private void layoutOutcomeLabel() {
+        if (outcomeLabel != null) outcomeLabel.setVisible(false);
+    }
+
+    private void updateOutcomeLabelText() {
+        if (outcomeLabel == null) return;
+        outcomeLabel.setText("");
+        outcomeLabel.setVisible(false);
+    }
+
     private void ensureActionButtons() {
         if (chatsButton != null) return;
         chatsButton = createActionButton("Guidance", this::onSecondaryAction);
@@ -1072,6 +1356,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         add(hideButton);
         refreshActionButtonsState();
         setActionButtonsVisible(false);
+        ensureOutcomeLabel();
     }
 
     private void onSecondaryAction() {
@@ -1085,6 +1370,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private void requestGuidanceFromMenu() {
         boolean available = isGuidanceAvailableInContext();
         if (!available) {
+            magiDeliberating = false;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(false);
             message = "Open a journal entry to use Guidance.";
             repaint();
@@ -1095,9 +1382,12 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             requested = app != null && app.requestSimGuidanceForCurrentCard();
         } catch (Throwable ignored) {}
         if (requested) {
+            magiDeliberating = true;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(true);
             message = "Sim is thinking…";
         } else {
+            magiDeliberating = false;
             message = "Guidance is already running for this entry.";
         }
         refreshActionButtonsState();
@@ -1107,19 +1397,28 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private void requestTemplateFromMenu() {
         boolean available = isTemplateGenerationAvailableInContext();
         if (!available) {
+            templateRequestInFlight = false;
+            magiDeliberating = false;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(false);
             message = "Open a journal entry to generate a template.";
             repaint();
             return;
         }
         boolean requested = false;
+        templateRequestInFlight = false;
         try {
             requested = app != null && app.requestSimTemplateGenerationForCurrentCard();
         } catch (Throwable ignored) {}
         if (requested) {
+            templateRequestInFlight = true;
+            magiDeliberating = false;
+            clearGuidanceOutcomeVisuals();
             setGuidanceThinking(true);
             message = "Sim is generating a template…";
         } else {
+            templateRequestInFlight = false;
+            magiDeliberating = false;
             message = "Template generation is already running.";
         }
         refreshActionButtonsState();
@@ -1170,6 +1469,48 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         });
         b.setVisible(false);
         return b;
+    }
+
+    private String[] sanitizeEmotionLabels(String[] labels) {
+        if (labels == null || labels.length == 0) return new String[0];
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (String l : labels) {
+            if (l == null) continue;
+            String e = l.trim().toLowerCase(java.util.Locale.ROOT);
+            if (e.isEmpty()) continue;
+            if (e.contains("joy") || e.contains("happy") || e.contains("grat") || e.contains("hope")) e = "joy";
+            else if (e.contains("calm") || e.contains("peace") || e.contains("ground") || e.contains("content")) e = "calm";
+            else if (e.contains("anger") || e.contains("mad") || e.contains("frustr") || e.contains("stress") || e.contains("overwhelm")) e = "anger";
+            else if (e.contains("sad") || e.contains("anx") || e.contains("fear") || e.contains("worr") || e.contains("lonely") || e.contains("grief")) e = "sad";
+            else if (e.contains("neutral") || e.contains("fine") || e.contains("ok")) e = "neutral";
+            out.add(e);
+            if (out.size() >= 3) break;
+        }
+        return out.toArray(new String[0]);
+    }
+
+    private String prettyEmotionLabel(String label) {
+        if (label == null || label.isBlank()) return "";
+        String e = label.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("joy".equals(e)) return "Joy";
+        if ("calm".equals(e)) return "Calm";
+        if ("anger".equals(e)) return "Stress";
+        if ("sad".equals(e)) return "Sadness";
+        if ("neutral".equals(e)) return "Neutral";
+        return Character.toUpperCase(e.charAt(0)) + e.substring(1);
+    }
+
+    private void emphasizeOutcomeEmotions(String[] emotions) {
+        if (emotions == null) return;
+        int rank = 0;
+        for (String e : emotions) {
+            int idx = emotionToOrbIndex(e);
+            if (idx < 0 || idx >= ORB_COUNT) continue;
+            float boost = Math.max(0.60f, 0.96f - rank * 0.12f);
+            orbHighlightTarget[idx] = Math.max(orbHighlightTarget[idx], boost);
+            rank++;
+            if (rank >= 3) break;
+        }
     }
 
     private final class GlassActionButton extends JButton {
@@ -1228,10 +1569,61 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         }
     }
 
+    private final class OutcomeLabel extends JComponent {
+        private String text = "";
+
+        private OutcomeLabel() {
+            setOpaque(false);
+            Font base = UIManager.getFont("Label.font");
+            if (base == null) base = new Font("Dialog", Font.PLAIN, 12);
+            setFont(base.deriveFont(Font.PLAIN, 11f));
+            setForeground(new Color(38, 44, 52));
+            setToolTipText("MAGI guidance consensus and prominent emotions");
+        }
+
+        public void setText(String text) {
+            this.text = text == null ? "" : text;
+            repaint();
+        }
+
+        public String getText() {
+            return text;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (text == null || text.isBlank()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = 12;
+            GradientPaint gp = new GradientPaint(
+                    0, 0, new Color(252, 254, 255, 164),
+                    0, h, new Color(228, 234, 241, 132)
+            );
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(new Color(255, 255, 255, 105));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(new Color(0, 0, 0, 48));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+            FontMetrics fm = g2.getFontMetrics(getFont());
+            int tx = Math.max(8, (w - fm.stringWidth(text)) / 2);
+            int ty = (h - fm.getHeight()) / 2 + fm.getAscent();
+            g2.setColor(new Color(26, 32, 40));
+            g2.drawString(text, tx, ty);
+            g2.dispose();
+        }
+    }
+
     private void startEntrySequence() {
         entryInProgress = true;
         disposeInProgress = false;
         panelAppearing = false;
+        magiDeliberating = false;
+        clearGuidanceOutcomeVisuals();
         setGuidanceThinking(false);
         thinkingPulse = 0f;
         thinkingOrbScale = 1f;
@@ -1251,6 +1643,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         disposeInProgress = true;
         entryInProgress = false;
         panelAppearing = false;
+        magiDeliberating = false;
+        clearGuidanceOutcomeVisuals();
         setGuidanceThinking(false);
         thinkingPulse = 0f;
         thinkingOrbScale = 1f;

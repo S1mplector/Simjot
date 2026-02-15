@@ -23,10 +23,13 @@ public final class SimSettings {
     private static final String KEY_OLLAMA_ENDPOINT = "sim.ollama.endpoint"; // e.g., http://localhost:11434
     private static final String KEY_OLLAMA_MODEL = "sim.ollama.model"; // e.g., llama3:instruct
     // LLM provider selection and OpenAI settings
-    private static final String KEY_LLM_PROVIDER = "sim.llm.provider"; // ollama|openai
+    private static final String KEY_LLM_PROVIDER = "sim.llm.provider"; // ollama|openai|magi
     private static final String KEY_OPENAI_API_KEY = "sim.openai.api_key"; // stored locally
     private static final String KEY_OPENAI_MODEL = "sim.openai.model"; // e.g., gpt-4o-mini
     private static final String KEY_OPENAI_BASE_URL = "sim.openai.base_url"; // default https://api.openai.com
+    // MAGI (local Python supercomputer bridge) settings
+    private static final String KEY_MAGI_PYTHON_COMMAND = "sim.magi.python.command"; // e.g., python3
+    private static final String KEY_MAGI_MODEL = "sim.magi.model"; // e.g., gpt-5
     // Engagement mode
     private static final String KEY_ENGAGEMENT_MODE = "sim.engagement.mode"; // PROACTIVE|ON_CALL|HYBRID
 
@@ -144,6 +147,25 @@ public final class SimSettings {
 
     public void setOpenAIBaseUrl(String baseUrl) {
         store.setValue(KEY_OPENAI_BASE_URL, baseUrl == null ? "https://api.openai.com" : baseUrl);
+    }
+
+    // --- MAGI settings ---
+    public String getMagiPythonCommand() {
+        return store.getValue(KEY_MAGI_PYTHON_COMMAND, "python3");
+    }
+
+    public void setMagiPythonCommand(String command) {
+        String c = (command == null || command.isBlank()) ? "python3" : command.trim();
+        store.setValue(KEY_MAGI_PYTHON_COMMAND, c);
+    }
+
+    public String getMagiModel() {
+        return store.getValue(KEY_MAGI_MODEL, "gpt-5");
+    }
+
+    public void setMagiModel(String model) {
+        String m = (model == null || model.isBlank()) ? "gpt-5" : model.trim();
+        store.setValue(KEY_MAGI_MODEL, m);
     }
 
     // --- Engagement mode ---

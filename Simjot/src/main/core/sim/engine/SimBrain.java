@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import main.core.sim.api.SimEventBus;
 import main.core.sim.data.SimDataGateway;
 import main.core.sim.llm.api.SimLLMClient;
+import main.core.sim.llm.magi.MagiClient;
 import main.core.sim.llm.ollama.OllamaClient;
 import main.core.sim.llm.openai.OpenAIClient;
 import main.core.sim.llm.prompt.PromptBuilder;
@@ -433,6 +434,9 @@ public final class SimBrain implements SimEventBus.Listener {
                         Duration.ofSeconds(20)
                 );
                 String out = resp == null ? "" : resp.text;
+                String consensus = normalizeGuidanceConsensus(resp == null ? "" : resp.consensus);
+                String[] emotions = buildGuidanceOutcomeEmotions(txt, out, resp == null ? null : resp.emotions);
+                emitGuidanceOutcome(consensus, emotions);
                 try { SimEventBus.get().emitGuidanceProduced(out); } catch (Throwable ignored) {}
                 return;
             } catch (Throwable ignored) {
@@ -440,6 +444,21 @@ public final class SimBrain implements SimEventBus.Listener {
             }
         }
         // If LLM unavailable, do not emit a generic fallback to avoid noise
+        String[] emotions = buildGuidanceOutcomeEmotions(txt, "", null);
+        emitGuidanceOutcome("", emotions);
+    }
+
+    private void emitGuidanceOutcome(String consensus, String[] emotions) {
+        try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions); } catch (Throwable ignored) {}
+        if (emotions == null || emotions.length == 0) return;
+        int emitted = 0;
+        for (String e : emotions) {
+            if (e == null || e.isBlank()) continue;
+            double intensity = 88.0 - emitted * 8.0;
+            try { SimEventBus.get().emitEmotionTagged(currentEmotionEntryId, e, intensity); } catch (Throwable ignored) {}
+            emitted++;
+            if (emitted >= 3) break;
+        }
     }
 
     @Override
@@ -1073,6 +1092,16 @@ public final class SimBrain implements SimEventBus.Listener {
                 llmProviderActive = "openai";
                 return new OpenAIClient(apiKey, model, baseUrl);
             }
+            case "magi": {
+                String python = "python3";
+                String model = "gpt-5";
+                String apiKey = "";
+                try { python = settings.getMagiPythonCommand(); } catch (Throwable ignored) {}
+                try { model = settings.getMagiModel(); } catch (Throwable ignored) {}
+                try { apiKey = settings.getOpenAIApiKey(); } catch (Throwable ignored) {}
+                llmProviderActive = "magi";
+                return new MagiClient(python, model, apiKey);
+            }
             case "ollama":
             default: {
                 String endpoint = settings.getOllamaEndpoint();
@@ -1328,6 +1357,59 @@ public final class SimBrain implements SimEventBus.Listener {
     private static final java.util.Set<String> NEUTRAL_WORDS = java.util.Set.of(
             "okay", "ok", "fine", "normal", "meh", "neutral"
     );
+
+    private String normalizeGuidanceConsensus(String raw) {
+        String c = raw == null ? "" : raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (c.isEmpty()) return "";
+        if (c.contains("unanim")) return "Unanimous";
+        if (c.contains("majority")) return "Majority";
+        if (c.contains("condition")) return "Conditional";
+        if (c.contains("deadlock")) return "Deadlock";
+        if (c.contains("info")) return "Informational";
+        if (c.length() > 24) c = c.substring(0, 24).trim();
+        if (c.isEmpty()) return "";
+        return Character.toUpperCase(c.charAt(0)) + c.substring(1);
+    }
+
+    private String[] buildGuidanceOutcomeEmotions(String inputText, String outputText, String[] modelEmotions) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        if (modelEmotions != null) {
+            for (String e : modelEmotions) {
+                if (e == null) continue;
+                String s = e.trim().toLowerCase(java.util.Locale.ROOT);
+                if (s.isEmpty()) continue;
+                out.add(normalizeEmotionLabel(s));
+                if (out.size() >= 3) return out.toArray(new String[0]);
+            }
+        }
+        java.util.Map<String, Double> scores = detectGuidanceEmotionScores(
+                ((inputText == null ? "" : inputText) + " " + (outputText == null ? "" : outputText)).trim()
+        );
+        if (!scores.isEmpty()) {
+            java.util.List<java.util.Map.Entry<String, Double>> ranked = new java.util.ArrayList<>(scores.entrySet());
+            ranked.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+            for (java.util.Map.Entry<String, Double> e : ranked) {
+                if (e == null || e.getKey() == null) continue;
+                String k = normalizeEmotionLabel(e.getKey());
+                if (k.isEmpty()) continue;
+                out.add(k);
+                if (out.size() >= 3) break;
+            }
+        }
+        return out.toArray(new String[0]);
+    }
+
+    private static String normalizeEmotionLabel(String label) {
+        if (label == null) return "";
+        String e = label.trim().toLowerCase(java.util.Locale.ROOT);
+        if (e.isEmpty()) return "";
+        if (e.contains("joy") || e.contains("happy") || e.contains("grat") || e.contains("hope")) return "joy";
+        if (e.contains("calm") || e.contains("peace") || e.contains("ground") || e.contains("content")) return "calm";
+        if (e.contains("anger") || e.contains("mad") || e.contains("frustr") || e.contains("stress") || e.contains("overwhelm")) return "anger";
+        if (e.contains("sad") || e.contains("anx") || e.contains("fear") || e.contains("worr") || e.contains("lonely") || e.contains("grief")) return "sad";
+        if (e.contains("neutral") || e.contains("fine") || e.contains("ok")) return "neutral";
+        return e;
+    }
 
     private void emitProminentGuidanceEmotions(String text) {
         java.util.Map<String, Double> scores = detectGuidanceEmotionScores(text);

@@ -1554,11 +1554,19 @@ public class JournalApp extends JFrame {
         try {
             if (notebook != null) {
                 TemplateManagerDialog dialog = new TemplateManagerDialog((Frame) this, notebook);
+                dialog.setModalityType(java.awt.Dialog.ModalityType.MODELESS);
+                dialog.setModal(false);
                 dialog.setVisible(true);
+                dialog.toFront();
+                dialog.requestFocus();
                 return;
             }
             TemplateManagerDialog dialog = new TemplateManagerDialog((Frame) this);
+            dialog.setModalityType(java.awt.Dialog.ModalityType.MODELESS);
+            dialog.setModal(false);
             dialog.setVisible(true);
+            dialog.toFront();
+            dialog.requestFocus();
         } catch (Throwable t) {
             logWarn("showTemplateManager", t);
         }

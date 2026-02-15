@@ -40,6 +40,8 @@ public final class SimEventBus {
         default void onGuidanceRequested(String text) {}
         // Sim produced guidance text to be inserted into editor
         default void onGuidanceProduced(String text) {}
+        // Guidance metadata for overlay UI (consensus + prominent emotions)
+        default void onGuidanceOutcome(String consensus, String[] emotions) {}
         // Request a fresh daily reflection prompt for local date key (yyyy-MM-dd)
         default void onDailyPromptRequested(String dateKey) {}
         // Daily prompt produced by Sim
@@ -128,6 +130,14 @@ public final class SimEventBus {
     public void emitGuidanceProduced(String text){
         if (verboseLogging) System.out.println("[SimBus] guidanceProduced len=" + (text==null?0:text.length()));
         for (var l: listeners) l.onGuidanceProduced(text);
+    }
+
+    public void emitGuidanceOutcome(String consensus, String[] emotions){
+        if (verboseLogging) {
+            int n = emotions == null ? 0 : emotions.length;
+            System.out.println("[SimBus] guidanceOutcome consensus=" + String.valueOf(consensus) + " emotions=" + n);
+        }
+        for (var l: listeners) l.onGuidanceOutcome(consensus, emotions);
     }
 
     public void emitDailyPromptRequested(String dateKey){
