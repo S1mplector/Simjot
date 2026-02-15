@@ -479,6 +479,10 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             setGuidanceThinking(false);
             if (!userInvokedActive || chatMode) return;
             String out = text == null ? "" : text.strip();
+            if (guidanceConsensusType == ConsensusType.NONE && !out.isEmpty()) {
+                guidanceConsensus = "INFORMATIONAL (情報)";
+                applyGuidanceConsensusVisuals(guidanceConsensus);
+            }
             message = out.isEmpty() ? "I could not generate guidance this time." : "Guidance added to your entry.";
             updateOutcomeLabelText();
             refreshActionButtonsState();
@@ -940,7 +944,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         MagiDecision[] pattern = switch (guidanceConsensusType) {
             case UNANIMOUS -> new MagiDecision[]{MagiDecision.AGREE, MagiDecision.AGREE, MagiDecision.AGREE};
             case MAJORITY -> new MagiDecision[]{MagiDecision.AGREE, MagiDecision.AGREE, MagiDecision.DISAGREE};
-            case CONDITIONAL -> new MagiDecision[]{MagiDecision.CONDITIONAL, MagiDecision.AGREE, MagiDecision.CONDITIONAL};
+            case CONDITIONAL -> new MagiDecision[]{MagiDecision.CONDITIONAL, MagiDecision.CONDITIONAL, MagiDecision.CONDITIONAL};
             case DEADLOCK -> new MagiDecision[]{MagiDecision.AGREE, MagiDecision.DISAGREE, MagiDecision.CONDITIONAL};
             case INFORMATIONAL -> new MagiDecision[]{MagiDecision.INFORMATIONAL, MagiDecision.INFORMATIONAL, MagiDecision.INFORMATIONAL};
             default -> new MagiDecision[]{MagiDecision.NEUTRAL, MagiDecision.NEUTRAL, MagiDecision.NEUTRAL};
@@ -956,9 +960,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         String raw = rawConsensus == null ? "" : rawConsensus.trim();
         if (raw.isEmpty()) return ConsensusType.NONE;
         String c = raw.toLowerCase(java.util.Locale.ROOT);
+        if (c.contains("accepted") || c.contains("accept") || c.contains("approve") || c.contains("agreed")) {
+            return ConsensusType.UNANIMOUS;
+        }
         if (c.contains("unanim") || raw.contains("合意")) return ConsensusType.UNANIMOUS;
+        if (c.contains("2-1") || c.contains("2/1") || c.contains("split")) return ConsensusType.MAJORITY;
         if (c.contains("majorit")) return ConsensusType.MAJORITY;
+        if (c.contains("depends") || c.contains("unless")) return ConsensusType.CONDITIONAL;
         if (c.contains("conditional") || raw.contains("状態")) return ConsensusType.CONDITIONAL;
+        if (c.contains("stalemate") || c.contains("tie") || c.contains("hung")) return ConsensusType.DEADLOCK;
         if (c.contains("deadlock")) return ConsensusType.DEADLOCK;
         if (c.contains("inform") || c.contains("info") || raw.contains("情報")) return ConsensusType.INFORMATIONAL;
         return ConsensusType.INFORMATIONAL;
@@ -978,11 +988,11 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private String consensusTitle(ConsensusType type) {
         if (type == null) return "";
         return switch (type) {
-            case UNANIMOUS -> "UNANIMOUS";
+            case UNANIMOUS -> "UNANIMOUS (合意)";
             case MAJORITY -> "MAJORITY";
-            case CONDITIONAL -> "CONDITIONAL";
+            case CONDITIONAL -> "CONDITIONAL (状態)";
             case DEADLOCK -> "DEADLOCK";
-            case INFORMATIONAL -> "INFORMATIONAL";
+            case INFORMATIONAL -> "INFORMATIONAL (情報)";
             default -> "";
         };
     }
@@ -1001,6 +1011,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private void paintMagiBrainLayer(Graphics2D g2, int centerX, int centerY, Color accent) {
         float visibility = orbVisibilityProgress();
         if (visibility <= 0.02f) return;
+        boolean hasConsensus = guidanceConsensusType != ConsensusType.NONE;
         float idleWave = (float) ((Math.sin(magiSpinAngle * 1.25) + 1.0) * 0.5);
         float pulse = magiDeliberating || guidanceThinking
                 ? clamp01(0.45f + 0.55f * thinkingPulse)
@@ -1008,6 +1019,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         float alpha = clamp01(visibility * (magiDeliberating || guidanceThinking
                 ? (0.55f + 0.45f * pulse)
                 : (0.44f + 0.26f * pulse)));
+        if (hasConsensus && !magiDeliberating && !guidanceThinking) {
+            alpha = Math.max(alpha, 0.9f);
+        }
 
         int ringRadius = MAGI_RING_RADIUS + (magiDeliberating || guidanceThinking
                 ? (int) Math.round(2.8 * Math.sin(thinkingPhase * 0.8))
@@ -1070,16 +1084,18 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             go.setColor(new Color(0, 0, 0, (int) (50 * alpha)));
             go.fillOval(x - rr, y - rr + 2, d, d);
 
-            Color top = AccentColorUtil.lighten(c, 0.42f);
-            Color bottom = AccentColorUtil.darken(c, 0.24f);
+            float topLift = hasConsensus ? 0.18f : 0.42f;
+            float bottomDrop = hasConsensus ? 0.36f : 0.24f;
+            Color top = AccentColorUtil.lighten(c, topLift);
+            Color bottom = AccentColorUtil.darken(c, bottomDrop);
             Paint old = go.getPaint();
             RadialGradientPaint body = new RadialGradientPaint(
                     new Point2D.Float(x - rr * 0.18f, y - rr * 0.28f), rr * 1.03f,
                     new float[]{0f, 0.68f, 1f},
                     new Color[]{
-                            new Color(top.getRed(), top.getGreen(), top.getBlue(), (int) (235 * alpha)),
-                            new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (220 * alpha)),
-                            new Color(bottom.getRed(), bottom.getGreen(), bottom.getBlue(), (int) (220 * alpha))
+                            new Color(top.getRed(), top.getGreen(), top.getBlue(), (int) ((hasConsensus ? 248 : 235) * alpha)),
+                            new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) ((hasConsensus ? 242 : 220) * alpha)),
+                            new Color(bottom.getRed(), bottom.getGreen(), bottom.getBlue(), (int) ((hasConsensus ? 238 : 220) * alpha))
                     }
             );
             go.setPaint(body);
@@ -1487,17 +1503,6 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             if (out.size() >= 3) break;
         }
         return out.toArray(new String[0]);
-    }
-
-    private String prettyEmotionLabel(String label) {
-        if (label == null || label.isBlank()) return "";
-        String e = label.trim().toLowerCase(java.util.Locale.ROOT);
-        if ("joy".equals(e)) return "Joy";
-        if ("calm".equals(e)) return "Calm";
-        if ("anger".equals(e)) return "Stress";
-        if ("sad".equals(e)) return "Sadness";
-        if ("neutral".equals(e)) return "Neutral";
-        return Character.toUpperCase(e.charAt(0)) + e.substring(1);
     }
 
     private void emphasizeOutcomeEmotions(String[] emotions) {

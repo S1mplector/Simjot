@@ -64,6 +64,23 @@ def _compose_question(system_prompt: str, user_text: str, max_tokens: int, tempe
     return "\n\n".join(parts).strip()
 
 
+def _compose_consensus_probe_question(user_text: str, guidance_text: str) -> str:
+    journal = (user_text or "").strip()
+    guidance = (guidance_text or "").strip()
+    if len(journal) > 1800:
+        journal = journal[-1800:]
+    if len(guidance) > 900:
+        guidance = guidance[:900]
+    return (
+        "MAGI consensus checkpoint.\n\n"
+        "Decision question: Should Sim APPROVE delivering this guidance to the user right now?\n"
+        "Vote as approve, reject, or conditional based on safety, practicality, and empathy.\n"
+        "If uncertain, prefer conditional rather than informational.\n\n"
+        f"Journal context:\n{journal}\n\n"
+        f"Draft guidance:\n{guidance}"
+    ).strip()
+
+
 _JOY_WORDS = {
     "happy", "happiness", "joy", "joyful", "grateful", "gratitude",
     "excited", "proud", "hopeful", "hope", "optimistic", "love", "relieved",
@@ -115,6 +132,100 @@ def _write_json(payload: dict) -> None:
     sys.stdout.flush()
 
 
+def _canonical_consensus(value: str) -> str:
+    c = _clean_text(value).lower()
+    if not c:
+        return ""
+    if "unanim" in c or "合意" in c:
+        return "unanimous"
+    if "major" in c:
+        return "majority"
+    if "condition" in c or "状態" in c:
+        return "conditional"
+    if "deadlock" in c or "stalemate" in c:
+        return "deadlock"
+    if "inform" in c or "info" in c or "情報" in c:
+        return "informational"
+    return ""
+
+
+def _brain_statuses(response: object) -> dict[str, str]:
+    def infer_vote(payload: dict) -> str:
+        summary = _clean_text(str(payload.get("summary") or ""))
+        reasoning = _clean_text(str(payload.get("response") or ""))
+        text = f"{summary} {reasoning}".strip().lower()
+        if not text:
+            return "info"
+        reject_cues = (
+            "do not", "don't", "avoid", "reject", "not recommend", "shouldn't",
+            "unsafe", "harmful", "too risky", "cannot approve",
+        )
+        conditional_cues = (
+            "if ", "unless", "provided", "as long as", "only if", "depends",
+            "with safeguards", "with guardrails", "with monitoring", "reversible",
+            "under conditions", "cautious", "risk controls", "boundaries",
+        )
+        approve_cues = (
+            "yes", "approve", "recommended", "go ahead", "proceed",
+            "support", "beneficial", "good idea",
+        )
+        if any(c in text for c in reject_cues):
+            return "no"
+        if any(c in text for c in conditional_cues):
+            return "conditional"
+        if any(c in text for c in approve_cues):
+            return "yes"
+        if " should " in f" {text} ":
+            return "conditional"
+        return "conditional"
+
+    out: dict[str, str] = {}
+    for name in ("melchior", "balthasar", "casper"):
+        payload = getattr(response, name, None)
+        status = "info"
+        if isinstance(payload, dict):
+            raw = payload.get("status")
+            status = _clean_text(str(raw if raw is not None else "info")).lower() or "info"
+            if status in {"info", "error"}:
+                status = infer_vote(payload)
+        if status not in {"yes", "no", "conditional", "deadlock", "info", "error"}:
+            status = "info"
+        out[name] = status
+    return out
+
+
+def _derive_consensus(consensus_raw: str, status_raw: str, brains: dict[str, str]) -> str:
+    by_name = _canonical_consensus(consensus_raw)
+    if by_name and by_name != "informational":
+        return by_name
+
+    status = _clean_text(status_raw).lower()
+    if status == "deadlock":
+        return "deadlock"
+    if status == "conditional":
+        return "conditional"
+
+    vals = [v for v in brains.values() if v]
+    yes = vals.count("yes")
+    no = vals.count("no")
+    cond = vals.count("conditional")
+    info = vals.count("info")
+
+    if yes == 3 or no == 3:
+        return "unanimous"
+    if yes >= 2 or no >= 2:
+        return "majority"
+    if cond >= 2 or (cond >= 1 and (yes >= 1 or no >= 1)):
+        return "conditional"
+    if status in {"yes", "no"}:
+        return "majority"
+    if by_name == "informational":
+        return "informational"
+    if info >= 2:
+        return "informational"
+    return "informational"
+
+
 def main() -> int:
     try:
         payload = _read_payload()
@@ -150,7 +261,27 @@ def main() -> int:
         response = magi.deliberate(question)
         answer = _clean_text(getattr(response, "answer", ""))
         status = _clean_text(getattr(response, "status", "info")) or "info"
-        consensus = _clean_text(getattr(response, "consensus", "")) or status
+        primary_consensus_raw = _clean_text(getattr(response, "consensus", ""))
+        brain_states = _brain_statuses(response)
+        consensus = _derive_consensus(primary_consensus_raw, status, brain_states)
+
+        if consensus == "informational":
+            # Run a dedicated decision-style checkpoint so MAGI can surface
+            # non-informational consensus types for guidance workflows.
+            probe_q = _compose_consensus_probe_question(user_text, answer)
+            try:
+                probe = magi.deliberate(probe_q)
+                probe_status = _clean_text(getattr(probe, "status", "info")) or "info"
+                probe_consensus_raw = _clean_text(getattr(probe, "consensus", ""))
+                probe_brains = _brain_statuses(probe)
+                probe_consensus = _derive_consensus(probe_consensus_raw, probe_status, probe_brains)
+                if probe_consensus != "informational":
+                    consensus = probe_consensus
+                    brain_states = probe_brains
+                    status = probe_status
+            except Exception:
+                pass
+
         emotions = _detect_emotions(f"{user_text}\n{answer}")
 
         _write_json({
@@ -158,6 +289,7 @@ def main() -> int:
             "text": answer,
             "status": status,
             "consensus": consensus,
+            "brain_statuses": brain_states,
             "emotions": emotions,
             "model": model
         })

@@ -17,6 +17,18 @@ A personalizable creative wellness and writing studio with a Aero-inspired UI an
 - In the **Mood chart**, you can view your mood data with date range filtering (7 days, 30 days, all time)
 - Mood data is stored in a custom binary format optimized for most optimal parsing. 
 
+### **Sim assistant (local-first consensus agent)**
+
+- Sim is implemented as a **local-first, consensus-driven assistant** rather than a single monolithic chatbot.
+- The reasoning path can use a **three-agent MAGI deliberation pipeline** (Melchior/Balthasar/Casper) with explicit consensus states:
+  - `unanimous` (all three agree)
+  - `majority` (2-of-3 agreement)
+  - `conditional` (agreement with constraints)
+  - `deadlock` (no stable majority)
+  - `informational` (non-decision response)
+- Sim guidance and template generation run asynchronously to keep the Swing UI animation loop responsive.
+- Emotion cues from entries are mapped to Sim’s orb model and fed back into guidance visualization.
+
 ### **Organization & management**
 - Notebook system with different types (Journal, Poetry, and notetaking)
 - Smart auto-save functionality with timestamp-based filenames
@@ -132,6 +144,16 @@ On first startup, Simjot will prompt you to:
 - **Panama FFM integration** for native modules (C/C++)
 - **Haskell FFI** for advanced poetry analysis
 
+### Sim Architecture (Technical)
+- **`SimBrain`**: orchestrates context assembly, guidance/template workflows, and provider routing.
+- **`SimEventBus`**: event-driven contract between core logic and UI (thinking, guidance requested/produced, consensus metadata, emotion tags).
+- **`SimOverlay`**: real-time visual state machine for heart/orb interaction, including consensus and emotion rendering.
+- **LLM provider abstraction** (`SimLLMClient`): pluggable backends (`ollama`, `openai`, `magi`).
+- **MAGI local bridge**:
+  - Java side: `MagiClient` launches a local Python process.
+  - Python side: `sim_magi_bridge.py` mediates requests to the embedded MAGI system.
+  - Transport: structured JSON over stdin/stdout (local IPC).
+
 ### Technologies Used
 - **Java 24** with Project Jigsaw and Panama FFM (preview)
 - **Java Swing** for cross-platform GUI
@@ -140,6 +162,7 @@ On first startup, Simjot will prompt you to:
 - **Native C/C++ libraries** for performance-critical operations
 - **Optional Haskell module** for poetry analysis
 - **Ollama** (optional) for Sim AI companion features
+- **Python 3 MAGI runtime** (optional) for local multi-agent consensus deliberation
 
 ### File Formats
 - **Journal entries**: `.note` files with metadata and mood data
