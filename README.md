@@ -17,10 +17,10 @@ A personalizable creative wellness and writing studio with a Aero-inspired UI an
 - In the **Mood chart**, you can view your mood data with date range filtering (7 days, 30 days, all time)
 - Mood data is stored in a custom binary format optimized for most optimal parsing. 
 
-### **Sim assistant (local-first consensus agent)**
+### **Sim assistant (consensus agent)**
 
-- Sim is implemented as a **local-first, consensus-driven assistant** rather than a single monolithic chatbot.
-- The reasoning path can use a **three-agent MAGI deliberation pipeline** (Melchior/Balthasar/Casper) with explicit consensus states:
+- Sim is implemented as a **trio of consensus agents** rather than a single monolithic chatbot found on most other journaling applications. 
+- Sim, when providing advice, reasons using a **three-agent general inteligence system (TAGI) deliberation pipeline** (Melchior/Balthasar/Casper) with explicit consensus states:
   - `unanimous` (all three agree)
   - `majority` (2-of-3 agreement)
   - `conditional` (agreement with constraints)

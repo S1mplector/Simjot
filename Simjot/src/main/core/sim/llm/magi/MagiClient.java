@@ -96,7 +96,8 @@ public final class MagiClient implements SimLLMClient {
         if (text == null) text = "";
         String consensus = NativeJson.getString(json, "consensus");
         String[] emotions = parseEmotions(json);
-        return new SimLLMResponse(text, consensus, emotions);
+        String[] brainStatuses = parseBrainStatuses(json);
+        return new SimLLMResponse(text, consensus, emotions, brainStatuses);
     }
 
     private static Path resolveBridgeScript() throws IOException {
@@ -166,6 +167,32 @@ public final class MagiClient implements SimLLMClient {
             if (cleaned.size() >= 3) break;
         }
         return cleaned.toArray(new String[0]);
+    }
+
+    private static String[] parseBrainStatuses(String json) {
+        String obj = NativeJson.getObject(json, "brain_statuses");
+        if (obj == null || obj.isBlank()) return new String[0];
+        String[] out = new String[3];
+        out[0] = normalizeBrainStatus(NativeJson.getString(obj, "melchior"));
+        out[1] = normalizeBrainStatus(NativeJson.getString(obj, "balthasar"));
+        out[2] = normalizeBrainStatus(NativeJson.getString(obj, "casper"));
+        boolean any = false;
+        for (String s : out) {
+            if (s != null && !s.isBlank()) { any = true; break; }
+        }
+        return any ? out : new String[0];
+    }
+
+    private static String normalizeBrainStatus(String status) {
+        if (status == null) return "";
+        String s = status.trim().toLowerCase(java.util.Locale.ROOT);
+        if (s.isEmpty()) return "";
+        if (s.contains("yes") || s.contains("approve") || s.contains("accept")) return "yes";
+        if (s.contains("no") || s.contains("reject")) return "no";
+        if (s.contains("conditional") || s.contains("condition")) return "conditional";
+        if (s.contains("deadlock") || s.contains("stalemate")) return "deadlock";
+        if (s.contains("inform") || s.contains("info")) return "info";
+        return s;
     }
 
     private static String escape(String s) {

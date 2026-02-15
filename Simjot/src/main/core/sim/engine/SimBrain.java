@@ -413,43 +413,91 @@ public final class SimBrain implements SimEventBus.Listener {
     }
 
     private void generateGuidanceAsync(String txt) {
-        if (settings.isLlmEnabled()) ensureLlm();
-        if (llm != null) {
-            try {
-                String sys = CriticPromptDecorator.decorateSystem(
-                        PromptBuilder.systemPrompt(personality.getType())
-                );
-                // Keep prompt lean; include retrieval context
-                String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 3, 3);
-                String journal = txt.length() > 2000 ? txt.substring(txt.length() - 2000) : txt;
-                String usr = String.join("\n\n",
-                        (ctx != null && !ctx.isBlank()) ? ("Context: " + ctx) : "",
-                        moodContextForPrompt() + " " + emotionsContextForPrompt() + " " + factsContextForPrompt(),
-                        "You are a supportive journaling companion. Read the user's journal text and provide 2–4 concise, compassionate guidance suggestions to deepen reflection. Prefer short bullet points. Avoid platitudes. No preface, no meta; plain text only.",
-                        "Journal text:\n\"\"\"\n" + journal + "\n\"\"\""
-                );
-                // Synchronous generation; deliver into editor, not overlay
-                main.core.sim.llm.api.SimLLMResponse resp = llm.generate(
+        String sys = CriticPromptDecorator.decorateSystem(
+                PromptBuilder.systemPrompt(personality.getType())
+        );
+        // Keep prompt lean; include retrieval context
+        String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 3, 3);
+        String journal = txt.length() > 2000 ? txt.substring(txt.length() - 2000) : txt;
+        String usr = String.join("\n\n",
+                (ctx != null && !ctx.isBlank()) ? ("Context: " + ctx) : "",
+                moodContextForPrompt() + " " + emotionsContextForPrompt() + " " + factsContextForPrompt(),
+                "You are a supportive journaling companion. Read the user's journal text and provide 2–4 concise, compassionate guidance suggestions to deepen reflection. Prefer short bullet points. Avoid platitudes. No preface, no meta; plain text only.",
+                "Journal text:\n\"\"\"\n" + journal + "\n\"\"\""
+        );
+
+        // 1) Primary advice text from the configured LLM provider.
+        String out = "";
+        boolean primaryIsMagi = false;
+        main.core.sim.llm.api.SimLLMResponse primaryResp = null;
+        try {
+            if (settings.isLlmEnabled()) ensureLlm();
+            primaryIsMagi = "magi".equalsIgnoreCase(llmProviderActive);
+            if (llm != null) {
+                primaryResp = llm.generate(
                         new main.core.sim.llm.api.SimLLMRequest(sys, usr, 220, 0.7),
                         Duration.ofSeconds(20)
                 );
-                String out = resp == null ? "" : resp.text;
-                String consensus = normalizeGuidanceConsensus(resp == null ? "" : resp.consensus);
-                String[] emotions = buildGuidanceOutcomeEmotions(txt, out, resp == null ? null : resp.emotions);
-                emitGuidanceOutcome(consensus, emotions);
-                try { SimEventBus.get().emitGuidanceProduced(out); } catch (Throwable ignored) {}
-                return;
-            } catch (Throwable ignored) {
-                // fall through
+                out = primaryResp == null ? "" : primaryResp.text;
             }
+        } catch (Throwable ignored) {}
+
+        // 2) MAGI consensus metadata (always attempted for guidance).
+        main.core.sim.llm.api.SimLLMResponse magiResp = primaryIsMagi ? primaryResp : null;
+        SimLLMClient guidanceLlm = null;
+        if (!primaryIsMagi) {
+            try { guidanceLlm = createGuidanceMagiClient(); } catch (Throwable ignored) {}
         }
-        // If LLM unavailable, do not emit a generic fallback to avoid noise
-        String[] emotions = buildGuidanceOutcomeEmotions(txt, "", null);
-        emitGuidanceOutcome("", emotions);
+        if (!primaryIsMagi && guidanceLlm != null) {
+            try {
+                String draft = out == null ? "" : out.strip();
+                if (draft.length() > 1200) draft = draft.substring(0, 1200);
+                String magiUsr = String.join("\n\n",
+                        "Evaluate the journal guidance quality and produce MAGI consensus metadata.",
+                        "If a draft guidance is provided, assess that draft for empathy, safety, and practicality.",
+                        "Journal text:\n\"\"\"\n" + journal + "\n\"\"\"",
+                        draft.isBlank() ? "" : ("Draft guidance:\n" + draft)
+                );
+                magiResp = guidanceLlm.generate(
+                        new main.core.sim.llm.api.SimLLMRequest(sys, magiUsr, 220, 0.55),
+                        Duration.ofSeconds(20)
+                );
+                if ((out == null || out.isBlank()) && magiResp != null) {
+                    out = magiResp.text;
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (out == null) out = "";
+        out = out.strip();
+        String consensus = normalizeGuidanceConsensus(magiResp == null ? "" : magiResp.consensus);
+        String[] emotions = buildGuidanceOutcomeEmotions(txt, out, magiResp == null ? null : magiResp.emotions);
+        String[] brainStatuses = magiResp == null ? null : magiResp.brainStatuses;
+        emitGuidanceOutcome(consensus, emotions, brainStatuses);
+
+        if (!out.isEmpty()) {
+            try { SimEventBus.get().emitGuidanceProduced(out); } catch (Throwable ignored) {}
+            return;
+        }
+
+        // If nothing could be generated, keep only metadata update.
     }
 
-    private void emitGuidanceOutcome(String consensus, String[] emotions) {
-        try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions); } catch (Throwable ignored) {}
+    private SimLLMClient createGuidanceMagiClient() {
+        String python = "python3";
+        String model = "gpt-5";
+        String apiKey = "";
+        try { python = settings.getMagiPythonCommand(); } catch (Throwable ignored) {}
+        try { model = settings.getMagiModel(); } catch (Throwable ignored) {}
+        try { apiKey = settings.getOpenAIApiKey(); } catch (Throwable ignored) {}
+        if (python == null || python.isBlank()) python = "python3";
+        if (model == null || model.isBlank()) model = "gpt-5";
+        if (apiKey == null) apiKey = "";
+        return new MagiClient(python, model, apiKey);
+    }
+
+    private void emitGuidanceOutcome(String consensus, String[] emotions, String[] brainStatuses) {
+        try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions, brainStatuses); } catch (Throwable ignored) {}
         if (emotions == null || emotions.length == 0) return;
         int emitted = 0;
         for (String e : emotions) {

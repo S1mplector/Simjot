@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -72,10 +73,12 @@ def _compose_consensus_probe_question(user_text: str, guidance_text: str) -> str
     if len(guidance) > 900:
         guidance = guidance[:900]
     return (
-        "MAGI consensus checkpoint.\n\n"
-        "Decision question: Should Sim APPROVE delivering this guidance to the user right now?\n"
-        "Vote as approve, reject, or conditional based on safety, practicality, and empathy.\n"
-        "If uncertain, prefer conditional rather than informational.\n\n"
+        "Should Sim APPROVE delivering this guidance to the user right now?\n\n"
+        "MAGI consensus checkpoint.\n"
+        "Vote as approve, reject, conditional, deadlock, or informational based on safety, practicality, and empathy.\n"
+        "Prefer approve/reject when the guidance is already actionable.\n"
+        "Use conditional only when explicit prerequisites are missing.\n"
+        "Use informational only when the question is non-decision or context-only.\n\n"
         f"Journal context:\n{journal}\n\n"
         f"Draft guidance:\n{guidance}"
     ).strip()
@@ -107,8 +110,6 @@ def _detect_emotions(text: str) -> list[str]:
     raw = (text or "").lower()
     if not raw:
         return []
-    import re
-
     for tok in re.split(r"[^a-z]+", raw):
         if not tok:
             continue
@@ -132,6 +133,85 @@ def _write_json(payload: dict) -> None:
     sys.stdout.flush()
 
 
+def _looks_like_brain_transcript(text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    lower = t.lower()
+    named = sum(1 for n in ("melchior", "balthasar", "casper") if n in lower)
+    if named < 2:
+        return False
+    if re.search(r"\*\*(melchior|balthasar|casper)\*\*\s*:", t, flags=re.IGNORECASE):
+        return True
+    return ":" in t
+
+
+def _normalize_brain_line(text: str) -> str:
+    t = _clean_text(text)
+    if not t:
+        return ""
+    t = re.sub(r"^\*{0,2}(melchior|balthasar|casper)\*{0,2}\s*:\s*", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        return ""
+    parts = re.split(r"(?<=[.!?])\s+", t)
+    first = parts[0].strip() if parts else t
+    if len(first) < 36 and len(parts) > 1:
+        first = f"{first} {parts[1].strip()}".strip()
+    if len(first) > 240:
+        first = first[:240].rstrip(" ,;:-") + "..."
+    return first
+
+
+def _guidance_from_brain_payloads(response: object) -> str:
+    generic_summary_cues = (
+        "informational analysis",
+        "non-decision",
+        "context-only",
+        "context only",
+        "rather than binary",
+    )
+    lines: list[str] = []
+    seen: set[str] = set()
+    for name in ("balthasar", "melchior", "casper"):
+        payload = getattr(response, name, None)
+        if not isinstance(payload, dict):
+            continue
+        summary = _clean_text(str(payload.get("summary") or ""))
+        reasoning = _clean_text(str(payload.get("response") or ""))
+        if summary and not any(cue in summary.lower() for cue in generic_summary_cues):
+            raw = summary
+        else:
+            raw = reasoning or summary
+        line = _normalize_brain_line(str(raw))
+        if not line:
+            continue
+        key = line.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        lines.append(line)
+        if len(lines) >= 3:
+            break
+    if not lines:
+        return ""
+    return "\n".join(f"- {line}" for line in lines)
+
+
+def _normalize_answer_text(raw_answer: str, response: object) -> str:
+    answer = _clean_text(raw_answer)
+    if answer and not _looks_like_brain_transcript(answer):
+        return answer
+    synthesized = _guidance_from_brain_payloads(response)
+    if synthesized:
+        return synthesized
+    if not answer:
+        return ""
+    answer = re.sub(r"\*\*(melchior|balthasar|casper)\*\*\s*:\s*", "", answer, flags=re.IGNORECASE)
+    answer = re.sub(r"\b(melchior|balthasar|casper)\s*:\s*", "", answer, flags=re.IGNORECASE)
+    return _clean_text(answer)
+
+
 def _canonical_consensus(value: str) -> str:
     c = _clean_text(value).lower()
     if not c:
@@ -149,35 +229,130 @@ def _canonical_consensus(value: str) -> str:
     return ""
 
 
+def _normalize_vote_status(value: object) -> str:
+    s = _clean_text(str(value or "")).lower()
+    if not s:
+        return ""
+    if any(k in s for k in ("deadlock", "stalemate", "hung", "tie")):
+        return "deadlock"
+    if any(k in s for k in ("conditional", "condition", "depends", "state")):
+        return "conditional"
+    if any(k in s for k in ("approve", "approved", "accept", "accepted", "yes", "allow", "proceed")):
+        return "yes"
+    if any(k in s for k in ("reject", "rejected", "deny", "denied", "no")):
+        return "no"
+    if "error" in s:
+        return "error"
+    if any(k in s for k in ("info", "inform", "analysis", "context")):
+        return "info"
+    return ""
+
+
+def _cue_hits(text: str, cues: tuple[str, ...]) -> int:
+    return sum(1 for cue in cues if cue and cue in text)
+
+
 def _brain_statuses(response: object) -> dict[str, str]:
-    def infer_vote(payload: dict) -> str:
+    def infer_vote(payload: dict, status_hint: str) -> str:
         summary = _clean_text(str(payload.get("summary") or ""))
         reasoning = _clean_text(str(payload.get("response") or ""))
         text = f"{summary} {reasoning}".strip().lower()
         if not text:
             return "info"
-        reject_cues = (
+
+        if status_hint == "deadlock":
+            return "deadlock"
+
+        approve_strong = (
+            "approve", "approved", "go ahead", "proceed", "recommended",
+            "support", "should proceed", "should approve",
+        )
+        approve_soft = (
+            "beneficial", "helpful", "appropriate", "reasonable", "good idea", "safe path",
+        )
+        reject_strong = (
             "do not", "don't", "avoid", "reject", "not recommend", "shouldn't",
-            "unsafe", "harmful", "too risky", "cannot approve",
+            "unsafe", "harmful", "too risky", "cannot approve", "must not", "do not proceed",
         )
-        conditional_cues = (
+        conditional_gate = (
             "if ", "unless", "provided", "as long as", "only if", "depends",
+            "under conditions", "on the condition", "before proceeding",
+        )
+        conditional_soft = (
             "with safeguards", "with guardrails", "with monitoring", "reversible",
-            "under conditions", "cautious", "risk controls", "boundaries",
+            "risk controls", "mitigation", "boundaries",
         )
-        approve_cues = (
-            "yes", "approve", "recommended", "go ahead", "proceed",
-            "support", "beneficial", "good idea",
+        informational_cues = (
+            "informational", "for reference", "context only", "non-decision", "no decision",
         )
-        if any(c in text for c in reject_cues):
+        uncertainty_cues = (
+            "uncertain", "uncertainty", "unclear", "insufficient", "unknown", "not enough data",
+            "might", "could", "may",
+        )
+
+        score_yes = 0.0
+        score_no = 0.0
+        score_cond = 0.0
+        score_info = 0.0
+
+        score_yes += 2.6 * _cue_hits(text, approve_strong)
+        score_yes += 0.8 * _cue_hits(text, approve_soft)
+        score_no += 2.6 * _cue_hits(text, reject_strong)
+        score_cond += 2.4 * _cue_hits(text, conditional_gate)
+        score_cond += 0.9 * _cue_hits(text, conditional_soft)
+        score_info += 2.2 * _cue_hits(text, informational_cues)
+        score_cond += 0.45 * _cue_hits(text, uncertainty_cues)
+
+        if "yes, but" in text or "approve, but" in text:
+            score_yes += 0.8
+            score_cond += 1.4
+        if "no, but" in text or "reject, but" in text:
+            score_no += 0.8
+            score_cond += 1.4
+        if "not" in text and "approve" in text:
+            score_no += 1.8
+        if "not" in text and "reject" in text:
+            score_yes += 1.4
+
+        if status_hint == "yes":
+            score_yes += 1.7
+        elif status_hint == "no":
+            score_no += 1.7
+        elif status_hint == "conditional":
+            score_cond += 1.4
+        elif status_hint in {"info", "error"}:
+            score_info += 1.0
+
+        # Contradictory strong signals.
+        if score_yes >= 2.6 and score_no >= 2.6 and abs(score_yes - score_no) <= 1.2:
+            if score_cond >= 1.6:
+                return "conditional"
+            return "deadlock"
+
+        if score_no >= score_yes + 1.6 and score_no >= score_cond + 1.1:
             return "no"
-        if any(c in text for c in conditional_cues):
-            return "conditional"
-        if any(c in text for c in approve_cues):
+        if score_yes >= score_no + 1.6 and score_yes >= score_cond + 1.1:
             return "yes"
-        if " should " in f" {text} ":
+        if score_cond >= max(score_yes, score_no) + 0.6 and score_cond >= 2.0:
             return "conditional"
-        return "conditional"
+        if score_yes >= 2.0 and score_no == 0 and score_cond < 2.6:
+            return "yes"
+        if score_no >= 2.0 and score_yes == 0 and score_cond < 2.6:
+            return "no"
+        if score_cond >= 1.8 and (score_yes >= 1.0 or score_no >= 1.0):
+            return "conditional"
+        if score_info >= 2.0 and score_yes < 1.0 and score_no < 1.0 and score_cond < 1.5:
+            return "info"
+
+        if status_hint in {"yes", "no", "conditional"}:
+            return status_hint
+        if score_yes > score_no and score_yes >= 1.3:
+            return "yes"
+        if score_no > score_yes and score_no >= 1.3:
+            return "no"
+        if score_cond >= 1.4:
+            return "conditional"
+        return "info"
 
     out: dict[str, str] = {}
     for name in ("melchior", "balthasar", "casper"):
@@ -185,9 +360,11 @@ def _brain_statuses(response: object) -> dict[str, str]:
         status = "info"
         if isinstance(payload, dict):
             raw = payload.get("status")
-            status = _clean_text(str(raw if raw is not None else "info")).lower() or "info"
-            if status in {"info", "error"}:
-                status = infer_vote(payload)
+            status_hint = _normalize_vote_status(raw)
+            if status_hint in {"yes", "no", "deadlock"}:
+                status = status_hint
+            else:
+                status = infer_vote(payload, status_hint)
         if status not in {"yes", "no", "conditional", "deadlock", "info", "error"}:
             status = "info"
         out[name] = status
@@ -196,32 +373,42 @@ def _brain_statuses(response: object) -> dict[str, str]:
 
 def _derive_consensus(consensus_raw: str, status_raw: str, brains: dict[str, str]) -> str:
     by_name = _canonical_consensus(consensus_raw)
-    if by_name and by_name != "informational":
+    if by_name in {"unanimous", "majority", "deadlock"}:
         return by_name
 
-    status = _clean_text(status_raw).lower()
+    status = _normalize_vote_status(status_raw)
     if status == "deadlock":
         return "deadlock"
-    if status == "conditional":
-        return "conditional"
 
     vals = [v for v in brains.values() if v]
     yes = vals.count("yes")
     no = vals.count("no")
     cond = vals.count("conditional")
     info = vals.count("info")
+    dead = vals.count("deadlock")
 
+    if dead >= 2:
+        return "deadlock"
+    if dead >= 1 and yes >= 1 and no >= 1:
+        return "deadlock"
     if yes == 3 or no == 3:
         return "unanimous"
     if yes >= 2 or no >= 2:
         return "majority"
+    if yes >= 1 and no >= 1 and cond == 0:
+        return "deadlock"
     if cond >= 2 or (cond >= 1 and (yes >= 1 or no >= 1)):
         return "conditional"
     if status in {"yes", "no"}:
         return "majority"
-    if by_name == "informational":
+    if status == "conditional" or by_name == "conditional":
+        return "conditional"
+    if by_name == "informational" or status in {"info", "error"}:
         return "informational"
     if info >= 2:
+        return "informational"
+    # Thin-signal fallback: prefer informational over forcing conditional.
+    if cond == 1 and info >= 1 and yes == 0 and no == 0:
         return "informational"
     return "informational"
 
@@ -257,17 +444,20 @@ def main() -> int:
         except TypeError:
             # Backward compatibility if MAGI initialize signature changes.
             magi.initialize(api_key=openai_api_key or None, model=model)
+        mode = _clean_text(getattr(magi, "mode", "")) or "unknown"
+        init_error = _clean_text(getattr(magi, "last_init_error", ""))
 
         response = magi.deliberate(question)
-        answer = _clean_text(getattr(response, "answer", ""))
+        answer_raw = _clean_text(getattr(response, "answer", ""))
+        answer = _normalize_answer_text(answer_raw, response)
         status = _clean_text(getattr(response, "status", "info")) or "info"
         primary_consensus_raw = _clean_text(getattr(response, "consensus", ""))
         brain_states = _brain_statuses(response)
         consensus = _derive_consensus(primary_consensus_raw, status, brain_states)
 
-        if consensus == "informational":
+        if consensus in {"informational", "conditional"}:
             # Run a dedicated decision-style checkpoint so MAGI can surface
-            # non-informational consensus types for guidance workflows.
+            # more decisive consensus types for guidance workflows.
             probe_q = _compose_consensus_probe_question(user_text, answer)
             try:
                 probe = magi.deliberate(probe_q)
@@ -275,7 +465,11 @@ def main() -> int:
                 probe_consensus_raw = _clean_text(getattr(probe, "consensus", ""))
                 probe_brains = _brain_statuses(probe)
                 probe_consensus = _derive_consensus(probe_consensus_raw, probe_status, probe_brains)
-                if probe_consensus != "informational":
+                if consensus == "informational" and probe_consensus != "informational":
+                    consensus = probe_consensus
+                    brain_states = probe_brains
+                    status = probe_status
+                elif consensus == "conditional" and probe_consensus in {"majority", "unanimous", "deadlock"}:
                     consensus = probe_consensus
                     brain_states = probe_brains
                     status = probe_status
@@ -291,7 +485,9 @@ def main() -> int:
             "consensus": consensus,
             "brain_statuses": brain_states,
             "emotions": emotions,
-            "model": model
+            "model": model,
+            "magi_mode": mode,
+            "magi_init_error": init_error
         })
         return 0
     except Exception as exc:

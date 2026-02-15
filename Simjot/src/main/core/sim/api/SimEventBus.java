@@ -42,6 +42,11 @@ public final class SimEventBus {
         default void onGuidanceProduced(String text) {}
         // Guidance metadata for overlay UI (consensus + prominent emotions)
         default void onGuidanceOutcome(String consensus, String[] emotions) {}
+        // Guidance metadata for overlay UI with per-brain statuses
+        // brainStatuses order: [melchior, balthasar, casper]
+        default void onGuidanceOutcome(String consensus, String[] emotions, String[] brainStatuses) {
+            onGuidanceOutcome(consensus, emotions);
+        }
         // Request a fresh daily reflection prompt for local date key (yyyy-MM-dd)
         default void onDailyPromptRequested(String dateKey) {}
         // Daily prompt produced by Sim
@@ -133,11 +138,17 @@ public final class SimEventBus {
     }
 
     public void emitGuidanceOutcome(String consensus, String[] emotions){
+        emitGuidanceOutcome(consensus, emotions, null);
+    }
+
+    public void emitGuidanceOutcome(String consensus, String[] emotions, String[] brainStatuses){
         if (verboseLogging) {
             int n = emotions == null ? 0 : emotions.length;
-            System.out.println("[SimBus] guidanceOutcome consensus=" + String.valueOf(consensus) + " emotions=" + n);
+            int b = brainStatuses == null ? 0 : brainStatuses.length;
+            System.out.println("[SimBus] guidanceOutcome consensus=" + String.valueOf(consensus)
+                    + " emotions=" + n + " brains=" + b);
         }
-        for (var l: listeners) l.onGuidanceOutcome(consensus, emotions);
+        for (var l: listeners) l.onGuidanceOutcome(consensus, emotions, brainStatuses);
     }
 
     public void emitDailyPromptRequested(String dateKey){
