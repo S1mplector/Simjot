@@ -400,7 +400,7 @@ public class JournalApp extends JFrame {
         try {
             // Create overlay if not exists
             if (simOverlay == null) {
-                simOverlay = new SimOverlay();
+                simOverlay = new SimOverlay(this);
                 JLayeredPane lp = getLayeredPane();
                 Dimension pref = simOverlay.getPreferredSize();
                 simOverlay.setBounds(16, 16, pref.width, pref.height);
@@ -1445,6 +1445,30 @@ public class JournalApp extends JFrame {
             }
         } catch (Throwable ignored) {}
         return null;
+    }
+
+    private Component getVisibleCardComponent() {
+        if (cardPanel == null) return null;
+        for (Component c : cardPanel.getComponents()) {
+            if (c != null && c.isVisible()) return c;
+        }
+        return null;
+    }
+
+    public boolean isSimGuidanceAvailableForCurrentCard() {
+        Component visible = getVisibleCardComponent();
+        if (visible instanceof main.ui.features.entries.EntryPanel ep) {
+            return ep.isSimGuidanceAvailable();
+        }
+        return false;
+    }
+
+    public boolean requestSimGuidanceForCurrentCard() {
+        Component visible = getVisibleCardComponent();
+        if (visible instanceof main.ui.features.entries.EntryPanel ep) {
+            return ep.requestSimGuidanceFromOverlay();
+        }
+        return false;
     }
 
     public JPanel getCardPanel() {

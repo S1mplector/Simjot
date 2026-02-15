@@ -147,9 +147,25 @@ public class EntryPanel extends AbstractEditorPanel {
     private NativeAutosaveCoordinator autosaveCoordinator;
     private volatile boolean isAutosaving = false;
     
-    // Track temporary placeholder range for Sim guidance (disabled; retained for compatibility)
+    // Track temporary placeholder range for Sim guidance.
     private int pendingGuidanceStart = -1;
     private int pendingGuidanceLen = 0;
+    private volatile boolean awaitingGuidanceResponse = false;
+    private final SimEventBus.Listener simGuidanceListener = new SimEventBus.Listener() {
+        @Override
+        public void onGuidanceProduced(String text) {
+            if (!awaitingGuidanceResponse) return;
+            awaitingGuidanceResponse = false;
+            SwingUtilities.invokeLater(() -> {
+                String guidance = text == null ? "" : text.strip();
+                if (guidance.isEmpty()) {
+                    guidance = "I could not generate guidance this time. Please try again.";
+                }
+                insertGuidanceStyled(guidance);
+            });
+        }
+    };
+    private boolean simGuidanceListenerRegistered = false;
     // Spinner removed — relying on inline "Thinking…" text only
     // Formatting toggle buttons (to reflect current caret/selection state)
     private JToggleButton boldBtn;
@@ -203,7 +219,7 @@ public class EntryPanel extends AbstractEditorPanel {
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
-        // Sim guidance disabled visually; listener intentionally not registered
+        registerSimGuidanceListenerIfSupported();
     }
 
     private void setDetailedMoodExpanded(boolean expanded) {
@@ -266,7 +282,46 @@ public class EntryPanel extends AbstractEditorPanel {
     /**
      * Whether to show the Sim guidance button in the right toolbar.
      */
-    protected boolean supportsGuidanceButton() { return false; }
+    protected boolean supportsGuidanceButton() { return true; }
+
+    public boolean isSimGuidanceAvailable() {
+        if (!supportsGuidanceButton()) return false;
+        if (contentArea == null) return false;
+        if (!contentArea.isEditable()) return false;
+        return isShowing();
+    }
+
+    public boolean requestSimGuidanceFromOverlay() {
+        if (!isSimGuidanceAvailable()) return false;
+        if (awaitingGuidanceResponse) return false;
+        String text = contentArea.getText();
+        if (text == null || text.isBlank()) return false;
+        try {
+            showGuidanceThinkingPlaceholder();
+            awaitingGuidanceResponse = true;
+            SimEventBus.get().emitGuidanceRequested(text);
+            contentArea.requestFocusInWindow();
+            return true;
+        } catch (Throwable ignored) {
+            awaitingGuidanceResponse = false;
+            return false;
+        }
+    }
+
+    private void registerSimGuidanceListenerIfSupported() {
+        if (!supportsGuidanceButton()) return;
+        if (simGuidanceListenerRegistered) return;
+        try {
+            SimEventBus.get().addListener(simGuidanceListener);
+            simGuidanceListenerRegistered = true;
+        } catch (Throwable ignored) {}
+    }
+
+    private void unregisterSimGuidanceListener() {
+        if (!simGuidanceListenerRegistered) return;
+        try { SimEventBus.get().removeListener(simGuidanceListener); } catch (Throwable ignored) {}
+        simGuidanceListenerRegistered = false;
+    }
 
     /**
      * Opacity for the glass panel used in this editor.
@@ -1455,8 +1510,8 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void ensureSimStyles(){
         StyledDocument sd = (StyledDocument) contentArea.getDocument();
-        // Silvery sky blue color
-        Color simBlue = new Color(176, 196, 222); // LightSteelBlue
+        // Brighter sky blue for inserted Sim guidance text.
+        Color simBlue = new Color(108, 194, 255);
         // Ensure a normal/user text style exists (used to reset typing attributes)
         Style normal = sd.getStyle("normalText");
         if (normal == null) {
@@ -1470,13 +1525,16 @@ public class EntryPanel extends AbstractEditorPanel {
         Style body = sd.getStyle("simGuidanceBody");
         if (body == null) {
             body = sd.addStyle("simGuidanceBody", null);
-            StyleConstants.setForeground(body, simBlue);
         }
+        // Re-apply in case this style already existed with an older color.
+        StyleConstants.setForeground(body, simBlue);
         Style header = sd.getStyle("simGuidanceHeader");
         if (header == null) {
             header = sd.addStyle("simGuidanceHeader", body);
             StyleConstants.setBold(header, true);
         }
+        // Keep header aligned with guidance body color if reused from previous sessions.
+        StyleConstants.setForeground(header, simBlue);
         Style thinking = sd.getStyle("simThinking");
         if (thinking == null) {
             thinking = sd.addStyle("simThinking", null);
@@ -2328,8 +2386,16 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     @Override
+    public void addNotify() {
+        super.addNotify();
+        registerSimGuidanceListenerIfSupported();
+    }
+
+    @Override
     public void removeNotify() {
         try { if (autosaveCoordinator != null) autosaveCoordinator.shutdown(); } catch (Throwable ignored) {}
+        awaitingGuidanceResponse = false;
+        unregisterSimGuidanceListener();
         releaseEntryLock();
         super.removeNotify();
     }

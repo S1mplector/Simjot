@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import javax.swing.*;
 import main.core.sim.api.SimEventBus;
 import main.core.service.SettingsStore;
+import main.ui.app.JournalApp;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.util.AccentColorUtil;
 
@@ -67,6 +68,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final int ORB_RADIUS = 16; // circle radius
     private static final int ORB_RING_RADIUS = 42; // distance from center
     private static final int HEART_CLEARANCE = 8; // extra spacing between heart and orbs
+    private final float[] orbHighlight = new float[ORB_COUNT];       // current 0..1
+    private final float[] orbHighlightTarget = new float[ORB_COUNT]; // target 0..1
 
 
     // Phase 2: inline chat mode
@@ -80,6 +83,11 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     // Streaming typing indicator state
     private boolean typingInProgress = false;
     private int typingTick = 0; // advances in anim timer to animate dots
+    // Special "thinking" motion when Sim is preparing guidance
+    private boolean guidanceThinking = false;
+    private double thinkingPhase = 0.0;
+    private float thinkingPulse = 0f;
+    private float thinkingOrbScale = 1f;
 
     // New: scrollable chat components
     private final ChatTranscriptModel transcript = new ChatTranscriptModel();
@@ -87,13 +95,18 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     // Only show message/panel when user has explicitly invoked or we're in chat
     private boolean userInvokedActive = false;
     // Panel actions
-    private JButton newChatButton;
     private JButton chatsButton;
     private JButton hideButton;
     // In-memory archived chat sessions
     private final java.util.List<ChatSession> archivedSessions = new java.util.ArrayList<>();
+    private final JournalApp app;
 
     public SimOverlay() {
+        this(null);
+    }
+
+    public SimOverlay(JournalApp app) {
+        this.app = app;
         setOpaque(false);
         setVisible(true);
         setLayout(null); // we'll position children manually
@@ -173,7 +186,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                 needsRepaint = true;
             }
 
-            // Entry staged sequence: reveal orbs one-by-one, then expand panel
+            // Entry staged sequence: reveal orbs one-by-one.
             if (entryInProgress) {
                 if (revealIndex < ORB_COUNT) {
                     orbT[revealIndex] = Math.min(1.0, orbT[revealIndex] + 0.10 * tickScale);
@@ -182,15 +195,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                     }
                     needsRepaint = true;
                 } else {
-                    // All orbs in orbit, start panel expand
-                    panelAppearing = true;
-                }
-                if (panelAppearing && panelT < 1f) {
-                    panelT = Math.min(1f, panelT + (float)(0.11f * tickScale));
-                    panelOpacity = Math.min(1f, panelOpacity + (float)(0.15f * tickScale));
-                    needsRepaint = true;
-                }
-                if (revealIndex >= ORB_COUNT && panelT >= 1f) {
+                    // Floating buttons are shown after the orb reveal completes.
                     entryInProgress = false;
                 }
             }
@@ -211,28 +216,75 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
                     if (!alwaysVisibleBeacon) setVisible(false);
                 }
             }
-            // continuous spin for orbs
-            double speed = Math.PI / 120; // ~1.5 sec per rotation
-            spinAngle += speed * tickScale;
-            if (spinAngle > Math.PI * 2) spinAngle -= Math.PI * 2;
+            if (guidanceThinking) {
+                thinkingPhase += 0.15 * tickScale;
+                float wave = (float) ((Math.sin(thinkingPhase) + 1.0) * 0.5);
+                thinkingPulse = 0.38f + 0.62f * wave;
+                // Keep all orbs gently lit while thinking for a "processing" feel.
+                for (int i = 0; i < ORB_COUNT; i++) {
+                    float localWave = (float) ((Math.sin(thinkingPhase + i * 1.1) + 1.0) * 0.5);
+                    float target = 0.18f + 0.28f * localWave;
+                    orbHighlightTarget[i] = Math.max(orbHighlightTarget[i], target);
+                }
+                needsRepaint = true;
+            } else {
+                thinkingPulse = Math.max(0f, thinkingPulse - (float) (0.055f * tickScale));
+            }
+            float orbTargetScale = guidanceThinking ? 0.74f : 1f;
+            float orbScaleFollow = Math.min(1f, (float) (0.10f * tickScale));
+            thinkingOrbScale += (orbTargetScale - thinkingOrbScale) * orbScaleFollow;
 
             // Heart pulse animation (cosine ease-in-out + small spring at peaks)
-            heartPhase += 0.05 * tickScale; // speed similar to header
+            double heartStep = 0.05 * tickScale;
+            if (guidanceThinking) {
+                heartStep *= (1.30 + 0.42 * thinkingPulse);
+            }
+            heartPhase += heartStep;
             double eased = (1 - Math.cos(heartPhase)) * 0.5; // 0..1
             boolean justPeaked = (eased > 0.98 && lastBeatValue <= 0.98);
             if (justPeaked) {
                 heartSpring = 0.08f; // overshoot amount
-            }
-            if (eased < 0.5) {
-                // allow next peak
             }
             lastBeatValue = eased;
             if (heartSpring > 0f) {
                 heartSpring *= Math.pow(0.90f, tickScale); // damping
                 if (heartSpring < 0.001f) heartSpring = 0f;
             }
-            float baseAmp = 0.06f; // subtle
+            float baseAmp = guidanceThinking ? (0.076f + 0.020f * thinkingPulse) : 0.06f;
             heartScale = 1f + baseAmp * (float)(eased * 2 - 1) + heartSpring;
+
+            // continuous spin for orbs
+            double speed = Math.PI / 120; // ~1.5 sec per rotation
+            if (guidanceThinking) {
+                double beatPhase = heartPhase / (Math.PI * 2.0);
+                beatPhase -= Math.floor(beatPhase);
+                // Parabolic fast-slow-fast profile through the beat cycle.
+                double parabola = 4.0 * (beatPhase - 0.5) * (beatPhase - 0.5); // 0 at mid, 1 at edges
+                double fastSlowFast = 0.52 + 2.55 * parabola;
+                speed *= fastSlowFast * (1.05 + 0.55 * thinkingPulse);
+            }
+            spinAngle += speed * tickScale;
+            if (spinAngle > Math.PI * 2) spinAngle -= Math.PI * 2;
+
+            // Emotion orb highlight easing (driven by onEmotionTagged events)
+            for (int i = 0; i < ORB_COUNT; i++) {
+                float target = orbHighlightTarget[i];
+                if (target > 0f) {
+                    target = Math.max(0f, target - (float)(0.0022f * tickScale)); // ~7-8s fade
+                    orbHighlightTarget[i] = target;
+                }
+                float current = orbHighlight[i];
+                float next;
+                if (current < target) {
+                    next = Math.min(target, current + (float)(0.085f * tickScale));
+                } else {
+                    next = Math.max(target, current - (float)(0.04f * tickScale));
+                }
+                if (Math.abs(next - current) > 0.0005f) {
+                    orbHighlight[i] = next;
+                    needsRepaint = true;
+                }
+            }
 
             // advance typing animation
             typingTick = (typingTick + 1) & 0xFFFF;
@@ -272,8 +324,16 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     @Override
+    public void onCardSwitched(String cardId) {
+        SwingUtilities.invokeLater(() -> {
+            refreshActionButtonsState();
+            repaint();
+        });
+    }
+
+    @Override
     public void onSpeak(String message) {
-        if (chatMode || userInvokedActive) {
+        if (chatMode) {
             final String t = message == null ? "" : message;
             // If we're suppressing the first assistant turn after invocation, or the content
             // matches the default greeting shortly after invoke, drop tokens.
@@ -299,7 +359,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     @Override
     public void onSpeakStart() {
-        if (chatMode || userInvokedActive) {
+        if (chatMode) {
             if (suppressDefaultGreetingOnce) {
                 // Do not create a streaming turn for the greeting we will suppress
                 typingInProgress = false;
@@ -320,6 +380,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     @Override
     public void onSpeakEnd() {
+        if (!chatMode) return;
         if (suppressDefaultGreetingOnce) {
             // Consume and clear suppression without emitting a turn
             suppressDefaultGreetingOnce = false;
@@ -332,11 +393,49 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     @Override
+    public void onEmotionTagged(String entryId, String emotion, double intensity) {
+        final String label = emotion == null ? "" : emotion.trim();
+        if (label.isEmpty()) return;
+        final float v = (float) Math.max(0.20, Math.min(1.0, intensity / 100.0));
+        final int idx = emotionToOrbIndex(label);
+        if (idx < 0 || idx >= ORB_COUNT) return;
+        SwingUtilities.invokeLater(() -> {
+            orbHighlightTarget[idx] = Math.max(orbHighlightTarget[idx], v);
+            repaint();
+        });
+    }
+
+    @Override
+    public void onGuidanceRequested(String text) {
+        SwingUtilities.invokeLater(() -> {
+            if (!userInvokedActive || chatMode) return;
+            setGuidanceThinking(true);
+            message = "Sim is thinking…";
+            refreshActionButtonsState();
+            repaint();
+        });
+    }
+
+    @Override
+    public void onGuidanceProduced(String text) {
+        SwingUtilities.invokeLater(() -> {
+            setGuidanceThinking(false);
+            if (!userInvokedActive || chatMode) return;
+            String out = text == null ? "" : text.strip();
+            message = out.isEmpty() ? "I could not generate guidance this time." : "Guidance added to your entry.";
+            refreshActionButtonsState();
+            repaint();
+        });
+    }
+
+    @Override
     public void onQuitRequested() {
         // Gracefully end chat (if any) and dispose the overlay with animation
         SwingUtilities.invokeLater(() -> {
+            setGuidanceThinking(false);
             try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
             try { endChatModeInternal(true); } catch (Throwable ignored) {}
+            userInvokedActive = false;
             startDisposeSequence();
         });
     }
@@ -373,14 +472,10 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         g2.setComposite(AlphaComposite.SrcOver.derive(a));
         g2.translate(0, entranceOffsetY);
 
-        // No outer frame/background — keep canvas transparent behind orbs and panel
-
-
-        // Layout: left area for orbs, right area for text panel
+        // No outer frame/background — keep canvas transparent.
+        // Layout keeps orbs on the left and floating controls on the right.
         int padding = 14;
         int leftW = 140; // space for orbs
-        int rightX = padding + leftW + 10;
-        int rightW = w - rightX - padding;
         int centerX = padding + leftW / 2;
         int centerY = h / 2 + 6; // slightly lower to balance header
 
@@ -491,171 +586,77 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             int radial = (int)Math.round((ORB_RING_RADIUS + HEART_CLEARANCE) * eased);
             int ox = (int) Math.round(centerX + radial * Math.cos(theta));
             int oy = (int) Math.round(centerY + radial * Math.sin(theta));
-            int d = ORB_RADIUS * 2;
-            // Orb shadow/glow
-            g2.setColor(new Color(0, 0, 0, (int)(40 * p)));
-            g2.fillOval(ox - ORB_RADIUS, oy - ORB_RADIUS + 2, d, d);
-            // Orb body (metallic silver gradient)
-            float gx = ox - ORB_RADIUS;
-            float gy = oy - ORB_RADIUS;
-            RadialGradientPaint metallic = new RadialGradientPaint(
-                    new Point2D.Float(gx + ORB_RADIUS * 0.6f, gy + ORB_RADIUS * 0.4f),
-                    ORB_RADIUS,
-                    new float[]{0f, 0.6f, 1f},
+            if (guidanceThinking) {
+                double nx = Math.cos(theta); // -1..1
+                double arc = 1.0 - (nx * nx); // parabola shape across arc
+                int drift = (int) Math.round((3.4 * Math.sin(thinkingPhase + i * 1.25) + 4.6 * (arc - 0.5)) * eased);
+                oy += drift;
+            }
+            float glow = clamp01(orbHighlight[i]);
+            int rrBase = ORB_RADIUS + Math.round(2f * glow);
+            float orbScale = thinkingOrbScale;
+            if (guidanceThinking) {
+                float breathe = (float) ((Math.sin(thinkingPhase * 1.25 + i * 0.95) + 1.0) * 0.5);
+                orbScale *= 0.94f + 0.10f * breathe;
+            }
+            int rr = Math.max(8, Math.round(rrBase * orbScale));
+            int d = rr * 2;
+            Color ec = getEmotionColor(i);
+
+            // Soft shadow
+            g2.setColor(new Color(0, 0, 0, (int)(34 * p)));
+            g2.fillOval(ox - rr, oy - rr + 2, d, d);
+
+            // Guidance emotion highlight halo
+            if (glow > 0.01f) {
+                Paint oldPaint = g2.getPaint();
+                RadialGradientPaint halo = new RadialGradientPaint(
+                        new Point2D.Float(ox, oy), rr + 9f,
+                        new float[]{0f, 0.55f, 1f},
+                        new Color[]{
+                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int)(170 * glow * p)),
+                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int)(70 * glow * p)),
+                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), 0)
+                        }
+                );
+                g2.setPaint(halo);
+                g2.fillOval(ox - rr - 9, oy - rr - 9, d + 18, d + 18);
+                g2.setPaint(oldPaint);
+            }
+
+            // Clean color orb with subtle depth
+            Color top = AccentColorUtil.lighten(ec, Math.min(0.60f, 0.34f + 0.20f * glow));
+            Color bottom = AccentColorUtil.darken(ec, Math.max(0.12f, 0.26f - 0.08f * glow));
+            Paint oldPaint = g2.getPaint();
+            RadialGradientPaint body = new RadialGradientPaint(
+                    new Point2D.Float(ox - rr * 0.2f, oy - rr * 0.35f), rr * 1.05f,
+                    new float[]{0f, 0.68f, 1f},
                     new Color[]{
-                            new Color(255,255,255, 230), // bright specular
-                            new Color(200,200,205, 255),  // mid silver
-                            new Color(150,150,155, 255)   // edge dark
+                            new Color(top.getRed(), top.getGreen(), top.getBlue(), 240),
+                            new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), 220),
+                            new Color(bottom.getRed(), bottom.getGreen(), bottom.getBlue(), 220)
                     }
             );
-            Paint oldPaint = g2.getPaint();
-            g2.setPaint(metallic);
-            g2.fillOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
+            g2.setPaint(body);
+            g2.fillOval(ox - rr, oy - rr, d, d);
             g2.setPaint(oldPaint);
-            // Thin dark edge for definition
-            g2.setColor(new Color(60, 60, 65, 160));
-            g2.drawOval(ox - ORB_RADIUS, oy - ORB_RADIUS, d, d);
-            // Subtle inner ring tinted by emotion color
-            Color ec = getEmotionColor(i);
-            if (ec != null) {
-                Color ring = new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int)(120 * p));
-                g2.setColor(ring);
-                int inset = 3;
-                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawOval(ox - ORB_RADIUS + inset, oy - ORB_RADIUS + inset, d - inset*2, d - inset*2);
-            }
-            // Vector symbol centered with alpha
-            Composite old = g2.getComposite();
-            g2.setComposite(AlphaComposite.SrcOver.derive((float)p));
-            drawEmotionSymbol(g2, ox, oy, ORB_RADIUS - 4, i);
-            g2.setComposite(old);
+
+            // Small glossy hot spot
+            g2.setColor(new Color(255, 255, 255, (int)(90 * p)));
+            g2.fillOval(ox - rr / 3, oy - rr / 2, Math.max(3, rr / 2), Math.max(3, rr / 3));
+
+            // Edge ring
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.setColor(new Color(255, 255, 255, (int)(120 * p)));
+            g2.drawOval(ox - rr, oy - rr, d, d);
+            g2.setColor(new Color(0, 0, 0, (int)(75 * p)));
+            g2.drawOval(ox - rr, oy - rr, d, d);
         }
 
-        // Text/Chat panel expand animation
-        int panelY = padding;
-        int panelH = h - padding * 2;
-        if (panelT > 0f) {
-            float pe = easeOutBack(panelT);
-            int currentW = Math.max(0, Math.min(rightW, (int)Math.round(rightW * pe)));
-            if (currentW > 0) {
-                float panelAlpha = Math.max(panelOpacity, easeOutCubic(panelT));
-                panelAlpha = clamp01(panelAlpha);
-                float panelScale = 0.94f + 0.06f * panelAlpha;
-                int scaledH = Math.max(56, Math.round(panelH * panelScale));
-                int yAdjust = (panelH - scaledH) / 2;
-                Rectangle panelRect = new Rectangle(rightX, panelY + yAdjust, currentW, scaledH);
-                paintFrostedPanel(g2, panelRect, panelAlpha);
-
-                // Store for input layout
-                lastPanelRect = panelRect;
-                // Defer layout to after paint to avoid re-entrancy
-                SwingUtilities.invokeLater(this::layoutOverlayChildren);
-            }
-        } else {
-            lastPanelRect = null;
-        }
-
-        // Position chat scroll view within the panel (above input line), visible only in chat mode
-        if (lastPanelRect != null) {
-            int pad = 12;
-            int headerH = PANEL_HEADER_H;
-            // Reserve space at bottom for input area + hint when in chat mode
-            int inputAreaH = chatMode ? (48 /*input*/ + 20 /*hint/margin*/) : 0;
-            int x = lastPanelRect.x + pad + 2;
-            int y = lastPanelRect.y + headerH + 8 + entranceOffsetY;
-            int wv = Math.max(20, lastPanelRect.width - pad * 2 - 4);
-            int hv = Math.max(20, lastPanelRect.height - headerH - inputAreaH - 20);
-            chatView.getScrollPane().setBounds(x, y, wv, hv);
-            // Show scroll view only when panel expansion is complete to avoid clipped artifacts
-            chatView.getScrollPane().setVisible(chatMode && isPanelOpen());
-        } else {
-            chatView.getScrollPane().setVisible(false);
-        }
-
-        // Message or Chat content (reveals with panel)
-        if (panelT > 0f && !chatMode) {
-            g2.setColor(new Color(20, 20, 20));
-            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
-            Rectangle pr = lastPanelRect != null ? lastPanelRect : new Rectangle(rightX, panelY, rightW, panelH);
-            int tx = pr.x + 12;
-            int ty = pr.y + 24;
-            int tw = Math.max(0, (int)Math.round((pr.width - 24) * Math.min(1f, panelT)));
-            for (String line : wrapText(message, tw, g2)) {
-                g2.drawString(line, tx, ty);
-                ty += 18;
-            }
-        }
-
-        // Chat mode content (manual painted bubbles)
-        // Disabled: replaced by scrollable ChatViewPanel
-        if (panelT > 0f && chatMode && false) {
-            // Layout
-            Rectangle pr = lastPanelRect != null ? lastPanelRect : new Rectangle(rightX, panelY, rightW, panelH);
-            int pad = 10;
-            int contentX = pr.x + pad;
-            int contentY = pr.y + 18; // leave room for exit
-            int contentW = pr.width - pad*2;
-            int contentH = pr.height - 50; // leave space for input
-
-            // Draw history from bottom so latest is visible
-            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 13f));
-            int lh = 18;
-            int maxTextW = (int)(contentW * 0.9);
-            java.util.List<Integer> toDraw = new java.util.ArrayList<>();
-            int used = 0;
-            for (int i = chatHistory.size() - 1; i >= 0; i--) {
-                ChatLine line = chatHistory.get(i);
-                if (line == null || line.text == null) continue;
-                java.util.List<String> rows = wrapText(line.text, maxTextW, g2);
-                int boxH = Math.max(lh + 8, rows.size() * lh + 8);
-                int hWithGap = boxH + 8;
-                if (used + hWithGap > contentH - 8) break;
-                toDraw.add(i);
-                used += hWithGap;
-            }
-            // draw in chronological order of selected subset
-            int y = contentY + contentH - used;
-            for (int k = toDraw.size() - 1; k >= 0; k--) {
-                int idx = toDraw.get(k);
-                ChatLine line = chatHistory.get(idx);
-                java.util.List<String> rows = wrapText(line.text, maxTextW, g2);
-                int boxH = Math.max(lh + 8, rows.size() * lh + 8);
-                int boxW = Math.min(contentW, Math.max(80, maxWidth(rows, g2) + 16));
-                int bx = line.role == Role.USER ? (contentX + contentW - boxW) : contentX;
-                int by = y;
-                RoundRectangle2D rr = new RoundRectangle2D.Float(bx, by, boxW, boxH, 12, 12);
-                g2.setColor(line.role == Role.USER ? new Color(230,243,255) : new Color(245,245,245));
-                g2.fill(rr);
-                g2.setColor(new Color(0,0,0,60));
-                g2.draw(rr);
-                g2.setColor(new Color(20,20,20));
-                int tx = bx + 8;
-                int ty = by + 16;
-                for (String rline : rows) { g2.drawString(rline, tx, ty); ty += lh; }
-                // Typing indicator for the current assistant streaming line
-                if (typingInProgress && idx == streamingAssistantIndex && line.role == Role.ASSISTANT) {
-                    int dots = (typingTick / 20) % 4; // 0..3
-                    String ellipsis = dots == 0 ? "" : ".".repeat(dots);
-                    if (!ellipsis.isEmpty()) {
-                        String last = rows.isEmpty() ? "" : rows.get(rows.size() - 1);
-                        int tw = g2.getFontMetrics().stringWidth(last + " ");
-                        int ey = by + 16 + (rows.size() - 1) * lh;
-                        g2.setColor(new Color(120,120,120));
-                        g2.drawString(ellipsis, tx + tw, ey);
-                        g2.setColor(new Color(20,20,20));
-                    }
-                }
-                y += boxH + 8;
-            }
-
-            // Input background
-            int inputY = pr.y + pr.height - 34;
-            RoundRectangle2D inputBg = new RoundRectangle2D.Float(pr.x + pad, inputY, pr.width - pad*2, 24, 10, 10);
-            g2.setColor(new Color(250,250,250));
-            g2.fill(inputBg);
-            g2.setColor(new Color(0,0,0,90));
-            g2.draw(inputBg);
-        }
+        // Overlay menu is now floating buttons only (no text panel/chat panel).
+        lastPanelRect = null;
+        chatView.getScrollPane().setVisible(false);
+        layoutActionButtons();
 
         // restore
         g2.setComposite(oldComp);
@@ -672,12 +673,20 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         return AccentColorUtil.defaultAccent();
     }
 
+    private void setGuidanceThinking(boolean thinking) {
+        guidanceThinking = thinking;
+        if (thinking) {
+            thinkingPhase = 0.0;
+            thinkingPulse = Math.max(thinkingPulse, 0.35f);
+        }
+    }
+
     // Beacon is shown when overlay is meant to be idle (no panel/orbs) but visible
     private boolean isBeaconIdle() {
         if (!alwaysVisibleBeacon) return false;
-        // Idle if no entry/exit animations, no panel expansion, and not in chat
+        // Idle only when Sim is not actively user-invoked.
         boolean activeAnimations = animatingIn || entryInProgress || disposeInProgress;
-        return !activeAnimations && panelT <= 0f && !chatMode;
+        return !activeAnimations && !userInvokedActive && !chatMode;
     }
 
     // Start Sim entry sequence from a user double-click on the heart
@@ -689,10 +698,16 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         entranceOffsetY = 12;
         startEntrySequence();
         if (!isVisible()) setVisible(true);
-        // Enter chat mode BEFORE first repaint to avoid flashing old panel
-        try { startChatMode(); } catch (Throwable ignored) {}
-        // Suppress the default greeting this invocation to avoid repetition
-        suppressDefaultGreetingOnce = true;
+        // Open in compact menu mode first (chat is a selectable action)
+        chatMode = false;
+        setGuidanceThinking(false);
+        try { transcript.clear(); } catch (Throwable ignored) {}
+        typingInProgress = false;
+        streamingAssistantIndex = -1;
+        initialChatSeedDone = true;
+        message = "Choose an action";
+        setActionButtonsVisible(false);
+        refreshActionButtonsState();
         lastHeartInvokeMs = System.currentTimeMillis();
         userInvokedActive = true;
         repaint();
@@ -706,6 +721,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     // Deactivate Sim from a user double-click on the heart while active
     private void deactivateFromHeart() {
         // If in chat, end it first; then dispose sequence to collapse panel/orbs back to idle beacon
+        setGuidanceThinking(false);
         try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
         try { SimEventBus.get().emitChatEnded(); } catch (Throwable ignored) {}
         try { endChatModeInternal(true); } catch (Throwable ignored) {}
@@ -754,12 +770,28 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     // Emotion palette mapping for orb accents and symbol tints
     private Color getEmotionColor(int idx) {
         switch (idx % ORB_COUNT) {
-            case 0: return new Color(255, 191, 0);      // joy – amber
-            case 1: return new Color(128, 128, 128);    // neutral – gray
-            case 2: return new Color(64, 146, 235);     // low – blue
-            case 3: return new Color(235, 87, 87);      // anger – red
-            default: return new Color(42, 201, 164);    // calm – teal
+            case 0: return new Color(255, 194, 64);     // joy
+            case 1: return new Color(156, 162, 176);    // neutral
+            case 2: return new Color(101, 167, 255);    // low/sad
+            case 3: return new Color(244, 111, 111);    // anger/stress
+            default: return new Color(87, 210, 180);    // calm
         }
+    }
+
+    private int emotionToOrbIndex(String emotionLabel) {
+        String e = emotionLabel == null ? "" : emotionLabel.trim().toLowerCase(java.util.Locale.ROOT);
+        if (e.isEmpty()) return 1;
+        if (e.contains("joy") || e.contains("happy") || e.contains("grat") || e.contains("excit")
+                || e.contains("hope") || e.contains("love") || e.contains("relief")) return 0;
+        if (e.contains("calm") || e.contains("peace") || e.contains("ground") || e.contains("content")
+                || e.contains("stable")) return 4;
+        if (e.contains("anger") || e.contains("angry") || e.contains("mad") || e.contains("frustrat")
+                || e.contains("irritat") || e.contains("annoy") || e.contains("rage")
+                || e.contains("stress") || e.contains("overwhelm")) return 3;
+        if (e.contains("sad") || e.contains("down") || e.contains("low") || e.contains("lonely")
+                || e.contains("grief") || e.contains("anx") || e.contains("worr") || e.contains("fear")
+                || e.contains("tired") || e.contains("exhaust")) return 2;
+        return 1;
     }
 
     // Draw symbolic vector for each emotion, with improved shapes/fills
@@ -937,43 +969,85 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     private void layoutActionButtons() {
-        if (newChatButton == null || chatsButton == null || hideButton == null) return;
-        if (lastPanelRect == null) {
-            setActionButtonsVisible(false);
-            return;
-        }
-        int pad = 12;
-        int gap = 6;
-        int y = lastPanelRect.y + 6 + entranceOffsetY;
-        int h = 22;
+        if (chatsButton == null || hideButton == null) return;
+        refreshActionButtonsState();
+        int padding = 14;
+        int leftW = 140;
+        int rightX = padding + leftW + 10;
+        int availableW = Math.max(120, getWidth() - rightX - padding);
+        int btnY = (getHeight() / 2) - 12 + entranceOffsetY;
+        int guidanceW = 92;
+        int hideW = 56;
+        int gap = 8;
 
-        int newW = 76;
-        int chatsW = 58;
-        int hideW = 52;
+        int total = guidanceW + gap + hideW;
+        int startX = rightX + Math.max(0, (availableW - total) / 2);
+        chatsButton.setBounds(startX, btnY, guidanceW, 24);
+        hideButton.setBounds(startX + guidanceW + gap, btnY, hideW, 24);
 
-        int x = lastPanelRect.x + pad;
-        newChatButton.setBounds(x, y, newW, h);
-        chatsButton.setBounds(x + newW + gap, y, chatsW, h);
-        hideButton.setBounds(lastPanelRect.x + lastPanelRect.width - pad - hideW, y, hideW, h);
-
-        setActionButtonsVisible(chatMode && isPanelOpen());
+        boolean visible = userInvokedActive && !disposeInProgress && !entryInProgress;
+        setActionButtonsVisible(visible);
     }
 
     private void setActionButtonsVisible(boolean visible) {
-        if (newChatButton != null) newChatButton.setVisible(visible);
         if (chatsButton != null) chatsButton.setVisible(visible);
         if (hideButton != null) hideButton.setVisible(visible);
     }
 
     private void ensureActionButtons() {
-        if (newChatButton != null) return;
-        newChatButton = createActionButton("New Chat", this::startNewChatSession);
-        chatsButton = createActionButton("Chats", this::showArchivedChatsMenu);
+        if (chatsButton != null) return;
+        chatsButton = createActionButton("Guidance", this::onSecondaryAction);
         hideButton = createActionButton("Hide", this::deactivateFromHeart);
-        add(newChatButton);
         add(chatsButton);
         add(hideButton);
+        refreshActionButtonsState();
         setActionButtonsVisible(false);
+    }
+
+    private void onSecondaryAction() {
+        requestGuidanceFromMenu();
+    }
+
+    private void requestGuidanceFromMenu() {
+        boolean available = isGuidanceAvailableInContext();
+        if (!available) {
+            setGuidanceThinking(false);
+            message = "Open a journal entry to use Guidance.";
+            repaint();
+            return;
+        }
+        boolean requested = false;
+        try {
+            requested = app != null && app.requestSimGuidanceForCurrentCard();
+        } catch (Throwable ignored) {}
+        if (requested) {
+            setGuidanceThinking(true);
+            message = "Sim is thinking…";
+        } else {
+            message = "Guidance is already running for this entry.";
+        }
+        refreshActionButtonsState();
+        repaint();
+    }
+
+    private boolean isGuidanceAvailableInContext() {
+        try {
+            return app != null && app.isSimGuidanceAvailableForCurrentCard();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private void refreshActionButtonsState() {
+        if (chatsButton == null) return;
+        chatsButton.setText("Guidance");
+        boolean enabled = isGuidanceAvailableInContext() && !guidanceThinking;
+        chatsButton.setEnabled(enabled);
+        chatsButton.setToolTipText(guidanceThinking
+                ? "Sim is currently generating guidance"
+                : enabled
+                ? "Generate guidance from the current journal entry"
+                : "Available only in a journal entry editor");
     }
 
     private JButton createActionButton(String text, Runnable action) {
@@ -1006,17 +1080,25 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             int w = getWidth();
             int h = getHeight();
             int arc = 12;
+            boolean enabled = isEnabled();
             boolean hover = getModel().isRollover();
             boolean pressed = getModel().isPressed();
             Color accent = resolveAccent();
 
-            Color baseTop = pressed ? new Color(220, 232, 248, 182) : hover ? new Color(232, 241, 253, 170) : new Color(248, 250, 252, 136);
-            Color baseBottom = pressed ? new Color(198, 216, 239, 170) : hover ? new Color(211, 227, 244, 152) : new Color(225, 229, 234, 120);
+            Color baseTop = !enabled ? new Color(242, 244, 247, 88)
+                    : pressed ? new Color(220, 232, 248, 182)
+                    : hover ? new Color(232, 241, 253, 170)
+                    : new Color(248, 250, 252, 136);
+            Color baseBottom = !enabled ? new Color(226, 230, 234, 78)
+                    : pressed ? new Color(198, 216, 239, 170)
+                    : hover ? new Color(211, 227, 244, 152)
+                    : new Color(225, 229, 234, 120);
             GradientPaint gp = new GradientPaint(0, 0, baseTop, 0, h, baseBottom);
             g2.setPaint(gp);
             g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
 
-            Color border = hover || pressed
+            Color border = !enabled ? new Color(255, 255, 255, 52)
+                    : hover || pressed
                     ? new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), pressed ? 165 : 145)
                     : new Color(255, 255, 255, 88);
             g2.setColor(border);
@@ -1027,7 +1109,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             FontMetrics fm = g2.getFontMetrics(getFont());
             int tx = (w - fm.stringWidth(getText())) / 2;
             int ty = (h - fm.getHeight()) / 2 + fm.getAscent();
-            g2.setColor(pressed ? new Color(20, 24, 30) : new Color(36, 40, 47));
+            g2.setColor(!enabled ? new Color(96, 100, 108) : pressed ? new Color(20, 24, 30) : new Color(36, 40, 47));
             g2.drawString(getText(), tx, ty);
             g2.dispose();
         }
@@ -1037,11 +1119,18 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         entryInProgress = true;
         disposeInProgress = false;
         panelAppearing = false;
+        setGuidanceThinking(false);
+        thinkingPulse = 0f;
+        thinkingOrbScale = 1f;
         revealIndex = 0;
         hideIndex = -1;
         panelT = 0f;
         panelOpacity = 0f;
-        for (int i = 0; i < ORB_COUNT; i++) orbT[i] = 0.0;
+        for (int i = 0; i < ORB_COUNT; i++) {
+            orbT[i] = 0.0;
+            orbHighlight[i] = 0f;
+            orbHighlightTarget[i] = 0f;
+        }
         setActionButtonsVisible(false);
     }
 
@@ -1049,6 +1138,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         disposeInProgress = true;
         entryInProgress = false;
         panelAppearing = false;
+        setGuidanceThinking(false);
+        thinkingPulse = 0f;
+        thinkingOrbScale = 1f;
         hideIndex = ORB_COUNT - 1;
         setActionButtonsVisible(false);
         endChatModeInternal(false);
@@ -1112,6 +1204,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         try { SimEventBus.get().emitChatEnded(); } catch (Throwable ignored) {}
         try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
         endChatModeInternal(true);
+        userInvokedActive = false;
         startDisposeSequence();
     }
 
@@ -1137,6 +1230,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     private void startNewChatSession() {
+        setGuidanceThinking(false);
         archiveCurrentSessionIfNotEmpty();
         try { SimEventBus.get().emitChatEnded(); } catch (Throwable ignored) {}
         try { transcript.clear(); } catch (Throwable ignored) {}

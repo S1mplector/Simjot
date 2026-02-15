@@ -12,6 +12,7 @@ import java.time.LocalTime;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -86,6 +87,11 @@ public final class SimBrain implements SimEventBus.Listener {
         t.setDaemon(true);
         return t;
     });
+    private final ExecutorService guidanceExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "Sim-Brain-Guidance");
+        t.setDaemon(true);
+        return t;
+    });
     private ScheduledFuture<?> tickFuture;
 
     // Track last explicit invocation source (e.g., heart, hotkey)
@@ -121,6 +127,7 @@ public final class SimBrain implements SimEventBus.Listener {
         SimEventBus.get().removeListener(this);
         try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
         try { if (tickFuture != null) tickFuture.cancel(true); } catch (Throwable ignored) {}
+        try { guidanceExecutor.shutdownNow(); } catch (Throwable ignored) {}
         try { scheduler.shutdownNow(); } catch (Throwable ignored) {}
     }
 
@@ -384,7 +391,12 @@ public final class SimBrain implements SimEventBus.Listener {
         if (txt.isEmpty()) return;
         long now = System.currentTimeMillis();
         lastSpeakMs = now;
+        emitProminentGuidanceEmotions(txt);
+        // Run guidance generation off the EDT to keep overlay animations responsive.
+        try { guidanceExecutor.execute(() -> generateGuidanceAsync(txt)); } catch (Throwable ignored) {}
+    }
 
+    private void generateGuidanceAsync(String txt) {
         if (settings.isLlmEnabled()) ensureLlm();
         if (llm != null) {
             try {
@@ -856,6 +868,85 @@ public final class SimBrain implements SimEventBus.Listener {
     }
 
     // --- Emotions helpers ---
+    private static final java.util.Set<String> JOY_WORDS = java.util.Set.of(
+            "happy", "happiness", "joy", "joyful", "grateful", "gratitude",
+            "excited", "proud", "hopeful", "hope", "optimistic", "love", "relieved"
+    );
+    private static final java.util.Set<String> CALM_WORDS = java.util.Set.of(
+            "calm", "peace", "peaceful", "grounded", "stable", "steady",
+            "centered", "content", "balanced", "breathe", "breathing"
+    );
+    private static final java.util.Set<String> LOW_WORDS = java.util.Set.of(
+            "sad", "down", "low", "lonely", "grief", "hurt", "empty",
+            "hopeless", "depressed", "tired", "exhausted", "anxious", "anxiety",
+            "worried", "worry", "afraid", "fear", "stuck"
+    );
+    private static final java.util.Set<String> STRESS_WORDS = java.util.Set.of(
+            "angry", "anger", "mad", "frustrated", "frustrating", "annoyed", "irritated",
+            "resentful", "rage", "stress", "stressed", "overwhelmed", "panic", "panicked",
+            "tense", "pressure", "burnout"
+    );
+    private static final java.util.Set<String> NEUTRAL_WORDS = java.util.Set.of(
+            "okay", "ok", "fine", "normal", "meh", "neutral"
+    );
+
+    private void emitProminentGuidanceEmotions(String text) {
+        java.util.Map<String, Double> scores = detectGuidanceEmotionScores(text);
+        if (scores.isEmpty()) {
+            try { SimEventBus.get().emitEmotionTagged(currentEmotionEntryId, "neutral", 35.0); } catch (Throwable ignored) {}
+            return;
+        }
+        java.util.List<java.util.Map.Entry<String, Double>> ranked = new java.util.ArrayList<>(scores.entrySet());
+        ranked.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        int emitted = 0;
+        for (java.util.Map.Entry<String, Double> e : ranked) {
+            if (e == null || e.getKey() == null) continue;
+            double score = e.getValue() == null ? 0.0 : e.getValue();
+            if (score <= 0.0) continue;
+            double intensity = Math.min(100.0, 30.0 + score * 18.0);
+            try { SimEventBus.get().emitEmotionTagged(currentEmotionEntryId, e.getKey(), intensity); } catch (Throwable ignored) {}
+            emitted++;
+            if (emitted >= 3) break;
+        }
+        if (emitted == 0) {
+            try { SimEventBus.get().emitEmotionTagged(currentEmotionEntryId, "neutral", 35.0); } catch (Throwable ignored) {}
+        }
+    }
+
+    private java.util.Map<String, Double> detectGuidanceEmotionScores(String text) {
+        java.util.Map<String, Double> scores = new java.util.HashMap<>();
+        if (text == null || text.isBlank()) return scores;
+        String lower = text.toLowerCase(java.util.Locale.ROOT);
+        String[] tokens = lower.split("[^a-z]+");
+        for (String t : tokens) {
+            if (t == null || t.isEmpty()) continue;
+            if (JOY_WORDS.contains(t)) addEmotionScore(scores, "joy", 1.0);
+            if (CALM_WORDS.contains(t)) addEmotionScore(scores, "calm", 1.0);
+            if (LOW_WORDS.contains(t)) addEmotionScore(scores, "sad", 1.0);
+            if (STRESS_WORDS.contains(t)) addEmotionScore(scores, "anger", 1.0);
+            if (NEUTRAL_WORDS.contains(t)) addEmotionScore(scores, "neutral", 0.8);
+        }
+        // Phrase boosts catch common journaling patterns that token-only misses.
+        if (lower.contains("i feel overwhelmed") || lower.contains("too much pressure")) {
+            addEmotionScore(scores, "anger", 1.6);
+        }
+        if (lower.contains("i feel anxious") || lower.contains("can't stop worrying")) {
+            addEmotionScore(scores, "sad", 1.5);
+        }
+        if (lower.contains("i feel grateful") || lower.contains("i am grateful")) {
+            addEmotionScore(scores, "joy", 1.4);
+        }
+        if (lower.contains("i feel calm") || lower.contains("i feel at peace")) {
+            addEmotionScore(scores, "calm", 1.4);
+        }
+        return scores;
+    }
+
+    private void addEmotionScore(java.util.Map<String, Double> scores, String key, double delta) {
+        if (scores == null || key == null || key.isBlank() || delta <= 0.0) return;
+        scores.put(key, scores.getOrDefault(key, 0.0) + delta);
+    }
+
     private static final class EmotionTag {
         final long ts;
         final String entryId;

@@ -170,7 +170,7 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
                 }
                 boolean isUser = (e.role == ChatTranscriptModel.Role.USER);
                 Color bubble = isUser ? new Color(230,243,255) : new Color(245,245,245);
-                Color textCol = isUser ? new Color(25,25,25) : new Color(20,60,140);
+                Color textCol = isUser ? new Color(25,25,25) : new Color(102, 186, 255);
                 int bx; // bubble x
 
                 int textW = rows.stream().mapToInt(fm::stringWidth).max().orElse(0);
