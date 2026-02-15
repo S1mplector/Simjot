@@ -26,9 +26,12 @@ public final class ChatTranscriptModel {
         public final String text;
         public final long ts;
         public Entry(Role role, String text) {
+            this(role, text, Instant.now().toEpochMilli());
+        }
+        public Entry(Role role, String text, long ts) {
             this.role = role == null ? Role.SYSTEM : role;
             this.text = text == null ? "" : text;
-            this.ts = Instant.now().toEpochMilli();
+            this.ts = ts;
         }
     }
 
@@ -48,6 +51,19 @@ public final class ChatTranscriptModel {
     public void removeListener(Listener l) { if (l != null) listeners.remove(l); }
 
     public List<Entry> snapshot() { return Collections.unmodifiableList(new ArrayList<>(entries)); }
+
+    public void setEntries(List<Entry> snapshot) {
+        entries.clear();
+        if (snapshot != null) {
+            for (Entry e : snapshot) {
+                if (e == null) continue;
+                entries.add(new Entry(e.role, e.text, e.ts));
+            }
+        }
+        streamingAssistantIndex = -1;
+        assistantPending = false;
+        notifyChanged();
+    }
 
     public void clear() {
         entries.clear();

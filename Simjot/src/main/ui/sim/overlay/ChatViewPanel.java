@@ -62,6 +62,13 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
 
     public JComponent getScrollPane() { return scroll; }
 
+    public void scrollToBottom() {
+        SwingUtilities.invokeLater(() -> {
+            JScrollBar bar = scroll.getVerticalScrollBar();
+            if (bar != null) bar.setValue(bar.getMaximum());
+        });
+    }
+
     @Override
     public void onTranscriptChanged() {
         SwingUtilities.invokeLater(() -> {

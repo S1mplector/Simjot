@@ -73,6 +73,7 @@ public class SettingsPanel extends JPanel {
         sectionModel.addElement("General");
         sectionModel.addElement("Appearance");
         sectionModel.addElement("Storage");
+        sectionModel.addElement("Sim");
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setSelectedIndex(0);
@@ -114,6 +115,10 @@ public class SettingsPanel extends JPanel {
 
         StorageSettingsPage storagePage = new StorageSettingsPage();
         addPage("Storage", storagePage);
+
+        // Sim (AI assistant behavior and provider setup)
+        SimSettingsPage simPage = new SimSettingsPage();
+        addPage("Sim", simPage);
 
         // About page temporarily disabled
 
@@ -228,6 +233,7 @@ public class SettingsPanel extends JPanel {
             SECTION_ICONS.put("General", loadSectionIcon("general_settings"));
             SECTION_ICONS.put("Appearance", loadSectionIcon("appearance_settings"));
             SECTION_ICONS.put("Storage", loadSectionIcon("storage_settings"));
+            SECTION_ICONS.put("Sim", loadSectionIcon("sim_settings"));
             SECTION_ICONS.put("About", loadSectionIcon("about_settings"));
         }
 

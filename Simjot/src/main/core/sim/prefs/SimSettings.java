@@ -46,7 +46,8 @@ public final class SimSettings {
     }
 
     public boolean isEnabled() {
-        return store.getFlag(KEY_ENABLED, false);
+        // Default ON so Sim is available out-of-the-box; users can disable in Settings.
+        return store.getFlag(KEY_ENABLED, true);
     }
 
     public void setEnabled(boolean enabled) {

@@ -18,6 +18,7 @@ public class SimSettingsPage implements SettingsPage {
     private final JPanel panel = new JPanel(new GridBagLayout());
     private final JCheckBox enableSim = new JCheckBox("Enable Sim (AI companion)");
     private final JComboBox<String> personality = new JComboBox<>(new String[]{"gentle","neutral","proactive"});
+    private final JComboBox<String> engagementMode = new JComboBox<>(new String[]{"on_call","hybrid","proactive"});
     private final JCheckBox useLlm = new JCheckBox("Allow AI model");
     private final JComboBox<String> llmProvider = new JComboBox<>(new String[]{"ollama","openai"});
     private final JTextField quietHours = new JTextField(12);
@@ -25,6 +26,8 @@ public class SimSettingsPage implements SettingsPage {
     private final JTextField ollamaEndpoint = new JTextField(18);
     private final JTextField ollamaModel = new JTextField(18);
     private final JPasswordField openaiApiKey = new JPasswordField(24);
+    private final JTextField openaiModel = new JTextField(18);
+    private final JTextField openaiBaseUrl = new JTextField(18);
 
     public SimSettingsPage(){
         panel.setOpaque(true);
@@ -43,6 +46,8 @@ public class SimSettingsPage implements SettingsPage {
         // Modernize controls for consistency
         personality.setUI(new ModernComboBoxUI());
         personality.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        engagementMode.setUI(new ModernComboBoxUI());
+        engagementMode.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
         nudgeMinutes.setUI(new ModernSpinnerUI());
         try {
             ((JSpinner.DefaultEditor) nudgeMinutes.getEditor()).getTextField().setColumns(3);
@@ -67,6 +72,11 @@ public class SimSettingsPage implements SettingsPage {
         gc.gridx = 1;
         panel.add(quietHours, gc);
 
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("Engagement mode"), gc);
+        gc.gridx = 1;
+        panel.add(engagementMode, gc);
+
         // Nudge interval
         gc.gridx = 0; gc.gridy++;
         panel.add(new JLabel("Nudge interval (minutes)"), gc);
@@ -88,6 +98,14 @@ public class SimSettingsPage implements SettingsPage {
         panel.add(new JLabel("OpenAI API key"), gc);
         gc.gridx = 1;
         panel.add(openaiApiKey, gc);
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("OpenAI model"), gc);
+        gc.gridx = 1;
+        panel.add(openaiModel, gc);
+        gc.gridx = 0; gc.gridy++;
+        panel.add(new JLabel("OpenAI base URL"), gc);
+        gc.gridx = 1;
+        panel.add(openaiBaseUrl, gc);
 
         // Load current settings
         SimSettings s = SimSettings.get();
@@ -96,10 +114,17 @@ public class SimSettingsPage implements SettingsPage {
         useLlm.setSelected(s.isLlmEnabled());
         llmProvider.setSelectedItem(s.getLlmProvider());
         quietHours.setText(s.getQuietHours());
+        try {
+            engagementMode.setSelectedItem(s.getEngagementMode().name().toLowerCase(java.util.Locale.ROOT));
+        } catch (Throwable ignored) {
+            engagementMode.setSelectedItem("on_call");
+        }
         nudgeMinutes.setValue(s.getNudgeIntervalMinutes());
         ollamaEndpoint.setText(s.getOllamaEndpoint());
         ollamaModel.setText(s.getOllamaModel());
         openaiApiKey.setText(s.getOpenAIApiKey());
+        openaiModel.setText(s.getOpenAIModel());
+        openaiBaseUrl.setText(s.getOpenAIBaseUrl());
 
         // Enable/disable provider-specific fields based on checkbox and provider
         Runnable toggleLlmFields = () -> {
@@ -111,6 +136,8 @@ public class SimSettingsPage implements SettingsPage {
             ollamaEndpoint.setEnabled(isOllama);
             ollamaModel.setEnabled(isOllama);
             openaiApiKey.setEnabled(isOpenAI);
+            openaiModel.setEnabled(isOpenAI);
+            openaiBaseUrl.setEnabled(isOpenAI);
         };
         useLlm.addActionListener(e -> toggleLlmFields.run());
         llmProvider.addActionListener(e -> toggleLlmFields.run());
@@ -128,12 +155,20 @@ public class SimSettingsPage implements SettingsPage {
         s.setLlmEnabled(useLlm.isSelected());
         s.setLlmProvider((String) llmProvider.getSelectedItem());
         s.setQuietHours(quietHours.getText());
+        String mode = String.valueOf(engagementMode.getSelectedItem());
+        switch (mode == null ? "on_call" : mode.toLowerCase(java.util.Locale.ROOT)) {
+            case "proactive" -> s.setEngagementMode(SimSettings.EngagementMode.PROACTIVE);
+            case "hybrid" -> s.setEngagementMode(SimSettings.EngagementMode.HYBRID);
+            default -> s.setEngagementMode(SimSettings.EngagementMode.ON_CALL);
+        }
         try { s.setNudgeIntervalMinutes((Integer) nudgeMinutes.getValue()); } catch (Exception ignored) {}
         s.setOllamaEndpoint(ollamaEndpoint.getText());
         s.setOllamaModel(ollamaModel.getText());
         // Only persist API key if visible/enabled and LLM is on
         if (useLlm.isSelected() && openaiApiKey.isEnabled()) {
             s.setOpenAIApiKey(new String(openaiApiKey.getPassword()));
+            s.setOpenAIModel(openaiModel.getText());
+            s.setOpenAIBaseUrl(openaiBaseUrl.getText());
         }
     }
 }
