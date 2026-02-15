@@ -32,6 +32,9 @@ import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +59,8 @@ import main.core.analytics.MoodAnalyticsEngine.AnalyticsResult;
 import main.core.service.LastSaveTracker;
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
+import main.core.sim.api.SimEventBus;
+import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
@@ -184,21 +189,37 @@ public class MainMenuPanel extends JPanel {
         private final JLabel countsLbl = new JLabel();
         private final JLabel autosaveLbl = new JLabel();
         private final JLabel sizeLbl = new JLabel();
-        private final JButton moodPulseChip = new JButton("Mood avg – • Trend –");
+        private final JButton moodPulseChip = new RoundedChipButton("Mood avg – • Trend –");
+        private final JButton dailyPromptChip = new RoundedChipButton("SIM DAILY PROMPT • --:--:-- left");
+        private static final String DAILY_PROMPT_DATE_KEY = "sim.dailyPrompt.date";
+        private static final String DAILY_PROMPT_LABEL_KEY = "sim.dailyPrompt.label";
+        private static final String DAILY_PROMPT_TEXT_KEY = "sim.dailyPrompt.text";
 
         private final NotebookStore nbStore = new NotebookStore();
 
         private volatile String lastSizeText = "…";
         private List<Double> lastSparklineValues = List.of();
+        private String dailyPromptDateKey = "";
+        private String dailyPromptLabel = "SIM DAILY PROMPT";
+        private String dailyPromptText = "";
+        private String requestedDailyPromptDateKey = "";
+        private long lastDailyPromptRequestMs = 0L;
 
         private long lastCountsMillis = 0L;
         private long lastMoodMillis = 0L;
 
         private JPopupMenu moodPopup;
+        private JPopupMenu dailyPromptPopup;
         private MoodSparkline moodSparklineView;
         private Timer moodPopupHideTimer;
         private boolean moodChipHovered = false;
         private boolean moodPopupHovered = false;
+        private final SimEventBus.Listener simListener = new SimEventBus.Listener() {
+            @Override
+            public void onDailyPromptProduced(String dateKey, String label, String prompt) {
+                SwingUtilities.invokeLater(() -> applyDailyPrompt(dateKey, label, prompt));
+            }
+        };
 
         AppContextIndicators(JournalApp app) {
             this.app = app;
@@ -230,6 +251,8 @@ public class MainMenuPanel extends JPanel {
             }
 
             configureChip(moodPulseChip, "smile");
+            configureChip(dailyPromptChip, "heart");
+            dailyPromptChip.setForeground(new Color(62, 143, 224));
 
             moodPulseChip.addActionListener(e -> {
                 ElegantMoodChartPanel.requestRangeSelection(1);
@@ -246,6 +269,7 @@ public class MainMenuPanel extends JPanel {
                     hideMoodPopupSoon();
                 }
             });
+            dailyPromptChip.addActionListener(e -> onDailyPromptChipClicked());
 
             countsLbl.setText("– notebooks  •  – entries");
             autosaveLbl.setText(" |  Autosave: –  •  Last: –");
@@ -253,10 +277,15 @@ public class MainMenuPanel extends JPanel {
 
             add(Box.createHorizontalStrut(6));
             add(moodPulseChip);
+            add(dailyPromptChip);
 
             updateCounts();
             updateMoodPulse();
             updateAutosave();
+            loadDailyPromptFromSettings();
+            ensureDailyPromptForToday();
+            updateDailyPromptChip();
+            SimEventBus.get().addListener(simListener);
 
             javax.swing.Timer uiTimer = new javax.swing.Timer(1000, e -> updateFast());
             uiTimer.start();
@@ -266,20 +295,85 @@ public class MainMenuPanel extends JPanel {
             sizeTimer.start();
         }
 
+        @Override
+        public void removeNotify() {
+            try { SimEventBus.get().removeListener(simListener); } catch (Throwable ignored) {}
+            if (dailyPromptPopup != null) {
+                try { dailyPromptPopup.setVisible(false); } catch (Throwable ignored) {}
+                dailyPromptPopup = null;
+            }
+            super.removeNotify();
+        }
+
         private void configureChip(JButton chip, String iconId) {
             chip.setFocusPainted(false);
-            chip.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(190, 198, 210)),
-                    BorderFactory.createEmptyBorder(3, 8, 3, 8)));
+            chip.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
             chip.setBackground(new Color(255, 255, 255, 235));
-            chip.setOpaque(true);
+            chip.setOpaque(false);
             chip.setForeground(AeroTheme.TEXT_PRIMARY);
             chip.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
             chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            chip.setContentAreaFilled(false);
+            chip.setBorderPainted(false);
+            chip.setRolloverEnabled(true);
             String res = ImageIconRenderer.mapIdToResource(iconId);
             if (res != null) {
                 chip.setIcon(ImageIconRenderer.icon(res, 14, false));
                 chip.setIconTextGap(5);
+            }
+        }
+
+        private static final class RoundedChipButton extends JButton {
+            private static final int ARC = 18;
+
+            private RoundedChipButton(String text) {
+                super(text);
+                setContentAreaFilled(false);
+                setBorderPainted(false);
+                setOpaque(false);
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int w = getWidth();
+                int h = getHeight();
+                int arc = Math.max(8, Math.min(ARC, h));
+
+                Color base = getBackground();
+                if (base == null) base = new Color(255, 255, 255, 235);
+                if (!isEnabled()) {
+                    base = withAlpha(base, 170);
+                } else if (getModel().isPressed()) {
+                    base = darken(base, 0.10f);
+                } else if (getModel().isRollover()) {
+                    base = darken(base, 0.04f);
+                }
+
+                g2.setColor(base);
+                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+                Color stroke = isEnabled() ? new Color(183, 193, 208) : new Color(196, 204, 214, 180);
+                g2.setColor(stroke);
+                g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+                g2.dispose();
+                super.paintComponent(g);
+            }
+
+            private static Color withAlpha(Color c, int alpha) {
+                int a = Math.max(0, Math.min(255, alpha));
+                return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
+            }
+
+            private static Color darken(Color c, float factor) {
+                float f = Math.max(0f, Math.min(1f, factor));
+                int r = Math.max(0, Math.round(c.getRed() * (1f - f)));
+                int g = Math.max(0, Math.round(c.getGreen() * (1f - f)));
+                int b = Math.max(0, Math.round(c.getBlue() * (1f - f)));
+                return new Color(r, g, b, c.getAlpha());
             }
         }
 
@@ -294,8 +388,157 @@ public class MainMenuPanel extends JPanel {
                 lastMoodMillis = now;
             }
 
+            ensureDailyPromptForToday();
+            updateDailyPromptChip();
             updateAutosave();
             sizeLbl.setText(" |  Size: " + lastSizeText);
+        }
+
+        private void loadDailyPromptFromSettings() {
+            SettingsStore store = SettingsStore.get();
+            dailyPromptDateKey = store.getValue(DAILY_PROMPT_DATE_KEY, "");
+            dailyPromptLabel = store.getValue(DAILY_PROMPT_LABEL_KEY, "SIM DAILY PROMPT");
+            dailyPromptText = store.getValue(DAILY_PROMPT_TEXT_KEY, "");
+            if (dailyPromptLabel == null || dailyPromptLabel.isBlank()) dailyPromptLabel = "SIM DAILY PROMPT";
+            if (dailyPromptDateKey == null) dailyPromptDateKey = "";
+            if (dailyPromptText == null) dailyPromptText = "";
+        }
+
+        private void persistDailyPrompt() {
+            SettingsStore store = SettingsStore.get();
+            store.setValue(DAILY_PROMPT_DATE_KEY, dailyPromptDateKey == null ? "" : dailyPromptDateKey);
+            store.setValue(DAILY_PROMPT_LABEL_KEY, dailyPromptLabel == null ? "SIM DAILY PROMPT" : dailyPromptLabel);
+            store.setValue(DAILY_PROMPT_TEXT_KEY, dailyPromptText == null ? "" : dailyPromptText);
+            store.save();
+        }
+
+        private boolean isSimEnabled() {
+            try { return SimSettings.get().isEnabled(); } catch (Throwable ignored) { return false; }
+        }
+
+        private String todayDateKey() {
+            return LocalDate.now().toString();
+        }
+
+        private void ensureDailyPromptForToday() {
+            if (!isSimEnabled()) return;
+            String today = todayDateKey();
+            if (!today.equals(dailyPromptDateKey)) {
+                dailyPromptText = "";
+                dailyPromptLabel = "SIM DAILY PROMPT";
+                dailyPromptDateKey = "";
+            }
+            if (!dailyPromptText.isBlank() && today.equals(dailyPromptDateKey)) return;
+
+            long now = System.currentTimeMillis();
+            if (today.equals(requestedDailyPromptDateKey) && now - lastDailyPromptRequestMs < 25000L) return;
+            if (now - lastDailyPromptRequestMs < 4000L) return;
+            requestedDailyPromptDateKey = today;
+            lastDailyPromptRequestMs = now;
+            try { SimEventBus.get().emitDailyPromptRequested(today); } catch (Throwable ignored) {}
+        }
+
+        private void applyDailyPrompt(String dateKey, String label, String prompt) {
+            String cleanPrompt = prompt == null ? "" : prompt.strip();
+            if (cleanPrompt.isBlank()) return;
+            String cleanDate = normalizeDateKey(dateKey);
+            String cleanLabel = (label == null || label.isBlank()) ? "SIM DAILY PROMPT" : label.trim();
+            dailyPromptDateKey = cleanDate;
+            dailyPromptLabel = cleanLabel;
+            dailyPromptText = cleanPrompt;
+            requestedDailyPromptDateKey = "";
+            persistDailyPrompt();
+            updateDailyPromptChip();
+            if (dailyPromptPopup != null) {
+                try { dailyPromptPopup.setVisible(false); } catch (Throwable ignored) {}
+                dailyPromptPopup = null;
+            }
+        }
+
+        private void onDailyPromptChipClicked() {
+            if (!isSimEnabled()) return;
+            String today = todayDateKey();
+            if (dailyPromptText.isBlank() || !today.equals(dailyPromptDateKey)) {
+                ensureDailyPromptForToday();
+                return;
+            }
+            showDailyPromptPopup();
+        }
+
+        private String normalizeDateKey(String dateKey) {
+            if (dateKey != null && !dateKey.isBlank()) {
+                try { return LocalDate.parse(dateKey.trim()).toString(); } catch (Throwable ignored) {}
+            }
+            return todayDateKey();
+        }
+
+        private void updateDailyPromptChip() {
+            String label = (dailyPromptLabel == null || dailyPromptLabel.isBlank()) ? "SIM DAILY PROMPT" : dailyPromptLabel;
+            if (!isSimEnabled()) {
+                dailyPromptChip.setText(label + " • OFF");
+                dailyPromptChip.setEnabled(false);
+                dailyPromptChip.setToolTipText("Enable Sim to receive daily prompts.");
+                return;
+            }
+
+            dailyPromptChip.setEnabled(true);
+            String countdown = countdownToEndOfDay();
+            dailyPromptChip.setText(label + " • " + countdown + " left");
+            String today = todayDateKey();
+            if (!dailyPromptText.isBlank() && today.equals(dailyPromptDateKey)) {
+                dailyPromptChip.setToolTipText("Today's prompt is ready. Click to view.");
+            } else if (today.equals(requestedDailyPromptDateKey)
+                    && System.currentTimeMillis() - lastDailyPromptRequestMs < 25000L) {
+                dailyPromptChip.setToolTipText("Generating today's Sim daily prompt...");
+            } else {
+                dailyPromptChip.setToolTipText("Click to generate today's Sim daily prompt.");
+            }
+        }
+
+        private String countdownToEndOfDay() {
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime end = LocalDate.now().plusDays(1).atStartOfDay();
+            long totalSec = Math.max(0L, Duration.between(now, end).getSeconds());
+            long hh = totalSec / 3600L;
+            long mm = (totalSec % 3600L) / 60L;
+            long ss = totalSec % 60L;
+            return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", hh, mm, ss);
+        }
+
+        private void showDailyPromptPopup() {
+            if (dailyPromptText == null || dailyPromptText.isBlank()) return;
+            if (dailyPromptPopup != null) {
+                try { dailyPromptPopup.setVisible(false); } catch (Throwable ignored) {}
+            }
+            dailyPromptPopup = new JPopupMenu();
+            dailyPromptPopup.setBorder(BorderFactory.createLineBorder(new Color(184, 194, 208)));
+
+            JPanel wrap = new JPanel(new BorderLayout(0, 6));
+            wrap.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+            wrap.setBackground(Color.WHITE);
+            String title = (dailyPromptLabel == null || dailyPromptLabel.isBlank()) ? "SIM DAILY PROMPT" : dailyPromptLabel;
+            JLabel titleLbl = new JLabel(title + " • " + countdownToEndOfDay() + " left");
+            titleLbl.setForeground(new Color(62, 143, 224));
+            titleLbl.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            wrap.add(titleLbl, BorderLayout.NORTH);
+
+            JLabel body = new JLabel("<html><div style='width:320px; color:#2d3f57; font-size:12px;'>"
+                    + escapeHtml(dailyPromptText) + "</div></html>");
+            body.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            wrap.add(body, BorderLayout.CENTER);
+
+            dailyPromptPopup.add(wrap);
+            dailyPromptPopup.show(dailyPromptChip, 0, dailyPromptChip.getHeight() + 4);
+        }
+
+        private static String escapeHtml(String text) {
+            if (text == null || text.isEmpty()) return "";
+            String out = text;
+            out = out.replace("&", "&amp;");
+            out = out.replace("<", "&lt;");
+            out = out.replace(">", "&gt;");
+            out = out.replace("\"", "&quot;");
+            return out;
         }
 
         private void updateCounts() {

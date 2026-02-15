@@ -47,8 +47,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private boolean entryInProgress = false;
     private boolean panelAppearing = false;
     private boolean disposeInProgress = false;
-    private int revealIndex = 0;  // next orb to activate
-    private int hideIndex = -1;   // next orb to hide (dispose)
+    private float orbEntryPhase = 0f;  // reveal progression
+    private float orbExitPhase = 0f;   // hide progression
     private double[] orbT = new double[ORB_COUNT]; // 0..1 progress per orb
     private float panelT = 0f; // 0..1 expansion of text panel
     private float panelOpacity = 0f;
@@ -68,6 +68,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final int ORB_RADIUS = 16; // circle radius
     private static final int ORB_RING_RADIUS = 42; // distance from center
     private static final int HEART_CLEARANCE = 8; // extra spacing between heart and orbs
+    private static final float ORB_PHASE_STAGGER = 0.62f; // overlap between adjacent orb transitions
+    private static final float ORB_ENTRY_PHASE_SPEED = 0.072f;
+    private static final float ORB_EXIT_PHASE_SPEED = 0.078f;
     private final float[] orbHighlight = new float[ORB_COUNT];       // current 0..1
     private final float[] orbHighlightTarget = new float[ORB_COUNT]; // target 0..1
 
@@ -96,6 +99,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private boolean userInvokedActive = false;
     // Panel actions
     private JButton chatsButton;
+    private JButton templateButton;
     private JButton hideButton;
     // In-memory archived chat sessions
     private final java.util.List<ChatSession> archivedSessions = new java.util.ArrayList<>();
@@ -188,29 +192,27 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
             // Entry staged sequence: reveal orbs one-by-one.
             if (entryInProgress) {
-                if (revealIndex < ORB_COUNT) {
-                    orbT[revealIndex] = Math.min(1.0, orbT[revealIndex] + 0.10 * tickScale);
-                    if (orbT[revealIndex] >= 1.0) {
-                        revealIndex++;
-                    }
+                float prevPhase = orbEntryPhase;
+                orbEntryPhase = Math.min(orbPhaseEnd(), orbEntryPhase + (float) (ORB_ENTRY_PHASE_SPEED * tickScale));
+                applyOrbPhase(orbEntryPhase);
+                if (Math.abs(orbEntryPhase - prevPhase) > 0.0001f) {
                     needsRepaint = true;
-                } else {
+                }
+                if (orbEntryPhase >= orbPhaseEnd() - 0.0001f) {
                     // Floating buttons are shown after the orb reveal completes.
                     entryInProgress = false;
                 }
             }
 
-            // Dispose sequence: collapse panel then hide orbs in reverse
+            // Dispose sequence: hide orbs in reverse with staggered easing.
             if (disposeInProgress) {
-                if (panelT > 0f) {
-                    panelT = Math.max(0f, panelT - (float)(0.14f * tickScale));
-                    panelOpacity = Math.max(0f, panelOpacity - (float)(0.20f * tickScale));
+                float prevPhase = orbExitPhase;
+                orbExitPhase = Math.max(0f, orbExitPhase - (float) (ORB_EXIT_PHASE_SPEED * tickScale));
+                applyOrbPhase(orbExitPhase);
+                if (Math.abs(orbExitPhase - prevPhase) > 0.0001f) {
                     needsRepaint = true;
-                } else if (hideIndex >= 0) {
-                    orbT[hideIndex] = Math.max(0.0, orbT[hideIndex] - 0.14 * tickScale);
-                    if (orbT[hideIndex] <= 0.0) hideIndex--;
-                    needsRepaint = true;
-                } else {
+                }
+                if (orbExitPhase <= 0.0001f) {
                     disposeInProgress = false;
                     // Keep overlay visible if beacon is enabled; otherwise hide
                     if (!alwaysVisibleBeacon) setVisible(false);
@@ -423,6 +425,34 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             if (!userInvokedActive || chatMode) return;
             String out = text == null ? "" : text.strip();
             message = out.isEmpty() ? "I could not generate guidance this time." : "Guidance added to your entry.";
+            refreshActionButtonsState();
+            repaint();
+        });
+    }
+
+    @Override
+    public void onTemplateGenerationRequested(String text, String notebookName) {
+        SwingUtilities.invokeLater(() -> {
+            if (!userInvokedActive || chatMode) return;
+            setGuidanceThinking(true);
+            message = "Sim is generating a template…";
+            refreshActionButtonsState();
+            repaint();
+        });
+    }
+
+    @Override
+    public void onTemplateGenerated(String notebookName, String name, String description, String[] questions) {
+        SwingUtilities.invokeLater(() -> {
+            setGuidanceThinking(false);
+            if (!userInvokedActive || chatMode) return;
+            boolean saved = false;
+            try {
+                saved = app != null && app.addSimTemplateAndOpenManager(notebookName, name, description, questions);
+            } catch (Throwable ignored) {}
+            message = saved
+                    ? "Template created and opened in Template Manager."
+                    : "Template generated, but it could not be saved.";
             refreshActionButtonsState();
             repaint();
         });
@@ -752,6 +782,41 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         return (float)(1 + u*u*((s + 1)*u + s));
     }
 
+    private static float easeInOutCubic(float t) {
+        t = clamp01(t);
+        if (t < 0.5f) return 4f * t * t * t;
+        float u = -2f * t + 2f;
+        return 1f - (u * u * u) / 2f;
+    }
+
+    private static float inverseEaseInOutCubic(float y) {
+        y = clamp01(y);
+        if (y < 0.5f) {
+            return (float) Math.cbrt(y / 4f);
+        }
+        return 1f - (float) (Math.cbrt(2f * (1f - y)) / 2f);
+    }
+
+    private float orbPhaseEnd() {
+        return 1f + (ORB_COUNT - 1) * ORB_PHASE_STAGGER;
+    }
+
+    private void applyOrbPhase(float phase) {
+        for (int i = 0; i < ORB_COUNT; i++) {
+            float raw = clamp01(phase - i * ORB_PHASE_STAGGER);
+            orbT[i] = easeInOutCubic(raw);
+        }
+    }
+
+    private float estimateCurrentOrbPhase() {
+        float phase = 0f;
+        for (int i = 0; i < ORB_COUNT; i++) {
+            float raw = inverseEaseInOutCubic((float) orbT[i]);
+            phase = Math.max(phase, raw + i * ORB_PHASE_STAGGER);
+        }
+        return clamp01(phase / Math.max(0.0001f, orbPhaseEnd())) * orbPhaseEnd();
+    }
+
     // Consider panel "open" when expansion animation is effectively done
     private boolean isPanelOpen() {
         return panelT >= 0.98f;
@@ -969,21 +1034,23 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     private void layoutActionButtons() {
-        if (chatsButton == null || hideButton == null) return;
+        if (chatsButton == null || templateButton == null || hideButton == null) return;
         refreshActionButtonsState();
         int padding = 14;
         int leftW = 140;
         int rightX = padding + leftW + 10;
         int availableW = Math.max(120, getWidth() - rightX - padding);
         int btnY = (getHeight() / 2) - 12 + entranceOffsetY;
-        int guidanceW = 92;
+        int guidanceW = 82;
+        int templateW = 88;
         int hideW = 56;
         int gap = 8;
 
-        int total = guidanceW + gap + hideW;
+        int total = guidanceW + gap + templateW + gap + hideW;
         int startX = rightX + Math.max(0, (availableW - total) / 2);
         chatsButton.setBounds(startX, btnY, guidanceW, 24);
-        hideButton.setBounds(startX + guidanceW + gap, btnY, hideW, 24);
+        templateButton.setBounds(startX + guidanceW + gap, btnY, templateW, 24);
+        hideButton.setBounds(startX + guidanceW + gap + templateW + gap, btnY, hideW, 24);
 
         boolean visible = userInvokedActive && !disposeInProgress && !entryInProgress;
         setActionButtonsVisible(visible);
@@ -991,14 +1058,17 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     private void setActionButtonsVisible(boolean visible) {
         if (chatsButton != null) chatsButton.setVisible(visible);
+        if (templateButton != null) templateButton.setVisible(visible);
         if (hideButton != null) hideButton.setVisible(visible);
     }
 
     private void ensureActionButtons() {
         if (chatsButton != null) return;
         chatsButton = createActionButton("Guidance", this::onSecondaryAction);
+        templateButton = createActionButton("Template", this::onTemplateAction);
         hideButton = createActionButton("Hide", this::deactivateFromHeart);
         add(chatsButton);
+        add(templateButton);
         add(hideButton);
         refreshActionButtonsState();
         setActionButtonsVisible(false);
@@ -1006,6 +1076,10 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
 
     private void onSecondaryAction() {
         requestGuidanceFromMenu();
+    }
+
+    private void onTemplateAction() {
+        requestTemplateFromMenu();
     }
 
     private void requestGuidanceFromMenu() {
@@ -1030,6 +1104,28 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         repaint();
     }
 
+    private void requestTemplateFromMenu() {
+        boolean available = isTemplateGenerationAvailableInContext();
+        if (!available) {
+            setGuidanceThinking(false);
+            message = "Open a journal entry to generate a template.";
+            repaint();
+            return;
+        }
+        boolean requested = false;
+        try {
+            requested = app != null && app.requestSimTemplateGenerationForCurrentCard();
+        } catch (Throwable ignored) {}
+        if (requested) {
+            setGuidanceThinking(true);
+            message = "Sim is generating a template…";
+        } else {
+            message = "Template generation is already running.";
+        }
+        refreshActionButtonsState();
+        repaint();
+    }
+
     private boolean isGuidanceAvailableInContext() {
         try {
             return app != null && app.isSimGuidanceAvailableForCurrentCard();
@@ -1038,15 +1134,32 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         }
     }
 
+    private boolean isTemplateGenerationAvailableInContext() {
+        try {
+            return app != null && app.isSimTemplateGenerationAvailableForCurrentCard();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private void refreshActionButtonsState() {
-        if (chatsButton == null) return;
+        if (chatsButton == null || templateButton == null) return;
         chatsButton.setText("Guidance");
-        boolean enabled = isGuidanceAvailableInContext() && !guidanceThinking;
-        chatsButton.setEnabled(enabled);
+        boolean guidanceEnabled = isGuidanceAvailableInContext() && !guidanceThinking;
+        chatsButton.setEnabled(guidanceEnabled);
         chatsButton.setToolTipText(guidanceThinking
                 ? "Sim is currently generating guidance"
-                : enabled
+                : guidanceEnabled
                 ? "Generate guidance from the current journal entry"
+                : "Available only in a journal entry editor");
+
+        templateButton.setText("Template");
+        boolean templateEnabled = isTemplateGenerationAvailableInContext() && !guidanceThinking;
+        templateButton.setEnabled(templateEnabled);
+        templateButton.setToolTipText(guidanceThinking
+                ? "Sim is currently working"
+                : templateEnabled
+                ? "Generate a new journal template from the current entry"
                 : "Available only in a journal entry editor");
     }
 
@@ -1122,8 +1235,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         setGuidanceThinking(false);
         thinkingPulse = 0f;
         thinkingOrbScale = 1f;
-        revealIndex = 0;
-        hideIndex = -1;
+        orbEntryPhase = 0f;
+        orbExitPhase = orbPhaseEnd();
         panelT = 0f;
         panelOpacity = 0f;
         for (int i = 0; i < ORB_COUNT; i++) {
@@ -1141,7 +1254,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         setGuidanceThinking(false);
         thinkingPulse = 0f;
         thinkingOrbScale = 1f;
-        hideIndex = ORB_COUNT - 1;
+        orbExitPhase = estimateCurrentOrbPhase();
         setActionButtonsVisible(false);
         endChatModeInternal(false);
     }

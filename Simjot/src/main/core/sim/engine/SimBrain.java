@@ -8,10 +8,15 @@
 
 package main.core.sim.engine;
 
+import java.io.File;
 import java.time.LocalTime;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,6 +33,7 @@ import main.core.sim.memory.PersistentMemoryStore;
 import main.core.sim.persona.SimPersonality;
 import main.core.sim.prefs.SimSettings;
 import main.core.sim.state.UserState;
+import main.infrastructure.backup.NotebookInfo;
  import main.core.sim.proactive.TriggerStatsStore;
  import main.core.sim.retrieval.RecencyBuffer;
  import main.core.sim.retrieval.RetrievalRanker;
@@ -92,6 +98,14 @@ public final class SimBrain implements SimEventBus.Listener {
         t.setDaemon(true);
         return t;
     });
+    private final ExecutorService dailyPromptExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "Sim-Brain-DailyPrompt");
+        t.setDaemon(true);
+        return t;
+    });
+    private final Object dailyPromptLock = new Object();
+    private final java.util.Set<String> dailyPromptInFlight = new java.util.HashSet<>();
+    private static final String DAILY_PROMPT_LABEL = "SIM DAILY PROMPT";
     private ScheduledFuture<?> tickFuture;
 
     // Track last explicit invocation source (e.g., heart, hotkey)
@@ -127,6 +141,7 @@ public final class SimBrain implements SimEventBus.Listener {
         SimEventBus.get().removeListener(this);
         try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
         try { if (tickFuture != null) tickFuture.cancel(true); } catch (Throwable ignored) {}
+        try { dailyPromptExecutor.shutdownNow(); } catch (Throwable ignored) {}
         try { guidanceExecutor.shutdownNow(); } catch (Throwable ignored) {}
         try { scheduler.shutdownNow(); } catch (Throwable ignored) {}
     }
@@ -426,6 +441,430 @@ public final class SimBrain implements SimEventBus.Listener {
         }
         // If LLM unavailable, do not emit a generic fallback to avoid noise
     }
+
+    @Override
+    public void onTemplateGenerationRequested(String text, String notebookName) {
+        if (!settings.isEnabled()) return;
+        String txt = (text == null) ? "" : text.strip();
+        if (txt.isEmpty()) return;
+        try { guidanceExecutor.execute(() -> generateTemplateAsync(txt, notebookName)); } catch (Throwable ignored) {}
+    }
+
+    private void generateTemplateAsync(String text, String notebookName) {
+        SimTemplateDraft draft = null;
+        if (settings.isLlmEnabled()) ensureLlm();
+        if (llm != null) {
+            try {
+                String sys = CriticPromptDecorator.decorateSystem(PromptBuilder.systemPrompt(personality.getType()));
+                String journal = text.length() > 2400 ? text.substring(text.length() - 2400) : text;
+                String usr = String.join("\n\n",
+                        moodContextForPrompt() + " " + emotionsContextForPrompt() + " " + factsContextForPrompt(),
+                        "Create one practical journaling template from the text below.",
+                        "Output format (strict):",
+                        "NAME: <short title 2-5 words>",
+                        "DESCRIPTION: <one concise sentence>",
+                        "Q1: <question>",
+                        "Q2: <question>",
+                        "Q3: <question>",
+                        "Q4: <question optional>",
+                        "Rules: plain text only, no markdown, no bullets.",
+                        "Journal text:\n\"\"\"\n" + journal + "\n\"\"\""
+                );
+                main.core.sim.llm.api.SimLLMResponse resp = llm.generate(
+                        new main.core.sim.llm.api.SimLLMRequest(sys, usr, 260, 0.75),
+                        Duration.ofSeconds(20)
+                );
+                draft = parseTemplateDraft(resp == null ? "" : resp.text);
+            } catch (Throwable ignored) {
+                draft = null;
+            }
+        }
+        if (draft == null) {
+            draft = fallbackTemplateDraft(text);
+        }
+        if (draft == null) return;
+        if (draft.questions == null || draft.questions.length == 0) {
+            draft.questions = new String[]{
+                    "What feels most important for you to unpack right now?",
+                    "What pattern do you notice in this experience?",
+                    "What is one small step that would support you today?"
+            };
+        }
+        try {
+            SimEventBus.get().emitTemplateGenerated(
+                    normalizeNotebookName(notebookName),
+                    safeTemplateName(draft.name),
+                    safeTemplateDescription(draft.description),
+                    draft.questions
+            );
+        } catch (Throwable ignored) {}
+    }
+
+    private static String normalizeNotebookName(String notebookName) {
+        if (notebookName == null) return "";
+        String n = notebookName.trim();
+        return n.isEmpty() ? "" : n;
+    }
+
+    private static String safeTemplateName(String name) {
+        String n = name == null ? "" : name.trim();
+        if (n.isEmpty()) return "Sim Reflection Template";
+        if (n.length() > 48) n = n.substring(0, 48).trim();
+        return n;
+    }
+
+    private static String safeTemplateDescription(String description) {
+        String d = description == null ? "" : description.trim();
+        if (d.isEmpty()) return "Generated by Sim from your recent writing context.";
+        if (d.length() > 180) d = d.substring(0, 180).trim();
+        return d;
+    }
+
+    private SimTemplateDraft parseTemplateDraft(String text) {
+        if (text == null || text.isBlank()) return null;
+        String[] lines = text.replace('\r', '\n').split("\n");
+        String name = "";
+        String description = "";
+        List<String> questions = new ArrayList<>();
+        for (String raw : lines) {
+            if (raw == null) continue;
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+            if (line.regionMatches(true, 0, "NAME:", 0, 5)) {
+                name = line.substring(5).trim();
+                continue;
+            }
+            if (line.regionMatches(true, 0, "DESCRIPTION:", 0, 12)) {
+                description = line.substring(12).trim();
+                continue;
+            }
+            if (line.matches("(?i)^Q\\d+\\s*:.*")) {
+                int idx = line.indexOf(':');
+                if (idx >= 0 && idx < line.length() - 1) {
+                    String q = line.substring(idx + 1).trim();
+                    if (!q.isEmpty()) questions.add(q);
+                }
+                continue;
+            }
+            if (line.startsWith("-") || line.startsWith("•")) {
+                String q = line.substring(1).trim();
+                if (!q.isEmpty()) questions.add(q);
+            }
+        }
+        if (name.isBlank() && description.isBlank() && questions.isEmpty()) return null;
+        List<String> cleaned = new ArrayList<>();
+        for (String q : questions) {
+            if (q == null) continue;
+            String c = q.trim();
+            if (c.isEmpty()) continue;
+            if (c.length() > 180) c = c.substring(0, 180).trim();
+            cleaned.add(c);
+            if (cleaned.size() >= 5) break;
+        }
+        if (cleaned.isEmpty()) cleaned = List.of(
+                "What part of this situation feels most emotionally charged today?",
+                "What need is underneath this feeling?",
+                "What is one supportive action you can take next?"
+        );
+        SimTemplateDraft d = new SimTemplateDraft();
+        d.name = safeTemplateName(name);
+        d.description = safeTemplateDescription(description);
+        d.questions = cleaned.toArray(new String[0]);
+        return d;
+    }
+
+    private SimTemplateDraft fallbackTemplateDraft(String text) {
+        String normalized = text == null ? "" : text.toLowerCase(java.util.Locale.ROOT);
+        String name;
+        String description;
+        if (looksNegative(normalized)) {
+            name = "Grounding Reset";
+            description = "A template to slow down, process heavy feelings, and regain clarity.";
+        } else {
+            name = "Daily Reflection";
+            description = "A template to reflect on your day and identify intentional next steps.";
+        }
+        SimTemplateDraft d = new SimTemplateDraft();
+        d.name = name;
+        d.description = description;
+        d.questions = new String[]{
+                "What stood out emotionally for you today?",
+                "What thought or situation keeps returning, and why?",
+                "What helped you cope or feel better, even a little?",
+                "What is one small action you want to take next?"
+        };
+        return d;
+    }
+
+    private static final class SimTemplateDraft {
+        String name;
+        String description;
+        String[] questions;
+    }
+
+    @Override
+    public void onDailyPromptRequested(String dateKey) {
+        if (!settings.isEnabled()) return;
+        final String dayKey = normalizeDateKey(dateKey);
+        boolean shouldGenerate;
+        synchronized (dailyPromptLock) {
+            shouldGenerate = dailyPromptInFlight.add(dayKey);
+        }
+        if (!shouldGenerate) return;
+        try {
+            dailyPromptExecutor.execute(() -> generateDailyPromptAsync(dayKey));
+        } catch (Throwable ignored) {
+            synchronized (dailyPromptLock) { dailyPromptInFlight.remove(dayKey); }
+        }
+    }
+
+    private void generateDailyPromptAsync(String dateKey) {
+        try {
+            DailyPromptContext ctx = collectDailyPromptContext();
+            String prompt = generateDailyPromptWithLlm(dateKey, ctx);
+            if (prompt == null || prompt.isBlank()) {
+                prompt = fallbackDailyPrompt(ctx);
+            }
+            try { SimEventBus.get().emitDailyPromptProduced(dateKey, DAILY_PROMPT_LABEL, prompt); } catch (Throwable ignored) {}
+        } finally {
+            synchronized (dailyPromptLock) { dailyPromptInFlight.remove(dateKey); }
+        }
+    }
+
+    private String generateDailyPromptWithLlm(String dateKey, DailyPromptContext ctx) {
+        if (!settings.isLlmEnabled()) return "";
+        ensureLlm();
+        if (llm == null) return "";
+        try {
+            String sys = CriticPromptDecorator.decorateSystem(PromptBuilder.systemPrompt(personality.getType()));
+            String usr = String.join("\n",
+                    "Create exactly one daily journaling prompt for " + dateKey + ".",
+                    "Use the user's mood and recent entry themes as context.",
+                    "Rules:",
+                    "- one sentence only",
+                    "- 16 to 32 words",
+                    "- compassionate and practical",
+                    "- no bullet, no numbering, no label, no quotation marks",
+                    "- plain text only",
+                    "",
+                    "Context:",
+                    ctx.asPromptContext(),
+                    "",
+                    "Daily prompt:");
+            main.core.sim.llm.api.SimLLMResponse resp = llm.generate(
+                    new main.core.sim.llm.api.SimLLMRequest(sys, usr, 120, 0.85),
+                    Duration.ofSeconds(18)
+            );
+            return sanitizeDailyPrompt(resp == null ? "" : resp.text);
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    private DailyPromptContext collectDailyPromptContext() {
+        DailyPromptContext ctx = new DailyPromptContext();
+        try {
+            List<SimDataGateway.MoodSample> moods = data.readMoodSamples(40);
+            if (moods != null && !moods.isEmpty()) {
+                ctx.moodAvg7 = averageMood(moods, 7);
+                ctx.moodAvg30 = averageMood(moods, 30);
+                ctx.moodTrend = moodTrend(moods);
+                String avg7 = Double.isNaN(ctx.moodAvg7) ? "n/a" : String.format(java.util.Locale.ROOT, "%.0f", ctx.moodAvg7);
+                String avg30 = Double.isNaN(ctx.moodAvg30) ? "n/a" : String.format(java.util.Locale.ROOT, "%.0f", ctx.moodAvg30);
+                ctx.moodSummary = "Mood summary: 7-day avg " + avg7 + ", 30-day avg " + avg30 + ", trend " + ctx.moodTrend + ".";
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            List<File> entries = collectRecentEntries(8);
+            if (!entries.isEmpty()) {
+                StringBuilder snippetSummary = new StringBuilder();
+                List<String> texts = new ArrayList<>();
+                int taken = 0;
+                for (File f : entries) {
+                    if (f == null || !f.isFile()) continue;
+                    String raw = data.readEntry(f, 1000);
+                    String compact = compactText(raw, 220);
+                    if (compact.isBlank()) continue;
+                    texts.add(compact);
+                    if (taken < 3) {
+                        if (snippetSummary.length() > 0) snippetSummary.append(" | ");
+                        snippetSummary.append(stripExtension(f.getName())).append(": ").append(compact);
+                        taken++;
+                    }
+                }
+                if (snippetSummary.length() > 0) {
+                    ctx.entrySummary = "Recent entries: " + snippetSummary + ".";
+                }
+                String topTheme = inferTopTheme(texts);
+                if (!topTheme.isBlank()) {
+                    ctx.topTheme = topTheme;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return ctx;
+    }
+
+    private List<File> collectRecentEntries(int limit) {
+        List<File> out = new ArrayList<>();
+        List<NotebookInfo> notebooks = data.listNotebooks();
+        if (notebooks == null || notebooks.isEmpty()) return out;
+        int perNotebook = Math.max(2, limit);
+        for (NotebookInfo nb : notebooks) {
+            if (nb == null) continue;
+            List<File> entries = data.listEntriesByModifiedDesc(nb, perNotebook);
+            if (entries == null || entries.isEmpty()) continue;
+            out.addAll(entries);
+        }
+        out.sort(Comparator.comparingLong(File::lastModified).reversed());
+        if (out.size() > limit) return new ArrayList<>(out.subList(0, limit));
+        return out;
+    }
+
+    private static double averageMood(List<SimDataGateway.MoodSample> moods, int window) {
+        if (moods == null || moods.isEmpty() || window <= 0) return Double.NaN;
+        int n = Math.min(window, moods.size());
+        if (n <= 0) return Double.NaN;
+        double sum = 0.0;
+        for (int i = 0; i < n; i++) {
+            SimDataGateway.MoodSample sample = moods.get(i);
+            if (sample == null) continue;
+            sum += sample.value;
+        }
+        return sum / n;
+    }
+
+    private static String moodTrend(List<SimDataGateway.MoodSample> moods) {
+        if (moods == null || moods.size() < 4) return "steady";
+        int n = Math.min(14, moods.size());
+        int half = n / 2;
+        if (half < 2) return "steady";
+        double recent = 0.0;
+        double previous = 0.0;
+        for (int i = 0; i < half; i++) recent += moods.get(i).value;
+        for (int i = half; i < half * 2; i++) previous += moods.get(i).value;
+        recent /= half;
+        previous /= half;
+        double delta = recent - previous;
+        if (delta > 3.0) return "up";
+        if (delta < -3.0) return "down";
+        return "steady";
+    }
+
+    private static String compactText(String text, int maxChars) {
+        if (text == null || text.isBlank()) return "";
+        String out = text.replace('\r', ' ').replace('\n', ' ').replaceAll("\\s+", " ").trim();
+        if (maxChars > 0 && out.length() > maxChars) {
+            out = out.substring(out.length() - maxChars).trim();
+        }
+        return out;
+    }
+
+    private static String stripExtension(String name) {
+        if (name == null) return "";
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    private static String inferTopTheme(List<String> texts) {
+        if (texts == null || texts.isEmpty()) return "";
+        java.util.Map<String, Integer> freq = new java.util.HashMap<>();
+        for (String text : texts) {
+            if (text == null || text.isBlank()) continue;
+            String[] parts = text.toLowerCase(java.util.Locale.ROOT).split("[^a-z]+");
+            for (String token : parts) {
+                if (token == null || token.length() < 4) continue;
+                if (DAILY_PROMPT_STOP_WORDS.contains(token)) continue;
+                freq.put(token, freq.getOrDefault(token, 0) + 1);
+            }
+        }
+        String best = "";
+        int bestScore = 0;
+        for (java.util.Map.Entry<String, Integer> e : freq.entrySet()) {
+            if (e == null || e.getKey() == null || e.getValue() == null) continue;
+            int score = e.getValue();
+            if (score > bestScore) {
+                best = e.getKey();
+                bestScore = score;
+            }
+        }
+        return bestScore >= 2 ? best : "";
+    }
+
+    private String sanitizeDailyPrompt(String text) {
+        if (text == null || text.isBlank()) return "";
+        String raw = text.replace('\r', '\n').trim();
+        String selected = "";
+        String[] lines = raw.split("\n");
+        for (String line : lines) {
+            if (line == null) continue;
+            String s = line.trim();
+            if (s.isEmpty()) continue;
+            s = s.replaceFirst("(?i)^(daily\\s*prompt|prompt|label)\\s*:\\s*", "");
+            s = s.replaceFirst("^[\\-•\\d\\)\\.\\s]+", "");
+            if (s.isEmpty()) continue;
+            selected = s;
+            break;
+        }
+        if (selected.isEmpty()) selected = raw;
+        selected = selected.replaceAll("^\"+|\"+$", "").trim();
+        if (selected.length() > 220) selected = selected.substring(0, 220).trim();
+        return selected;
+    }
+
+    private String fallbackDailyPrompt(DailyPromptContext ctx) {
+        String theme = ctx.topTheme;
+        if (theme != null && !theme.isBlank()) {
+            if (!Double.isNaN(ctx.moodAvg7) && ctx.moodAvg7 < 40.0) {
+                return "When " + theme + " feels heavy today, what is one kind action you can take for yourself before tonight?";
+            }
+            if (!Double.isNaN(ctx.moodAvg7) && ctx.moodAvg7 > 70.0) {
+                return "What part of " + theme + " lifted you today, and how can you carry that feeling into tomorrow morning?";
+            }
+            return "As you reflect on " + theme + " today, what pattern do you notice, and what one intentional step can you take before the day ends?";
+        }
+        if (!Double.isNaN(ctx.moodAvg7) && ctx.moodAvg7 < 40.0) {
+            return "What felt most difficult today, and what one small, realistic act of self-care can you commit to before you sleep?";
+        }
+        if ("up".equals(ctx.moodTrend)) {
+            return "What helped your mood rise today, and how can you repeat a small part of that support tomorrow?";
+        }
+        if ("down".equals(ctx.moodTrend)) {
+            return "What may have pulled your mood down today, and what boundary or reset would support you for the rest of the evening?";
+        }
+        return "What moment from today deserves a deeper look, and what gentle next step would help you feel more grounded before tonight ends?";
+    }
+
+    private String normalizeDateKey(String dateKey) {
+        if (dateKey != null && !dateKey.isBlank()) {
+            try { return LocalDate.parse(dateKey.trim()).toString(); } catch (Throwable ignored) {}
+        }
+        return LocalDate.now().toString();
+    }
+
+    private static final class DailyPromptContext {
+        double moodAvg7 = Double.NaN;
+        double moodAvg30 = Double.NaN;
+        String moodTrend = "steady";
+        String moodSummary = "Mood summary: no recent mood data.";
+        String entrySummary = "Recent entries: none.";
+        String topTheme = "";
+
+        String asPromptContext() {
+            if (topTheme == null || topTheme.isBlank()) {
+                return moodSummary + "\n" + entrySummary;
+            }
+            return moodSummary + "\n" + entrySummary + "\nDominant theme hint: " + topTheme + ".";
+        }
+    }
+
+    private static final java.util.Set<String> DAILY_PROMPT_STOP_WORDS = java.util.Set.of(
+            "that", "this", "with", "from", "have", "been", "were", "your", "about", "there", "their",
+            "just", "then", "into", "after", "before", "because", "while", "where", "when", "what",
+            "they", "them", "feel", "feels", "feeling", "today", "really", "very", "still", "also",
+            "would", "could", "should", "being", "than", "over", "under", "more", "less",
+            "make", "made", "doing", "done", "want", "wanted", "need", "needed", "time", "things"
+    );
 
     // --- Helpers ---
 

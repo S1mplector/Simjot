@@ -94,6 +94,7 @@ import main.core.security.crypto.CryptoConfig;
 import main.core.security.crypto.CryptoException;
 import main.core.security.crypto.EncryptedMetadata;
 import main.core.service.LastSaveTracker;
+import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
 import main.core.sim.api.SimEventBus;
 import main.core.spelling.AutocorrectDocumentFilter;
@@ -151,6 +152,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private int pendingGuidanceStart = -1;
     private int pendingGuidanceLen = 0;
     private volatile boolean awaitingGuidanceResponse = false;
+    private volatile boolean awaitingTemplateResponse = false;
     private final SimEventBus.Listener simGuidanceListener = new SimEventBus.Listener() {
         @Override
         public void onGuidanceProduced(String text) {
@@ -163,6 +165,11 @@ public class EntryPanel extends AbstractEditorPanel {
                 }
                 insertGuidanceStyled(guidance);
             });
+        }
+
+        @Override
+        public void onTemplateGenerated(String notebookName, String name, String description, String[] questions) {
+            awaitingTemplateResponse = false;
         }
     };
     private boolean simGuidanceListenerRegistered = false;
@@ -306,6 +313,45 @@ public class EntryPanel extends AbstractEditorPanel {
             awaitingGuidanceResponse = false;
             return false;
         }
+    }
+
+    public boolean isSimTemplateGenerationAvailable() {
+        if (!supportsGuidanceButton()) return false;
+        if (contentArea == null) return false;
+        if (!contentArea.isEditable()) return false;
+        return isShowing();
+    }
+
+    public boolean requestSimTemplateGenerationFromOverlay() {
+        if (!isSimTemplateGenerationAvailable()) return false;
+        if (awaitingTemplateResponse) return false;
+        String text = contentArea.getText();
+        if (text == null || text.isBlank()) return false;
+        String notebookName = resolveJournalNotebookName();
+        try {
+            awaitingTemplateResponse = true;
+            SimEventBus.get().emitTemplateGenerationRequested(text, notebookName);
+            contentArea.requestFocusInWindow();
+            return true;
+        } catch (Throwable ignored) {
+            awaitingTemplateResponse = false;
+            return false;
+        }
+    }
+
+    private String resolveJournalNotebookName() {
+        try {
+            if (journalFolder == null) return "";
+            java.nio.file.Path current = journalFolder.toPath().toAbsolutePath().normalize();
+            for (NotebookInfo nb : new NotebookStore().list()) {
+                if (nb == null || nb.getType() != NotebookInfo.Type.JOURNAL) continue;
+                File folder = nb.getFolder();
+                if (folder == null) continue;
+                java.nio.file.Path folderPath = folder.toPath().toAbsolutePath().normalize();
+                if (folderPath.equals(current)) return nb.getName();
+            }
+        } catch (Throwable ignored) {}
+        return "";
     }
 
     private void registerSimGuidanceListenerIfSupported() {
@@ -2395,6 +2441,7 @@ public class EntryPanel extends AbstractEditorPanel {
     public void removeNotify() {
         try { if (autosaveCoordinator != null) autosaveCoordinator.shutdown(); } catch (Throwable ignored) {}
         awaitingGuidanceResponse = false;
+        awaitingTemplateResponse = false;
         unregisterSimGuidanceListener();
         releaseEntryLock();
         super.removeNotify();

@@ -40,6 +40,14 @@ public final class SimEventBus {
         default void onGuidanceRequested(String text) {}
         // Sim produced guidance text to be inserted into editor
         default void onGuidanceProduced(String text) {}
+        // Request a fresh daily reflection prompt for local date key (yyyy-MM-dd)
+        default void onDailyPromptRequested(String dateKey) {}
+        // Daily prompt produced by Sim
+        default void onDailyPromptProduced(String dateKey, String label, String prompt) {}
+        // Request Sim to generate a journal template from current text and optional notebook context
+        default void onTemplateGenerationRequested(String text, String notebookName) {}
+        // Sim generated a template draft payload
+        default void onTemplateGenerated(String notebookName, String name, String description, String[] questions) {}
         // User clicked a CTA to chat more; Phase 1: request a single follow-up turn
         default void onChatFollowupRequested() {}
         // Phase 2 chat events
@@ -120,6 +128,37 @@ public final class SimEventBus {
     public void emitGuidanceProduced(String text){
         if (verboseLogging) System.out.println("[SimBus] guidanceProduced len=" + (text==null?0:text.length()));
         for (var l: listeners) l.onGuidanceProduced(text);
+    }
+
+    public void emitDailyPromptRequested(String dateKey){
+        if (verboseLogging) System.out.println("[SimBus] dailyPromptRequested date=" + String.valueOf(dateKey));
+        for (var l: listeners) l.onDailyPromptRequested(dateKey);
+    }
+
+    public void emitDailyPromptProduced(String dateKey, String label, String prompt){
+        if (verboseLogging) {
+            int len = prompt == null ? 0 : prompt.length();
+            System.out.println("[SimBus] dailyPromptProduced date=" + String.valueOf(dateKey)
+                    + " label=" + String.valueOf(label) + " len=" + len);
+        }
+        for (var l: listeners) l.onDailyPromptProduced(dateKey, label, prompt);
+    }
+
+    public void emitTemplateGenerationRequested(String text, String notebookName){
+        if (verboseLogging) {
+            int len = text == null ? 0 : text.length();
+            System.out.println("[SimBus] templateGenerationRequested len=" + len + " notebook=" + String.valueOf(notebookName));
+        }
+        for (var l: listeners) l.onTemplateGenerationRequested(text, notebookName);
+    }
+
+    public void emitTemplateGenerated(String notebookName, String name, String description, String[] questions){
+        if (verboseLogging) {
+            int q = questions == null ? 0 : questions.length;
+            System.out.println("[SimBus] templateGenerated notebook=" + String.valueOf(notebookName)
+                    + " name=" + String.valueOf(name) + " q=" + q);
+        }
+        for (var l: listeners) l.onTemplateGenerated(notebookName, name, description, questions);
     }
 
     // App-level: request all listeners to quit/close gracefully
