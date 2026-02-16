@@ -44,6 +44,11 @@ public final class MagiClient implements SimLLMClient {
 
     @Override
     public SimLLMResponse generate(SimLLMRequest request, Duration timeout) throws Exception {
+        if ((openAiApiKey == null || openAiApiKey.isBlank())
+                && (System.getenv("OPENAI_API_KEY") == null || System.getenv("OPENAI_API_KEY").isBlank())) {
+            throw new IOException("MAGI requires a real OpenAI API key; mock mode is disabled.");
+        }
+
         Path bridge = resolveBridgeScript();
         long timeoutMs = (timeout == null ? Duration.ofSeconds(25) : timeout).toMillis();
         if (timeoutMs < 1000L) timeoutMs = 1000L;
@@ -90,6 +95,14 @@ public final class MagiClient implements SimLLMClient {
             String error = NativeJson.getString(json, "error");
             if (error == null || error.isBlank()) error = "unknown MAGI bridge error";
             throw new IOException(error);
+        }
+
+        String magiMode = NativeJson.getString(json, "magi_mode");
+        if (magiMode != null && magiMode.trim().equalsIgnoreCase("mock")) {
+            String initError = NativeJson.getString(json, "magi_init_error");
+            StringBuilder sb = new StringBuilder("MAGI initialized in mock mode; this is disabled.");
+            if (initError != null && !initError.isBlank()) sb.append(" Init error: ").append(initError);
+            throw new IOException(sb.toString());
         }
 
         String text = NativeJson.getString(json, "text");

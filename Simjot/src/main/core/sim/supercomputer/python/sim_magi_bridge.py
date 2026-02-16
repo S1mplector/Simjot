@@ -361,7 +361,9 @@ def _brain_statuses(response: object) -> dict[str, str]:
         if isinstance(payload, dict):
             raw = payload.get("status")
             status_hint = _normalize_vote_status(raw)
-            if status_hint in {"yes", "no", "deadlock"}:
+            if status_hint == "error":
+                status = "error"
+            elif status_hint in {"yes", "no", "deadlock"}:
                 status = status_hint
             else:
                 status = infer_vote(payload, status_hint)
@@ -423,6 +425,16 @@ def main() -> int:
         max_tokens = payload.get("max_tokens")
         temperature = payload.get("temperature")
 
+        if not openai_api_key:
+            _write_json({
+                "ok": False,
+                "error": (
+                    "MAGI requires a real OpenAI API key. "
+                    "No key was provided, and mock mode is disabled."
+                ),
+            })
+            return 0
+
         # Keep MAGI responsive for UI-triggered calls.
         os.environ.setdefault("MAGI_FAST_MODE", "1")
         os.environ.setdefault("MAGI_MAX_DELIBERATION_ROUNDS", "1")
@@ -440,17 +452,35 @@ def main() -> int:
 
         magi = MAGISystem.get_instance()
         try:
-            magi.initialize(api_key=openai_api_key or None, model=model, use_mock_on_failure=True)
+            magi.initialize(api_key=openai_api_key, model=model, use_mock_on_failure=False)
         except TypeError:
             # Backward compatibility if MAGI initialize signature changes.
-            magi.initialize(api_key=openai_api_key or None, model=model)
+            magi.initialize(api_key=openai_api_key, model=model)
         mode = _clean_text(getattr(magi, "mode", "")) or "unknown"
         init_error = _clean_text(getattr(magi, "last_init_error", ""))
+        if mode.lower() == "mock":
+            _write_json({
+                "ok": False,
+                "error": (
+                    "MAGI initialized in mock mode, which is not allowed. "
+                    + (f"Init error: {init_error}" if init_error else "")
+                ).strip(),
+            })
+            return 0
 
         response = magi.deliberate(question)
         answer_raw = _clean_text(getattr(response, "answer", ""))
         answer = _normalize_answer_text(answer_raw, response)
         status = _clean_text(getattr(response, "status", "info")) or "info"
+        if _normalize_vote_status(status) == "error":
+            _write_json({
+                "ok": False,
+                "error": answer or "MAGI failed to complete deliberation in OpenAI mode.",
+                "model": model,
+                "magi_mode": mode,
+                "magi_init_error": init_error,
+            })
+            return 0
         primary_consensus_raw = _clean_text(getattr(response, "consensus", ""))
         brain_states = _brain_statuses(response)
         consensus = _derive_consensus(primary_consensus_raw, status, brain_states)
