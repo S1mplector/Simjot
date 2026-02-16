@@ -1572,6 +1572,17 @@ public class JournalApp extends JFrame {
         return false;
     }
 
+    public boolean startSimTemplateGenerationChat(String notebookName) {
+        if (simOverlay == null) return false;
+        try {
+            simOverlay.startTemplateGenerationChat(notebookName);
+            return true;
+        } catch (Throwable t) {
+            logWarn("startSimTemplateGenerationChat", t);
+            return false;
+        }
+    }
+
     public boolean addSimTemplateAndOpenManager(String notebookName, String name, String description, String[] questions) {
         try {
             String templateName = (name == null ? "" : name.trim());

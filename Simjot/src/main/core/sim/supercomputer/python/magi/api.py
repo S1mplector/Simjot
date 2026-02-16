@@ -24,6 +24,7 @@ from .core.brain import BrainConfig
 from .core.decision import Decision
 from .brains import create_melchior, create_balthasar, create_casper
 from .llm.client import create_openai_client, MockLLMClient
+from .network.system import MAGISystem as PTOSMAGISystem
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -77,6 +78,7 @@ class MAGISystem:
         self._api_key = api_key
         self._model = model or os.getenv("MAGI_MODEL", "gpt-5")
         self._engine: Optional[MAGIEngine] = None
+        self._ptos_system: Optional[PTOSMAGISystem] = None
         self._initialized = False
         self._mode = "uninitialized"  # "openai" | "mock" | "uninitialized"
         self._last_init_error: Optional[str] = None
@@ -118,35 +120,47 @@ class MAGISystem:
             mode = "mock"
             self._last_init_error = str(exc)
 
-        brain_config = BrainConfig(model=self._model)
+        # Primary runtime path: full PTOS system with engram-backed MAGI units.
+        installation_id = os.getenv("MAGI_INSTALLATION_ID", "MAGI-01")
+        location = os.getenv("MAGI_INSTALLATION_LOCATION", "Tokyo-3")
+        ptos_system = PTOSMAGISystem(installation_id=installation_id, location=location)
+        if not ptos_system.initialize():
+            raise RuntimeError("PTOS MAGI initialization failed")
+        ptos_system.set_llm_client(client)
+        ptos_system.activate()
+        self._ptos_system = ptos_system
 
-        melchior = create_melchior(brain_config)
-        balthasar = create_balthasar(brain_config)
-        casper = create_casper(brain_config)
+        # Optional fallback legacy engine for local diagnostics.
+        self._engine = None
+        if _env_flag("MAGI_ENABLE_LEGACY_ENGINE", False):
+            brain_config = BrainConfig(model=self._model)
 
-        fast_mode = _env_flag("MAGI_FAST_MODE", True)
-        max_rounds = _env_int("MAGI_MAX_DELIBERATION_ROUNDS", 1 if fast_mode else 2)
-        enable_cross_exam = _env_flag("MAGI_ENABLE_CROSS_EXAMINATION", not fast_mode)
+            melchior = create_melchior(brain_config)
+            balthasar = create_balthasar(brain_config)
+            casper = create_casper(brain_config)
 
-        engine_config = EngineConfig(
-            model=self._model,
-            max_deliberation_rounds=max(1, max_rounds),
-            enable_cross_examination=enable_cross_exam,
-            parallel_processing=True,
-        )
+            fast_mode = _env_flag("MAGI_FAST_MODE", True)
+            max_rounds = _env_int("MAGI_MAX_DELIBERATION_ROUNDS", 1 if fast_mode else 2)
+            enable_cross_exam = _env_flag("MAGI_ENABLE_CROSS_EXAMINATION", not fast_mode)
 
-        self._engine = MAGIEngine(
-            brains=[melchior, balthasar, casper],
-            config=engine_config,
-            llm_client=client,
-        )
+            engine_config = EngineConfig(
+                model=self._model,
+                max_deliberation_rounds=max(1, max_rounds),
+                enable_cross_examination=enable_cross_exam,
+                parallel_processing=True,
+            )
+            self._engine = MAGIEngine(
+                brains=[melchior, balthasar, casper],
+                config=engine_config,
+                llm_client=client,
+            )
 
         self._mode = mode
         self._initialized = True
 
     @property
     def is_initialized(self) -> bool:
-        return self._initialized and self._engine is not None
+        return self._initialized and (self._ptos_system is not None or self._engine is not None)
 
     @property
     def mode(self) -> str:
@@ -166,8 +180,17 @@ class MAGISystem:
             raise RuntimeError("MAGI system not initialized. Call initialize() first.")
 
         try:
-            decision = self._engine.deliberate(question)
-            return self._decision_to_response(decision)
+            if self._ptos_system is not None:
+                require_unanimous = self._requires_unanimous(question)
+                result = self._ptos_system.deliberate(
+                    query=question,
+                    require_unanimous=require_unanimous,
+                )
+                return self._network_to_response(question, result)
+            if self._engine is not None:
+                decision = self._engine.deliberate(question)
+                return self._decision_to_response(decision)
+            raise RuntimeError("MAGI runtime unavailable")
         except Exception as exc:
             return MAGIResponse(
                 status="error",
@@ -180,6 +203,170 @@ class MAGISystem:
                 decision_id="error",
                 processing_time_ms=0.0,
             )
+
+    def _requires_unanimous(self, question: str) -> bool:
+        q = (question or "").lower()
+        critical_cues = (
+            "self-destruct",
+            "self destruct",
+            "irreversible",
+            "point of no return",
+            "delete everything",
+            "shutdown permanently",
+        )
+        return any(cue in q for cue in critical_cues)
+
+    @staticmethod
+    def _network_consensus(raw: str) -> str:
+        value = (raw or "").strip().upper()
+        if value.startswith("UNANIMOUS_"):
+            return "unanimous"
+        if value.startswith("MAJORITY_"):
+            return "majority"
+        if value == "CONDITIONAL":
+            return "conditional"
+        if value == "DEADLOCK":
+            return "deadlock"
+        if value == "INFORMATIONAL":
+            return "informational"
+        if value == "ERROR":
+            return "error"
+        return "informational"
+
+    @staticmethod
+    def _vote_to_status(vote: str) -> str:
+        v = (vote or "").strip().upper()
+        if v == "APPROVE":
+            return "yes"
+        if v == "REJECT":
+            return "no"
+        if v == "CONDITIONAL":
+            return "conditional"
+        if v == "DEADLOCK":
+            return "deadlock"
+        if v in {"INFORMATIONAL", "INFO"}:
+            return "info"
+        if v == "ERROR":
+            return "error"
+        return "info"
+
+    def _network_status(self, consensus: str, final_verdict: Optional[str]) -> str:
+        vote_status = self._vote_to_status(final_verdict or "")
+        if vote_status in {"yes", "no", "conditional", "deadlock", "info", "error"}:
+            return vote_status
+        if consensus == "deadlock":
+            return "deadlock"
+        if consensus == "conditional":
+            return "conditional"
+        if consensus == "error":
+            return "error"
+        return "info"
+
+    @staticmethod
+    def _first_sentence(text: str) -> str:
+        raw = (text or "").strip()
+        if not raw:
+            return ""
+        parts = re.split(r"(?<=[.!?])\s+", raw, maxsplit=1)
+        return parts[0].strip() if parts else raw
+
+    def _brain_payload_from_network(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        verdict = str(payload.get("verdict") or "INFORMATIONAL")
+        response_text = str(payload.get("reasoning") or payload.get("response") or "")
+        summary = str(payload.get("summary") or self._first_sentence(response_text))
+        conditions_raw = payload.get("conditions")
+        if isinstance(conditions_raw, list):
+            conditions = [str(x).strip() for x in conditions_raw if str(x).strip()]
+        elif isinstance(conditions_raw, str) and conditions_raw.strip():
+            conditions = [conditions_raw.strip()]
+        else:
+            conditions = []
+
+        reservations_raw = payload.get("reservations")
+        if isinstance(reservations_raw, list):
+            reservations = [str(x).strip() for x in reservations_raw if str(x).strip()]
+        elif isinstance(reservations_raw, str) and reservations_raw.strip():
+            reservations = [reservations_raw.strip()]
+        else:
+            reservations = []
+
+        confidence = payload.get("confidence", 0.0)
+        try:
+            confidence = float(confidence)
+        except Exception:
+            confidence = 0.0
+
+        return {
+            "status": self._vote_to_status(verdict),
+            "response": response_text.strip(),
+            "summary": summary.strip(),
+            "confidence": max(0.0, min(1.0, confidence)),
+            "conditions": conditions or None,
+            "reservations": reservations or None,
+        }
+
+    def _synthesize_network_answer(self, result: Dict[str, Any]) -> str:
+        verdicts = result.get("verdicts", {})
+        lines: List[str] = []
+        for brain_name in ("balthasar", "melchior", "casper"):
+            brain = verdicts.get(brain_name, {}) if isinstance(verdicts, dict) else {}
+            if not isinstance(brain, dict):
+                continue
+            summary = str(brain.get("summary") or "").strip()
+            reasoning = str(brain.get("reasoning") or brain.get("response") or "").strip()
+            line = summary or self._first_sentence(reasoning)
+            if not line:
+                continue
+            if len(line) > 260:
+                line = line[:257].rstrip() + "..."
+            lines.append(f"- {line}")
+
+        if not lines:
+            return "No guidance generated."
+
+        answer = "\n".join(lines[:3])
+        if str(result.get("final_verdict") or "").upper() == "CONDITIONAL":
+            raw_conditions = result.get("conditions")
+            conditions = raw_conditions if isinstance(raw_conditions, list) else []
+            cleaned = [str(c).strip() for c in conditions if str(c).strip()]
+            if cleaned:
+                answer += "\n\nConditions:\n" + "\n".join(f"- {c}" for c in cleaned[:4])
+        return answer
+
+    def _network_to_response(self, question: str, result: Dict[str, Any]) -> MAGIResponse:
+        consensus = self._network_consensus(str(result.get("consensus") or ""))
+        final_verdict = str(result.get("final_verdict") or "")
+        status = self._network_status(consensus, final_verdict)
+        verdicts = result.get("verdicts", {}) if isinstance(result.get("verdicts"), dict) else {}
+
+        melchior = self._brain_payload_from_network(verdicts.get("melchior", {}))
+        balthasar = self._brain_payload_from_network(verdicts.get("balthasar", {}))
+        casper = self._brain_payload_from_network(verdicts.get("casper", {}))
+
+        try:
+            processing_time_ms = float(result.get("processing_time_ms", 0.0))
+        except Exception:
+            processing_time_ms = 0.0
+
+        decision_id = hashlib.sha256(
+            f"{question}|{consensus}|{time.time_ns()}".encode("utf-8")
+        ).hexdigest()[:8]
+        answer = self._synthesize_network_answer(result)
+        question_type = "yes_no" if _question_looks_yes_no(question) else "open"
+        if consensus == "informational":
+            question_type = "analytical"
+
+        return MAGIResponse(
+            status=status,
+            answer=answer,
+            question_type=question_type,
+            consensus=consensus,
+            melchior=melchior,
+            balthasar=balthasar,
+            casper=casper,
+            decision_id=decision_id,
+            processing_time_ms=processing_time_ms,
+        )
 
     def _decision_to_response(self, decision: Decision) -> MAGIResponse:
         """Convert a Decision to a MAGIResponse."""
@@ -218,8 +405,14 @@ class MAGISystem:
         """Get a direct response from a specific brain."""
         if not self.is_initialized:
             raise RuntimeError("MAGI system not initialized.")
-
-        return self._engine.get_brain_response(brain_name, question)
+        if self._ptos_system is not None:
+            result = self._ptos_system.query_unit(brain_name, question)
+            if isinstance(result, dict):
+                return str(result.get("response") or result.get("error") or "").strip()
+            return ""
+        if self._engine is not None:
+            return self._engine.get_brain_response(brain_name, question)
+        raise RuntimeError("MAGI runtime unavailable")
 
 
 # Convenience functions for backward compatibility with old ai.py interface

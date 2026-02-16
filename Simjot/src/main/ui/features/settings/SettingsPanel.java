@@ -18,13 +18,11 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
-import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -35,7 +33,6 @@ import javax.swing.ListSelectionModel;
 import main.core.service.SettingsStore;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.icons.ImageIconRenderer;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.features.splash.SettingsSaveSplash;
 import main.ui.scaling.UIScalingManager;
@@ -222,25 +219,10 @@ public class SettingsPanel extends JPanel {
 
     // ---------- Page types ---------- //
 
-    // --- Modern sidebar renderer with icons ----
+    // --- Modern sidebar renderer ----
     private static class SidebarCellRenderer extends JPanel implements ListCellRenderer<String>{
         private final JLabel lbl = new JLabel();
         private boolean selected;
-        private static final Map<String, Icon> SECTION_ICONS = new HashMap<>();
-        
-        static {
-            // Load icons for each settings section
-            SECTION_ICONS.put("General", loadSectionIcon("general_settings"));
-            SECTION_ICONS.put("Appearance", loadSectionIcon("appearance_settings"));
-            SECTION_ICONS.put("Storage", loadSectionIcon("storage_settings"));
-            SECTION_ICONS.put("Sim", loadSectionIcon("sim_settings"));
-            SECTION_ICONS.put("About", loadSectionIcon("about_settings"));
-        }
-
-        private static Icon loadSectionIcon(String id) {
-            String res = ImageIconRenderer.mapIdToResource(id);
-            return res != null ? ImageIconRenderer.icon(res, 18, false) : null;
-        }
         
         SidebarCellRenderer(){
             setLayout(new FlowLayout(FlowLayout.LEFT,8,8));
@@ -252,9 +234,7 @@ public class SettingsPanel extends JPanel {
         @Override public Component getListCellRendererComponent(JList<? extends String> list, String value,int idx,boolean sel,boolean focus){
             this.selected = sel;
             lbl.setText(value);
-            // Set icon for each category
-            Icon icon = SECTION_ICONS.get(value);
-            lbl.setIcon(icon);
+            lbl.setIcon(null);
             lbl.setForeground(AeroTheme.TEXT_PRIMARY);
             setPreferredSize(new Dimension(list.getFixedCellWidth(),40));
             return this;

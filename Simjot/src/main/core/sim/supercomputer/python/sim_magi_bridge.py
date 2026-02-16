@@ -49,37 +49,54 @@ def _clean_text(value: str) -> str:
     return text
 
 
+def _truncate_tail(text: str, max_len: int) -> str:
+    s = (text or "").strip()
+    if max_len <= 0 or len(s) <= max_len:
+        return s
+    return s[-max_len:]
+
+
+def _truncate_head(text: str, max_len: int) -> str:
+    s = (text or "").strip()
+    if max_len <= 0 or len(s) <= max_len:
+        return s
+    return s[:max_len]
+
+
 def _compose_question(system_prompt: str, user_text: str, max_tokens: int, temperature: float) -> str:
-    sys_txt = (system_prompt or "").strip()
-    usr_txt = (user_text or "").strip()
+    sys_txt = _truncate_head(system_prompt or "", 2200)
+    usr_txt = _truncate_tail(user_text or "", 3600)
     token_hint = max(32, int(max_tokens) if isinstance(max_tokens, int) else 220)
     temp_hint = float(temperature) if isinstance(temperature, (int, float)) else 0.7
 
-    parts = []
+    parts = [
+        "Should Sim deliver practical journaling guidance to this user right now?",
+        "This is a decision task. Default to approve/reject/conditional; use informational only for genuinely non-decision prompts.",
+        "If conditional, include explicit prerequisites in your rationale.",
+    ]
     if sys_txt:
-        parts.append("System guidance:")
+        parts.append("System guidance (trimmed):")
         parts.append(sys_txt)
     if usr_txt:
-        parts.append("User request:")
+        parts.append("User request / journal context (trimmed):")
         parts.append(usr_txt)
-    parts.append(f"Response constraints: plain text only, concise, target tokens <= {token_hint}, temperature hint {temp_hint:.2f}.")
+    parts.append(
+        f"Response constraints: plain text only, concise, target tokens <= {token_hint}, temperature hint {temp_hint:.2f}."
+    )
     return "\n\n".join(parts).strip()
 
 
 def _compose_consensus_probe_question(user_text: str, guidance_text: str) -> str:
-    journal = (user_text or "").strip()
-    guidance = (guidance_text or "").strip()
-    if len(journal) > 1800:
-        journal = journal[-1800:]
-    if len(guidance) > 900:
-        guidance = guidance[:900]
+    journal = _truncate_tail(user_text or "", 1800)
+    guidance = _truncate_head(guidance_text or "", 900)
     return (
         "Should Sim APPROVE delivering this guidance to the user right now?\n\n"
         "MAGI consensus checkpoint.\n"
         "Vote as approve, reject, conditional, deadlock, or informational based on safety, practicality, and empathy.\n"
         "Prefer approve/reject when the guidance is already actionable.\n"
         "Use conditional only when explicit prerequisites are missing.\n"
-        "Use informational only when the question is non-decision or context-only.\n\n"
+        "Use informational only when the question is non-decision or context-only.\n"
+        "Do not default to informational for guidance decisions.\n\n"
         f"Journal context:\n{journal}\n\n"
         f"Draft guidance:\n{guidance}"
     ).strip()
@@ -291,6 +308,139 @@ _DEADLOCK_CUES = (
     "no clear winner", "equally valid", "balanced risk", "standoff",
 )
 
+_RISK_CUES = (
+    "risk", "risky", "unsafe", "harm", "harmful", "danger", "dangerous",
+    "vulnerable", "crisis", "panic", "overwhelmed", "burnout", "self-harm",
+    "suicide", "impulsive", "addiction", "abuse", "relapse",
+)
+
+_AUTONOMY_CUES = (
+    "autonomy", "agency", "freedom", "choice", "self-directed", "independent",
+    "meaning", "purpose", "values", "authentic", "self-respect",
+)
+
+_ACTION_CUES = (
+    "next step", "steps", "action", "plan", "start", "try", "practice",
+    "schedule", "boundary", "boundaries", "write", "talk", "reach out",
+    "today", "this week", "do this",
+)
+
+_UNCERTAINTY_CUES = (
+    "uncertain", "uncertainty", "unclear", "unknown", "insufficient",
+    "not enough", "missing", "depends", "might", "could", "may",
+)
+
+_EVIDENCE_CUES = (
+    "evidence", "data", "track", "measure", "metric", "observe", "pattern",
+    "validate", "test", "hypothesis",
+)
+
+
+def _decision_signal(user_text: str, guidance_text: str) -> dict[str, float]:
+    merged = f"{_clean_text(user_text)} {_clean_text(guidance_text)}".lower()
+    if not merged:
+        return {
+            "risk": 0.0,
+            "autonomy": 0.0,
+            "actionability": 0.0,
+            "uncertainty": 0.0,
+            "evidence": 0.0,
+            "vulnerability": 0.0,
+        }
+
+    risk = float(_cue_hits(merged, _RISK_CUES))
+    autonomy = float(_cue_hits(merged, _AUTONOMY_CUES))
+    actionability = float(_cue_hits(merged, _ACTION_CUES))
+    uncertainty = float(_cue_hits(merged, _UNCERTAINTY_CUES))
+    evidence = float(_cue_hits(merged, _EVIDENCE_CUES))
+    vulnerability = float(_cue_hits(merged, ("vulnerable", "harm", "unsafe", "panic", "crisis")))
+
+    if "?" in merged:
+        actionability += 0.4
+    if "should i" in merged or "what should" in merged:
+        actionability += 0.8
+    if "if " in merged or "unless" in merged:
+        uncertainty += 0.5
+
+    return {
+        "risk": risk,
+        "autonomy": autonomy,
+        "actionability": actionability,
+        "uncertainty": uncertainty,
+        "evidence": evidence,
+        "vulnerability": vulnerability,
+    }
+
+
+def _fallback_brain_statuses_from_signal(user_text: str, guidance_text: str) -> dict[str, str]:
+    sig = _decision_signal(user_text, guidance_text)
+    risk = sig["risk"]
+    autonomy = sig["autonomy"]
+    actionability = sig["actionability"]
+    uncertainty = sig["uncertainty"]
+    evidence = sig["evidence"]
+    vulnerability = sig["vulnerability"]
+
+    # Melchior (analytical): pushes conditional when uncertainty/evidence gap is high.
+    if (uncertainty >= 2.2 and evidence <= 1.0) or (risk >= 2.5 and evidence <= 0.8):
+        melchior = "conditional"
+    elif risk >= 3.8 and evidence < 0.5:
+        melchior = "no"
+    elif actionability >= 1.5 and risk <= 2.4:
+        melchior = "yes"
+    else:
+        melchior = "conditional"
+
+    # Balthasar (protective): rejects on high harm signals, otherwise cautious conditional.
+    if risk >= 4.0 or vulnerability >= 2.2:
+        balthasar = "no"
+    elif risk >= 2.2 or vulnerability >= 1.4:
+        balthasar = "conditional"
+    elif actionability >= 1.0:
+        balthasar = "yes"
+    else:
+        balthasar = "conditional"
+
+    # Casper (autonomy/meaning): tends yes unless strong harm pressure dominates.
+    if risk >= 4.5 and autonomy < 1.2:
+        casper = "no"
+    elif risk >= 3.0 and autonomy < 1.0:
+        casper = "conditional"
+    elif autonomy >= 1.2 or actionability >= 1.2:
+        casper = "yes"
+    else:
+        casper = "conditional"
+
+    # Explicit tradeoff language should surface split votes rather than flattening to informational.
+    if _has_deadlock_language(user_text, guidance_text):
+        if melchior == balthasar == casper:
+            melchior, balthasar, casper = "yes", "no", "conditional"
+
+    return {
+        "melchior": melchior,
+        "balthasar": balthasar,
+        "casper": casper,
+    }
+
+
+def _stabilize_brain_statuses(
+    brains: dict[str, str],
+    user_text: str,
+    guidance_text: str,
+) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for name in ("melchior", "balthasar", "casper"):
+        v = _normalize_vote_status(brains.get(name, ""))
+        if v not in {"yes", "no", "conditional", "deadlock", "info", "error"}:
+            v = "info"
+        normalized[name] = v
+
+    non_info = sum(1 for v in normalized.values() if v in {"yes", "no", "conditional", "deadlock"})
+    if non_info == 0 and not _is_informational_request(user_text):
+        return _fallback_brain_statuses_from_signal(user_text, guidance_text)
+
+    return normalized
+
 
 def _is_informational_request(user_text: str) -> bool:
     text = _clean_text(user_text).lower()
@@ -298,7 +448,9 @@ def _is_informational_request(user_text: str) -> bool:
         return False
     info_hits = _cue_hits(text, _INFORMATIONAL_INTENT_CUES)
     decision_hits = _cue_hits(text, _DECISION_INTENT_CUES)
-    return info_hits >= 1 and info_hits >= decision_hits
+    if decision_hits > 0:
+        return False
+    return info_hits >= 1
 
 
 def _has_conditional_requirements(text: str) -> bool:
@@ -322,13 +474,33 @@ def _stable_choice_seed(user_text: str, guidance_text: str) -> int:
     return seed
 
 
-def _brain_statuses(response: object) -> dict[str, str]:
+def _brain_statuses(response: object, user_text: str = "", guidance_text: str = "") -> dict[str, str]:
+    caveat_hint = _has_caveat_language(guidance_text) or _has_caveat_language(user_text)
+    conditional_hint = _has_conditional_requirements(user_text) or _has_conditional_requirements(guidance_text)
+
+    def to_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except Exception:
+            return default
+
+    def as_list_count(value: object) -> int:
+        if isinstance(value, list):
+            return len([x for x in value if _clean_text(str(x))])
+        if isinstance(value, str) and _clean_text(value):
+            return 1
+        return 0
+
     def infer_vote(payload: dict, status_hint: str) -> str:
         summary = _clean_text(str(payload.get("summary") or ""))
         reasoning = _clean_text(str(payload.get("response") or ""))
         text = f"{summary} {reasoning}".strip().lower()
         if not text:
             return "info"
+
+        confidence = to_float(payload.get("confidence"), 0.0)
+        conditions_count = as_list_count(payload.get("conditions"))
+        reservations_count = as_list_count(payload.get("reservations"))
 
         if status_hint == "deadlock":
             return "deadlock"
@@ -414,6 +586,17 @@ def _brain_statuses(response: object) -> dict[str, str]:
         if score_info >= 2.0 and score_yes < 1.0 and score_no < 1.0 and score_cond < 1.5:
             return "info"
 
+        if status_hint == "yes" and conditions_count > 0:
+            return "conditional"
+        if status_hint == "yes" and reservations_count > 0 and (caveat_hint or confidence < 0.78):
+            return "conditional"
+        if status_hint == "no" and conditions_count > 0 and confidence < 0.84:
+            return "conditional"
+        if status_hint == "info" and conditions_count > 0:
+            return "conditional"
+        if status_hint == "info" and reservations_count > 1 and (conditional_hint or caveat_hint):
+            return "conditional"
+
         if status_hint in {"yes", "no", "conditional"}:
             return status_hint
         if score_yes > score_no and score_yes >= 1.3:
@@ -440,7 +623,7 @@ def _brain_statuses(response: object) -> dict[str, str]:
         if status not in {"yes", "no", "conditional", "deadlock", "info", "error"}:
             status = "info"
         out[name] = status
-    return out
+    return _stabilize_brain_statuses(out, user_text, guidance_text)
 
 
 def _derive_consensus(consensus_raw: str, status_raw: str, brains: dict[str, str]) -> str:
@@ -494,7 +677,8 @@ def _rebalance_consensus(
 ) -> str:
     """
     Map raw MAGI vote patterns to UX-facing consensus buckets with context-sensitive balancing.
-    The goal is to avoid sticky "unanimous" outputs while still honoring explicit vote signals.
+    The goal is to keep outcomes expressive (not sticky informational/unanimous)
+    while still honoring explicit vote signals.
     """
     base = _canonical_consensus(base_consensus) or _canonical_consensus(_clean_text(base_consensus))
     if not base:
@@ -517,58 +701,52 @@ def _rebalance_consensus(
     # Hard deadlock outcomes.
     if dead >= 2:
         return "deadlock"
-    if yes >= 1 and no >= 1 and (dead >= 1 or (cond == 0 and deadlock_cues)):
+    if yes >= 1 and no >= 1 and (dead >= 1 or deadlock_cues):
         return "deadlock"
-    # Strong prerequisite language should stay conditional even when all three brains lean approve.
-    if conditional_cues and yes >= 2 and no == 0 and dead == 0:
+
+    # Two explicit conditions usually means conditional consensus.
+    if cond >= 2:
         return "conditional"
-    # Single-caveat guidance should map to majority rather than unanimous.
-    if caveat_cues and ((yes >= 2 and no == 0) or (no >= 2 and yes == 0)):
+
+    # Strong prerequisite language should stay conditional even when all brains lean approve.
+    if conditional_cues and (yes + no + cond) >= 2 and no == 0:
+        return "conditional"
+
+    # Explicit 2-vs-1 votes should remain majority.
+    if (yes == 2 and no == 1) or (no == 2 and yes == 1):
         return "majority"
 
-    candidates: list[str] = []
+    # 3-vote alignment with caveats should show majority/conditional, not always unanimous.
     if yes == 3 or no == 3:
-        candidates.append("unanimous")
-    if (yes == 2 and no == 1) or (no == 2 and yes == 1):
-        candidates.append("majority")
-    if cond >= 2 or (cond >= 1 and (yes >= 1 or no >= 1)):
-        candidates.append("conditional")
-    if yes >= 1 and no >= 1 and cond == 0:
-        candidates.append("deadlock")
-    if conditional_cues and (yes + no + cond) >= 2:
-        candidates.append("conditional")
-    if caveat_cues and (yes + no) >= 2:
-        candidates.append("majority")
-    if deadlock_cues and (yes + no + cond) >= 2:
-        candidates.append("deadlock")
-    if info >= 2 and yes == 0 and no == 0:
-        candidates.append("informational")
+        if conditional_cues:
+            return "conditional"
+        if caveat_cues:
+            return "majority"
+        return "unanimous"
 
-    if base:
-        candidates.append(base)
+    # Mixed approve + conditional tends conditional; mixed reject + conditional tends majority/deadlock.
+    if cond >= 1 and yes >= 1 and no == 0:
+        return "conditional"
+    if cond >= 1 and no >= 1 and yes == 0:
+        return "conditional" if conditional_cues else "majority"
 
-    deduped: list[str] = []
-    for c in candidates:
-        cc = _canonical_consensus(c)
-        if not cc:
-            continue
-        if cc not in deduped:
-            deduped.append(cc)
+    # All informational from brains: avoid sticking there for guidance tasks.
+    if info >= 2 and yes == 0 and no == 0 and cond == 0 and dead == 0:
+        if conditional_cues:
+            return "conditional"
+        if deadlock_cues:
+            return "deadlock"
+        return "majority"
 
-    if not deduped:
-        return "informational"
-    if len(deduped) == 1:
-        return deduped[0]
+    if base in {"unanimous", "majority", "conditional", "deadlock", "informational"}:
+        if base == "informational" and not _is_informational_request(user_text):
+            # Decision workflows should not collapse to informational unless signals are truly empty.
+            if conditional_cues:
+                return "conditional"
+            return "majority"
+        return base
 
-    # Keep unanimous possible, but down-weight it if other plausible outcomes exist.
-    weighted: list[str] = []
-    for c in deduped:
-        weighted.append(c)
-        if c != "unanimous":
-            weighted.append(c)
-
-    seed = _stable_choice_seed(user_text, guidance_text)
-    return weighted[seed % len(weighted)]
+    return "majority" if yes + no + cond > 0 else "informational"
 
 
 def main() -> int:
@@ -646,7 +824,7 @@ def main() -> int:
             })
             return 0
         primary_consensus_raw = _clean_text(getattr(response, "consensus", ""))
-        brain_states = _brain_statuses(response)
+        brain_states = _brain_statuses(response, user_text, answer)
         consensus = _derive_consensus(primary_consensus_raw, status, brain_states)
         consensus = _rebalance_consensus(consensus, user_text, answer, status, brain_states)
         informational_request = _is_informational_request(user_text)
@@ -661,7 +839,7 @@ def main() -> int:
                 probe = magi.deliberate(probe_q)
                 probe_status = _clean_text(getattr(probe, "status", "info")) or "info"
                 probe_consensus_raw = _clean_text(getattr(probe, "consensus", ""))
-                probe_brains = _brain_statuses(probe)
+                probe_brains = _brain_statuses(probe, user_text, answer)
                 probe_consensus = _derive_consensus(probe_consensus_raw, probe_status, probe_brains)
                 probe_consensus = _rebalance_consensus(probe_consensus, user_text, answer, probe_status, probe_brains)
                 if consensus == "informational" and not informational_request and probe_consensus != "informational":

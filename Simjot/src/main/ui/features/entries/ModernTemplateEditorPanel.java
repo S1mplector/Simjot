@@ -49,11 +49,15 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.border.EmptyBorder;
 
+import main.core.sim.api.SimEventBus;
+import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.NotebookInfo;
+import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.input.AeroTextField;
@@ -74,6 +78,7 @@ public class ModernTemplateEditorPanel extends JPanel {
     private static final int PREVIEW_MAX_QUESTIONS = 5;
     
     private final NotebookInfo notebook;
+    private final JournalApp app;
     private final boolean readOnlyMode;
     private JournalTemplateManager.JournalTemplate template;
     private boolean isNew = false;
@@ -89,6 +94,21 @@ public class ModernTemplateEditorPanel extends JPanel {
     private final JLabel previewTitleLabel;
     private final JLabel previewDescLabel;
     private final JPanel previewQuestionsPanel;
+    private RoundedButton simGenerateButton;
+    private Timer simGenerateTimeoutTimer;
+    private boolean awaitingSimTemplate = false;
+    private String pendingSimNotebookName = "";
+    private boolean simListenerRegistered = false;
+    private final SimEventBus.Listener simTemplateListener = new SimEventBus.Listener() {
+        @Override
+        public void onTemplateGenerated(String notebookName, String name, String description, String[] questions) {
+            if (!awaitingSimTemplate) return;
+            String expected = pendingSimNotebookName == null ? "" : pendingSimNotebookName.trim();
+            String actual = notebookName == null ? "" : notebookName.trim();
+            if (!expected.isEmpty() && !expected.equalsIgnoreCase(actual)) return;
+            SwingUtilities.invokeLater(() -> applyGeneratedTemplate(name, description, questions));
+        }
+    };
     
     private int dragIndex = -1;
     private int dropIndex = -1;
@@ -97,7 +117,12 @@ public class ModernTemplateEditorPanel extends JPanel {
     private Consumer<JournalTemplateManager.JournalTemplate> onSave;
     
     public ModernTemplateEditorPanel(NotebookInfo notebook, JournalTemplateManager.JournalTemplate existing) {
+        this(notebook, existing, null);
+    }
+
+    public ModernTemplateEditorPanel(NotebookInfo notebook, JournalTemplateManager.JournalTemplate existing, JournalApp app) {
         this.notebook = notebook;
+        this.app = app;
         this.template = existing;
         this.isNew = (existing == null);
         this.readOnlyMode = !isNew && existing != null && !existing.isCustom();
@@ -300,6 +325,13 @@ public class ModernTemplateEditorPanel extends JPanel {
         // Left: Duplicate button (for existing templates)
         JPanel leftButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         leftButtons.setOpaque(false);
+
+        if (isNew) {
+            simGenerateButton = new RoundedButton("Generate with Sim");
+            simGenerateButton.setPreferredSize(new Dimension(178, 38));
+            simGenerateButton.addActionListener(e -> requestTemplateFromSim());
+            leftButtons.add(simGenerateButton);
+        }
         
         if (!isNew) {
             RoundedButton dupBtn = createActionButton("Duplicate", "new");
@@ -339,8 +371,27 @@ public class ModernTemplateEditorPanel extends JPanel {
         refreshQuestionCount();
         updatePreview();
         dirty = false;
+        refreshSimGenerateButtonState();
+        if (isNew) {
+            try {
+                SimEventBus.get().addListener(simTemplateListener);
+                simListenerRegistered = true;
+            } catch (Throwable ignored) {}
+        }
         
         SwingUtilities.invokeLater(() -> nameField.requestFocusInWindow());
+    }
+
+    @Override
+    public void removeNotify() {
+        stopSimGenerateTimeout();
+        awaitingSimTemplate = false;
+        refreshSimGenerateButtonState();
+        if (simListenerRegistered) {
+            try { SimEventBus.get().removeListener(simTemplateListener); } catch (Throwable ignored) {}
+            simListenerRegistered = false;
+        }
+        super.removeNotify();
     }
     
     public void setOnCancel(Runnable onCancel) {
@@ -379,6 +430,112 @@ public class ModernTemplateEditorPanel extends JPanel {
         if (onCancel != null) {
             onCancel.run();
         }
+    }
+
+    private void requestTemplateFromSim() {
+        if (!isNew || readOnlyMode || awaitingSimTemplate) return;
+        if (!SimSettings.get().isEnabled()) {
+            UIMessage.warn(this, "Sim Disabled", "Enable Sim in Settings > Sim to generate templates.", "");
+            return;
+        }
+        if (app == null) {
+            UIMessage.warn(this, "Sim Unavailable", "Sim chat is unavailable in this context.", "");
+            return;
+        }
+
+        awaitingSimTemplate = true;
+        pendingSimNotebookName = notebook == null ? "" : notebook.getName();
+        refreshSimGenerateButtonState();
+        startSimGenerateTimeout();
+        try {
+            boolean started = app.startSimTemplateGenerationChat(pendingSimNotebookName);
+            if (!started) {
+                awaitingSimTemplate = false;
+                stopSimGenerateTimeout();
+                refreshSimGenerateButtonState();
+                UIMessage.warn(this, "Generation Failed", "Could not open Sim chat for template generation.", "");
+                return;
+            }
+            UIMessage.info(this, "Sim Chat Opened", "Tell Sim what this template should focus on.", "");
+        } catch (Throwable t) {
+            awaitingSimTemplate = false;
+            stopSimGenerateTimeout();
+            refreshSimGenerateButtonState();
+            UIMessage.warn(this, "Generation Failed", "Could not start Sim template generation.", "");
+        }
+    }
+
+    private void startSimGenerateTimeout() {
+        stopSimGenerateTimeout();
+        simGenerateTimeoutTimer = new Timer(90000, e -> {
+            if (!awaitingSimTemplate) return;
+            awaitingSimTemplate = false;
+            refreshSimGenerateButtonState();
+            UIMessage.warn(this, "Sim Timeout", "Template generation did not complete in time. Try again.", "");
+        });
+        simGenerateTimeoutTimer.setRepeats(false);
+        simGenerateTimeoutTimer.start();
+    }
+
+    private void stopSimGenerateTimeout() {
+        if (simGenerateTimeoutTimer != null) {
+            simGenerateTimeoutTimer.stop();
+            simGenerateTimeoutTimer = null;
+        }
+    }
+
+    private void applyGeneratedTemplate(String name, String description, String[] questions) {
+        awaitingSimTemplate = false;
+        stopSimGenerateTimeout();
+
+        String cleanName = name == null ? "" : name.trim();
+        if (cleanName.isEmpty()) {
+            cleanName = "Sim Template " + new java.text.SimpleDateFormat("HHmmss").format(new java.util.Date());
+        }
+        if (cleanName.length() > 60) {
+            cleanName = cleanName.substring(0, 60).trim();
+        }
+
+        String cleanDesc = description == null ? "" : description.trim();
+        if (cleanDesc.isEmpty()) cleanDesc = "Generated by Sim.";
+        if (cleanDesc.length() > 180) {
+            cleanDesc = cleanDesc.substring(0, 180).trim();
+        }
+
+        List<String> cleanedQuestions = new ArrayList<>();
+        if (questions != null) {
+            for (String q : questions) {
+                if (q == null) continue;
+                String s = q.trim();
+                if (s.isEmpty()) continue;
+                if (s.length() > 180) s = s.substring(0, 180).trim();
+                cleanedQuestions.add(s);
+                if (cleanedQuestions.size() >= 6) break;
+            }
+        }
+        if (cleanedQuestions.isEmpty()) {
+            cleanedQuestions.add("What feels most important for me to explore right now?");
+            cleanedQuestions.add("What pattern do I notice in this situation?");
+            cleanedQuestions.add("What small action would support me next?");
+        }
+
+        nameField.setText(cleanName);
+        descField.setText(cleanDesc);
+        setRowsFromQuestions(cleanedQuestions);
+        onModelMutated();
+        saved = false;
+        refreshSimGenerateButtonState();
+        UIMessage.info(this, "Template Draft Ready", "Sim generated a draft. Review and press Create when ready.", "");
+    }
+
+    private void refreshSimGenerateButtonState() {
+        if (simGenerateButton == null) return;
+        boolean enabled = isNew && !readOnlyMode && app != null && SimSettings.get().isEnabled() && !awaitingSimTemplate;
+        simGenerateButton.setEnabled(enabled);
+        simGenerateButton.setText(awaitingSimTemplate ? "Waiting for Sim..." : "Generate with Sim");
+        simGenerateButton.setToolTipText(enabled
+            ? "Open Sim chat and generate a template from your focus"
+            : "Enable Sim in Settings > Sim");
     }
 
     private void installDirtyTracking() {

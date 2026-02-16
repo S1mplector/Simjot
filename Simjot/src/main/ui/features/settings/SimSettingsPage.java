@@ -21,7 +21,6 @@ public class SimSettingsPage implements SettingsPage {
     private final JComboBox<String> engagementMode = new JComboBox<>(new String[]{"on_call","hybrid","proactive"});
     private final JCheckBox useLlm = new JCheckBox("Allow AI model");
     private final JComboBox<String> llmProvider = new JComboBox<>(new String[]{"ollama","openai","magi"});
-    private final JTextField quietHours = new JTextField(12);
     private final JSpinner nudgeMinutes = new JSpinner(new SpinnerNumberModel(30, 5, 120, 5));
     private final JTextField ollamaEndpoint = new JTextField(18);
     private final JTextField ollamaModel = new JTextField(18);
@@ -69,10 +68,6 @@ public class SimSettingsPage implements SettingsPage {
         panel.add(new JLabel("LLM provider"), gc);
         gc.gridx = 1;
         panel.add(llmProvider, gc);
-        gc.gridy++;
-        panel.add(new JLabel("Quiet hours (e.g., 22:00-07:00)"), gc);
-        gc.gridx = 1;
-        panel.add(quietHours, gc);
 
         gc.gridx = 0; gc.gridy++;
         panel.add(new JLabel("Engagement mode"), gc);
@@ -124,7 +119,6 @@ public class SimSettingsPage implements SettingsPage {
         personality.setSelectedItem(s.getPersonality());
         useLlm.setSelected(s.isLlmEnabled());
         llmProvider.setSelectedItem(s.getLlmProvider());
-        quietHours.setText(s.getQuietHours());
         try {
             engagementMode.setSelectedItem(s.getEngagementMode().name().toLowerCase(java.util.Locale.ROOT));
         } catch (Throwable ignored) {
@@ -170,7 +164,6 @@ public class SimSettingsPage implements SettingsPage {
         s.setPersonality((String) personality.getSelectedItem());
         s.setLlmEnabled(useLlm.isSelected());
         s.setLlmProvider((String) llmProvider.getSelectedItem());
-        s.setQuietHours(quietHours.getText());
         String mode = String.valueOf(engagementMode.getSelectedItem());
         switch (mode == null ? "on_call" : mode.toLowerCase(java.util.Locale.ROOT)) {
             case "proactive" -> s.setEngagementMode(SimSettings.EngagementMode.PROACTIVE);

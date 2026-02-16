@@ -13,19 +13,54 @@ For major decisions such as self-destruction, unanimous consensus among all
 three units must be reached.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 from datetime import datetime
 import os
-import asyncio
+import hashlib
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from ..ptos.matrix import PersonalityMatrix, PersonalityAspect
 from ..ptos.organic import OrganicProcessor, ProcessingMode
 from ..ptos.transplant import TransplantProcedure
-from ..ptos.engram import EngramStore
+from ..ptos.engram import (
+    EngramStore,
+    MemoryEngram,
+    EngramType,
+    EngramStrength,
+)
 from ..llm.client import completion_token_kwargs, temperature_kwargs
+
+_STOP_WORDS = {
+    "a", "an", "the", "and", "or", "but", "if", "then", "else", "for", "to", "of",
+    "in", "on", "at", "with", "by", "from", "as", "is", "are", "was", "were", "be",
+    "been", "being", "this", "that", "these", "those", "it", "its", "my", "your",
+    "our", "their", "we", "they", "you", "i", "me", "he", "she", "them", "him", "her",
+    "about", "into", "over", "under", "again", "very", "just", "more", "most", "can",
+    "could", "should", "would", "will", "shall", "do", "does", "did", "have", "has",
+    "had", "than", "too", "also",
+}
+
+_POSITIVE_TOKENS = {
+    "calm", "safe", "stable", "grateful", "hope", "hopeful", "progress", "support",
+    "confidence", "clear", "grounded", "kind", "compassion", "resilient",
+}
+
+_NEGATIVE_TOKENS = {
+    "unsafe", "risk", "risky", "harm", "panic", "overwhelmed", "anxious", "anger",
+    "stressed", "burnout", "stuck", "hopeless", "fear", "afraid", "crisis",
+}
+
+_EMOTION_TOKEN_MAP = {
+    "joy": {"joy", "grateful", "gratitude", "relief", "proud", "hopeful"},
+    "calm": {"calm", "grounded", "steady", "stable", "peaceful"},
+    "sadness": {"sad", "down", "grief", "lonely", "hopeless"},
+    "anger": {"angry", "anger", "frustrated", "resentful", "rage"},
+    "anxiety": {"anxious", "anxiety", "worry", "worried", "fear", "panic"},
+    "stress": {"stress", "stressed", "overwhelmed", "burnout", "pressure"},
+}
 
 
 class SystemStatus(Enum):
@@ -104,6 +139,131 @@ class MAGIUnit:
         else:
             self.status = SystemStatus.OFFLINE
             return False
+
+    def _extract_keywords(self, text: str, limit: int = 12) -> List[str]:
+        tokens = re.findall(r"[a-zA-Z][a-zA-Z'-]*", (text or "").lower())
+        out: List[str] = []
+        seen = set()
+        for token in tokens:
+            if len(token) < 3 or token in _STOP_WORDS:
+                continue
+            if token in seen:
+                continue
+            seen.add(token)
+            out.append(token)
+            if len(out) >= max(1, limit):
+                break
+        return out
+
+    def _estimate_valence(self, text: str) -> float:
+        tokens = re.findall(r"[a-zA-Z][a-zA-Z'-]*", (text or "").lower())
+        pos = sum(1 for t in tokens if t in _POSITIVE_TOKENS)
+        neg = sum(1 for t in tokens if t in _NEGATIVE_TOKENS)
+        total = max(1, pos + neg)
+        return max(-1.0, min(1.0, (pos - neg) / float(total)))
+
+    def _estimate_emotions(self, text: str, limit: int = 3) -> List[str]:
+        tokens = set(re.findall(r"[a-zA-Z][a-zA-Z'-]*", (text or "").lower()))
+        scored: List[tuple[str, int]] = []
+        for emotion, vocab in _EMOTION_TOKEN_MAP.items():
+            hit_count = len(tokens & vocab)
+            if hit_count > 0:
+                scored.append((emotion, hit_count))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [e for e, _ in scored[:max(1, limit)]]
+
+    def _relevant_engrams(self, query: str, top_k: int = 5) -> List[MemoryEngram]:
+        if not self.memory:
+            return []
+        keywords = self._extract_keywords(query)
+        if not keywords:
+            return []
+
+        primary = self.memory.search_by_keywords(keywords, top_k=max(3, top_k))
+        seed_ids = [eng.engram_id for eng in primary[:3]]
+        spread = self.memory.spreading_activation(seed_ids, depth=2, activation_decay=0.55) if seed_ids else []
+
+        merged: Dict[str, MemoryEngram] = {}
+        for eng in primary + spread:
+            merged[eng.engram_id] = eng
+
+        ranked = sorted(
+            merged.values(),
+            key=lambda e: (e.retrieval_count, e.consolidation_level, e.reliability),
+            reverse=True,
+        )
+        return ranked[:top_k]
+
+    def _memory_context_block(self, engrams: List[MemoryEngram], max_items: int = 4) -> str:
+        if not engrams:
+            return ""
+        lines: List[str] = []
+        for eng in engrams[:max_items]:
+            try:
+                eng.retrieve()
+            except Exception:
+                pass
+            summary = (eng.summary or eng.content or "").strip()
+            if len(summary) > 180:
+                summary = summary[:177].rstrip() + "..."
+            if not summary:
+                continue
+            lines.append(
+                f"- [{eng.engram_type.value}|{eng.strength.value}|rel={eng.reliability:.2f}] {summary}"
+            )
+        return "\n".join(lines)
+
+    def _store_engram(
+        self,
+        content: str,
+        summary: str,
+        engram_type: EngramType,
+        source: str,
+        strength: EngramStrength = EngramStrength.LABILE,
+        related: Optional[List[MemoryEngram]] = None,
+    ) -> Optional[MemoryEngram]:
+        if not self.memory:
+            return None
+
+        body = (content or "").strip()
+        if not body:
+            return None
+
+        now = datetime.now()
+        digest = hashlib.sha256(
+            f"{self.designation}|{source}|{now.isoformat()}|{body}".encode("utf-8")
+        ).hexdigest()[:14]
+        engram_id = f"{self.designation.lower()}-{engram_type.value}-{digest}"
+
+        valence = self._estimate_valence(body)
+        emotions = self._estimate_emotions(body)
+        keywords = self._extract_keywords(f"{summary} {body}", limit=14)
+
+        engram = MemoryEngram(
+            engram_id=engram_id,
+            engram_type=engram_type,
+            strength=strength,
+            content=body[:3500],
+            summary=(summary or body)[:400],
+            keywords=keywords,
+            emotional_valence=valence,
+            emotional_intensity=min(1.0, 0.35 + (0.08 * len(emotions))),
+            associated_emotions=emotions,
+            source=source,
+            reliability=0.85 if engram_type == EngramType.EPISODIC else 0.9,
+        )
+
+        for rel in (related or [])[:3]:
+            try:
+                engram.add_link(rel.engram_id, 0.45, "semantic")
+                rel.add_link(engram.engram_id, 0.35, "semantic")
+            except Exception:
+                continue
+
+        self.memory.store(engram)
+        if len(self.memory.engrams) % 5 == 0:
+            self.memory.consolidation_pass()
+        return engram
     
     def set_llm_client(self, client: Any) -> None:
         """Set the LLM client for this unit."""
@@ -126,8 +286,18 @@ class MAGIUnit:
             activations = self.processor.activate_by_keyword(query)
             self.processor.propagate(steps=2)
         
-        # Build system prompt from matrix
+        # Build system prompt from matrix and memory context
         system_prompt = self.matrix.generate_system_prompt()
+        retrieved = self._relevant_engrams(query)
+        memory_context = self._memory_context_block(retrieved)
+        query_payload = query
+        if memory_context:
+            query_payload = (
+                "Relevant engram recalls from your memory substrate:\n"
+                f"{memory_context}\n\n"
+                "Current query:\n"
+                f"{query}"
+            )
         
         # Call LLM
         try:
@@ -136,7 +306,7 @@ class MAGIUnit:
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
+                    {"role": "user", "content": query_payload}
                 ],
                 **temperature_kwargs(model, 0.7),
                 **completion_token_kwargs(model, 1500)
@@ -146,6 +316,14 @@ class MAGIUnit:
             
             # Calculate confidence from processor state
             confidence = self.processor.calculate_confidence() if self.processor else 0.7
+            self._store_engram(
+                content=f"Query: {query}\nResponse: {content}",
+                summary=f"{self.designation} handled query: {query[:120]}",
+                engram_type=EngramType.SEMANTIC,
+                source="process_query",
+                strength=EngramStrength.LABILE,
+                related=retrieved,
+            )
             
             return {
                 "designation": self.designation,
@@ -153,6 +331,7 @@ class MAGIUnit:
                 "confidence": confidence,
                 "active_values": self.processor.get_active_values() if self.processor else [],
                 "emotional_state": self.processor.get_emotional_state() if self.processor else {},
+                "engram_context": [e.to_dict() for e in retrieved[:3]],
             }
             
         except Exception as e:
@@ -164,19 +343,27 @@ class MAGIUnit:
             return {"error": "Unit not properly initialized"}
         
         system_prompt = self.matrix.generate_system_prompt()
+        recalled = self._relevant_engrams(query, top_k=6)
+        memory_context = self._memory_context_block(recalled, max_items=5)
+        query_kind = (query_type or "decision").strip().lower()
         
         verdict_prompt = f"""As {self.designation}, consider this question and form your verdict.
 
+Question type: {query_kind}
 Question: {query}
+
+Relevant memory engrams:
+{memory_context if memory_context else "- none"}
 
 Respond in JSON format:
 {{
-    "verdict": "APPROVE" | "REJECT" | "CONDITIONAL",
+    "verdict": "APPROVE" | "REJECT" | "CONDITIONAL" | "DEADLOCK" | "INFORMATIONAL",
     "confidence": 0.0-1.0,
     "summary": "One sentence position statement",
     "reasoning": "Your detailed reasoning (2-3 paragraphs)",
     "conditions": ["List conditions if CONDITIONAL"],
-    "key_values_applied": ["Which of your core values influenced this decision"]
+    "key_values_applied": ["Which of your core values influenced this decision"],
+    "reservations": ["Key cautions or dissent points, if any"]
 }}"""
 
         try:
@@ -194,8 +381,30 @@ Respond in JSON format:
             
             import json
             result = json.loads(response.choices[0].message.content)
+            verdict_raw = str(result.get("verdict", "")).strip().upper()
+            if verdict_raw in {"INFO", "INFORM"}:
+                verdict_raw = "INFORMATIONAL"
+            if verdict_raw not in {"APPROVE", "REJECT", "CONDITIONAL", "DEADLOCK", "INFORMATIONAL"}:
+                verdict_raw = "INFORMATIONAL"
+            result["verdict"] = verdict_raw
             result["designation"] = self.designation
             result["magi_number"] = self.magi_number
+            summary = str(result.get("summary") or "").strip()
+            reasoning = str(result.get("reasoning") or "").strip()
+            self._store_engram(
+                content=(
+                    f"Query: {query}\n"
+                    f"Verdict: {result['verdict']}\n"
+                    f"Summary: {summary}\n"
+                    f"Reasoning: {reasoning}"
+                ),
+                summary=f"{self.designation} verdict {result['verdict']}: {summary[:120]}",
+                engram_type=EngramType.EPISODIC,
+                source="verdict",
+                strength=EngramStrength.STABLE,
+                related=recalled,
+            )
+            result["engram_context"] = [e.to_dict() for e in recalled[:3]]
             return result
             
         except Exception as e:
@@ -329,21 +538,38 @@ class MAGISystem:
         """Analyze verdicts and determine consensus."""
         
         # Count verdict types
-        counts = {"APPROVE": 0, "REJECT": 0, "CONDITIONAL": 0, "ERROR": 0}
+        counts = {
+            "APPROVE": 0,
+            "REJECT": 0,
+            "CONDITIONAL": 0,
+            "DEADLOCK": 0,
+            "INFORMATIONAL": 0,
+            "ERROR": 0,
+        }
         for v in verdicts.values():
-            verdict_type = v.get("verdict", "ERROR")
+            verdict_type = str(v.get("verdict", "ERROR")).strip().upper()
+            if verdict_type in {"INFO", "INFORM"}:
+                verdict_type = "INFORMATIONAL"
+            if verdict_type not in counts:
+                verdict_type = "ERROR"
             counts[verdict_type] = counts.get(verdict_type, 0) + 1
         
         # Determine consensus
         if counts["ERROR"] > 0:
             consensus = "ERROR"
             final_verdict = None
+        elif counts["INFORMATIONAL"] >= 2 and counts["APPROVE"] == 0 and counts["REJECT"] == 0:
+            consensus = "INFORMATIONAL"
+            final_verdict = "INFORMATIONAL"
         elif counts["APPROVE"] == 3:
             consensus = "UNANIMOUS_APPROVE"
             final_verdict = "APPROVE"
         elif counts["REJECT"] == 3:
             consensus = "UNANIMOUS_REJECT"
             final_verdict = "REJECT"
+        elif counts["DEADLOCK"] >= 2:
+            consensus = "DEADLOCK"
+            final_verdict = None
         elif counts["APPROVE"] >= 2:
             consensus = "MAJORITY_APPROVE"
             final_verdict = "APPROVE" if not require_unanimous else None

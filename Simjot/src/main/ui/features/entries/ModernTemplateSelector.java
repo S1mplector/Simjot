@@ -50,16 +50,12 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
-import main.core.sim.api.SimEventBus;
-import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
-import main.ui.dialog.input.CustomInputDialog;
-import main.ui.dialog.message.UIMessage;
 
 /**
  * Modern, polished template selector with smooth animations and clear UX.
@@ -79,33 +75,19 @@ public class ModernTemplateSelector extends JDialog {
     private JournalTemplateManager.JournalTemplate selectedTemplate;
     private boolean accepted = false;
     private final NotebookInfo notebook;
+    private final JournalApp app;
     private final JPanel cardsContainer;
     private final AeroTextField searchField;
     private final JPanel filterPanel;
     private final JPanel viewSwitcher;
     private final JPanel selectorView;
     private final JPanel editorView;
-    private final JournalApp app;
     private RoundedButton useButton;
-    private RoundedButton simGenerateButton;
     private List<JournalTemplateManager.JournalTemplate> allTemplates;
     private List<TemplateCard> cards = new ArrayList<>();
     private TemplateCard selectedCard = null;
     private String activeFilter = "all";
     private Timer searchDebounceTimer;  // Debounce search to avoid twitching
-    private Timer simGenerateTimeoutTimer;
-    private boolean awaitingSimTemplate = false;
-    private String pendingSimNotebookName = "";
-    private final SimEventBus.Listener simTemplateListener = new SimEventBus.Listener() {
-        @Override
-        public void onTemplateGenerated(String notebookName, String name, String description, String[] questions) {
-            if (!awaitingSimTemplate) return;
-            String expected = pendingSimNotebookName == null ? "" : pendingSimNotebookName.trim();
-            String actual = notebookName == null ? "" : notebookName.trim();
-            if (!expected.isEmpty() && !expected.equalsIgnoreCase(actual)) return;
-            SwingUtilities.invokeLater(() -> applyGeneratedTemplate(name, description, questions));
-        }
-    };
     
     public ModernTemplateSelector(Frame parent) {
         this(parent, null);
@@ -246,8 +228,6 @@ public class ModernTemplateSelector extends JDialog {
         
         // Load templates
         refreshCards();
-        refreshSimGenerateButtonState();
-        try { SimEventBus.get().addListener(simTemplateListener); } catch (Throwable ignored) {}
         
         // Focus search
         SwingUtilities.invokeLater(() -> searchField.requestFocusInWindow());
@@ -307,17 +287,12 @@ public class ModernTemplateSelector extends JDialog {
         cancelBtn.setPreferredSize(new Dimension(100, 38));
         cancelBtn.addActionListener(e -> dispose());
 
-        simGenerateButton = new RoundedButton("Generate with Sim");
-        simGenerateButton.setPreferredSize(new Dimension(180, 38));
-        simGenerateButton.addActionListener(e -> requestTemplateFromSim());
-
         useButton = new RoundedButton("Use Template");
         useButton.setPreferredSize(new Dimension(140, 38));
         useButton.setEnabled(false);
         useButton.addActionListener(e -> accept());
         
         buttons.add(cancelBtn);
-        buttons.add(simGenerateButton);
         buttons.add(useButton);
         
         footer.add(hint, BorderLayout.WEST);
@@ -596,7 +571,7 @@ public class ModernTemplateSelector extends JDialog {
 
     private void showEditor(JournalTemplateManager.JournalTemplate existing) {
         editorView.removeAll();
-        ModernTemplateEditorPanel editorPanel = new ModernTemplateEditorPanel(notebook, existing);
+        ModernTemplateEditorPanel editorPanel = new ModernTemplateEditorPanel(notebook, existing, app);
         editorPanel.setOnCancel(() -> showSelector());
         editorPanel.setOnSave(savedTemplate -> {
             refreshCards();
@@ -624,128 +599,6 @@ public class ModernTemplateSelector extends JDialog {
                 break;
             }
         }
-    }
-
-    private void requestTemplateFromSim() {
-        if (awaitingSimTemplate) return;
-        if (app == null) {
-            UIMessage.warn(this, "Sim Unavailable", "Sim is not available in this context.", "");
-            return;
-        }
-        if (!SimSettings.get().isEnabled()) {
-            UIMessage.warn(this, "Sim Disabled", "Enable Sim in Settings > Sim to generate templates.", "");
-            return;
-        }
-        String initial = searchField == null ? "" : searchField.getText().trim();
-        String focus = CustomInputDialog.prompt(
-                this,
-                "Generate with Sim",
-                "Describe what this template should focus on.",
-                initial
-        );
-        if (focus == null || focus.isBlank()) return;
-
-        awaitingSimTemplate = true;
-        pendingSimNotebookName = notebook == null ? "" : notebook.getName();
-        refreshSimGenerateButtonState();
-        startSimGenerateTimeout();
-        try {
-            SimEventBus.get().emitTemplateGenerationRequested(focus.strip(), pendingSimNotebookName);
-        } catch (Throwable t) {
-            awaitingSimTemplate = false;
-            stopSimGenerateTimeout();
-            refreshSimGenerateButtonState();
-            UIMessage.warn(this, "Generation Failed", "Could not start Sim template generation.", "");
-        }
-    }
-
-    private void startSimGenerateTimeout() {
-        stopSimGenerateTimeout();
-        simGenerateTimeoutTimer = new Timer(25000, e -> {
-            if (!awaitingSimTemplate) return;
-            awaitingSimTemplate = false;
-            refreshSimGenerateButtonState();
-            UIMessage.warn(this, "Sim Timeout", "Template generation took too long. Try again.", "");
-        });
-        simGenerateTimeoutTimer.setRepeats(false);
-        simGenerateTimeoutTimer.start();
-    }
-
-    private void stopSimGenerateTimeout() {
-        if (simGenerateTimeoutTimer != null) {
-            simGenerateTimeoutTimer.stop();
-            simGenerateTimeoutTimer = null;
-        }
-    }
-
-    private void applyGeneratedTemplate(String name, String description, String[] questions) {
-        awaitingSimTemplate = false;
-        stopSimGenerateTimeout();
-
-        String cleanName = (name == null ? "" : name.trim());
-        if (cleanName.isEmpty()) cleanName = "Sim Template " + new java.text.SimpleDateFormat("HHmmss").format(new java.util.Date());
-        if (cleanName.length() > 60) cleanName = cleanName.substring(0, 60).trim();
-
-        String cleanDesc = (description == null ? "" : description.trim());
-        if (cleanDesc.isEmpty()) cleanDesc = "Generated by Sim.";
-        if (cleanDesc.length() > 180) cleanDesc = cleanDesc.substring(0, 180).trim();
-
-        List<String> cleanedQuestions = new ArrayList<>();
-        if (questions != null) {
-            for (String q : questions) {
-                if (q == null) continue;
-                String s = q.trim();
-                if (s.isEmpty()) continue;
-                if (s.length() > 180) s = s.substring(0, 180).trim();
-                cleanedQuestions.add(s);
-                if (cleanedQuestions.size() >= 6) break;
-            }
-        }
-        if (cleanedQuestions.isEmpty()) {
-            cleanedQuestions.add("What feels most important for me to explore right now?");
-            cleanedQuestions.add("What pattern do I notice in this situation?");
-            cleanedQuestions.add("What small action would support me next?");
-        }
-
-        String id = "SIM_" + System.currentTimeMillis();
-        JournalTemplateManager.JournalTemplate generated = new JournalTemplateManager.JournalTemplate(
-                id,
-                cleanName,
-                cleanDesc,
-                cleanedQuestions.toArray(new String[0]),
-                true
-        );
-        if (notebook != null) {
-            generated.setScope(JournalTemplateManager.Scope.NOTEBOOK_CUSTOM);
-            generated.setNotebookName(notebook.getName());
-            JournalTemplateManager.getInstance().addTemplateForNotebook(notebook, generated);
-        } else {
-            generated.setScope(JournalTemplateManager.Scope.GLOBAL_CUSTOM);
-            JournalTemplateManager.getInstance().addTemplate(generated);
-        }
-
-        refreshCards();
-        showSelector();
-        selectTemplateById(generated.getId());
-        refreshSimGenerateButtonState();
-    }
-
-    private void refreshSimGenerateButtonState() {
-        if (simGenerateButton == null) return;
-        boolean enabled = app != null && SimSettings.get().isEnabled() && !awaitingSimTemplate;
-        simGenerateButton.setEnabled(enabled);
-        simGenerateButton.setText(awaitingSimTemplate ? "Generating..." : "Generate with Sim");
-        simGenerateButton.setToolTipText(enabled
-                ? "Generate a template from your focus prompt"
-                : "Enable Sim in Settings > Sim");
-    }
-
-    @Override
-    public void dispose() {
-        stopSimGenerateTimeout();
-        awaitingSimTemplate = false;
-        try { SimEventBus.get().removeListener(simTemplateListener); } catch (Throwable ignored) {}
-        super.dispose();
     }
     
     // ═══════════════════════════════════════════════════════════════════════════

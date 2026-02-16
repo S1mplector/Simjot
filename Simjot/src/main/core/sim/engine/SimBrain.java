@@ -23,9 +23,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import main.core.sim.api.SimEventBus;
+import main.core.analytics.MoodAnalyticsEngine;
 import main.core.sim.critic.CriticPromptDecorator;
 import main.core.sim.data.SimDataGateway;
 import main.core.sim.llm.api.SimLLMClient;
+import main.core.sim.llm.magi.MagiClient;
 import main.core.sim.llm.ollama.OllamaClient;
 import main.core.sim.llm.openai.OpenAIClient;
 import main.core.sim.llm.prompt.PromptBuilder;
@@ -39,6 +41,7 @@ import main.core.sim.retrieval.RecencyBuffer;
 import main.core.sim.retrieval.RetrievalRanker;
 import main.core.sim.state.UserState;
 import main.infrastructure.backup.NotebookInfo;
+import main.infrastructure.io.NativeJson;
 
 /**
  * Core decision engine of Sim
@@ -50,6 +53,8 @@ import main.infrastructure.backup.NotebookInfo;
  * Designed for robustness and responsiveness; LLM failures degrade gracefully without blocking core functionality
  */
 public final class SimBrain implements SimEventBus.Listener {
+    private static final String CRITICAL_ADVICE_MARKER = "[critical_advice]";
+
     private final SimSettings settings;
     private final SimPersonality personality;
     private final SimDataGateway data;
@@ -371,6 +376,18 @@ public final class SimBrain implements SimEventBus.Listener {
             lastSpeakMs = System.currentTimeMillis();
             return;
         }
+        if (isMoodAnalysisRequest(txt)) {
+            String feedback = buildMoodAnalyticsFeedback(txt);
+            if (feedback != null && !feedback.isBlank()) {
+                try { SimEventBus.get().emitSpeak(feedback); } catch (Throwable ignored) {}
+                lastSpeakMs = System.currentTimeMillis();
+                return;
+            }
+        }
+        if (isCriticalAdviceRequest(txt)) {
+            handleCriticalAdviceRequest(txt);
+            return;
+        }
         lastSpeakMs = System.currentTimeMillis();
         if (settings.isLlmEnabled()) ensureLlm();
         if (llm != null) {
@@ -398,11 +415,103 @@ public final class SimBrain implements SimEventBus.Listener {
         // No static fallback when LLM unavailable; suppress output
     }
 
+    private void handleCriticalAdviceRequest(String userText) {
+        String txt = userText == null ? "" : userText.strip();
+        if (txt.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        lastSpeakMs = now;
+        try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
+        emitProminentGuidanceEmotions(txt);
+        try {
+            guidanceExecutor.execute(() -> generateCriticalAdviceWithMagiAsync(txt));
+        } catch (Throwable ignored) {
+            try {
+                SimEventBus.get().emitSpeak("I could not consult TAGI consensus agents right now. Please try again.");
+            } catch (Throwable ignored2) {}
+        }
+    }
+
+    private void generateCriticalAdviceWithMagiAsync(String userText) {
+        String txt = userText == null ? "" : userText.strip();
+        if (txt.isEmpty()) return;
+        try { SimEventBus.get().emitGuidanceRequested(CRITICAL_ADVICE_MARKER + txt); } catch (Throwable ignored) {}
+        try { SimEventBus.get().emitSpeakStart(); } catch (Throwable ignored) {}
+        try {
+            SimLLMClient advisory = createMagiConsensusClient();
+            String sys = CriticPromptDecorator.decorateSystem(
+                    PromptBuilder.systemPrompt(personality.getType())
+            );
+            String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 5, 5);
+            String usr = String.join("\n\n",
+                    (ctx != null && !ctx.isBlank()) ? ("Context: " + ctx) : "",
+                    moodContextForPrompt() + " " + emotionsContextForPrompt() + " " + factsContextForPrompt(),
+                    "This is a critical-advice request.",
+                    "Consult the MAGI consensus agents and give advice that is safe, practical, and compassionate.",
+                    "Return plain text only, 3-5 concise bullet points, and include safeguards when uncertainty is high.",
+                    "User request:\n\"\"\"\n" + txt + "\n\"\"\""
+            );
+            main.core.sim.llm.api.SimLLMResponse resp = advisory.generate(
+                    new main.core.sim.llm.api.SimLLMRequest(sys, usr, 300, 0.45),
+                    Duration.ofSeconds(35)
+            );
+            String out = resp == null ? "" : resp.text;
+            String consensus = resp == null ? "" : resp.consensus;
+            String[] emotions = resp == null ? null : resp.emotions;
+            String[] brainStatuses = resp == null ? null : resp.brainStatuses;
+            if ((consensus != null && !consensus.isBlank())
+                    || (emotions != null && emotions.length > 0)
+                    || (brainStatuses != null && brainStatuses.length > 0)) {
+                try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions, brainStatuses); } catch (Throwable ignored) {}
+            }
+            if (out == null || out.isBlank()) {
+                out = "I could not produce a reliable critical-advice response. Please share more detail and try again.";
+            }
+            try { SimEventBus.get().emitSpeak(out); } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            try {
+                SimEventBus.get().emitSpeak("I could not consult TAGI consensus agents right now. Check MAGI settings and try again.");
+            } catch (Throwable ignored2) {}
+        } finally {
+            try { SimEventBus.get().emitSpeakEnd(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private SimLLMClient createMagiConsensusClient() {
+        String python = "python3";
+        String model = "gpt-5";
+        String apiKey = "";
+        try { python = settings.getMagiPythonCommand(); } catch (Throwable ignored) {}
+        try { model = settings.getMagiModel(); } catch (Throwable ignored) {}
+        try { apiKey = settings.getOpenAIApiKey(); } catch (Throwable ignored) {}
+        if (python == null || python.isBlank()) python = "python3";
+        if (model == null || model.isBlank()) model = "gpt-5";
+        if (apiKey == null) apiKey = "";
+        return new MagiClient(python, model, apiKey);
+    }
+
     @Override
     public void onChatEnded() {
         try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
         // No other state needed now; cooldown prevents immediate nudges
         lastSpeakMs = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onTemplateGenerationRequested(String text, String notebookName) {
+        if (!settings.isEnabled()) return;
+        String focus = text == null ? "" : text.strip();
+        if (focus.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        lastSpeakMs = now;
+        String notebook = notebookName == null ? "" : notebookName.strip();
+        try {
+            guidanceExecutor.execute(() -> generateTemplateAsync(focus, notebook));
+        } catch (Throwable ignored) {
+            TemplateDraft fallback = fallbackTemplateDraft(focus, notebook);
+            try {
+                SimEventBus.get().emitTemplateGenerated(notebook, fallback.name, fallback.description, fallback.questions);
+            } catch (Throwable ignored2) {}
+        }
     }
 
     @Override
@@ -439,6 +548,14 @@ public final class SimBrain implements SimEventBus.Listener {
                         Duration.ofSeconds(20)
                 );
                 String out = resp == null ? "" : resp.text;
+                String consensus = resp == null ? "" : resp.consensus;
+                String[] emotions = resp == null ? null : resp.emotions;
+                String[] brainStatuses = resp == null ? null : resp.brainStatuses;
+                if ((consensus != null && !consensus.isBlank())
+                        || (emotions != null && emotions.length > 0)
+                        || (brainStatuses != null && brainStatuses.length > 0)) {
+                    try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions, brainStatuses); } catch (Throwable ignored) {}
+                }
                 try { SimEventBus.get().emitGuidanceProduced(out); } catch (Throwable ignored) {}
                 return;
             } catch (Throwable ignored) {
@@ -446,6 +563,287 @@ public final class SimBrain implements SimEventBus.Listener {
             }
         }
         // If LLM unavailable, do not emit a generic fallback to avoid noise
+    }
+
+    private void generateTemplateAsync(String focus, String notebookName) {
+        TemplateDraft draft = null;
+        if (settings.isLlmEnabled()) ensureLlm();
+        if (llm != null) {
+            try {
+                draft = generateTemplateWithLlm(focus, notebookName);
+            } catch (Throwable ignored) {
+                draft = null;
+            }
+        }
+        if (draft == null) {
+            draft = fallbackTemplateDraft(focus, notebookName);
+        }
+        draft = sanitizeTemplateDraft(draft, focus);
+        try {
+            SimEventBus.get().emitTemplateGenerated(notebookName, draft.name, draft.description, draft.questions);
+        } catch (Throwable ignored) {}
+    }
+
+    private TemplateDraft generateTemplateWithLlm(String focus, String notebookName) throws Exception {
+        String sys = CriticPromptDecorator.decorateSystem(
+                PromptBuilder.systemPrompt(personality.getType())
+        );
+        String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 3, 3);
+        String notebookLine = (notebookName == null || notebookName.isBlank())
+                ? ""
+                : ("Notebook context: " + notebookName + ".");
+        String usr = String.join("\n",
+                "Create a journal template draft based on this focus:",
+                "\"" + focus + "\"",
+                notebookLine,
+                (ctx == null || ctx.isBlank()) ? "" : ("Relevant context: " + ctx),
+                "Return ONLY JSON with this exact shape:",
+                "{\"name\":\"...\",\"description\":\"...\",\"questions\":[\"...\",\"...\",\"...\"]}",
+                "Rules:",
+                "- name: max 60 chars, clear and specific",
+                "- description: max 180 chars",
+                "- questions: 3 to 6 reflective prompts, each <= 180 chars",
+                "- No markdown, no extra keys, no commentary."
+        );
+        main.core.sim.llm.api.SimLLMResponse resp = llm.generate(
+                new main.core.sim.llm.api.SimLLMRequest(sys, usr, 420, 0.35),
+                Duration.ofSeconds(28)
+        );
+        String text = resp == null ? "" : resp.text;
+        TemplateDraft draft = parseTemplateDraftFromJsonText(text);
+        if (draft == null) {
+            draft = parseTemplateDraftFromPlainText(text);
+        }
+        return draft;
+    }
+
+    private TemplateDraft parseTemplateDraftFromJsonText(String text) {
+        if (text == null || text.isBlank()) return null;
+        String json = extractFirstJsonObject(text);
+        if (json == null || json.isBlank()) return null;
+
+        String name = firstNonBlank(
+                NativeJson.getString(json, "name"),
+                NativeJson.getString(json, "template_name"),
+                NativeJson.getString(json, "title")
+        );
+        String description = firstNonBlank(
+                NativeJson.getString(json, "description"),
+                NativeJson.getString(json, "summary")
+        );
+        java.util.List<String> questions = new java.util.ArrayList<>();
+        String questionsArr = firstNonBlank(
+                NativeJson.getArray(json, "questions"),
+                NativeJson.getArray(json, "prompts")
+        );
+        if (questionsArr != null && !questionsArr.isBlank()) {
+            questions.addAll(NativeJson.getStringArray(questionsArr));
+        }
+        if (questions.isEmpty()) {
+            return null;
+        }
+        return new TemplateDraft(name, description, questions.toArray(new String[0]));
+    }
+
+    private TemplateDraft parseTemplateDraftFromPlainText(String text) {
+        if (text == null || text.isBlank()) return null;
+        String[] lines = text.split("\\R");
+        String name = "";
+        String description = "";
+        java.util.List<String> questions = new java.util.ArrayList<>();
+        boolean inQuestions = false;
+        for (String raw : lines) {
+            if (raw == null) continue;
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+            String lower = line.toLowerCase(java.util.Locale.ROOT);
+            if (lower.startsWith("name:")) {
+                name = line.substring(5).trim();
+                continue;
+            }
+            if (lower.startsWith("title:")) {
+                name = line.substring(6).trim();
+                continue;
+            }
+            if (lower.startsWith("description:")) {
+                description = line.substring(12).trim();
+                continue;
+            }
+            if (lower.startsWith("questions:") || lower.startsWith("prompts:")) {
+                inQuestions = true;
+                String tail = line.substring(line.indexOf(':') + 1).trim();
+                if (!tail.isEmpty()) questions.add(cleanQuestionCandidate(tail));
+                continue;
+            }
+            if (line.matches("^[-*]\\s+.+")) {
+                questions.add(cleanQuestionCandidate(line.substring(1).trim()));
+                inQuestions = true;
+                continue;
+            }
+            if (line.matches("^\\d+[\\.)]\\s+.+")) {
+                String q = line.replaceFirst("^\\d+[\\.)]\\s+", "");
+                questions.add(cleanQuestionCandidate(q));
+                inQuestions = true;
+                continue;
+            }
+            if (inQuestions && line.endsWith("?")) {
+                questions.add(cleanQuestionCandidate(line));
+                continue;
+            }
+            if (name.isEmpty()) {
+                name = line;
+            } else if (description.isEmpty()) {
+                description = line;
+            }
+        }
+        if (questions.isEmpty()) {
+            return null;
+        }
+        return new TemplateDraft(name, description, questions.toArray(new String[0]));
+    }
+
+    private TemplateDraft fallbackTemplateDraft(String focus, String notebookName) {
+        String normalizedFocus = focus == null ? "" : focus.replaceAll("\\s+", " ").trim();
+        if (normalizedFocus.isEmpty()) normalizedFocus = "Daily Reflection";
+        String shortFocus = normalizedFocus.length() > 56 ? normalizedFocus.substring(0, 56).trim() : normalizedFocus;
+        String title = toTitleCase(shortFocus);
+        if (title.isBlank()) title = "Guided Reflection";
+        if (!title.toLowerCase(java.util.Locale.ROOT).contains("template")) {
+            title = title + " Template";
+        }
+
+        String description = "A guided template for reflecting on " + shortFocus.toLowerCase(java.util.Locale.ROOT) + ".";
+        if (notebookName != null && !notebookName.isBlank()) {
+            description = description + " Scoped to " + notebookName.trim() + ".";
+        }
+
+        String[] questions = new String[]{
+                "What matters most to me about " + shortFocus + " today?",
+                "What emotions or patterns do I notice around this topic?",
+                "What is one perspective shift that could help me move forward?",
+                "What small action can I take next to support myself?"
+        };
+        return new TemplateDraft(title, description, questions);
+    }
+
+    private TemplateDraft sanitizeTemplateDraft(TemplateDraft draft, String focus) {
+        TemplateDraft source = draft == null ? fallbackTemplateDraft(focus, "") : draft;
+        String name = source.name == null ? "" : source.name.trim();
+        String description = source.description == null ? "" : source.description.trim();
+        if (name.isEmpty()) {
+            String fallbackFocus = focus == null ? "Daily Reflection" : focus.trim();
+            if (fallbackFocus.length() > 40) fallbackFocus = fallbackFocus.substring(0, 40).trim();
+            name = toTitleCase(fallbackFocus) + " Template";
+        }
+        if (name.length() > 60) name = name.substring(0, 60).trim();
+        if (description.isEmpty()) {
+            description = "A reflective template generated by Sim.";
+        }
+        if (description.length() > 180) description = description.substring(0, 180).trim();
+
+        java.util.LinkedHashSet<String> unique = new java.util.LinkedHashSet<>();
+        if (source.questions != null) {
+            for (String q : source.questions) {
+                String clean = cleanQuestionCandidate(q);
+                if (clean.isEmpty()) continue;
+                unique.add(clean);
+                if (unique.size() >= 6) break;
+            }
+        }
+        java.util.List<String> questions = new java.util.ArrayList<>(unique);
+        if (questions.size() < 3) {
+            String topic = (focus == null || focus.isBlank()) ? "this topic" : focus.trim();
+            questions.clear();
+            questions.add("What feels most important for me to explore about " + topic + "?");
+            questions.add("What pattern do I notice in how I respond to this?");
+            questions.add("What one small step can I take next?");
+        }
+        String[] qs = questions.toArray(new String[0]);
+        return new TemplateDraft(name, description, qs);
+    }
+
+    private String cleanQuestionCandidate(String raw) {
+        if (raw == null) return "";
+        String s = raw.replaceAll("\\s+", " ").trim();
+        if (s.isEmpty()) return "";
+        if (s.length() > 180) s = s.substring(0, 180).trim();
+        if (!s.endsWith("?")) {
+            if (s.length() < 175) s = s + "?";
+        }
+        return s;
+    }
+
+    private String extractFirstJsonObject(String text) {
+        if (text == null) return null;
+        int start = text.indexOf('{');
+        if (start < 0) return null;
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = start; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) continue;
+            if (c == '{') depth++;
+            if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return text.substring(start, i + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v.trim();
+        }
+        return null;
+    }
+
+    private String toTitleCase(String text) {
+        if (text == null) return "";
+        String[] words = text.trim().split("\\s+");
+        if (words.length == 0) return "";
+        StringBuilder out = new StringBuilder();
+        int maxWords = Math.min(words.length, 8);
+        for (int i = 0; i < maxWords; i++) {
+            String w = words[i];
+            if (w.isEmpty()) continue;
+            if (out.length() > 0) out.append(' ');
+            if (w.length() == 1) {
+                out.append(w.toUpperCase(java.util.Locale.ROOT));
+            } else {
+                out.append(Character.toUpperCase(w.charAt(0)))
+                        .append(w.substring(1).toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        return out.toString().trim();
+    }
+
+    private static final class TemplateDraft {
+        final String name;
+        final String description;
+        final String[] questions;
+
+        TemplateDraft(String name, String description, String[] questions) {
+            this.name = name == null ? "" : name;
+            this.description = description == null ? "" : description;
+            this.questions = questions == null ? new String[0] : questions;
+        }
     }
 
     // --- Helpers ---
@@ -642,6 +1040,19 @@ public final class SimBrain implements SimEventBus.Listener {
         if (provider == null || provider.isBlank()) provider = "ollama";
         provider = provider.toLowerCase(java.util.Locale.ROOT);
         switch (provider) {
+            case "magi": {
+                String python = "python3";
+                String model = "gpt-5";
+                String apiKey = "";
+                try { python = settings.getMagiPythonCommand(); } catch (Throwable ignored) {}
+                try { model = settings.getMagiModel(); } catch (Throwable ignored) {}
+                try { apiKey = settings.getOpenAIApiKey(); } catch (Throwable ignored) {}
+                if (python == null || python.isBlank()) python = "python3";
+                if (model == null || model.isBlank()) model = "gpt-5";
+                if (apiKey == null) apiKey = "";
+                llmProviderActive = "magi";
+                return new MagiClient(python, model, apiKey);
+            }
             case "openai": {
                 String apiKey = "";
                 String model = "gpt-4o-mini";
@@ -863,6 +1274,268 @@ public final class SimBrain implements SimEventBus.Listener {
         if (mv == null) return "";
         String bucket = mv <= 20.0 ? "low" : (mv >= 80.0 ? "high" : "neutral");
         return "Recent user mood: " + bucket + " (" + String.format(java.util.Locale.ROOT, "%.0f", mv) + ").";
+    }
+
+    private boolean isMoodAnalysisRequest(String text) {
+        if (text == null || text.isBlank()) return false;
+        String t = text.toLowerCase(java.util.Locale.ROOT);
+        boolean mentionsMood = t.contains("mood") || t.contains("emotion") || t.contains("feelings");
+        if (!mentionsMood) return false;
+        if (t.contains("analy") || t.contains("analysis") || t.contains("feedback")) return true;
+        if (t.contains("trend") || t.contains("pattern") || t.contains("stats") || t.contains("data")) return true;
+        if (t.contains("how am i doing") || t.contains("how is my")) return true;
+        if (t.contains("volatility") || t.contains("streak")) return true;
+        return t.contains("insight");
+    }
+
+    private boolean isCriticalAdviceRequest(String text) {
+        if (text == null || text.isBlank()) return false;
+        String t = text.toLowerCase(java.util.Locale.ROOT);
+        boolean explicitCritical = t.contains("critical advice")
+                || t.contains("urgent advice")
+                || t.contains("high-stakes")
+                || t.contains("high stakes")
+                || t.contains("major decision")
+                || t.contains("important decision")
+                || t.contains("serious advice");
+        boolean adviceIntent = t.contains("advice")
+                || t.contains("guidance")
+                || t.contains("recommend")
+                || t.contains("what should i")
+                || t.contains("should i");
+        boolean riskyDomain = t.contains("medical")
+                || t.contains("health")
+                || t.contains("legal")
+                || t.contains("law")
+                || t.contains("financial")
+                || t.contains("money")
+                || t.contains("career")
+                || t.contains("relationship")
+                || t.contains("risk")
+                || t.contains("safety");
+        return explicitCritical || (adviceIntent && riskyDomain);
+    }
+
+    private String buildMoodAnalyticsFeedback(String userText) {
+        int daysBack = resolveMoodRangeDays(userText);
+        MoodAnalyticsEngine.AnalyticsResult result;
+        try {
+            result = MoodAnalyticsEngine.get().analyze(daysBack, 7);
+        } catch (Throwable t) {
+            return "I could not read your mood data right now. Please try again in a moment.";
+        }
+        if (result == null || result.totalSamples <= 0) {
+            return "I don’t have enough mood data yet. Add a few mood check-ins first, then I can analyze trends.";
+        }
+
+        Double first = firstNonNullValue(result.dailyAverages);
+        Double last = lastNonNullValue(result.dailyAverages);
+        double latest = (last != null) ? last : result.overallAverage;
+        double delta = (first != null && last != null) ? (last - first) : 0.0;
+        String direction;
+        if (delta >= 6.0) direction = "upward";
+        else if (delta <= -6.0) direction = "downward";
+        else direction = "fairly stable";
+
+        String volatilityLabel = result.volatility < 7.5 ? "steady"
+                : (result.volatility < 14.0 ? "moderately variable" : "highly variable");
+        String streakLine = buildMoodStreakLine(result);
+        String rangeLabel = (daysBack <= 0) ? "all recorded data" : ("the last " + daysBack + " days");
+        String llmFeedback = buildMoodAnalyticsFeedbackWithLlm(
+                userText, result, rangeLabel, latest, delta, direction, volatilityLabel, streakLine
+        );
+        if (llmFeedback != null && !llmFeedback.isBlank()) {
+            return llmFeedback;
+        }
+
+        String suggestion = moodSuggestionForAverage(result.overallAverage, latest);
+        String streakSentence = "none".equalsIgnoreCase(streakLine)
+                ? "No active mood streak right now."
+                : "Current streak: " + streakLine + ".";
+        return String.format(
+                java.util.Locale.ROOT,
+                "I analyzed %s: average %.1f/100 (%s), latest %.1f/100 with a %s trend, volatility is %s. %s %s",
+                rangeLabel,
+                result.overallAverage,
+                MoodAnalyticsEngine.categorize(result.overallAverage).toLowerCase(java.util.Locale.ROOT),
+                latest,
+                direction,
+                volatilityLabel,
+                streakSentence,
+                suggestion
+        ).trim();
+    }
+
+    private String buildMoodAnalyticsFeedbackWithLlm(
+            String userText,
+            MoodAnalyticsEngine.AnalyticsResult result,
+            String rangeLabel,
+            double latest,
+            double delta,
+            String direction,
+            String volatilityLabel,
+            String streakLine
+    ) {
+        try {
+            if (!settings.isLlmEnabled()) return null;
+            ensureLlm();
+            if (llm == null) return null;
+
+            String sys = CriticPromptDecorator.decorateSystem(
+                    PromptBuilder.systemPrompt(personality.getType())
+            );
+            String request = userText == null ? "" : userText.trim();
+            String metrics = String.join("\n",
+                    "Range: " + rangeLabel,
+                    "Samples: " + result.totalSamples,
+                    "Overall average: " + formatMood(result.overallAverage) + "/100",
+                    "Latest average: " + formatMood(latest) + "/100",
+                    "Trend delta (latest-first): " + formatMood(delta),
+                    "Trend direction: " + direction,
+                    "Volatility: " + formatMood(result.volatility) + " (" + volatilityLabel + ")",
+                    "Current streak: " + streakLine,
+                    "Longest good streak: " + result.longestGoodStreak,
+                    "Longest challenging streak: " + result.longestBadStreak,
+                    "Recent daily series:\n" + moodSeriesSnapshot(result, 14),
+                    "Recent emotion snapshot:\n" + latestEmotionSnapshot(result)
+            );
+            String usr = String.join("\n\n",
+                    "The user asked for mood data analysis.",
+                    "User request: " + request,
+                    "Use ONLY the metrics below.",
+                    metrics,
+                    "Write a high-quality response in plain text only.",
+                    "Requirements:",
+                    "- Be specific and evidence-grounded from the provided data.",
+                    "- Include: trend read, volatility read, streak interpretation, and 1-2 practical next steps.",
+                    "- Keep a supportive but honest tone, no diagnosis, no alarmism.",
+                    "- 4-7 concise sentences maximum."
+            );
+
+            main.core.sim.llm.api.SimLLMResponse resp = llm.generate(
+                    new main.core.sim.llm.api.SimLLMRequest(sys, usr, 280, 0.45),
+                    Duration.ofSeconds(28)
+            );
+            String out = resp == null ? "" : resp.text;
+            if (out == null) return null;
+            out = out.strip();
+            if (out.isEmpty()) return null;
+            if (out.length() > 1200) out = out.substring(0, 1200).trim();
+            return out;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private int resolveMoodRangeDays(String text) {
+        if (text == null) return 30;
+        String t = text.toLowerCase(java.util.Locale.ROOT);
+        if (t.contains("all time") || t.contains("overall") || t.contains("lifetime")) return 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(\\d{1,3})\\s*(day|days|week|weeks|month|months)")
+                .matcher(t);
+        if (m.find()) {
+            int value = 30;
+            try { value = Integer.parseInt(m.group(1)); } catch (Throwable ignored) {}
+            String unit = m.group(2);
+            if (unit.startsWith("week")) value *= 7;
+            else if (unit.startsWith("month")) value *= 30;
+            return Math.max(3, Math.min(365, value));
+        }
+        if (t.contains("week")) return 7;
+        if (t.contains("month")) return 30;
+        if (t.contains("quarter")) return 90;
+        return 30;
+    }
+
+    private Double firstNonNullValue(List<Double> values) {
+        if (values == null) return null;
+        for (Double v : values) {
+            if (v != null) return v;
+        }
+        return null;
+    }
+
+    private Double lastNonNullValue(List<Double> values) {
+        if (values == null) return null;
+        for (int i = values.size() - 1; i >= 0; i--) {
+            Double v = values.get(i);
+            if (v != null) return v;
+        }
+        return null;
+    }
+
+    private String moodSuggestionForAverage(double average, double latest) {
+        if (latest < 30 || average < 35) {
+            return "Try a short reset routine today: one grounding activity and one low-pressure task.";
+        }
+        if (latest > 70 || average > 65) {
+            return "Momentum looks positive. Capture what helped so you can repeat it intentionally.";
+        }
+        return "A small daily reflection habit can help keep this trend moving in the right direction.";
+    }
+
+    private String buildMoodStreakLine(MoodAnalyticsEngine.AnalyticsResult result) {
+        if (result == null) return "No active mood streak right now.";
+        if (result.currentStreak > 0) {
+            return result.currentStreak + " good day" + (result.currentStreak == 1 ? "" : "s");
+        }
+        if (result.currentStreak < 0) {
+            int challenging = -result.currentStreak;
+            return challenging + " challenging day" + (challenging == 1 ? "" : "s");
+        }
+        return "none";
+    }
+
+    private String moodSeriesSnapshot(MoodAnalyticsEngine.AnalyticsResult result, int maxDays) {
+        if (result == null || result.dates == null || result.dates.isEmpty()) return "No series data.";
+        int size = result.dates.size();
+        int start = Math.max(0, size - Math.max(1, maxDays));
+        StringBuilder sb = new StringBuilder(256);
+        for (int i = start; i < size; i++) {
+            java.time.LocalDate d = result.dates.get(i);
+            MoodAnalyticsEngine.DailyStats stats = result.dailyStats == null ? null : result.dailyStats.get(d);
+            if (i > start) sb.append('\n');
+            if (stats == null || stats.sampleCount <= 0) {
+                sb.append(d).append(": no-data");
+            } else {
+                sb.append(d)
+                        .append(": avg=").append(formatMood(stats.average))
+                        .append(", min=").append(stats.min)
+                        .append(", max=").append(stats.max)
+                        .append(", n=").append(stats.sampleCount);
+            }
+        }
+        return sb.toString();
+    }
+
+    private String latestEmotionSnapshot(MoodAnalyticsEngine.AnalyticsResult result) {
+        if (result == null || result.dates == null || result.dates.isEmpty() || result.dailyStats == null) {
+            return "No detailed emotion components available.";
+        }
+        for (int i = result.dates.size() - 1; i >= 0; i--) {
+            java.time.LocalDate d = result.dates.get(i);
+            MoodAnalyticsEngine.DailyStats s = result.dailyStats.get(d);
+            if (s == null || s.sampleCount <= 0) continue;
+            boolean hasDetails = s.avgJoy >= 0 || s.avgCalm >= 0 || s.avgGratitude >= 0 || s.avgEnergy >= 0
+                    || s.avgSadness >= 0 || s.avgAnger >= 0 || s.avgAnxiety >= 0 || s.avgStress >= 0;
+            if (!hasDetails) continue;
+            java.util.List<String> parts = new java.util.ArrayList<>();
+            if (s.avgJoy >= 0) parts.add("joy=" + formatMood(s.avgJoy));
+            if (s.avgCalm >= 0) parts.add("calm=" + formatMood(s.avgCalm));
+            if (s.avgGratitude >= 0) parts.add("gratitude=" + formatMood(s.avgGratitude));
+            if (s.avgEnergy >= 0) parts.add("energy=" + formatMood(s.avgEnergy));
+            if (s.avgSadness >= 0) parts.add("sadness=" + formatMood(s.avgSadness));
+            if (s.avgAnger >= 0) parts.add("anger=" + formatMood(s.avgAnger));
+            if (s.avgAnxiety >= 0) parts.add("anxiety=" + formatMood(s.avgAnxiety));
+            if (s.avgStress >= 0) parts.add("stress=" + formatMood(s.avgStress));
+            return d + ": " + String.join(", ", parts);
+        }
+        return "No detailed emotion components available.";
+    }
+
+    private String formatMood(double value) {
+        return String.format(java.util.Locale.ROOT, "%.1f", value);
     }
 
     private boolean isQuietHoursNow() {

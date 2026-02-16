@@ -51,6 +51,7 @@ public final class ChatTranscriptModel {
     public void removeListener(Listener l) { if (l != null) listeners.remove(l); }
 
     public List<Entry> snapshot() { return Collections.unmodifiableList(new ArrayList<>(entries)); }
+    public boolean isAssistantPending() { return assistantPending; }
 
     public void setEntries(List<Entry> snapshot) {
         entries.clear();
@@ -76,7 +77,7 @@ public final class ChatTranscriptModel {
         // Defer creating an entry until we receive first non-blank tokens
         assistantPending = true;
         streamingAssistantIndex = -1;
-        // do not notify; nothing visible yet
+        notifyChanged();
     }
 
     public void appendAssistantTokens(String tokens) {

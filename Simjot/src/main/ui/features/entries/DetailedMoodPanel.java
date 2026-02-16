@@ -71,6 +71,15 @@ public class DetailedMoodPanel extends JPanel {
     private static final double SECONDARY_WEIGHT = 0.30;
     private static final double BACKGROUND_WEIGHT = 0.12;
 
+    private static final int IDX_JOY = 0;
+    private static final int IDX_CALM = 1;
+    private static final int IDX_GRATITUDE = 2;
+    private static final int IDX_ENERGY = 3;
+    private static final int IDX_SADNESS = 4;
+    private static final int IDX_ANGER = 5;
+    private static final int IDX_ANXIETY = 6;
+    private static final int IDX_STRESS = 7;
+
     private static final int CHANGE_DEBOUNCE_MS = 130;
     private static final int STAGGER_SETTLE_MS = 70;
     private static final int STAGGER_DELAY_MS = 36;
@@ -97,7 +106,13 @@ public class DetailedMoodPanel extends JPanel {
     private final JPanel sliderStack;
     private final JPanel composerPanel;
     private final JLabel summaryLabel;
+    private final JLabel utilityStatusLabel;
+    private final MoodBalanceMeter balanceMeter;
     private final JToggleButton composerToggle;
+    private final UtilityActionButton balanceActionButton;
+    private final UtilityActionButton sootheActionButton;
+    private final UtilityActionButton activateActionButton;
+    private final UtilityActionButton clearActionButton;
     private final RoleSelectorButton primaryRoleButton;
     private final RoleSelectorButton secondaryRoleButton;
     private final RoleSelectorButton backgroundRoleButton;
@@ -195,11 +210,20 @@ public class DetailedMoodPanel extends JPanel {
         summaryLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
         summaryLabel.setForeground(new Color(90, 90, 90));
 
+        utilityStatusLabel = new JLabel();
+        utilityStatusLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f));
+        utilityStatusLabel.setForeground(new Color(88, 96, 112));
+
+        balanceMeter = new MoodBalanceMeter();
+        balanceMeter.setPreferredSize(new Dimension(120, 12));
+
         composerToggle = new ComposerModeToggle();
         composerToggle.setSelected(false);
         composerToggle.addActionListener(e -> setComposerModeEnabled(composerToggle.isSelected()));
 
         headerRight.add(summaryLabel);
+        headerRight.add(utilityStatusLabel);
+        headerRight.add(balanceMeter);
         headerRight.add(composerToggle);
 
         header.add(title, BorderLayout.WEST);
@@ -212,7 +236,7 @@ public class DetailedMoodPanel extends JPanel {
 
         JPanel chipsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         chipsRow.setOpaque(false);
-            chipsRow.setBorder(new EmptyBorder(2, 0, 1, 0));
+        chipsRow.setBorder(new EmptyBorder(2, 0, 1, 0));
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
             EmotionChipButton chip = new EmotionChipButton(EMOTION_NAMES[i], EMOTION_COLORS[i], POSITIVE_EMOTIONS[i]);
             final int idx = i;
@@ -220,6 +244,30 @@ public class DetailedMoodPanel extends JPanel {
             chips[i] = chip;
             chipsRow.add(chip);
         }
+
+        JPanel utilityRow = new JPanel(new BorderLayout(8, 0));
+        utilityRow.setOpaque(false);
+        utilityRow.setBorder(new EmptyBorder(6, 0, 1, 0));
+
+        JPanel utilityActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        utilityActions.setOpaque(false);
+
+        balanceActionButton = new UtilityActionButton("Balance");
+        sootheActionButton = new UtilityActionButton("Soothe");
+        activateActionButton = new UtilityActionButton("Activate");
+        clearActionButton = new UtilityActionButton("Reset");
+
+        balanceActionButton.addActionListener(e -> applyUtilityBalance());
+        sootheActionButton.addActionListener(e -> applyUtilitySoothe());
+        activateActionButton.addActionListener(e -> applyUtilityActivate());
+        clearActionButton.addActionListener(e -> applyUtilityClear());
+
+        utilityActions.add(balanceActionButton);
+        utilityActions.add(sootheActionButton);
+        utilityActions.add(activateActionButton);
+        utilityActions.add(clearActionButton);
+
+        utilityRow.add(utilityActions, BorderLayout.WEST);
 
         composerPanel = new JPanel();
         composerPanel.setOpaque(false);
@@ -251,7 +299,7 @@ public class DetailedMoodPanel extends JPanel {
         sliderStack.setLayout(new BoxLayout(sliderStack, BoxLayout.Y_AXIS));
         sliderStack.setBorder(new EmptyBorder(0, 0, 0, 0));
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
-            EmotionSliderRow row = createSliderRow(EMOTION_NAMES[i], sliders[i]);
+            EmotionSliderRow row = createSliderRow(EMOTION_NAMES[i], sliders[i], EMOTION_COLORS[i], POSITIVE_EMOTIONS[i]);
             row.setVisible(false);
             sliderRows[i] = row;
             sliderStack.add(row);
@@ -261,6 +309,7 @@ public class DetailedMoodPanel extends JPanel {
         }
 
         center.add(chipsRow);
+        center.add(utilityRow);
         center.add(composerPanel);
         center.add(sliderStack);
 
@@ -277,6 +326,7 @@ public class DetailedMoodPanel extends JPanel {
         staggerTimer.setRepeats(true);
 
         installLiveListeners();
+        refreshAllRowMeta();
         refreshComposerRoles();
         refreshSummaryLabel();
 
@@ -339,6 +389,7 @@ public class DetailedMoodPanel extends JPanel {
         hasSnapshot = hasAnyChipSelected();
         normalizeComposerRoles();
         refreshComposerRoles();
+        refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
         refreshSummaryLabel();
         repaint();
@@ -359,6 +410,7 @@ public class DetailedMoodPanel extends JPanel {
         secondaryEmotion = -1;
         backgroundEmotion = -1;
         refreshComposerRoles();
+        refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
         refreshSummaryLabel();
     }
@@ -377,6 +429,10 @@ public class DetailedMoodPanel extends JPanel {
             if (chip != null) chip.setEnabled(enabled);
         }
         composerToggle.setEnabled(enabled);
+        balanceActionButton.setEnabled(enabled);
+        sootheActionButton.setEnabled(enabled);
+        activateActionButton.setEnabled(enabled);
+        clearActionButton.setEnabled(enabled);
         primaryRoleButton.setEnabled(enabled);
         secondaryRoleButton.setEnabled(enabled);
         backgroundRoleButton.setEnabled(enabled);
@@ -487,6 +543,110 @@ public class DetailedMoodPanel extends JPanel {
         };
     }
 
+    private void applyUtilityBalance() {
+        runBatchUpdate(() -> {
+            if (!hasAnyChipSelected()) {
+                ensureSelected(IDX_CALM);
+                ensureSelected(IDX_ANXIETY);
+                ensureSelected(IDX_STRESS);
+                sliders[IDX_CALM].setValue(62);
+                sliders[IDX_ANXIETY].setValue(58);
+                sliders[IDX_STRESS].setValue(55);
+            }
+            for (int i = 0; i < sliders.length; i++) {
+                if (!chips[i].isSelected()) continue;
+                nudgeTowards(i, 50, 0.45f);
+            }
+        }, true);
+    }
+
+    private void applyUtilitySoothe() {
+        runBatchUpdate(() -> {
+            ensureSelected(IDX_CALM);
+            ensureSelected(IDX_GRATITUDE);
+
+            shiftValue(IDX_CALM, 16, true);
+            shiftValue(IDX_GRATITUDE, 13, true);
+            shiftValue(IDX_JOY, 8, true);
+            shiftValue(IDX_ANXIETY, -18, false);
+            shiftValue(IDX_STRESS, -18, false);
+            shiftValue(IDX_ANGER, -12, false);
+            shiftValue(IDX_SADNESS, -8, false);
+        }, true);
+    }
+
+    private void applyUtilityActivate() {
+        runBatchUpdate(() -> {
+            ensureSelected(IDX_JOY);
+            ensureSelected(IDX_ENERGY);
+
+            shiftValue(IDX_JOY, 18, true);
+            shiftValue(IDX_ENERGY, 20, true);
+            shiftValue(IDX_CALM, 6, true);
+            shiftValue(IDX_SADNESS, -14, false);
+            shiftValue(IDX_STRESS, -12, false);
+            shiftValue(IDX_ANXIETY, -10, false);
+        }, true);
+    }
+
+    private void applyUtilityClear() {
+        clearSnapshot();
+        changeDebounceTimer.restart();
+    }
+
+    private void runBatchUpdate(Runnable updates, boolean restagger) {
+        changeDebounceTimer.stop();
+        suppressCallbacks = true;
+        updates.run();
+        suppressCallbacks = false;
+
+        hasSnapshot = hasAnyChipSelected();
+        normalizeComposerRoles();
+        refreshComposerRoles();
+        refreshAllRowMeta();
+        syncSliderRowVisibility(expanded);
+        if (restagger && expanded) {
+            prepareRowsForStagger(true);
+            startStaggerAnimation(true);
+        }
+        refreshSummaryLabel();
+        changeDebounceTimer.restart();
+    }
+
+    private void ensureSelected(int idx) {
+        if (idx < 0 || idx >= chips.length) return;
+        chips[idx].setSelected(true);
+    }
+
+    private void shiftValue(int idx, int delta, boolean autoSelect) {
+        if (idx < 0 || idx >= sliders.length) return;
+        if (autoSelect) {
+            ensureSelected(idx);
+        }
+        if (!chips[idx].isSelected()) return;
+        sliders[idx].setValue(clamp(sliders[idx].getValue() + delta));
+    }
+
+    private void nudgeTowards(int idx, int target, float factor) {
+        if (idx < 0 || idx >= sliders.length) return;
+        int current = sliders[idx].getValue();
+        int next = current + Math.round((target - current) * factor);
+        sliders[idx].setValue(clamp(next));
+    }
+
+    private void refreshAllRowMeta() {
+        for (int i = 0; i < sliderRows.length; i++) {
+            refreshRowMeta(i);
+        }
+    }
+
+    private void refreshRowMeta(int idx) {
+        if (idx < 0 || idx >= sliderRows.length) return;
+        int value = sliders[idx].getValue();
+        String semantic = semanticIntensityLabel(idx, value);
+        sliderRows[idx].updateMeta(semantic, value, chips[idx].isSelected());
+    }
+
     private void setComposerModeEnabled(boolean enabled) {
         composerPanel.setVisible(enabled);
         composerRings.repaint();
@@ -542,6 +702,7 @@ public class DetailedMoodPanel extends JPanel {
 
         normalizeComposerRoles();
         refreshComposerRoles();
+        refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
         if (expanded) {
             prepareRowsForStagger(true);
@@ -617,6 +778,7 @@ public class DetailedMoodPanel extends JPanel {
         hasSnapshot = hasAnyChipSelected();
         normalizeComposerRoles();
         refreshComposerRoles();
+        refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
 
         if (expanded) {
@@ -699,7 +861,7 @@ public class DetailedMoodPanel extends JPanel {
 
             long startOffset = (staggerExpanding ? STAGGER_SETTLE_MS : 0L) + (long) order * STAGGER_DELAY_MS;
             float t = clamp01((elapsed - startOffset) / (float) STAGGER_DURATION_MS);
-            float eased = 1f - (float) Math.pow(1f - t, 3f);
+            float eased = staggerExpanding ? easeOutBack(t) : easeInCubic(t);
             float reveal = staggerExpanding ? eased : (1f - eased);
 
             if (staggerExpanding) {
@@ -778,6 +940,7 @@ public class DetailedMoodPanel extends JPanel {
                 if (suppressCallbacks || !chips[idx].isSelected()) return;
                 hasSnapshot = true;
                 refreshComposerRoles();
+                refreshRowMeta(idx);
                 refreshSummaryLabel();
                 changeDebounceTimer.restart();
             };
@@ -847,13 +1010,17 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void refreshSummaryLabel() {
-        if (!hasAnyChipSelected()) {
+        int selectedCount = selectedEmotionIndices().size();
+        if (selectedCount == 0) {
             summaryLabel.setText("Not set");
+            utilityStatusLabel.setText("0/8 active");
+            balanceMeter.setValue(50);
             return;
         }
 
+        int composite = computeComposite();
         List<EmotionIntensity> top = strongestEmotions(captureSnapshot(), 2);
-        StringBuilder sb = new StringBuilder("Composite ").append(computeComposite());
+        StringBuilder sb = new StringBuilder("Composite ").append(composite);
         for (EmotionIntensity it : top) {
             sb.append(" · ")
               .append(it.name)
@@ -861,6 +1028,8 @@ public class DetailedMoodPanel extends JPanel {
               .append(semanticIntensityLabel(it.index, it.value));
         }
         summaryLabel.setText(sb.toString());
+        utilityStatusLabel.setText(selectedCount + "/8 active");
+        balanceMeter.setValue(composite);
     }
 
     private int valueForCapture(int idx) {
@@ -883,19 +1052,8 @@ public class DetailedMoodPanel extends JPanel {
         return selected;
     }
 
-    private static EmotionSliderRow createSliderRow(String label, MoodSlider slider) {
-        EmotionSliderRow row = new EmotionSliderRow();
-        row.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(1, 1, 1, 1),
-                BorderFactory.createEmptyBorder(3, 10, 6, 10)
-        ));
-
-        JLabel l = new JLabel(label);
-        l.setFont(AeroTheme.defaultFont());
-        l.setForeground(AeroTheme.TEXT_PRIMARY);
-        row.add(l, BorderLayout.WEST);
-        row.add(slider, BorderLayout.CENTER);
-        return row;
+    private static EmotionSliderRow createSliderRow(String label, MoodSlider slider, Color accent, boolean positive) {
+        return new EmotionSliderRow(label, slider, accent, positive);
     }
 
     private static MoodSlider createEmotionSlider() {
@@ -903,7 +1061,7 @@ public class DetailedMoodPanel extends JPanel {
         s.setHoverFadeEnabled(false);
         s.setOpaque(false);
         s.setFocusable(false);
-        s.setPreferredSize(new Dimension(205, 34));
+        s.setPreferredSize(new Dimension(220, 34));
         return s;
     }
 
@@ -923,21 +1081,92 @@ public class DetailedMoodPanel extends JPanel {
         return Math.max(0, Math.min(100, value));
     }
 
+    private static int clamp255(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
     private static float clamp01(float value) {
         return Math.max(0f, Math.min(1f, value));
     }
 
-    private static final class EmotionSliderRow extends FrostedGlassPanel {
-        private float reveal = 1f;
+    private static float easeOutBack(float t) {
+        float x = clamp01(t) - 1f;
+        float c1 = 1.70158f;
+        float c3 = c1 + 1f;
+        return clamp01(1f + c3 * x * x * x + c1 * x * x);
+    }
 
-        private EmotionSliderRow() {
+    private static float easeInCubic(float t) {
+        float x = clamp01(t);
+        return x * x * x;
+    }
+
+    private static final class EmotionSliderRow extends FrostedGlassPanel {
+        private final Color accent;
+        private final boolean positive;
+        private final JLabel semanticLabel;
+        private final JLabel valueLabel;
+        private float reveal = 1f;
+        private float activeMix = 0f;
+
+        private EmotionSliderRow(String label, MoodSlider slider, Color accent, boolean positive) {
             super(new BorderLayout(8, 0), 12);
+            this.accent = accent;
+            this.positive = positive;
             setOpaque(false);
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createEmptyBorder(1, 1, 1, 1),
+                    BorderFactory.createEmptyBorder(4, 10, 6, 10)
+            ));
+
+            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+            left.setOpaque(false);
+            left.add(new DotIndicator(accent));
+
+            JLabel labelComp = new JLabel(label);
+            labelComp.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12.5f));
+            labelComp.setForeground(AeroTheme.TEXT_PRIMARY);
+            left.add(labelComp);
+            add(left, BorderLayout.WEST);
+
+            add(slider, BorderLayout.CENTER);
+
+            JPanel meta = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+            meta.setOpaque(false);
+            semanticLabel = new JLabel("Steady");
+            semanticLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+            semanticLabel.setForeground(new Color(90, 98, 114));
+            valueLabel = new JLabel("50%");
+            valueLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f));
+            valueLabel.setForeground(new Color(70, 78, 94));
+            meta.add(semanticLabel);
+            meta.add(valueLabel);
+            add(meta, BorderLayout.EAST);
         }
 
         @Override
         protected float getOpacityScale() {
-            return 0.62f;
+            return 0.58f + 0.12f * activeMix;
+        }
+
+        private void updateMeta(String semantic, int value, boolean active) {
+            semanticLabel.setText(semantic);
+            valueLabel.setText(clamp(value) + "%");
+
+            float target = active ? 1f : 0f;
+            activeMix += (target - activeMix) * 0.34f;
+            if (Math.abs(target - activeMix) < 0.01f) {
+                activeMix = target;
+            }
+
+            Color semanticColor = active
+                    ? blend(accent, new Color(62, 70, 84), 0.35f)
+                    : new Color(96, 104, 120);
+            semanticLabel.setForeground(semanticColor);
+            valueLabel.setForeground(active
+                    ? blend(accent, new Color(52, 60, 72), 0.28f)
+                    : new Color(82, 90, 105));
+            repaint();
         }
 
         private void setReveal(float value) {
@@ -950,16 +1179,65 @@ public class DetailedMoodPanel extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             float alpha = 0.08f + 0.92f * reveal;
             int dy = Math.round((1f - reveal) * 8f);
+            float scale = 0.965f + 0.035f * reveal;
+            int w = Math.max(1, getWidth());
+            int h = Math.max(1, getHeight());
             g2.translate(0, dy);
             g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
+            g2.translate((w * (1f - scale)) / 2f, (h * (1f - scale)) / 2f);
+            g2.scale(scale, scale);
             super.paint(g2);
+
+            float baseGlow = positive ? 0.16f : 0.2f;
+            int glowAlpha = Math.round((baseGlow + 0.56f * activeMix) * 255f * reveal);
+            Color glow = new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), clamp255(glowAlpha));
+            g2.setColor(glow);
+            g2.fillRoundRect(2, 4, 4, Math.max(4, h - 8), 4, 4);
             g2.dispose();
+        }
+
+        private static Color blend(Color a, Color b, float t) {
+            float k = Math.max(0f, Math.min(1f, t));
+            float inv = 1f - k;
+            int r = Math.round(a.getRed() * k + b.getRed() * inv);
+            int g = Math.round(a.getGreen() * k + b.getGreen() * inv);
+            int bl = Math.round(a.getBlue() * k + b.getBlue() * inv);
+            int al = Math.round(a.getAlpha() * k + b.getAlpha() * inv);
+            return new Color(r, g, bl, al);
+        }
+
+        private static final class DotIndicator extends JComponent {
+            private final Color color;
+
+            private DotIndicator(Color color) {
+                this.color = color;
+                setPreferredSize(new Dimension(10, 10));
+                setMinimumSize(new Dimension(10, 10));
+                setMaximumSize(new Dimension(10, 10));
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = Math.max(2, getWidth() - 1);
+                int h = Math.max(2, getHeight() - 1);
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 220));
+                g2.fillOval(0, 0, w, h);
+                g2.setColor(new Color(255, 255, 255, 135));
+                g2.fillOval(2, 2, Math.max(1, w / 3), Math.max(1, h / 3));
+                g2.dispose();
+            }
         }
     }
 
     private static final class EmotionChipButton extends JToggleButton {
         private final Color accent;
         private final boolean positive;
+        private float hoverMix = 0f;
+        private float selectMix = 0f;
+        private float pressMix = 0f;
+        private final Timer animationTimer;
 
         private EmotionChipButton(String text, Color accent, boolean positive) {
             super(text);
@@ -972,6 +1250,10 @@ public class DetailedMoodPanel extends JPanel {
             setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
             setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
             setMargin(new java.awt.Insets(5, 10, 5, 10));
+
+            animationTimer = new Timer(16, e -> stepAnimation());
+            animationTimer.setRepeats(true);
+            getModel().addChangeListener(e -> requestAnimation());
         }
 
         @Override
@@ -990,52 +1272,101 @@ public class DetailedMoodPanel extends JPanel {
             int w = getWidth();
             int h = getHeight();
             int arc = Math.max(16, h - 8);
-            ButtonModel m = getModel();
-            boolean selected = m.isSelected();
-            boolean hover = m.isRollover();
-            boolean pressed = m.isPressed();
+            float hover = clamp01(hoverMix);
+            float selected = clamp01(selectMix);
+            float pressed = clamp01(pressMix);
 
-            Color top;
-            Color bottom;
-            Color border;
-            Color text;
-            if (selected) {
-                top = blend(accent, Color.WHITE, 0.72f);
-                bottom = blend(accent, Color.WHITE, 0.45f);
-                border = blend(accent, new Color(90, 90, 100), 0.36f);
-                text = new Color(40, 40, 52);
-            } else if (pressed || hover) {
-                top = new Color(250, 252, 255, 230);
-                bottom = new Color(231, 238, 248, 230);
-                border = new Color(184, 197, 214, 190);
-                text = new Color(52, 58, 72);
-            } else {
-                top = new Color(255, 255, 255, 205);
-                bottom = new Color(238, 242, 249, 205);
-                border = new Color(191, 202, 216, 170);
-                text = new Color(64, 72, 86);
+            Color idleTop = new Color(255, 255, 255, 205);
+            Color idleBottom = new Color(238, 242, 249, 205);
+            Color hoverTop = new Color(251, 253, 255, 230);
+            Color hoverBottom = new Color(236, 242, 252, 225);
+            Color selectedTop = blend(accent, Color.WHITE, 0.74f);
+            Color selectedBottom = blend(accent, Color.WHITE, 0.46f);
+
+            Color top = blend(idleTop, hoverTop, hover);
+            top = blend(top, selectedTop, selected);
+            Color bottom = blend(idleBottom, hoverBottom, hover);
+            bottom = blend(bottom, selectedBottom, selected);
+            if (pressed > 0f) {
+                top = blend(top, new Color(232, 238, 248, 220), pressed);
+                bottom = blend(bottom, new Color(221, 230, 244, 220), pressed);
             }
+
+            Color border = blend(new Color(191, 202, 216, 170), new Color(176, 191, 210, 190), hover);
+            border = blend(border, blend(accent, new Color(94, 102, 116), 0.4f), selected);
+            Color text = blend(new Color(62, 70, 84), new Color(44, 50, 61), selected);
 
             g2.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
             g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
             g2.setColor(border);
             g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
 
-            if (selected || hover) {
+            if (selected > 0.01f || hover > 0.01f) {
+                int glowAlpha = Math.round((selected * 112f) + (hover * 58f));
                 Color glow = positive
-                        ? new Color(120, 185, 128, selected ? 95 : 52)
-                        : new Color(198, 122, 112, selected ? 95 : 52);
+                        ? new Color(120, 185, 128, clamp255(glowAlpha))
+                        : new Color(198, 122, 112, clamp255(glowAlpha));
                 g2.setColor(glow);
                 g2.drawRoundRect(1, 1, w - 3, h - 3, arc - 2, arc - 2);
             }
 
+            int dotSize = 7;
+            int dotX = 9;
+            int dotY = (h - dotSize) / 2;
+            Color dot = blend(new Color(194, 204, 218), accent, Math.max(0.2f, selected));
+            g2.setColor(new Color(dot.getRed(), dot.getGreen(), dot.getBlue(), 215));
+            g2.fillOval(dotX, dotY, dotSize, dotSize);
+            g2.setColor(new Color(255, 255, 255, 130));
+            g2.fillOval(dotX + 2, dotY + 1, Math.max(1, dotSize / 3), Math.max(1, dotSize / 3));
+
             g2.setColor(text);
             g2.setFont(getFont());
             java.awt.FontMetrics fm = g2.getFontMetrics();
-            int tx = (w - fm.stringWidth(getText())) / 2;
+            int tx = (w - fm.stringWidth(getText())) / 2 + 4;
             int ty = (h + fm.getAscent() - fm.getDescent()) / 2;
             g2.drawString(getText(), tx, ty);
             g2.dispose();
+        }
+
+        @Override
+        public void removeNotify() {
+            if (animationTimer != null) {
+                animationTimer.stop();
+            }
+            super.removeNotify();
+        }
+
+        private void requestAnimation() {
+            if (!animationTimer.isRunning()) {
+                animationTimer.start();
+            }
+        }
+
+        private void stepAnimation() {
+            ButtonModel model = getModel();
+            hoverMix = approach(hoverMix, model.isRollover() ? 1f : 0f, 0.24f);
+            selectMix = approach(selectMix, model.isSelected() ? 1f : 0f, 0.21f);
+            pressMix = approach(pressMix, model.isPressed() ? 1f : 0f, 0.30f);
+            repaint();
+
+            if (isSettled(hoverMix, model.isRollover())
+                    && isSettled(selectMix, model.isSelected())
+                    && isSettled(pressMix, model.isPressed())) {
+                animationTimer.stop();
+            }
+        }
+
+        private static float approach(float current, float target, float factor) {
+            float next = current + (target - current) * factor;
+            if (Math.abs(target - next) < 0.005f) {
+                return target;
+            }
+            return next;
+        }
+
+        private static boolean isSettled(float current, boolean targetOn) {
+            float target = targetOn ? 1f : 0f;
+            return Math.abs(current - target) <= 0.01f;
         }
 
         private static Color blend(Color a, Color b, float t) {
@@ -1046,6 +1377,184 @@ public class DetailedMoodPanel extends JPanel {
             int bl = Math.round(a.getBlue() * k + b.getBlue() * inv);
             int al = Math.round(a.getAlpha() * k + b.getAlpha() * inv);
             return new Color(r, g, bl, al);
+        }
+    }
+
+    private static final class UtilityActionButton extends JButton {
+        private float hoverMix = 0f;
+        private float pressMix = 0f;
+        private final Timer animationTimer;
+
+        private UtilityActionButton(String text) {
+            super(text);
+            setOpaque(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+            setMargin(new java.awt.Insets(4, 9, 4, 9));
+
+            animationTimer = new Timer(16, e -> stepAnimation());
+            animationTimer.setRepeats(true);
+            getModel().addChangeListener(e -> requestAnimation());
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            d.height = Math.max(22, d.height);
+            d.width += 6;
+            return d;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            int arc = Math.max(13, h - 6);
+
+            Color top = blend(new Color(250, 252, 255, 186), new Color(255, 255, 255, 212), hoverMix);
+            Color bottom = blend(new Color(236, 241, 249, 186), new Color(228, 236, 247, 212), hoverMix);
+            if (pressMix > 0.01f) {
+                top = blend(top, new Color(226, 233, 245, 215), pressMix);
+                bottom = blend(bottom, new Color(216, 226, 241, 215), pressMix);
+            }
+
+            g2.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+            g2.setColor(blend(new Color(184, 196, 212, 170), new Color(162, 178, 199, 190), hoverMix));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+            g2.setColor(new Color(62, 70, 86));
+            g2.setFont(getFont());
+            java.awt.FontMetrics fm = g2.getFontMetrics();
+            int tx = (w - fm.stringWidth(getText())) / 2;
+            int ty = (h + fm.getAscent() - fm.getDescent()) / 2;
+            g2.drawString(getText(), tx, ty);
+            g2.dispose();
+        }
+
+        @Override
+        public void removeNotify() {
+            if (animationTimer != null) {
+                animationTimer.stop();
+            }
+            super.removeNotify();
+        }
+
+        private void requestAnimation() {
+            if (!animationTimer.isRunning()) {
+                animationTimer.start();
+            }
+        }
+
+        private void stepAnimation() {
+            ButtonModel model = getModel();
+            hoverMix = approach(hoverMix, model.isRollover() ? 1f : 0f, 0.24f);
+            pressMix = approach(pressMix, model.isPressed() ? 1f : 0f, 0.30f);
+            repaint();
+            if (isSettled(hoverMix, model.isRollover()) && isSettled(pressMix, model.isPressed())) {
+                animationTimer.stop();
+            }
+        }
+
+        private static float approach(float current, float target, float factor) {
+            float next = current + (target - current) * factor;
+            if (Math.abs(target - next) < 0.005f) {
+                return target;
+            }
+            return next;
+        }
+
+        private static boolean isSettled(float current, boolean targetOn) {
+            float target = targetOn ? 1f : 0f;
+            return Math.abs(current - target) <= 0.01f;
+        }
+
+        private static Color blend(Color a, Color b, float t) {
+            float k = Math.max(0f, Math.min(1f, t));
+            float inv = 1f - k;
+            int r = Math.round(a.getRed() * k + b.getRed() * inv);
+            int g = Math.round(a.getGreen() * k + b.getGreen() * inv);
+            int bl = Math.round(a.getBlue() * k + b.getBlue() * inv);
+            int al = Math.round(a.getAlpha() * k + b.getAlpha() * inv);
+            return new Color(r, g, bl, al);
+        }
+    }
+
+    private static final class MoodBalanceMeter extends JComponent {
+        private float displayValue = 50f;
+        private float targetValue = 50f;
+        private final Timer animationTimer;
+
+        private MoodBalanceMeter() {
+            setOpaque(false);
+            animationTimer = new Timer(16, e -> stepAnimation());
+            animationTimer.setRepeats(true);
+        }
+
+        private void setValue(int value) {
+            targetValue = clamp(value);
+            if (!animationTimer.isRunning()) {
+                animationTimer.start();
+            }
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = Math.max(1, getWidth());
+            int h = Math.max(1, getHeight());
+            int arc = Math.max(10, h - 2);
+
+            GradientPaint track = new GradientPaint(
+                    0, 0, new Color(201, 129, 129, 155),
+                    w / 2f, 0, new Color(206, 212, 220, 168),
+                    true
+            );
+            g2.setPaint(track);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+            g2.setPaint(new GradientPaint(
+                    w / 2f, 0, new Color(208, 214, 224, 180),
+                    w, 0, new Color(122, 181, 231, 185),
+                    true
+            ));
+            g2.fillRoundRect(w / 2, 0, Math.max(1, w / 2), h - 1, arc, arc);
+
+            g2.setColor(new Color(160, 174, 192, 188));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+            int markerX = Math.round((displayValue / 100f) * (w - 1));
+            markerX = Math.max(3, Math.min(w - 4, markerX));
+            g2.setColor(new Color(255, 255, 255, 210));
+            g2.fillOval(markerX - 3, Math.max(1, h / 2 - 3), 6, 6);
+            g2.setColor(new Color(104, 120, 142, 190));
+            g2.drawOval(markerX - 3, Math.max(1, h / 2 - 3), 6, 6);
+            g2.dispose();
+        }
+
+        private void stepAnimation() {
+            displayValue += (targetValue - displayValue) * 0.27f;
+            if (Math.abs(targetValue - displayValue) < 0.3f) {
+                displayValue = targetValue;
+                animationTimer.stop();
+            }
+            repaint();
+        }
+
+        @Override
+        public void removeNotify() {
+            if (animationTimer != null) {
+                animationTimer.stop();
+            }
+            super.removeNotify();
         }
     }
 

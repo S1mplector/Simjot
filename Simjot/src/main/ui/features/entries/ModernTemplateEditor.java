@@ -18,6 +18,7 @@ import javax.swing.JDialog;
 import javax.swing.KeyStroke;
 
 import main.infrastructure.backup.NotebookInfo;
+import main.ui.app.JournalApp;
 
 /**
  * Modern template editor with inline editing, smooth drag-reorder,
@@ -38,7 +39,11 @@ public class ModernTemplateEditor extends JDialog {
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
 
-        ModernTemplateEditorPanel editorPanel = new ModernTemplateEditorPanel(notebook, existing);
+        JournalApp app = null;
+        if (parent != null && parent.getOwner() instanceof JournalApp ja) {
+            app = ja;
+        }
+        ModernTemplateEditorPanel editorPanel = new ModernTemplateEditorPanel(notebook, existing, app);
         editorPanel.setOnCancel(this::dispose);
         editorPanel.setOnSave(savedTemplate -> {
             template = savedTemplate;

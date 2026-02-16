@@ -10,6 +10,8 @@ package main.ui.sim.overlay;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -24,6 +26,9 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
     private final JScrollPane scroll;
     private final BubbleCanvas canvas;
     private boolean autoScroll = true;
+    private final Timer typingTimer;
+    private int typingPhase = 0;
+    private boolean typingAnimating = false;
 
     public ChatViewPanel(ChatTranscriptModel model) {
         super(new BorderLayout());
@@ -58,9 +63,37 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             int value = e.getValue();
             autoScroll = (value + extent + 8) >= max; // near bottom
         });
+
+        // Reflow bubbles whenever panel width changes.
+        scroll.getViewport().addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    canvas.relayoutForWidth(getAvailableWidth());
+                    canvas.revalidate();
+                    canvas.repaint();
+                    if (autoScroll) scrollToBottom();
+                });
+            }
+        });
+
+        typingTimer = new Timer(180, e -> {
+            typingPhase = (typingPhase + 1) % 3;
+            canvas.repaint();
+        });
+        typingTimer.setRepeats(true);
+        updateTypingAnimationState();
     }
 
     public JComponent getScrollPane() { return scroll; }
+
+    public void relayoutNow() {
+        SwingUtilities.invokeLater(() -> {
+            canvas.relayoutForWidth(getAvailableWidth());
+            canvas.revalidate();
+            canvas.repaint();
+        });
+    }
 
     public void scrollToBottom() {
         SwingUtilities.invokeLater(() -> {
@@ -73,6 +106,7 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
     public void onTranscriptChanged() {
         SwingUtilities.invokeLater(() -> {
             if (!isDisplayable() || scroll == null || !scroll.isDisplayable()) return;
+            updateTypingAnimationState();
             var bar = scroll.getVerticalScrollBar();
             if (bar == null || !bar.isDisplayable()) return;
             int prevMax = bar.getMaximum();
@@ -100,6 +134,22 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
         return vw;
     }
 
+    private void updateTypingAnimationState() {
+        boolean pending = model.isAssistantPending();
+        if (pending && !typingAnimating) {
+            typingAnimating = true;
+            typingPhase = 0;
+            typingTimer.start();
+            return;
+        }
+        if (!pending && typingAnimating) {
+            typingAnimating = false;
+            typingPhase = 0;
+            typingTimer.stop();
+            canvas.repaint();
+        }
+    }
+
     /**
      * Canvas that draws message bubbles with timestamps and manages its preferred size.
      */
@@ -109,7 +159,7 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
         private static final int BUBBLE_ARC = 12;
         private static final int TEXT_SIZE = 13;
         private static final int TS_SIZE = 10;
-        private static final int MAX_WIDTH = 460; // hard cap for really wide containers
+        private static final int MAX_WIDTH = 680; // allow larger chat panel widths
 
         private int contentWidth = 320;
         private final DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm")
@@ -120,16 +170,9 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             this.contentWidth = avail - PAD * 2; // space inside scroll
             // recompute height
             int totalH = PAD;
-            Graphics2D g2 = (Graphics2D) getGraphics();
-            if (g2 == null) {
-                // graphics not ready yet; set a reasonable guess
-                setPreferredSize(new Dimension(avail, 200));
-                return;
-            }
-            g2.setFont(new Font("SansSerif", Font.PLAIN, TEXT_SIZE));
-            FontMetrics fm = g2.getFontMetrics();
+            FontMetrics fm = getFontMetrics(new Font("SansSerif", Font.PLAIN, TEXT_SIZE));
             int lineH = fm.getHeight();
-            int maxBubbleW = Math.min((int)(contentWidth * 0.82), contentWidth);
+            int maxBubbleW = Math.min((int)(contentWidth * 0.88), contentWidth);
 
             List<ChatTranscriptModel.Entry> items = model.snapshot();
             for (ChatTranscriptModel.Entry e : items) {
@@ -142,6 +185,9 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
                 totalH += textH + 16; // vertical padding inside bubble
                 totalH += 14; // timestamp line area
                 totalH += GAP;
+            }
+            if (model.isAssistantPending()) {
+                totalH += 30 + GAP;
             }
             totalH += PAD;
             setPreferredSize(new Dimension(avail, Math.max(120, totalH)));
@@ -159,7 +205,7 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             FontMetrics fm = g2.getFontMetrics();
             int lineH = fm.getHeight();
 
-            int maxBubbleW = Math.min((int)(contentWidth * 0.82), contentWidth);
+            int maxBubbleW = Math.min((int)(contentWidth * 0.88), contentWidth);
 
             List<ChatTranscriptModel.Entry> items = model.snapshot();
             for (ChatTranscriptModel.Entry e : items) {
@@ -169,8 +215,8 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
                     continue;
                 }
                 boolean isUser = (e.role == ChatTranscriptModel.Role.USER);
-                Color bubble = isUser ? new Color(230,243,255) : new Color(245,245,245);
-                Color textCol = isUser ? new Color(25,25,25) : new Color(102, 186, 255);
+                Color bubble = isUser ? new Color(230, 243, 255, 228) : new Color(245, 248, 252, 232);
+                Color textCol = isUser ? new Color(25, 25, 25) : new Color(36, 68, 110);
                 int bx; // bubble x
 
                 int textW = rows.stream().mapToInt(fm::stringWidth).max().orElse(0);
@@ -208,6 +254,25 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
                 g2.setFont(new Font("SansSerif", Font.PLAIN, TEXT_SIZE));
             }
 
+            // Subtle assistant typing indicator while Sim is formulating a response.
+            if (model.isAssistantPending()) {
+                int bubbleW = 56;
+                int bubbleH = 26;
+                int bx = xPad;
+                int by = y;
+                Shape rr = new RoundRectangle2D.Float(bx, by, bubbleW, bubbleH, BUBBLE_ARC, BUBBLE_ARC);
+                g2.setColor(new Color(245, 248, 252, 220));
+                g2.fill(rr);
+
+                int dotY = by + (bubbleH / 2) - 2;
+                int dotStartX = bx + (bubbleW / 2) - 11;
+                for (int i = 0; i < 3; i++) {
+                    int alpha = (typingPhase == i) ? 185 : 105;
+                    g2.setColor(new Color(52, 82, 120, alpha));
+                    g2.fillOval(dotStartX + i * 9, dotY, 5, 5);
+                }
+            }
+
             g2.dispose();
         }
 
@@ -216,23 +281,59 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
             if (text == null) return lines;
             String trimmed = text.trim();
             if (trimmed.isEmpty()) return lines; // treat blank as no content
-            String[] words = text.split("\\s+");
-            StringBuilder cur = new StringBuilder();
-            for (String w : words) {
-                if (cur.length() == 0) {
-                    cur.append(w);
-                } else {
-                    String cand = cur + " " + w;
-                    if (fm.stringWidth(cand) <= maxWidth) {
-                        cur.append(' ').append(w);
-                    } else {
-                        lines.add(cur.toString());
-                        cur = new StringBuilder(w);
+
+            String[] paragraphs = text.replace("\r", "").split("\n", -1);
+            for (int p = 0; p < paragraphs.length; p++) {
+                String para = paragraphs[p];
+                if (para == null || para.isBlank()) {
+                    lines.add(" ");
+                    continue;
+                }
+                String[] words = para.trim().split("\\s+");
+                StringBuilder cur = new StringBuilder();
+                for (String w : words) {
+                    if (w.isEmpty()) continue;
+                    java.util.List<String> chunks = splitLongWord(w, maxWidth, fm);
+                    for (String chunk : chunks) {
+                        if (cur.length() == 0) {
+                            cur.append(chunk);
+                        } else {
+                            String cand = cur + " " + chunk;
+                            if (fm.stringWidth(cand) <= maxWidth) {
+                                cur.append(' ').append(chunk);
+                            } else {
+                                lines.add(cur.toString());
+                                cur = new StringBuilder(chunk);
+                            }
+                        }
                     }
                 }
+                if (cur.length() > 0) lines.add(cur.toString());
+                if (p < paragraphs.length - 1 && (lines.isEmpty() || !lines.get(lines.size() - 1).isBlank())) {
+                    lines.add(" ");
+                }
             }
-            if (cur.length() > 0) lines.add(cur.toString());
             return lines;
+        }
+
+        private java.util.List<String> splitLongWord(String word, int maxWidth, FontMetrics fm) {
+            java.util.List<String> out = new java.util.ArrayList<>();
+            if (word == null || word.isEmpty()) return out;
+            String remaining = word;
+            while (!remaining.isEmpty()) {
+                if (fm.stringWidth(remaining) <= maxWidth) {
+                    out.add(remaining);
+                    break;
+                }
+                int cut = 1;
+                while (cut < remaining.length() && fm.stringWidth(remaining.substring(0, cut + 1)) <= maxWidth) {
+                    cut++;
+                }
+                cut = Math.max(1, cut);
+                out.add(remaining.substring(0, cut));
+                remaining = remaining.substring(cut);
+            }
+            return out;
         }
     }
 
@@ -287,6 +388,7 @@ public final class ChatViewPanel extends JPanel implements ChatTranscriptModel.L
 
     @Override
     public void removeNotify() {
+        try { typingTimer.stop(); } catch (Throwable ignored) {}
         try { model.removeListener(this); } catch (Throwable ignored) {}
         super.removeNotify();
     }

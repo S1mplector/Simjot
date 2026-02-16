@@ -151,6 +151,7 @@ public class EntryPanel extends AbstractEditorPanel {
     // Track temporary placeholder range for Sim guidance.
     private int pendingGuidanceStart = -1;
     private int pendingGuidanceLen = 0;
+    private SimpleAttributeSet pendingGuidanceTypingAttrs = null;
     private volatile boolean awaitingGuidanceResponse = false;
     private volatile boolean awaitingTemplateResponse = false;
     private final SimEventBus.Listener simGuidanceListener = new SimEventBus.Listener() {
@@ -1562,12 +1563,15 @@ public class EntryPanel extends AbstractEditorPanel {
         Style normal = sd.getStyle("normalText");
         if (normal == null) {
             normal = sd.addStyle("normalText", null);
-            StyleConstants.setForeground(normal, AeroTheme.TEXT_PRIMARY);
-            // Default character attributes (not bold/italic/underline)
-            StyleConstants.setBold(normal, false);
-            StyleConstants.setItalic(normal, false);
-            StyleConstants.setUnderline(normal, false);
         }
+        Color baseText = contentArea != null && contentArea.getForeground() != null
+                ? contentArea.getForeground()
+                : AeroTheme.TEXT_PRIMARY;
+        StyleConstants.setForeground(normal, baseText);
+        // Default character attributes (not bold/italic/underline)
+        StyleConstants.setBold(normal, false);
+        StyleConstants.setItalic(normal, false);
+        StyleConstants.setUnderline(normal, false);
         Style body = sd.getStyle("simGuidanceBody");
         if (body == null) {
             body = sd.addStyle("simGuidanceBody", null);
@@ -1589,9 +1593,47 @@ public class EntryPanel extends AbstractEditorPanel {
         }
     }
 
+    private void snapshotTypingAttributesForGuidance() {
+        try {
+            if (!(contentArea.getEditorKit() instanceof StyledEditorKit kit)) {
+                pendingGuidanceTypingAttrs = null;
+                return;
+            }
+            SimpleAttributeSet snapshot = new SimpleAttributeSet(kit.getInputAttributes());
+            if (!snapshot.isDefined(StyleConstants.Foreground)) {
+                Color baseText = contentArea != null && contentArea.getForeground() != null
+                        ? contentArea.getForeground()
+                        : AeroTheme.TEXT_PRIMARY;
+                StyleConstants.setForeground(snapshot, baseText);
+            }
+            pendingGuidanceTypingAttrs = snapshot;
+        } catch (RuntimeException ignored) {
+            pendingGuidanceTypingAttrs = null;
+        }
+    }
+
+    private void restoreTypingAttributesAfterGuidance(Style normalFallback) {
+        try {
+            int docEnd = contentArea.getDocument().getLength();
+            contentArea.select(docEnd, docEnd);
+            AttributeSet restoreAttrs = pendingGuidanceTypingAttrs;
+            if (restoreAttrs != null) {
+                contentArea.setCharacterAttributes(restoreAttrs, true);
+            } else if (normalFallback != null) {
+                contentArea.setCharacterAttributes(normalFallback, true);
+            }
+            updateFormattingToggleState();
+        } catch (RuntimeException ignored) {
+            // ignore
+        } finally {
+            pendingGuidanceTypingAttrs = null;
+        }
+    }
+
     private void showGuidanceThinkingPlaceholder(){
         try {
             ensureSimStyles();
+            snapshotTypingAttributesForGuidance();
             StyledDocument sd = (StyledDocument) contentArea.getDocument();
             Style thinking = sd.getStyle("simThinking");
             int end = sd.getLength();
@@ -1628,11 +1670,10 @@ public class EntryPanel extends AbstractEditorPanel {
             if (normal != null) {
                 sd.insertString(afterGuidance, "\u200B", normal);
                 contentArea.setCaretPosition(sd.getLength());
-                // Also reset input attributes defensively
-                contentArea.setCharacterAttributes(normal, true);
             } else {
                 contentArea.setCaretPosition(sd.getLength());
             }
+            restoreTypingAttributesAfterGuidance(normal);
             pendingGuidanceStart = -1;
             pendingGuidanceLen = 0;
         } catch (BadLocationException ignored) {}
