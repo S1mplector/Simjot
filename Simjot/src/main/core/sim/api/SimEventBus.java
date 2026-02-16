@@ -66,6 +66,8 @@ public final class SimEventBus {
         default void onEmotionTagged(String entryId, String emotion, double intensity) {}
         // User explicitly invoked Sim (e.g., heart, hotkey). Useful for tagging prompt context
         default void onUserInvoked(InvocationSource source) {}
+        // Overlay-specific left-side notice text
+        default void onOverlayNotice(String text, long durationMs) {}
     }
 
     private static SimEventBus INSTANCE;
@@ -199,6 +201,15 @@ public final class SimEventBus {
     public void emitUserInvoked(InvocationSource source){
         if (verboseLogging) System.out.println("[SimBus] userInvoked source=" + String.valueOf(source));
         for (var l: listeners) l.onUserInvoked(source);
+    }
+
+    // Overlay-specific left-side notice emitter
+    public void emitOverlayNotice(String text, long durationMs){
+        if (verboseLogging) {
+            int len = text == null ? 0 : text.length();
+            System.out.println("[SimBus] overlayNotice len=" + len + " durationMs=" + durationMs);
+        }
+        for (var l: listeners) l.onOverlayNotice(text, durationMs);
     }
 
     private static String preview(String s){

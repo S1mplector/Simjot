@@ -28,6 +28,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private static final String DEFAULT_GREETING = "Hi, I’m Sim.";
     private static final String CRITICAL_ADVICE_MARKER = "[critical_advice]";
     private static final String TAGI_CONSULTING_MESSAGE = "One moment, I'm consulting my TAGI consensus agents...";
+    private static final long DEFAULT_LEFT_NOTICE_MS = 2600L;
     private static final int PANEL_ARC = 16;
     private static final int PANEL_HEADER_H = 34;
     private static final DateTimeFormatter SESSION_TIME_FMT =
@@ -100,6 +101,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     // Special "thinking" motion when Sim is preparing guidance
     private boolean guidanceThinking = false;
     private boolean criticalAdviceConsulting = false;
+    private String leftOverlayNotice = "";
+    private long leftOverlayNoticeUntilMs = 0L;
     private long deliberationAnimUntilMs = 0L;
     private double thinkingPhase = 0.0;
     private float thinkingPulse = 0f;
@@ -496,6 +499,15 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     @Override
+    public void onOverlayNotice(String text, long durationMs) {
+        SwingUtilities.invokeLater(() -> {
+            if (!userInvokedActive && !chatMode) return;
+            setLeftOverlayNotice(text, durationMs);
+            repaint();
+        });
+    }
+
+    @Override
     public void onGuidanceOutcome(String consensus, String[] emotions) {
         onGuidanceOutcome(consensus, emotions, null);
     }
@@ -568,6 +580,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         SwingUtilities.invokeLater(() -> {
             magiDeliberating = false;
             clearGuidanceOutcomeVisuals();
+            setLeftOverlayNotice("", 0L);
             setGuidanceThinking(false);
             try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
             try { endChatModeInternal(true); } catch (Throwable ignored) {}
@@ -910,6 +923,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         magiDeliberating = false;
         criticalAdviceConsulting = false;
         clearGuidanceOutcomeVisuals();
+        setLeftOverlayNotice("", 0L);
         setGuidanceThinking(false);
         try { transcript.clear(); } catch (Throwable ignored) {}
         chatHistory.clear();
@@ -934,6 +948,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private void deactivateFromHeart() {
         // If in chat, end it first; then dispose sequence to collapse panel/orbs back to idle beacon
         criticalAdviceConsulting = false;
+        setLeftOverlayNotice("", 0L);
         setGuidanceThinking(false);
         companionPanelMode = false;
         try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
@@ -1321,7 +1336,14 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     private void paintMagiConsultationStatus(Graphics2D g2, int centerY, Color accent) {
-        if (!criticalAdviceConsulting || !(magiDeliberating || guidanceThinking)) return;
+        String statusText = activeLeftOverlayNotice();
+        if (statusText.isBlank()) {
+            if (criticalAdviceConsulting && (magiDeliberating || guidanceThinking)) {
+                statusText = TAGI_CONSULTING_MESSAGE;
+            } else {
+                return;
+            }
+        }
         Graphics2D gs = (Graphics2D) g2.create();
         gs.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
@@ -1331,7 +1353,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         FontMetrics fm = gs.getFontMetrics();
 
         int maxW = Math.max(150, ORBIT_LAYOUT_WIDTH + ORBIT_LAYOUT_PADDING - 12);
-        java.util.List<String> lines = wrapOverlayStatusText(TAGI_CONSULTING_MESSAGE, fm, maxW - 18);
+        java.util.List<String> lines = wrapOverlayStatusText(statusText, fm, maxW - 18);
         if (lines.isEmpty()) {
             gs.dispose();
             return;
@@ -1348,7 +1370,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         int y = Math.max(10, centerY + MAGI_RING_RADIUS - boxH / 2 + 18);
         y = Math.min(getHeight() - boxH - 10, y);
 
-        float pulse = (float) ((Math.sin(thinkingPhase * 1.1) + 1.0) * 0.5);
+        boolean animated = criticalAdviceConsulting || magiDeliberating || guidanceThinking || isDeliberationAnimationActive();
+        float pulse = animated ? (float) ((Math.sin(thinkingPhase * 1.1) + 1.0) * 0.5) : 0.25f;
         int accentAlpha = (int) (110 + 80 * pulse);
         GradientPaint bg = new GradientPaint(
                 x, y, new Color(246, 250, 255, 174),
@@ -1368,6 +1391,29 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             ty += lineH;
         }
         gs.dispose();
+    }
+
+    private void setLeftOverlayNotice(String text, long durationMs) {
+        String msg = text == null ? "" : text.trim();
+        if (msg.isEmpty()) {
+            leftOverlayNotice = "";
+            leftOverlayNoticeUntilMs = 0L;
+            return;
+        }
+        long ms = durationMs > 0L ? durationMs : DEFAULT_LEFT_NOTICE_MS;
+        leftOverlayNotice = msg;
+        leftOverlayNoticeUntilMs = System.currentTimeMillis() + ms;
+    }
+
+    private String activeLeftOverlayNotice() {
+        String msg = leftOverlayNotice == null ? "" : leftOverlayNotice.trim();
+        if (msg.isEmpty()) return "";
+        if (System.currentTimeMillis() >= leftOverlayNoticeUntilMs) {
+            leftOverlayNotice = "";
+            leftOverlayNoticeUntilMs = 0L;
+            return "";
+        }
+        return msg;
     }
 
     private java.util.List<String> wrapOverlayStatusText(String text, FontMetrics fm, int maxWidth) {
@@ -1916,6 +1962,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         magiDeliberating = false;
         criticalAdviceConsulting = false;
         clearGuidanceOutcomeVisuals();
+        setLeftOverlayNotice("", 0L);
         setGuidanceThinking(false);
         thinkingPulse = 0f;
         thinkingOrbScale = 1f;
@@ -1942,6 +1989,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         magiDeliberating = false;
         criticalAdviceConsulting = false;
         clearGuidanceOutcomeVisuals();
+        setLeftOverlayNotice("", 0L);
         setGuidanceThinking(false);
         thinkingPulse = 0f;
         thinkingOrbScale = 1f;

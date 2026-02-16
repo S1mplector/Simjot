@@ -32,6 +32,8 @@ public final class SimSettings {
     private static final String KEY_MAGI_MODEL = "sim.magi.model"; // e.g., gpt-5
     // Engagement mode
     private static final String KEY_ENGAGEMENT_MODE = "sim.engagement.mode"; // PROACTIVE|ON_CALL|HYBRID
+    // TAGI consensus override: when true, route every chat turn through TAGI consensus
+    private static final String KEY_TAGI_ALWAYS_ON = "sim.tagi.always_on";
 
     private static SimSettings INSTANCE;
 
@@ -182,5 +184,14 @@ public final class SimSettings {
     public void setEngagementMode(EngagementMode mode) {
         EngagementMode m = (mode == null) ? EngagementMode.ON_CALL : mode;
         store.setValue(KEY_ENGAGEMENT_MODE, m.name());
+    }
+
+    // --- TAGI consensus override ---
+    public boolean isTagiAlwaysOn() {
+        return store.getFlag(KEY_TAGI_ALWAYS_ON, false);
+    }
+
+    public void setTagiAlwaysOn(boolean value) {
+        store.setFlag(KEY_TAGI_ALWAYS_ON, value);
     }
 }

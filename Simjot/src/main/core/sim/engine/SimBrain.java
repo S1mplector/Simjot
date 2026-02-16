@@ -54,6 +54,9 @@ import main.infrastructure.io.NativeJson;
  */
 public final class SimBrain implements SimEventBus.Listener {
     private static final String CRITICAL_ADVICE_MARKER = "[critical_advice]";
+    private static final String TAGI_CONSULTING_NOTICE = "One moment, I'm consulting my TAGI consensus agents...";
+    private static final long TAGI_CONSULTING_NOTICE_MS = 12000L;
+    private static final long TAGI_STATE_NOTICE_MS = 2800L;
 
     private final SimSettings settings;
     private final SimPersonality personality;
@@ -121,12 +124,15 @@ public final class SimBrain implements SimEventBus.Listener {
 
     // Track last explicit invocation source (e.g., heart, hotkey)
     private volatile main.core.sim.api.SimEventBus.InvocationSource lastInvocationSource = main.core.sim.api.SimEventBus.InvocationSource.OTHER;
+    // If true, all chat turns are routed through TAGI consensus.
+    private volatile boolean tagiAlwaysOn = false;
 
     public SimBrain(SimSettings settings, SimPersonality personality, SimDataGateway data) {
         this.settings = settings;
         this.personality = personality;
         this.data = data;
         SimEventBus.get().addListener(this);
+        try { this.tagiAlwaysOn = settings.isTagiAlwaysOn(); } catch (Throwable ignored) {}
         // Prepare LLM client lazily based on settings
         if (settings.isLlmEnabled()) {
             try {
@@ -376,16 +382,21 @@ public final class SimBrain implements SimEventBus.Listener {
             lastSpeakMs = System.currentTimeMillis();
             return;
         }
+        Boolean tagiToggle = parseTagiToggleCommand(txt);
+        if (tagiToggle != null) {
+            handleTagiToggleCommand(tagiToggle.booleanValue());
+            return;
+        }
         if (isMoodAnalysisRequest(txt)) {
-            String feedback = buildMoodAnalyticsFeedback(txt);
-            if (feedback != null && !feedback.isBlank()) {
-                try { SimEventBus.get().emitSpeak(feedback); } catch (Throwable ignored) {}
-                lastSpeakMs = System.currentTimeMillis();
-                return;
-            }
+            handleMoodAnalysisRequest(txt);
+            return;
         }
         if (isCriticalAdviceRequest(txt)) {
             handleCriticalAdviceRequest(txt);
+            return;
+        }
+        if (tagiAlwaysOn) {
+            handleTagiConsensusChatRequest(txt);
             return;
         }
         lastSpeakMs = System.currentTimeMillis();
@@ -425,15 +436,68 @@ public final class SimBrain implements SimEventBus.Listener {
         try {
             guidanceExecutor.execute(() -> generateCriticalAdviceWithMagiAsync(txt));
         } catch (Throwable ignored) {
+            emitOverlayNotice("TAGI consensus unavailable right now.", TAGI_STATE_NOTICE_MS);
+            emitImmediateChatTurn("I could not consult TAGI consensus agents right now. Please try again.");
+        }
+    }
+
+    private void handleTagiConsensusChatRequest(String userText) {
+        String txt = userText == null ? "" : userText.strip();
+        if (txt.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        lastSpeakMs = now;
+        try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
+        try {
+            guidanceExecutor.execute(() -> generateTagiConsensusChatAsync(txt));
+        } catch (Throwable ignored) {
+            emitOverlayNotice("TAGI consensus unavailable right now.", TAGI_STATE_NOTICE_MS);
+            emitImmediateChatTurn("I could not consult TAGI consensus agents right now. Please try again.");
+        }
+    }
+
+    private void handleMoodAnalysisRequest(String userText) {
+        String txt = userText == null ? "" : userText.strip();
+        if (txt.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        lastSpeakMs = now;
+        try { turns.cancelIfUserTyping(); } catch (Throwable ignored) {}
+        try {
+            guidanceExecutor.execute(() -> generateMoodAnalysisAsync(txt));
+        } catch (Throwable ignored) {
             try {
-                SimEventBus.get().emitSpeak("I could not consult TAGI consensus agents right now. Please try again.");
-            } catch (Throwable ignored2) {}
+                SimEventBus.get().emitSpeakStart();
+                SimEventBus.get().emitSpeak("I could not analyze your mood data right now. Please try again.");
+            } catch (Throwable ignored2) {
+                // no-op
+            } finally {
+                try { SimEventBus.get().emitSpeakEnd(); } catch (Throwable ignored2) {}
+            }
+        }
+    }
+
+    private void generateMoodAnalysisAsync(String userText) {
+        try { SimEventBus.get().emitSpeakStart(); } catch (Throwable ignored) {}
+        try {
+            String feedback = buildMoodAnalyticsFeedback(userText);
+            if (feedback == null || feedback.isBlank()) {
+                feedback = "I could not analyze your mood data right now. Please try again.";
+            }
+            try { SimEventBus.get().emitSpeak(feedback); } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            try {
+                SimEventBus.get().emitSpeak("I could not analyze your mood data right now. Please try again.");
+            } catch (Throwable ignored2) {
+                // no-op
+            }
+        } finally {
+            try { SimEventBus.get().emitSpeakEnd(); } catch (Throwable ignored) {}
         }
     }
 
     private void generateCriticalAdviceWithMagiAsync(String userText) {
         String txt = userText == null ? "" : userText.strip();
         if (txt.isEmpty()) return;
+        emitOverlayNotice(TAGI_CONSULTING_NOTICE, TAGI_CONSULTING_NOTICE_MS);
         try { SimEventBus.get().emitGuidanceRequested(CRITICAL_ADVICE_MARKER + txt); } catch (Throwable ignored) {}
         try { SimEventBus.get().emitSpeakStart(); } catch (Throwable ignored) {}
         try {
@@ -463,13 +527,63 @@ public final class SimBrain implements SimEventBus.Listener {
                     || (brainStatuses != null && brainStatuses.length > 0)) {
                 try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions, brainStatuses); } catch (Throwable ignored) {}
             }
+            emitOverlayNotice(consensusStateNotice(consensus), TAGI_STATE_NOTICE_MS);
             if (out == null || out.isBlank()) {
                 out = "I could not produce a reliable critical-advice response. Please share more detail and try again.";
             }
             try { SimEventBus.get().emitSpeak(out); } catch (Throwable ignored) {}
         } catch (Throwable ignored) {
+            emitOverlayNotice("TAGI consensus unavailable right now.", TAGI_STATE_NOTICE_MS);
             try {
                 SimEventBus.get().emitSpeak("I could not consult TAGI consensus agents right now. Check MAGI settings and try again.");
+            } catch (Throwable ignored2) {}
+        } finally {
+            try { SimEventBus.get().emitSpeakEnd(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private void generateTagiConsensusChatAsync(String userText) {
+        String txt = userText == null ? "" : userText.strip();
+        if (txt.isEmpty()) return;
+        emitOverlayNotice(TAGI_CONSULTING_NOTICE, TAGI_CONSULTING_NOTICE_MS);
+        try { SimEventBus.get().emitSpeakStart(); } catch (Throwable ignored) {}
+        try {
+            SimLLMClient advisory = createMagiConsensusClient();
+            String sys = CriticPromptDecorator.decorateSystem(
+                    PromptBuilder.systemPrompt(personality.getType())
+            );
+            String ctx = RetrievalRanker.buildContext(persistent, memory, recency, 5, 5);
+            String usr = String.join("\n\n",
+                    (ctx != null && !ctx.isBlank()) ? ("Context: " + ctx) : "",
+                    moodContextForPrompt() + " " + emotionsContextForPrompt() + " " + factsContextForPrompt(),
+                    "The user is chatting with you in a compact overlay.",
+                    "Consult the TAGI consensus brains before responding.",
+                    "Give one cohesive response that reflects the consensus quality.",
+                    "Respond in plain text only, 1-4 concise sentences, and include at most one follow-up question.",
+                    "User message:\n\"\"\"\n" + txt + "\n\"\"\""
+            );
+            main.core.sim.llm.api.SimLLMResponse resp = advisory.generate(
+                    new main.core.sim.llm.api.SimLLMRequest(sys, usr, 260, 0.48),
+                    Duration.ofSeconds(30)
+            );
+            String out = resp == null ? "" : resp.text;
+            String consensus = resp == null ? "" : resp.consensus;
+            String[] emotions = resp == null ? null : resp.emotions;
+            String[] brainStatuses = resp == null ? null : resp.brainStatuses;
+            if ((consensus != null && !consensus.isBlank())
+                    || (emotions != null && emotions.length > 0)
+                    || (brainStatuses != null && brainStatuses.length > 0)) {
+                try { SimEventBus.get().emitGuidanceOutcome(consensus, emotions, brainStatuses); } catch (Throwable ignored) {}
+            }
+            emitOverlayNotice(consensusStateNotice(consensus), TAGI_STATE_NOTICE_MS);
+            if (out == null || out.isBlank()) {
+                out = "I could not produce a reliable TAGI consensus response right now. Please try again.";
+            }
+            try { SimEventBus.get().emitSpeak(out); } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            emitOverlayNotice("TAGI consensus unavailable right now.", TAGI_STATE_NOTICE_MS);
+            try {
+                SimEventBus.get().emitSpeak("I could not consult TAGI consensus agents right now. Please try again.");
             } catch (Throwable ignored2) {}
         } finally {
             try { SimEventBus.get().emitSpeakEnd(); } catch (Throwable ignored) {}
@@ -487,6 +601,66 @@ public final class SimBrain implements SimEventBus.Listener {
         if (model == null || model.isBlank()) model = "gpt-5";
         if (apiKey == null) apiKey = "";
         return new MagiClient(python, model, apiKey);
+    }
+
+    private void handleTagiToggleCommand(boolean enable) {
+        boolean changed = (tagiAlwaysOn != enable);
+        tagiAlwaysOn = enable;
+        try { settings.setTagiAlwaysOn(enable); } catch (Throwable ignored) {}
+
+        String notice;
+        String spoken;
+        if (enable) {
+            notice = changed
+                    ? "TAGI consensus enabled for every chat input."
+                    : "TAGI consensus is already enabled.";
+            spoken = changed
+                    ? "TAGI consensus is now enabled. I will consult the TAGI brains on every message."
+                    : "TAGI consensus is already enabled for every message.";
+        } else {
+            notice = changed
+                    ? "TAGI consensus disabled. Using standard Sim chat."
+                    : "TAGI consensus is already disabled.";
+            spoken = changed
+                    ? "TAGI consensus is now disabled. I will use the standard Sim chat flow."
+                    : "TAGI consensus is already disabled.";
+        }
+        emitOverlayNotice(notice, TAGI_STATE_NOTICE_MS);
+        emitImmediateChatTurn(spoken);
+    }
+
+    private Boolean parseTagiToggleCommand(String text) {
+        if (text == null || text.isBlank()) return null;
+        String t = text.toLowerCase(java.util.Locale.ROOT).trim();
+        t = t.replaceAll("[.!?]+$", "").trim();
+        boolean mentionsTagi = t.contains("tagi") || t.contains("magi");
+        if (!mentionsTagi) return null;
+
+        boolean disable = t.contains("disable") || t.contains("turn off") || t.contains("deactivate");
+        boolean enable = t.contains("enable") || t.contains("turn on")
+                || (t.contains("activate") && !t.contains("deactivate"));
+        if (enable == disable) return null;
+        return enable ? Boolean.TRUE : Boolean.FALSE;
+    }
+
+    private void emitImmediateChatTurn(String message) {
+        String msg = message == null ? "" : message.strip();
+        if (msg.isEmpty()) return;
+        try { SimEventBus.get().emitSpeakStart(); } catch (Throwable ignored) {}
+        try { SimEventBus.get().emitSpeak(msg); } catch (Throwable ignored) {}
+        try { SimEventBus.get().emitSpeakEnd(); } catch (Throwable ignored) {}
+    }
+
+    private void emitOverlayNotice(String text, long durationMs) {
+        try { SimEventBus.get().emitOverlayNotice(text, durationMs); } catch (Throwable ignored) {}
+    }
+
+    private String consensusStateNotice(String consensus) {
+        String c = consensus == null ? "" : consensus.trim();
+        if (c.isEmpty()) return "TAGI consensus complete.";
+        c = c.replaceAll("\\s+", " ");
+        if (c.length() > 56) c = c.substring(0, 56).trim();
+        return "TAGI consensus: " + c;
     }
 
     @Override
