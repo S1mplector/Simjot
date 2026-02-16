@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -131,6 +132,13 @@ def _detect_emotions(text: str) -> list[str]:
 def _write_json(payload: dict) -> None:
     sys.stdout.write(json.dumps(payload, ensure_ascii=False))
     sys.stdout.flush()
+
+
+def _log(level: str, message: str) -> None:
+    lvl = (level or "INFO").strip().upper()
+    msg = (message or "").strip()
+    sys.stderr.write(f"[sim_magi_bridge][{lvl}] {msg}\n")
+    sys.stderr.flush()
 
 
 def _looks_like_brain_transcript(text: str) -> bool:
@@ -426,6 +434,7 @@ def main() -> int:
         temperature = payload.get("temperature")
 
         if not openai_api_key:
+            _log("error", "OPENAI_API_KEY missing; mock mode is disabled.")
             _write_json({
                 "ok": False,
                 "error": (
@@ -458,7 +467,9 @@ def main() -> int:
             magi.initialize(api_key=openai_api_key, model=model)
         mode = _clean_text(getattr(magi, "mode", "")) or "unknown"
         init_error = _clean_text(getattr(magi, "last_init_error", ""))
+        _log("info", f"MAGI initialized mode={mode} model={model}")
         if mode.lower() == "mock":
+            _log("error", f"MAGI initialized in mock mode. init_error={init_error or '(none)'}")
             _write_json({
                 "ok": False,
                 "error": (
@@ -468,11 +479,16 @@ def main() -> int:
             })
             return 0
 
-        response = magi.deliberate(question)
+        try:
+            response = magi.deliberate(question)
+        except Exception as exc:
+            _log("error", f"MAGI deliberate failed: {exc}")
+            raise
         answer_raw = _clean_text(getattr(response, "answer", ""))
         answer = _normalize_answer_text(answer_raw, response)
         status = _clean_text(getattr(response, "status", "info")) or "info"
         if _normalize_vote_status(status) == "error":
+            _log("error", f"MAGI response status=error answer={answer[:220]}")
             _write_json({
                 "ok": False,
                 "error": answer or "MAGI failed to complete deliberation in OpenAI mode.",
@@ -503,8 +519,8 @@ def main() -> int:
                     consensus = probe_consensus
                     brain_states = probe_brains
                     status = probe_status
-            except Exception:
-                pass
+            except Exception as exc:
+                _log("warning", f"Consensus probe failed: {exc}")
 
         emotions = _detect_emotions(f"{user_text}\n{answer}")
 
@@ -521,6 +537,8 @@ def main() -> int:
         })
         return 0
     except Exception as exc:
+        _log("error", f"Bridge fatal error: {exc}")
+        _log("error", traceback.format_exc().strip())
         _write_json({"ok": False, "error": str(exc)})
         return 0
 

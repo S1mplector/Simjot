@@ -33,6 +33,7 @@ public final class MagiClient implements SimLLMClient {
     private final String pythonCommand;
     private final String model;
     private final String openAiApiKey;
+    private volatile String resolvedPythonCommand;
 
     public MagiClient(String pythonCommand, String model, String openAiApiKey) {
         String envPython = System.getenv("SIM_MAGI_PYTHON");
@@ -53,7 +54,9 @@ public final class MagiClient implements SimLLMClient {
         long timeoutMs = (timeout == null ? Duration.ofSeconds(25) : timeout).toMillis();
         if (timeoutMs < 1000L) timeoutMs = 1000L;
 
-        ProcessBuilder pb = new ProcessBuilder(pythonCommand, bridge.toString());
+        String pythonToUse = resolvePythonCommand();
+        ProcessBuilder pb = new ProcessBuilder(pythonToUse, bridge.toString());
+        logInfo("Launching MAGI bridge python=" + pythonToUse + " model=" + model + " bridge=" + bridge);
         pb.redirectErrorStream(true);
         pb.directory(bridge.getParent().toFile());
 
@@ -77,8 +80,10 @@ public final class MagiClient implements SimLLMClient {
         boolean finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
         if (!finished) {
             process.destroyForcibly();
+            logError("Magi bridge timed out after " + timeoutMs + "ms");
             throw new IOException("Magi bridge timed out after " + timeoutMs + "ms");
         }
+        int exitCode = process.exitValue();
 
         String out;
         try (var stdout = process.getInputStream()) {
@@ -86,7 +91,14 @@ public final class MagiClient implements SimLLMClient {
         }
 
         String json = extractLastJsonLine(out);
+        String bridgeLogs = extractBridgeLogs(out, json);
+        if (exitCode != 0) {
+            logError("Magi bridge exited with non-zero code " + exitCode + ".");
+            logBridgeLogs(bridgeLogs);
+        }
         if (json == null) {
+            logError("Magi bridge returned non-JSON output.");
+            logBridgeLogs(out);
             throw new IOException("Magi bridge returned non-JSON output: " + truncate(out, 240));
         }
 
@@ -94,6 +106,8 @@ public final class MagiClient implements SimLLMClient {
         if (!Boolean.TRUE.equals(ok)) {
             String error = NativeJson.getString(json, "error");
             if (error == null || error.isBlank()) error = "unknown MAGI bridge error";
+            logError("Magi bridge returned error: " + error);
+            logBridgeLogs(bridgeLogs);
             throw new IOException(error);
         }
 
@@ -102,6 +116,8 @@ public final class MagiClient implements SimLLMClient {
             String initError = NativeJson.getString(json, "magi_init_error");
             StringBuilder sb = new StringBuilder("MAGI initialized in mock mode; this is disabled.");
             if (initError != null && !initError.isBlank()) sb.append(" Init error: ").append(initError);
+            logError(sb.toString());
+            logBridgeLogs(bridgeLogs);
             throw new IOException(sb.toString());
         }
 
@@ -111,6 +127,95 @@ public final class MagiClient implements SimLLMClient {
         String[] emotions = parseEmotions(json);
         String[] brainStatuses = parseBrainStatuses(json);
         return new SimLLMResponse(text, consensus, emotions, brainStatuses);
+    }
+
+    private String resolvePythonCommand() {
+        String cached = resolvedPythonCommand;
+        if (cached != null && !cached.isBlank()) return cached;
+
+        String preferred = (pythonCommand == null || pythonCommand.isBlank()) ? DEFAULT_PYTHON : pythonCommand.trim();
+        if (supportsOpenAi(preferred)) {
+            resolvedPythonCommand = preferred;
+            return preferred;
+        }
+
+        List<String> candidates = new ArrayList<>();
+        addCandidate(candidates, System.getenv("SIM_MAGI_PYTHON"));
+        addCandidate(candidates, System.getenv("CONDA_PYTHON_EXE"));
+        addCandidate(candidates, "/opt/anaconda3/bin/python3");
+        addCandidate(candidates, "/opt/homebrew/bin/python3");
+        addCandidate(candidates, "python3");
+        addCandidate(candidates, "python");
+
+        for (String candidate : candidates) {
+            if (candidate.equals(preferred)) continue;
+            if (!supportsOpenAi(candidate)) continue;
+            resolvedPythonCommand = candidate;
+            logWarn("Configured MAGI python '" + preferred + "' cannot import openai; using '" + candidate + "'.");
+            return candidate;
+        }
+
+        // Keep the configured command so error logs still explain the missing module.
+        resolvedPythonCommand = preferred;
+        return preferred;
+    }
+
+    private static void addCandidate(List<String> out, String candidate) {
+        if (candidate == null) return;
+        String c = candidate.trim();
+        if (c.isEmpty()) return;
+        if (out.contains(c)) return;
+        out.add(c);
+    }
+
+    private static boolean supportsOpenAi(String pythonBin) {
+        if (pythonBin == null || pythonBin.isBlank()) return false;
+        Process p = null;
+        try {
+            p = new ProcessBuilder(pythonBin, "-c", "import openai").start();
+            boolean done = p.waitFor(3500L, TimeUnit.MILLISECONDS);
+            if (!done) {
+                p.destroyForcibly();
+                return false;
+            }
+            return p.exitValue() == 0;
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            if (p != null) {
+                try (var in = p.getInputStream()) { in.readAllBytes(); } catch (Throwable ignored) {}
+                try (var err = p.getErrorStream()) { err.readAllBytes(); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private static String extractBridgeLogs(String output, String jsonLine) {
+        if (output == null || output.isBlank()) return "";
+        if (jsonLine == null || jsonLine.isBlank()) return output.trim();
+        int idx = output.lastIndexOf(jsonLine);
+        if (idx < 0) return output.trim();
+        String before = output.substring(0, idx).trim();
+        String after = output.substring(Math.min(output.length(), idx + jsonLine.length())).trim();
+        if (before.isEmpty()) return after;
+        if (after.isEmpty()) return before;
+        return before + "\n" + after;
+    }
+
+    private static void logBridgeLogs(String logs) {
+        if (logs == null || logs.isBlank()) return;
+        System.err.println("[MagiClient][Bridge] " + truncate(logs, 4000));
+    }
+
+    private static void logError(String message) {
+        System.err.println("[MagiClient][ERROR] " + (message == null ? "" : message));
+    }
+
+    private static void logInfo(String message) {
+        System.err.println("[MagiClient][INFO] " + (message == null ? "" : message));
+    }
+
+    private static void logWarn(String message) {
+        System.err.println("[MagiClient][WARN] " + (message == null ? "" : message));
     }
 
     private static Path resolveBridgeScript() throws IOException {
