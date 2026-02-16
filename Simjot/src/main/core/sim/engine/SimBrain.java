@@ -9,8 +9,7 @@
 package main.core.sim.engine;
 
 import java.io.File;
-import java.time.LocalTime;
-import java.time.LocalTime;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -23,10 +22,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-
-import main.core.sim.critic.CriticPromptDecorator;
-
-import main.core.sim.critic.CriticPromptDecorator;
 import main.core.sim.api.SimEventBus;
 import main.core.sim.critic.CriticPromptDecorator;
 import main.core.sim.data.SimDataGateway;
@@ -35,13 +30,15 @@ import main.core.sim.llm.ollama.OllamaClient;
 import main.core.sim.llm.openai.OpenAIClient;
 import main.core.sim.llm.prompt.PromptBuilder;
 import main.core.sim.memory.MemoryStore;
-import main.core.sim.proactiveyProactiveTriggerEngine
-import main.core.sim.proactive.ProactiveTriggerEnginerEngine;
- import main.core.sim.proactive.TriggerStatsStore;
- import main.core.sim.retrieval.RecencyBuffer;
- import main.core.sim.statevUserState
- import main.infrastructure.backup.NotebookInfo
- import main.infrastructureabackupuNotebookInfo
+import main.core.sim.memory.PersistentMemoryStore;
+import main.core.sim.persona.SimPersonality;
+import main.core.sim.prefs.SimSettings;
+import main.core.sim.proactive.ProactiveTriggerEngine;
+import main.core.sim.proactive.TriggerStatsStore;
+import main.core.sim.retrieval.RecencyBuffer;
+import main.core.sim.retrieval.RetrievalRanker;
+import main.core.sim.state.UserState;
+import main.infrastructure.backup.NotebookInfo;
 
 /**
  * Core decision engine of Sim

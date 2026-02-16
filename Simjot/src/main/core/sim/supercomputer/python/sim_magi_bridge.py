@@ -260,6 +260,68 @@ def _cue_hits(text: str, cues: tuple[str, ...]) -> int:
     return sum(1 for cue in cues if cue and cue in text)
 
 
+def _contains_any(text: str, cues: tuple[str, ...]) -> bool:
+    return any(cue and cue in text for cue in cues)
+
+
+_INFORMATIONAL_INTENT_CUES = (
+    "analyze", "analysis", "summarize", "summary", "trend", "patterns",
+    "pattern", "what do you notice", "insight", "insights", "observe",
+)
+
+_DECISION_INTENT_CUES = (
+    "should i", "should we", "what should", "help me decide", "decide",
+    "recommend", "advice", "guidance", "next step", "what now",
+)
+
+_CONDITIONAL_CUES = (
+    "only if", "as long as", "provided that", "provided you", "if you can",
+    "if this is safe", "before you", "after you", "first make sure",
+    "with safeguards", "with boundaries", "with guardrails", "start small",
+    "take it step by step", "when you are ready",
+)
+
+_CAVEAT_CUES = (
+    "however", "but", "except", "caveat", "one caution", "watch out",
+    "be careful", "if not", "unless", "avoid",
+)
+
+_DEADLOCK_CUES = (
+    "tradeoff", "trade-off", "both sides", "conflict", "tension",
+    "no clear winner", "equally valid", "balanced risk", "standoff",
+)
+
+
+def _is_informational_request(user_text: str) -> bool:
+    text = _clean_text(user_text).lower()
+    if not text:
+        return False
+    info_hits = _cue_hits(text, _INFORMATIONAL_INTENT_CUES)
+    decision_hits = _cue_hits(text, _DECISION_INTENT_CUES)
+    return info_hits >= 1 and info_hits >= decision_hits
+
+
+def _has_conditional_requirements(text: str) -> bool:
+    return _contains_any(_clean_text(text).lower(), _CONDITIONAL_CUES)
+
+
+def _has_caveat_language(text: str) -> bool:
+    return _contains_any(_clean_text(text).lower(), _CAVEAT_CUES)
+
+
+def _has_deadlock_language(user_text: str, guidance_text: str) -> bool:
+    merged = f"{_clean_text(user_text)} {_clean_text(guidance_text)}".lower()
+    return _contains_any(merged, _DEADLOCK_CUES)
+
+
+def _stable_choice_seed(user_text: str, guidance_text: str) -> int:
+    seed = 0
+    merged = f"{user_text}|{guidance_text}"
+    for i, ch in enumerate(merged[:1600]):
+        seed = (seed * 131 + ord(ch) + i) % 2_147_483_647
+    return seed
+
+
 def _brain_statuses(response: object) -> dict[str, str]:
     def infer_vote(payload: dict, status_hint: str) -> str:
         summary = _clean_text(str(payload.get("summary") or ""))
@@ -423,6 +485,92 @@ def _derive_consensus(consensus_raw: str, status_raw: str, brains: dict[str, str
     return "informational"
 
 
+def _rebalance_consensus(
+    base_consensus: str,
+    user_text: str,
+    guidance_text: str,
+    status_raw: str,
+    brains: dict[str, str],
+) -> str:
+    """
+    Map raw MAGI vote patterns to UX-facing consensus buckets with context-sensitive balancing.
+    The goal is to avoid sticky "unanimous" outputs while still honoring explicit vote signals.
+    """
+    base = _canonical_consensus(base_consensus) or _canonical_consensus(_clean_text(base_consensus))
+    if not base:
+        base = _derive_consensus(base_consensus, status_raw, brains)
+
+    vals = [v for v in brains.values() if v]
+    yes = vals.count("yes")
+    no = vals.count("no")
+    cond = vals.count("conditional")
+    info = vals.count("info")
+    dead = vals.count("deadlock")
+
+    if _is_informational_request(user_text):
+        return "informational"
+
+    conditional_cues = _has_conditional_requirements(user_text) or _has_conditional_requirements(guidance_text)
+    caveat_cues = _has_caveat_language(guidance_text)
+    deadlock_cues = _has_deadlock_language(user_text, guidance_text)
+
+    # Hard deadlock outcomes.
+    if dead >= 2:
+        return "deadlock"
+    if yes >= 1 and no >= 1 and (dead >= 1 or (cond == 0 and deadlock_cues)):
+        return "deadlock"
+    # Strong prerequisite language should stay conditional even when all three brains lean approve.
+    if conditional_cues and yes >= 2 and no == 0 and dead == 0:
+        return "conditional"
+    # Single-caveat guidance should map to majority rather than unanimous.
+    if caveat_cues and ((yes >= 2 and no == 0) or (no >= 2 and yes == 0)):
+        return "majority"
+
+    candidates: list[str] = []
+    if yes == 3 or no == 3:
+        candidates.append("unanimous")
+    if (yes == 2 and no == 1) or (no == 2 and yes == 1):
+        candidates.append("majority")
+    if cond >= 2 or (cond >= 1 and (yes >= 1 or no >= 1)):
+        candidates.append("conditional")
+    if yes >= 1 and no >= 1 and cond == 0:
+        candidates.append("deadlock")
+    if conditional_cues and (yes + no + cond) >= 2:
+        candidates.append("conditional")
+    if caveat_cues and (yes + no) >= 2:
+        candidates.append("majority")
+    if deadlock_cues and (yes + no + cond) >= 2:
+        candidates.append("deadlock")
+    if info >= 2 and yes == 0 and no == 0:
+        candidates.append("informational")
+
+    if base:
+        candidates.append(base)
+
+    deduped: list[str] = []
+    for c in candidates:
+        cc = _canonical_consensus(c)
+        if not cc:
+            continue
+        if cc not in deduped:
+            deduped.append(cc)
+
+    if not deduped:
+        return "informational"
+    if len(deduped) == 1:
+        return deduped[0]
+
+    # Keep unanimous possible, but down-weight it if other plausible outcomes exist.
+    weighted: list[str] = []
+    for c in deduped:
+        weighted.append(c)
+        if c != "unanimous":
+            weighted.append(c)
+
+    seed = _stable_choice_seed(user_text, guidance_text)
+    return weighted[seed % len(weighted)]
+
+
 def main() -> int:
     try:
         payload = _read_payload()
@@ -500,6 +648,10 @@ def main() -> int:
         primary_consensus_raw = _clean_text(getattr(response, "consensus", ""))
         brain_states = _brain_statuses(response)
         consensus = _derive_consensus(primary_consensus_raw, status, brain_states)
+        consensus = _rebalance_consensus(consensus, user_text, answer, status, brain_states)
+        informational_request = _is_informational_request(user_text)
+        conditional_request = _has_conditional_requirements(user_text)
+        guidance_has_conditions = _has_conditional_requirements(answer)
 
         if consensus in {"informational", "conditional"}:
             # Run a dedicated decision-style checkpoint so MAGI can surface
@@ -511,16 +663,28 @@ def main() -> int:
                 probe_consensus_raw = _clean_text(getattr(probe, "consensus", ""))
                 probe_brains = _brain_statuses(probe)
                 probe_consensus = _derive_consensus(probe_consensus_raw, probe_status, probe_brains)
-                if consensus == "informational" and probe_consensus != "informational":
+                probe_consensus = _rebalance_consensus(probe_consensus, user_text, answer, probe_status, probe_brains)
+                if consensus == "informational" and not informational_request and probe_consensus != "informational":
                     consensus = probe_consensus
                     brain_states = probe_brains
                     status = probe_status
-                elif consensus == "conditional" and probe_consensus in {"majority", "unanimous", "deadlock"}:
-                    consensus = probe_consensus
-                    brain_states = probe_brains
-                    status = probe_status
+                elif consensus == "conditional":
+                    # Keep conditional when explicit prerequisites are present.
+                    keep_conditional = conditional_request or guidance_has_conditions
+                    if not keep_conditional and probe_consensus in {"majority", "unanimous", "deadlock"}:
+                        consensus = probe_consensus
+                        brain_states = probe_brains
+                        status = probe_status
+                    elif keep_conditional and probe_consensus == "deadlock" and _has_deadlock_language(user_text, answer):
+                        consensus = "deadlock"
+                        brain_states = probe_brains
+                        status = probe_status
+                consensus = _rebalance_consensus(consensus, user_text, answer, status, brain_states)
             except Exception as exc:
                 _log("warning", f"Consensus probe failed: {exc}")
+                consensus = _rebalance_consensus(consensus, user_text, answer, status, brain_states)
+        else:
+            consensus = _rebalance_consensus(consensus, user_text, answer, status, brain_states)
 
         emotions = _detect_emotions(f"{user_text}\n{answer}")
 

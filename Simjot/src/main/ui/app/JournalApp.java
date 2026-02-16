@@ -86,6 +86,7 @@ import main.ui.features.home.ElegantMoodChartPanel;
 import main.ui.features.notebooks.NotebookManagerPanel;
 import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
+import main.ui.sim.chat.SimChatPanel;
 import main.ui.sim.overlay.SimOverlay;
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.util.AccentColorUtil;
@@ -240,6 +241,11 @@ public class JournalApp extends JFrame {
      */
     public static final String NOTEBOOK_MANAGER = "Notebook Manager";
 
+    /**
+     * Card identifier for fullscreen Sim chat interface.
+     */
+    public static final String SIM_CHAT = "Sim Chat";
+
     // ====================
     // UI COMPONENT REFERENCES
     // ====================
@@ -335,6 +341,16 @@ public class JournalApp extends JFrame {
      * Provides chat interface and AI interaction capabilities.
      */
     private SimOverlay simOverlay;
+
+    /**
+     * Fullscreen chat panel used by Sim.
+     */
+    private SimChatPanel simChatPanel;
+
+    /**
+     * Last card before entering Sim chat, used for return navigation.
+     */
+    private String simChatReturnCard = MAIN_MENU;
     
     /**
      * Core AI brain component for Sim.
@@ -456,6 +472,9 @@ public class JournalApp extends JFrame {
                 try { simOverlay.disposeOverlay(); } catch (Throwable ignored) {}
                 try { getLayeredPane().remove(simOverlay); } catch (Throwable ignored) {}
                 simOverlay = null;
+            }
+            if (simChatPanel != null) {
+                try { simChatPanel.disposePanel(); } catch (Throwable ignored) {}
             }
             revalidate();
             repaint();
@@ -817,6 +836,8 @@ public class JournalApp extends JFrame {
     }
 
     public void switchCard(String cardName) {
+        String currentCard = resolveVisibleCardName();
+        handleSimChatTransition(currentCard, cardName);
         FadeTransitionPanel fadePanel = (FadeTransitionPanel) getGlassPane();
         // Emit Sim event for card switch
         try { SimEventBus.get().emitCardSwitched(cardName); } catch (Throwable ignored) {}
@@ -922,6 +943,10 @@ public class JournalApp extends JFrame {
                 NotebookManagerPanel notebookManagerPanel = new NotebookManagerPanel(this);
                 cardPanel.add(notebookManagerPanel, NOTEBOOK_MANAGER);
                 createdStaticCards.add(NOTEBOOK_MANAGER);
+            } else if (cardName.equals(SIM_CHAT)) {
+                simChatPanel = new SimChatPanel(this::closeSimChatPanel);
+                cardPanel.add(simChatPanel, SIM_CHAT);
+                createdStaticCards.add(SIM_CHAT);
             } else if (cardName.equals(MAIN_MENU)) {
                 // already created in initUI
                 createdStaticCards.add(MAIN_MENU);
@@ -1188,6 +1213,8 @@ public class JournalApp extends JFrame {
      * panel creations where the fade would otherwise reveal a blank frame.
      */
     public void showCardImmediate(String cardName) {
+        String currentCard = resolveVisibleCardName();
+        handleSimChatTransition(currentCard, cardName);
         CardLayout cl = cardLayout;
         cl.show(cardPanel, cardName);
     }
@@ -1455,6 +1482,62 @@ public class JournalApp extends JFrame {
             if (c != null && c.isVisible()) return c;
         }
         return null;
+    }
+
+    private String resolveVisibleCardName() {
+        Component visible = getVisibleCardComponent();
+        if (visible == null) return MAIN_MENU;
+        if (visible == simChatPanel) return SIM_CHAT;
+        if (visible == mainMenuPanel) return MAIN_MENU;
+        if (visible == settingsPanel) return SETTINGS;
+        if (visible == galleryPanel) return GALLERY;
+        if (visible == quoteGalleryPanel) return QUOTE_GALLERY;
+        if (visible instanceof ElegantMoodChartPanel) return MOOD_CHART;
+        if (visible instanceof NotebookManagerPanel) return NOTEBOOK_MANAGER;
+        for (java.util.Map.Entry<String, NotebookEntriesPanel> e : notebookPanels.entrySet()) {
+            if (e.getValue() == visible) return e.getKey();
+        }
+        for (java.util.Map.Entry<String, JPanel> e : cardMap.entrySet()) {
+            if (e.getValue() == visible) return e.getKey();
+        }
+        return MAIN_MENU;
+    }
+
+    private void handleSimChatTransition(String fromCard, String toCard) {
+        String from = fromCard == null ? "" : fromCard;
+        String to = toCard == null ? "" : toCard;
+        boolean enteringSimChat = !SIM_CHAT.equals(from) && SIM_CHAT.equals(to);
+        boolean leavingSimChat = SIM_CHAT.equals(from) && !SIM_CHAT.equals(to);
+        if (enteringSimChat) {
+            maybeCreateLazyCard(SIM_CHAT);
+            if (simOverlay != null) {
+                try { simOverlay.enterCompanionPanelMode(); } catch (Throwable ignored) {}
+            }
+            if (simChatPanel != null) {
+                try { simChatPanel.onPanelShown(); } catch (Throwable ignored) {}
+            }
+            if (!from.isBlank()) simChatReturnCard = from;
+        } else if (leavingSimChat) {
+            if (simChatPanel != null) {
+                try { simChatPanel.onPanelHidden(); } catch (Throwable ignored) {}
+            }
+            if (simOverlay != null) {
+                try { simOverlay.exitCompanionPanelMode(); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    public void openSimChatPanel() {
+        String current = resolveVisibleCardName();
+        if (!SIM_CHAT.equals(current)) {
+            simChatReturnCard = current;
+        }
+        switchCard(SIM_CHAT);
+    }
+
+    public void closeSimChatPanel() {
+        String target = (simChatReturnCard == null || simChatReturnCard.isBlank()) ? MAIN_MENU : simChatReturnCard;
+        switchCard(target);
     }
 
     public boolean isSimGuidanceAvailableForCurrentCard() {

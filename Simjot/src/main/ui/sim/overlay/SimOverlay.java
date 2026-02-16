@@ -128,6 +128,8 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private final ChatViewPanel chatView = new ChatViewPanel(transcript);
     // Only show message/panel when user has explicitly invoked or we're in chat
     private boolean userInvokedActive = false;
+    // Companion panel mode keeps Sim active while external fullscreen chat is open.
+    private boolean companionPanelMode = false;
     // Panel actions
     private JButton chatsButton;
     private JButton hideButton;
@@ -818,6 +820,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         if (!isVisible()) setVisible(true);
         // Open in compact menu mode first (floating actions).
         chatMode = false;
+        companionPanelMode = false;
         magiDeliberating = false;
         clearGuidanceOutcomeVisuals();
         setGuidanceThinking(false);
@@ -842,6 +845,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     private void deactivateFromHeart() {
         // If in chat, end it first; then dispose sequence to collapse panel/orbs back to idle beacon
         setGuidanceThinking(false);
+        companionPanelMode = false;
         try { archiveCurrentSessionIfNotEmpty(); } catch (Throwable ignored) {}
         try { SimEventBus.get().emitChatEnded(); } catch (Throwable ignored) {}
         try { endChatModeInternal(true); } catch (Throwable ignored) {}
@@ -1433,7 +1437,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         chatsButton.setBounds(startX, btnY, guidanceW, 28);
         hideButton.setBounds(startX + guidanceW + gap, btnY, hideW, 28);
 
-        boolean visible = userInvokedActive && !disposeInProgress && !entryInProgress;
+        boolean visible = userInvokedActive && !disposeInProgress && !entryInProgress && !companionPanelMode;
         setActionButtonsVisible(visible);
     }
 
@@ -1460,7 +1464,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
     }
 
     private void ensureActionButtons() {
-        if (chatsButton != null) return;
+        if (chatsButton != null && hideButton != null) return;
         chatsButton = createActionButton("Guidance", this::onSecondaryAction);
         hideButton = createActionButton("Hide", this::deactivateFromHeart);
         add(chatsButton);
@@ -1523,6 +1527,26 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             hideButton.setEnabled(true);
             hideButton.setToolTipText("Hide Sim overlay");
         }
+    }
+
+    public void enterCompanionPanelMode() {
+        SwingUtilities.invokeLater(() -> {
+            if (isBeaconIdle()) {
+                invokeFromHeart();
+            }
+            companionPanelMode = true;
+            refreshActionButtonsState();
+            setActionButtonsVisible(false);
+            repaint();
+        });
+    }
+
+    public void exitCompanionPanelMode() {
+        SwingUtilities.invokeLater(() -> {
+            companionPanelMode = false;
+            refreshActionButtonsState();
+            repaint();
+        });
     }
 
     private JButton createActionButton(String text, Runnable action) {
@@ -1710,6 +1734,7 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
         disposeInProgress = true;
         entryInProgress = false;
         panelAppearing = false;
+        companionPanelMode = false;
         magiDeliberating = false;
         clearGuidanceOutcomeVisuals();
         setGuidanceThinking(false);
