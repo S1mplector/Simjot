@@ -8,15 +8,47 @@
 
 package main.ui.sim.overlay;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.Paint;
+import java.awt.Point;
+import java.awt.RadialGradientPaint;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.Stroke;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.*;
+import java.awt.geom.Arc2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.Point2D;
+import java.awt.geom.RoundRectangle2D;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import javax.swing.*;
-import main.core.sim.api.SimEventBus;
+
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.UIManager;
+
 import main.core.service.SettingsStore;
+import main.core.sim.api.SimEventBus;
 import main.ui.app.JournalApp;
 import main.ui.theme.aero.AeroPainters;
 import main.ui.util.AccentColorUtil;
@@ -750,105 +782,9 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             gh.dispose();
         }
 
-        // Draw spinning orbs in a ring with per-orb progress
-        for (int i = 0; i < ORB_COUNT; i++) {
-            double p = clamp01(orbT[i]);
-            if (p <= 0.0) continue; // not visible yet
-            double eased = easeOutCubic((float)p);
-            double theta = spinAngle + (Math.PI * 2 * i / ORB_COUNT);
-            int radial = (int)Math.round((ORB_RING_RADIUS + HEART_CLEARANCE) * eased);
-            int ox = (int) Math.round(centerX + radial * Math.cos(theta));
-            int oy = (int) Math.round(centerY + radial * Math.sin(theta));
-            int idleBob = (int) Math.round((1.6 * Math.sin(spinAngle * 1.35 + i * 0.95)) * (0.42 + 0.58 * eased));
-            oy += idleBob;
-            if (deliberationAnim) {
-                double nx = Math.cos(theta); // -1..1
-                double arc = 1.0 - (nx * nx); // parabola shape across arc
-                int drift = (int) Math.round((2.7 * Math.sin(thinkingPhase + i * 1.25) + 3.8 * (arc - 0.5)) * eased);
-                oy += drift;
-            }
-            float glow = clamp01(orbHighlight[i]);
-            int rrBase = ORB_RADIUS + Math.round(3f * glow);
-            float orbScale = thinkingOrbScale;
-            if (deliberationAnim) {
-                float breathe = (float) ((Math.sin(thinkingPhase * 1.25 + i * 0.95) + 1.0) * 0.5);
-                orbScale *= 0.96f + 0.09f * breathe;
-            }
-            int rr = Math.max(9, Math.round(rrBase * orbScale));
-            int d = rr * 2;
-            Color ec = getEmotionColor(i);
+        // Simple spark animation along heart outline
+        paintHeartSpark(g2, centerX, centerY, accent);
 
-            // Ambient halo (always on, stronger for highlighted emotions).
-            {
-                Paint oldPaint = g2.getPaint();
-                int haloR = rr + 8;
-                RadialGradientPaint halo = new RadialGradientPaint(
-                        new Point2D.Float(ox, oy), haloR,
-                        new float[]{0f, 0.72f, 1f},
-                        new Color[]{
-                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int) ((18 + 40 * glow) * p)),
-                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int) ((8 + 18 * glow) * p)),
-                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), 0)
-                        }
-                );
-                g2.setPaint(halo);
-                g2.fillOval(ox - haloR, oy - haloR, haloR * 2, haloR * 2);
-                g2.setPaint(oldPaint);
-            }
-
-            // Soft shadow
-            g2.setColor(new Color(0, 0, 0, (int)(38 * p)));
-            g2.fillOval(ox - rr, oy - rr + 2, d, d);
-
-            // Guidance emotion highlight halo
-            if (glow > 0.01f) {
-                Paint oldPaint = g2.getPaint();
-                RadialGradientPaint halo = new RadialGradientPaint(
-                        new Point2D.Float(ox, oy), rr + 11f,
-                        new float[]{0f, 0.55f, 1f},
-                        new Color[]{
-                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int)(178 * glow * p)),
-                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), (int)(76 * glow * p)),
-                                new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), 0)
-                        }
-                );
-                g2.setPaint(halo);
-                g2.fillOval(ox - rr - 11, oy - rr - 11, d + 22, d + 22);
-                g2.setPaint(oldPaint);
-            }
-
-            // Clean color orb with subtle depth
-            Color top = AccentColorUtil.lighten(ec, Math.min(0.64f, 0.36f + 0.22f * glow));
-            Color bottom = AccentColorUtil.darken(ec, Math.max(0.16f, 0.30f - 0.08f * glow));
-            Paint oldPaint = g2.getPaint();
-            RadialGradientPaint body = new RadialGradientPaint(
-                    new Point2D.Float(ox - rr * 0.22f, oy - rr * 0.36f), rr * 1.08f,
-                    new float[]{0f, 0.68f, 1f},
-                    new Color[]{
-                            new Color(top.getRed(), top.getGreen(), top.getBlue(), 246),
-                            new Color(ec.getRed(), ec.getGreen(), ec.getBlue(), 226),
-                            new Color(bottom.getRed(), bottom.getGreen(), bottom.getBlue(), 226)
-                    }
-            );
-            g2.setPaint(body);
-            g2.fillOval(ox - rr, oy - rr, d, d);
-            g2.setPaint(oldPaint);
-
-            // Glossy hot spots
-            g2.setColor(new Color(255, 255, 255, (int)(108 * p)));
-            g2.fillOval(ox - rr / 3, oy - rr / 2, Math.max(4, rr / 2), Math.max(3, rr / 3));
-            g2.setColor(new Color(255, 255, 255, (int)(58 * p)));
-            g2.fillOval(ox - rr / 6, oy - rr / 7, Math.max(3, rr / 3), Math.max(2, rr / 4));
-
-            // Edge ring
-            g2.setStroke(new BasicStroke(1.5f));
-            g2.setColor(new Color(255, 255, 255, (int)(132 * p)));
-            g2.drawOval(ox - rr, oy - rr, d, d);
-            g2.setColor(new Color(0, 0, 0, (int)(82 * p)));
-            g2.drawOval(ox - rr, oy - rr, d, d);
-        }
-
-        paintMagiBrainLayer(g2, centerX, centerY, accent);
         paintMagiConsultationStatus(g2, centerY, accent);
 
         Rectangle panelRect = null;
@@ -2391,6 +2327,49 @@ public class SimOverlay extends JComponent implements SimEventBus.Listener {
             for (int i = 0; i < drop; i++) chatHistory.remove(0);
             // adjust streaming index
             if (streamingAssistantIndex >= 0) streamingAssistantIndex = Math.max(0, streamingAssistantIndex - drop);
+        }
+    }
+
+    // Simple heart spark animation - travels along heart outline during beats
+    private void paintHeartSpark(Graphics2D g2, int centerX, int centerY, Color accent) {
+        // Spark position along heart outline (0..1)
+        float sparkPhase = (float) ((heartPhase % (Math.PI * 2)) / (Math.PI * 2));
+        
+        // Generate heart outline point
+        float scale = 50f; // Size of heart outline
+        float t = sparkPhase * 2f * (float) Math.PI;
+        
+        // Parametric heart equations
+        float x = 16f * (float) Math.pow(Math.sin(t), 3);
+        float y = -(13f * (float) Math.cos(t) - 5f * (float) Math.cos(2*t) - 2f * (float) Math.cos(3*t) - (float) Math.cos(4*t));
+        
+        // Scale and position
+        int sparkX = centerX + Math.round(x * scale / 16f);
+        int sparkY = centerY + Math.round(y * scale / 16f);
+        
+        // Spark visibility based on heart beat
+        float sparkAlpha = Math.max(0f, Math.min(1f, (heartScale - 1f) * 8f)); // Visible during heartbeat
+        
+        if (sparkAlpha > 0.01f) {
+            // Draw spark as a glowing point
+            int sparkSize = 6;
+            int glowSize = 16;
+            
+            // Outer glow
+            g2.setComposite(AlphaComposite.SrcOver.derive(sparkAlpha * 0.3f));
+            Color glowColor = new Color(80, 170, 255);
+            g2.setColor(glowColor);
+            g2.fillOval(sparkX - glowSize/2, sparkY - glowSize/2, glowSize, glowSize);
+            
+            // Inner bright core
+            g2.setComposite(AlphaComposite.SrcOver.derive(sparkAlpha));
+            Color coreColor = new Color(150, 200, 255);
+            g2.setColor(coreColor);
+            g2.fillOval(sparkX - sparkSize/2, sparkY - sparkSize/2, sparkSize, sparkSize);
+            
+            // Bright center
+            g2.setColor(Color.WHITE);
+            g2.fillOval(sparkX - 2, sparkY - 2, 4, 4);
         }
     }
 
