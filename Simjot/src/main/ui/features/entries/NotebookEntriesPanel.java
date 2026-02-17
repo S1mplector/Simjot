@@ -108,6 +108,13 @@ public class NotebookEntriesPanel extends JPanel {
     private static final DateTimeFormatter ENTRY_DATE_FORMAT = DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy");
     private static final ThreadLocal<SimpleDateFormat> ENTRY_LIST_DATE_FORMAT =
             ThreadLocal.withInitial(() -> new SimpleDateFormat("dd/MM/yy HH:mm"));
+    private static final int LAZY_FILE_THRESHOLD = 50;
+    private static final int LAZY_INITIAL_ROWS = 36;
+    private static final int LAZY_PAGE_ROWS = 30;
+    private static final int LAZY_PREFETCH_ROWS = 10;
+    private static final int LAZY_APPEND_STEP_ROWS = 8;
+    private static final int LAZY_APPEND_TICK_MS = 20;
+    private static final int META_PUBLISH_BATCH_SIZE = 6;
 
     private final JournalApp app;
     private final NotebookInfo nb;
@@ -133,6 +140,10 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File, Boolean> encryptedFlags = new java.util.HashMap<>();
     private final java.util.Map<File, Integer> rowIndexByFile = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
+    private List<EntryRow> fullRows = java.util.Collections.emptyList();
+    private int loadedRows = 0;
+    private int lazyAppendTargetRows = -1;
+    private String lazySignature = "";
     private SwingWorker<Void, PreviewSnapshot> previewLoader;
 
     // Debounced search and background metadata loader
@@ -145,6 +156,30 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Set<File> metaComputed = new java.util.HashSet<>();
     private final java.util.Set<File> metaQueued = new java.util.HashSet<>();
     private javax.swing.JScrollPane listScroll;
+    private final javax.swing.Timer lazyAppendTimer = new javax.swing.Timer(LAZY_APPEND_TICK_MS, e -> {
+        try {
+            if (disposed || fullRows == null || fullRows.isEmpty()) {
+                ((javax.swing.Timer) e.getSource()).stop();
+                lazyAppendTargetRows = -1;
+                return;
+            }
+            if (loadedRows >= fullRows.size()) {
+                ((javax.swing.Timer) e.getSource()).stop();
+                lazyAppendTargetRows = loadedRows;
+                return;
+            }
+            int boundedTarget = Math.max(loadedRows, Math.min(fullRows.size(), lazyAppendTargetRows));
+            if (boundedTarget <= loadedRows) {
+                ((javax.swing.Timer) e.getSource()).stop();
+                return;
+            }
+            int next = Math.min(boundedTarget, loadedRows + LAZY_APPEND_STEP_ROWS);
+            appendRowsTo(next);
+            if (loadedRows >= boundedTarget || loadedRows >= fullRows.size()) {
+                ((javax.swing.Timer) e.getSource()).stop();
+            }
+        } catch (Throwable ignored) {}
+    });
 
     // Debounced folder watch refresh to coalesce rapid file system events
     private final javax.swing.Timer watchDebounce = new javax.swing.Timer(100, e -> refresh());
@@ -1111,6 +1146,7 @@ public class NotebookEntriesPanel extends JPanel {
         // Prioritize metadata for visible items on scroll/resize
         try {
             listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
+                ensureLazyRowsForViewport();
                 if (!e.getValueIsAdjusting()) {
                     ensureMetaForVisibleRange();
                     ensurePreviewForVisibleRange();
@@ -1123,6 +1159,7 @@ public class NotebookEntriesPanel extends JPanel {
         // Configure debouncers
         listUpdateDebounce.setRepeats(false);
         watchDebounce.setRepeats(false);
+        lazyAppendTimer.setRepeats(true);
         reorderAnimTimer.setRepeats(true);
 
         loadFiles();
@@ -1244,8 +1281,11 @@ public class NotebookEntriesPanel extends JPanel {
             }
             metaCache.clear();
             metaCache.putAll(refreshedCache);
-            // Start prioritized metadata loading (visible first)
-            startPrioritizedMetaLoader(java.util.List.copyOf(allFiles));
+            fullRows = java.util.Collections.emptyList();
+            loadedRows = 0;
+            lazyAppendTargetRows = -1;
+            lazySignature = "";
+            try { lazyAppendTimer.stop(); } catch (Throwable ignored) {}
         } else {
             allFiles = new ArrayList<>();
             titles.clear();
@@ -1260,6 +1300,11 @@ public class NotebookEntriesPanel extends JPanel {
             moodTrendCache.clear();
             encryptedFlags.clear();
             rowIndexByFile.clear();
+            fullRows = java.util.Collections.emptyList();
+            loadedRows = 0;
+            lazyAppendTargetRows = -1;
+            lazySignature = "";
+            try { lazyAppendTimer.stop(); } catch (Throwable ignored) {}
         }
     }
 
@@ -1330,6 +1375,34 @@ public class NotebookEntriesPanel extends JPanel {
         String rawQuery = searchField.getText() == null ? "" : searchField.getText().trim();
         list.putClientProperty("searchQuery", rawQuery);
         List<EntryRow> rows = buildGroupedRows(ordered);
+        String nextSignature = sortBox.getSelectedIndex()
+                + "|" + rawQuery.toLowerCase(Locale.ROOT)
+                + "|" + (filterStartDate != null ? filterStartDate : "-")
+                + "|" + (filterEndDate != null ? filterEndDate : "-");
+        boolean lazyMode = shouldUseLazyLoading(ordered.size());
+        if (!lazyMode) {
+            fullRows = rows;
+            loadedRows = rows.size();
+            lazyAppendTargetRows = loadedRows;
+            lazySignature = nextSignature;
+        } else {
+            boolean signatureChanged = !Objects.equals(lazySignature, nextSignature);
+            fullRows = rows;
+            if (signatureChanged || loadedRows <= 0) {
+                loadedRows = Math.min(rows.size(), LAZY_INITIAL_ROWS);
+                lazySignature = nextSignature;
+            } else {
+                loadedRows = Math.min(loadedRows, rows.size());
+            }
+            if (sel != null) {
+                int selectedRow = indexOfFileRow(rows, sel);
+                if (selectedRow >= 0 && selectedRow >= loadedRows) {
+                    loadedRows = Math.min(rows.size(), selectedRow + LAZY_PREFETCH_ROWS);
+                }
+            }
+            lazyAppendTargetRows = loadedRows;
+            rows = rows.subList(0, loadedRows);
+        }
         // If order hasn't changed, skip rebuild to avoid flicker
         boolean sameOrder = (model.size() == rows.size());
         if (sameOrder) {
@@ -1339,11 +1412,9 @@ public class NotebookEntriesPanel extends JPanel {
         }
         if (!sameOrder) {
             java.util.Set<File> changed = updateModelWithMinimalChanges(rows);
-            rebuildRowIndexCache();
             bumpReorderAnimation(changed);
-        } else if (rowIndexByFile.size() != ordered.size()) {
-            rebuildRowIndexCache();
         }
+        rebuildRowIndexCache();
 
         // Restore selection without forcing scroll
         if (sel != null && ordered.contains(sel)) {
@@ -1359,6 +1430,7 @@ public class NotebookEntriesPanel extends JPanel {
         // After resort/filter, make sure visible items are prioritized
         ensureMetaForVisibleRange();
         ensurePreviewForVisibleRange();
+        ensureLazyRowsForViewport();
     }
 
     private void rebuildMoodTrendCache(List<File> orderedFiles) {
@@ -1430,6 +1502,59 @@ public class NotebookEntriesPanel extends JPanel {
             if (java.util.Objects.equals(model.get(i), row)) return i;
         }
         return -1;
+    }
+
+    private boolean shouldUseLazyLoading(int fileCount) {
+        return fileCount > LAZY_FILE_THRESHOLD;
+    }
+
+    private int indexOfFileRow(List<EntryRow> rows, File file) {
+        if (rows == null || file == null) return -1;
+        for (int i = 0; i < rows.size(); i++) {
+            EntryRow row = rows.get(i);
+            if (row != null && !row.isHeader() && Objects.equals(row.file, file)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void ensureLazyRowsForViewport() {
+        if (disposed) return;
+        if (fullRows == null || fullRows.isEmpty()) return;
+        if (loadedRows >= fullRows.size()) return;
+        int lastVisible = list.getLastVisibleIndex();
+        if (lastVisible < 0) lastVisible = model.size() - 1;
+        if (lastVisible < 0) return;
+        if ((loadedRows - lastVisible) > LAZY_PREFETCH_ROWS) return;
+        int target = Math.min(fullRows.size(), loadedRows + LAZY_PAGE_ROWS);
+        scheduleLazyAppend(target);
+    }
+
+    private void scheduleLazyAppend(int targetCount) {
+        if (disposed || fullRows == null || fullRows.isEmpty()) return;
+        int bounded = Math.max(0, Math.min(targetCount, fullRows.size()));
+        if (bounded <= loadedRows) return;
+        lazyAppendTargetRows = Math.max(lazyAppendTargetRows, bounded);
+        if (!lazyAppendTimer.isRunning()) {
+            try { lazyAppendTimer.start(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private void appendRowsTo(int targetCount) {
+        if (disposed) return;
+        if (fullRows == null || fullRows.isEmpty()) return;
+        int bounded = Math.max(0, Math.min(targetCount, fullRows.size()));
+        if (bounded <= loadedRows) return;
+        java.util.Set<File> changed = updateModelWithMinimalChanges(fullRows.subList(0, bounded));
+        loadedRows = bounded;
+        if (lazyAppendTargetRows < loadedRows) lazyAppendTargetRows = loadedRows;
+        rebuildRowIndexCache();
+        if (!changed.isEmpty()) {
+            bumpReorderAnimation(changed);
+        }
+        ensureMetaForVisibleRange();
+        ensurePreviewForVisibleRange();
     }
 
     private void rebuildRowIndexCache() {
@@ -1956,10 +2081,15 @@ public class NotebookEntriesPanel extends JPanel {
         reorderAnimProgress.clear();
         deleteAnimProgress.clear();
         pendingDeleteFile = null;
+        try { lazyAppendTimer.stop(); } catch (Throwable ignored) {}
         model.clear();
         previewCache.clear();
         encryptedFlags.clear();
         rowIndexByFile.clear();
+        fullRows = java.util.Collections.emptyList();
+        loadedRows = 0;
+        lazyAppendTargetRows = -1;
+        lazySignature = "";
     }
     
 
@@ -2055,6 +2185,7 @@ public class NotebookEntriesPanel extends JPanel {
     private void startPrioritizedMetaLoader(java.util.List<File> preferredFirst){
         if (disposed) return;
         if (preferredFirst == null) preferredFirst = java.util.Collections.emptyList();
+        if (preferredFirst.isEmpty()) return;
         // Cancel ongoing worker to re-prioritize
         if (metaLoader != null && !metaLoader.isDone()) {
             metaLoader.cancel(true);
@@ -2062,6 +2193,7 @@ public class NotebookEntriesPanel extends JPanel {
         java.util.LinkedHashSet<File> order = new java.util.LinkedHashSet<>(preferredFirst);
         metaLoader = new SwingWorker<>() {
             @Override protected Void doInBackground() {
+                java.util.ArrayList<FileMeta> batch = new java.util.ArrayList<>(META_PUBLISH_BATCH_SIZE);
                 for (File f : order) {
                     if (isCancelled()) break;
                     if (f == null || !f.exists()) continue;
@@ -2074,8 +2206,15 @@ public class NotebookEntriesPanel extends JPanel {
                     TitleMood tm = extractTitleAndMood(f);
                     String t = tm.title;
                     int mood = tm.mood;
-                    publish(new FileMeta(f, wc, t, mood));
+                    batch.add(new FileMeta(f, wc, t, mood));
+                    if (batch.size() >= META_PUBLISH_BATCH_SIZE) {
+                        publish(batch.toArray(new FileMeta[0]));
+                        batch.clear();
+                    }
                     if (isCancelled()) break;
+                }
+                if (!batch.isEmpty() && !isCancelled()) {
+                    publish(batch.toArray(new FileMeta[0]));
                 }
                 return null;
             }
@@ -2098,10 +2237,19 @@ public class NotebookEntriesPanel extends JPanel {
                 }
                 if (changedFiles.isEmpty()) return;
                 repaintFileRows(changedFiles, 12);
-                update();
+                if (shouldRefreshOrderingForMetadata()) {
+                    update();
+                }
             }
         };
         metaLoader.execute();
+    }
+
+    private boolean shouldRefreshOrderingForMetadata() {
+        int sortIdx = sortBox.getSelectedIndex();
+        if (sortIdx >= 2) return true;
+        String q = searchField.getText();
+        return q != null && !q.isBlank();
     }
 
     // --- Helpers ---
@@ -2258,11 +2406,11 @@ public class NotebookEntriesPanel extends JPanel {
     private void startPreviewLoader(java.util.List<File> preferredFirst) {
         if (disposed) return;
         if (preferredFirst == null) preferredFirst = java.util.Collections.emptyList();
+        if (preferredFirst.isEmpty()) return;
         if (previewLoader != null && !previewLoader.isDone()) {
             previewLoader.cancel(true);
         }
         java.util.LinkedHashSet<File> order = new java.util.LinkedHashSet<>(preferredFirst);
-        for (File f : allFiles) order.add(f);
         previewLoader = new SwingWorker<>() {
             @Override protected Void doInBackground() {
                 for (File f : order) {

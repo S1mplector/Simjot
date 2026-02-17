@@ -111,7 +111,6 @@ import main.ui.components.buttons.RoundedToggleButton;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.dock.GlassDockBar;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.CurrentLineGlowHighlighter;
@@ -1110,26 +1109,31 @@ public class EntryPanel extends AbstractEditorPanel {
         repaint();
     }
 
+    private ToolbarIconButton createToolbarActionButton(String iconId, String tooltip, Runnable action) {
+        ToolbarIconButton button = new ToolbarIconButton(iconId);
+        Dimension size = new Dimension(38, 36);
+        button.setPreferredSize(size);
+        button.setMinimumSize(size);
+        button.setMaximumSize(size);
+        if (tooltip != null && !tooltip.isBlank()) {
+            button.setToolTipText(tooltip);
+        }
+        button.addActionListener(e -> {
+            if (action != null) action.run();
+        });
+        return button;
+    }
+
     private void initUI() {
         // Build right-side controls (journal-specific) that live inside the main frosted bar
-        JPanel rightToolbar = new JPanel();
+        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightToolbar.setOpaque(false);
-        rightToolbar.setLayout(new BoxLayout(rightToolbar, BoxLayout.X_AXIS));
-        JPanel extraToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        extraToolbar.setOpaque(false);
-        installExtraRightToolbarButtons(extraToolbar);
-        if (extraToolbar.getComponentCount() > 0) {
-            rightToolbar.add(extraToolbar);
-            rightToolbar.add(Box.createHorizontalStrut(8));
-        }
-        GlassDockBar actionsDock = new GlassDockBar(0.56f, false);
-        actionsDock.setAlignmentY(Component.CENTER_ALIGNMENT);
         if (supportsClockButton()) {
-            actionsDock.addItem("Time", "clock", this::insertClockSnapshot);
+            rightToolbar.add(createToolbarActionButton("clock", "Insert time snapshot", this::insertClockSnapshot));
         }
-        actionsDock.addItem("Fullscreen", "fullscreen", this::toggleDistractionFree);
-        actionsDock.addItem("Background", "backgroundoptions", this::openEntryBackgroundSettings);
-        rightToolbar.add(actionsDock);
+        installExtraRightToolbarButtons(rightToolbar);
+        rightToolbar.add(createToolbarActionButton("fullscreen", "Toggle focus mode", this::toggleDistractionFree));
+        rightToolbar.add(createToolbarActionButton("backgroundoptions", "Choose wallpaper", this::openEntryBackgroundSettings));
 
         // Create shared poetry-style toolbar
         NotebookInfo nbInfo = new NotebookInfo(

@@ -92,7 +92,6 @@ import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.dock.GlassDockBar;
 import main.ui.components.editor.CustomFontApplier;
 import main.ui.components.editor.CustomFontTextPane;
 import main.ui.components.editor.CurrentLineGlowHighlighter;
@@ -314,20 +313,31 @@ public class PoemPanel extends AbstractEditorPanel {
         repaint();
     }
 
+    private ToolbarIconButton createToolbarActionButton(String iconId, String tooltip, Runnable action) {
+        ToolbarIconButton button = new ToolbarIconButton(iconId);
+        Dimension size = new Dimension(38, 36);
+        button.setPreferredSize(size);
+        button.setMinimumSize(size);
+        button.setMaximumSize(size);
+        if (tooltip != null && !tooltip.isBlank()) {
+            button.setToolTipText(tooltip);
+        }
+        button.addActionListener(e -> {
+            if (action != null) action.run();
+        });
+        return button;
+    }
+
     private void initUI() {
         // Build right-side controls to pass into the shared toolbar
-        JPanel rightToolbar = new JPanel();
+        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightToolbar.setOpaque(false);
-        rightToolbar.setLayout(new BoxLayout(rightToolbar, BoxLayout.X_AXIS));
-        GlassDockBar actionsDock = new GlassDockBar(0.56f, false);
-        actionsDock.setAlignmentY(Component.CENTER_ALIGNMENT);
-        actionsDock.addItem("Stats", "stats", this::toggleStatsSidebar);
-        actionsDock.addItem("Rhymes", "rhyme", this::toggleRhymesDock);
-        actionsDock.addItem("Analyze", "analyze", this::showPoemAnalysis);
-        actionsDock.addItem("Export", "export", this::exportPoem);
-        actionsDock.addItem("Fullscreen", "fullscreen", this::toggleDistractionFree);
-        actionsDock.addItem("Background", "backgroundoptions", this::openPoemBackgroundSettings);
-        rightToolbar.add(actionsDock);
+        rightToolbar.add(createToolbarActionButton("stats", "Toggle stats", this::toggleStatsSidebar));
+        rightToolbar.add(createToolbarActionButton("rhymes", "Toggle rhymes dock", this::toggleRhymesDock));
+        rightToolbar.add(createToolbarActionButton("analyze", "Analyze poem", this::showPoemAnalysis));
+        rightToolbar.add(createToolbarActionButton("export", "Export poem", this::exportPoem));
+        rightToolbar.add(createToolbarActionButton("fullscreen", "Toggle focus mode", this::toggleDistractionFree));
+        rightToolbar.add(createToolbarActionButton("backgroundoptions", "Choose wallpaper", this::openPoemBackgroundSettings));
         // Create shared toolbar and wire callbacks
         NotebookInfo nbInfo = new NotebookInfo(
                 journalFolder.getName(),

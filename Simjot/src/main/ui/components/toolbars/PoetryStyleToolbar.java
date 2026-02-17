@@ -52,7 +52,7 @@ public class PoetryStyleToolbar extends JPanel {
     private BulletListButton bulletBtn;
     private NumberedListButton numberedBtn;
     private HandStyleToggleButton headerBtn;
-    private ToolbarIconButton dividerBtn;
+    private HandStyleToggleButton dividerBtn;
 
     public PoetryStyleToolbar(
             JournalApp app,
@@ -132,9 +132,12 @@ public class PoetryStyleToolbar extends JPanel {
         }
 
         if (onTextDivider != null) {
-            dividerBtn = new ToolbarIconButton("text_divider");
+            dividerBtn = new HandStyleToggleButton("—");
             dividerBtn.setToolTipText("Insert divider");
-            dividerBtn.addActionListener(e -> onTextDivider.run());
+            dividerBtn.addActionListener(e -> {
+                onTextDivider.run();
+                dividerBtn.setSelected(false);
+            });
         }
         
         for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn, headerBtn, dividerBtn}) {
