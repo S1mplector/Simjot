@@ -31,7 +31,6 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
@@ -104,19 +103,10 @@ public class DetailedMoodPanel extends JPanel {
 
     private final JPanel shell;
     private final JPanel sliderStack;
-    private final JPanel composerPanel;
     private final JLabel summaryLabel;
     private final JLabel utilityStatusLabel;
     private final MoodBalanceMeter balanceMeter;
-    private final JToggleButton composerToggle;
-    private final UtilityActionButton balanceActionButton;
-    private final UtilityActionButton sootheActionButton;
-    private final UtilityActionButton activateActionButton;
     private final UtilityActionButton clearActionButton;
-    private final RoleSelectorButton primaryRoleButton;
-    private final RoleSelectorButton secondaryRoleButton;
-    private final RoleSelectorButton backgroundRoleButton;
-    private final ComposerRingPreview composerRings;
 
     private final BiConsumer<Integer, DetailedMoodSnapshot> onChange;
     private boolean expanded = false;
@@ -217,14 +207,9 @@ public class DetailedMoodPanel extends JPanel {
         balanceMeter = new MoodBalanceMeter();
         balanceMeter.setPreferredSize(new Dimension(120, 12));
 
-        composerToggle = new ComposerModeToggle();
-        composerToggle.setSelected(false);
-        composerToggle.addActionListener(e -> setComposerModeEnabled(composerToggle.isSelected()));
-
         headerRight.add(summaryLabel);
         headerRight.add(utilityStatusLabel);
         headerRight.add(balanceMeter);
-        headerRight.add(composerToggle);
 
         header.add(title, BorderLayout.WEST);
         header.add(headerRight, BorderLayout.EAST);
@@ -252,47 +237,12 @@ public class DetailedMoodPanel extends JPanel {
         JPanel utilityActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         utilityActions.setOpaque(false);
 
-        balanceActionButton = new UtilityActionButton("Balance");
-        sootheActionButton = new UtilityActionButton("Soothe");
-        activateActionButton = new UtilityActionButton("Activate");
         clearActionButton = new UtilityActionButton("Reset");
-
-        balanceActionButton.addActionListener(e -> applyUtilityBalance());
-        sootheActionButton.addActionListener(e -> applyUtilitySoothe());
-        activateActionButton.addActionListener(e -> applyUtilityActivate());
         clearActionButton.addActionListener(e -> applyUtilityClear());
 
-        utilityActions.add(balanceActionButton);
-        utilityActions.add(sootheActionButton);
-        utilityActions.add(activateActionButton);
         utilityActions.add(clearActionButton);
 
         utilityRow.add(utilityActions, BorderLayout.WEST);
-
-        composerPanel = new JPanel();
-        composerPanel.setOpaque(false);
-        composerPanel.setLayout(new BoxLayout(composerPanel, BoxLayout.Y_AXIS));
-        composerPanel.setBorder(new EmptyBorder(6, 0, 0, 0));
-
-        JPanel roleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        roleRow.setOpaque(false);
-        primaryRoleButton = new RoleSelectorButton();
-        secondaryRoleButton = new RoleSelectorButton();
-        backgroundRoleButton = new RoleSelectorButton();
-        primaryRoleButton.addActionListener(e -> showRolePicker(ComposerRole.PRIMARY, primaryRoleButton));
-        secondaryRoleButton.addActionListener(e -> showRolePicker(ComposerRole.SECONDARY, secondaryRoleButton));
-        backgroundRoleButton.addActionListener(e -> showRolePicker(ComposerRole.BACKGROUND, backgroundRoleButton));
-        roleRow.add(primaryRoleButton);
-        roleRow.add(secondaryRoleButton);
-        roleRow.add(backgroundRoleButton);
-
-        composerRings = new ComposerRingPreview();
-        composerRings.setPreferredSize(new Dimension(250, 66));
-
-        composerPanel.add(roleRow);
-        composerPanel.add(Box.createVerticalStrut(5));
-        composerPanel.add(composerRings);
-        composerPanel.setVisible(false);
 
         sliderStack = new JPanel();
         sliderStack.setOpaque(false);
@@ -310,7 +260,6 @@ public class DetailedMoodPanel extends JPanel {
 
         center.add(chipsRow);
         center.add(utilityRow);
-        center.add(composerPanel);
         center.add(sliderStack);
 
         shell.add(center, BorderLayout.CENTER);
@@ -327,7 +276,6 @@ public class DetailedMoodPanel extends JPanel {
 
         installLiveListeners();
         refreshAllRowMeta();
-        refreshComposerRoles();
         refreshSummaryLabel();
 
         setPreferredSize(new Dimension(0, 0));
@@ -387,8 +335,6 @@ public class DetailedMoodPanel extends JPanel {
         suppressCallbacks = false;
 
         hasSnapshot = hasAnyChipSelected();
-        normalizeComposerRoles();
-        refreshComposerRoles();
         refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
         refreshSummaryLabel();
@@ -409,7 +355,6 @@ public class DetailedMoodPanel extends JPanel {
         primaryEmotion = -1;
         secondaryEmotion = -1;
         backgroundEmotion = -1;
-        refreshComposerRoles();
         refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
         refreshSummaryLabel();
@@ -428,14 +373,7 @@ public class DetailedMoodPanel extends JPanel {
         for (EmotionChipButton chip : chips) {
             if (chip != null) chip.setEnabled(enabled);
         }
-        composerToggle.setEnabled(enabled);
-        balanceActionButton.setEnabled(enabled);
-        sootheActionButton.setEnabled(enabled);
-        activateActionButton.setEnabled(enabled);
         clearActionButton.setEnabled(enabled);
-        primaryRoleButton.setEnabled(enabled);
-        secondaryRoleButton.setEnabled(enabled);
-        backgroundRoleButton.setEnabled(enabled);
     }
 
     @Override
@@ -543,52 +481,6 @@ public class DetailedMoodPanel extends JPanel {
         };
     }
 
-    private void applyUtilityBalance() {
-        runBatchUpdate(() -> {
-            if (!hasAnyChipSelected()) {
-                ensureSelected(IDX_CALM);
-                ensureSelected(IDX_ANXIETY);
-                ensureSelected(IDX_STRESS);
-                sliders[IDX_CALM].setValue(62);
-                sliders[IDX_ANXIETY].setValue(58);
-                sliders[IDX_STRESS].setValue(55);
-            }
-            for (int i = 0; i < sliders.length; i++) {
-                if (!chips[i].isSelected()) continue;
-                nudgeTowards(i, 50, 0.45f);
-            }
-        }, true);
-    }
-
-    private void applyUtilitySoothe() {
-        runBatchUpdate(() -> {
-            ensureSelected(IDX_CALM);
-            ensureSelected(IDX_GRATITUDE);
-
-            shiftValue(IDX_CALM, 16, true);
-            shiftValue(IDX_GRATITUDE, 13, true);
-            shiftValue(IDX_JOY, 8, true);
-            shiftValue(IDX_ANXIETY, -18, false);
-            shiftValue(IDX_STRESS, -18, false);
-            shiftValue(IDX_ANGER, -12, false);
-            shiftValue(IDX_SADNESS, -8, false);
-        }, true);
-    }
-
-    private void applyUtilityActivate() {
-        runBatchUpdate(() -> {
-            ensureSelected(IDX_JOY);
-            ensureSelected(IDX_ENERGY);
-
-            shiftValue(IDX_JOY, 18, true);
-            shiftValue(IDX_ENERGY, 20, true);
-            shiftValue(IDX_CALM, 6, true);
-            shiftValue(IDX_SADNESS, -14, false);
-            shiftValue(IDX_STRESS, -12, false);
-            shiftValue(IDX_ANXIETY, -10, false);
-        }, true);
-    }
-
     private void applyUtilityClear() {
         clearSnapshot();
         changeDebounceTimer.restart();
@@ -601,8 +493,6 @@ public class DetailedMoodPanel extends JPanel {
         suppressCallbacks = false;
 
         hasSnapshot = hasAnyChipSelected();
-        normalizeComposerRoles();
-        refreshComposerRoles();
         refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
         if (restagger && expanded) {
@@ -640,154 +530,23 @@ public class DetailedMoodPanel extends JPanel {
         }
     }
 
+    private void onChipToggled(int idx) {
+        boolean selected = chips[idx].isSelected();
+        if (!selected) {
+            sliders[idx].setValue(50);
+        }
+        hasSnapshot = hasAnyChipSelected();
+        refreshAllRowMeta();
+        syncSliderRowVisibility(expanded);
+        refreshSummaryLabel();
+        changeDebounceTimer.restart();
+    }
+
     private void refreshRowMeta(int idx) {
         if (idx < 0 || idx >= sliderRows.length) return;
         int value = sliders[idx].getValue();
         String semantic = semanticIntensityLabel(idx, value);
         sliderRows[idx].updateMeta(semantic, value, chips[idx].isSelected());
-    }
-
-    private void setComposerModeEnabled(boolean enabled) {
-        composerPanel.setVisible(enabled);
-        composerRings.repaint();
-        if (!expanded) {
-            revalidate();
-            repaint();
-            return;
-        }
-
-        int from = getHeight() > 0 ? getHeight() : Math.max(0, getPreferredSize().height);
-        int target = calcInnerPreferredHeight();
-        animateHeight(from, target);
-    }
-
-    private void showRolePicker(ComposerRole role, JButton anchor) {
-        JPopupMenu menu = new JPopupMenu();
-
-        javax.swing.JMenuItem none = new javax.swing.JMenuItem("None");
-        none.addActionListener(e -> assignRole(role, -1));
-        menu.add(none);
-
-        List<Integer> selected = selectedEmotionIndices();
-        if (!selected.isEmpty()) {
-            menu.addSeparator();
-        }
-        for (int idx : selected) {
-            String text = EMOTION_NAMES[idx] + " · " + semanticIntensityLabel(idx, sliders[idx].getValue());
-            javax.swing.JMenuItem it = new javax.swing.JMenuItem(text);
-            final int chosen = idx;
-            it.addActionListener(e -> assignRole(role, chosen));
-            menu.add(it);
-        }
-
-        menu.show(anchor, 0, anchor.getHeight());
-    }
-
-    private void assignRole(ComposerRole role, int emotionIndex) {
-        if (emotionIndex >= 0 && emotionIndex < chips.length && !chips[emotionIndex].isSelected()) {
-            chips[emotionIndex].setSelected(true);
-        }
-
-        if (emotionIndex >= 0) {
-            if (primaryEmotion == emotionIndex) primaryEmotion = -1;
-            if (secondaryEmotion == emotionIndex) secondaryEmotion = -1;
-            if (backgroundEmotion == emotionIndex) backgroundEmotion = -1;
-        }
-
-        switch (role) {
-            case PRIMARY -> primaryEmotion = emotionIndex;
-            case SECONDARY -> secondaryEmotion = emotionIndex;
-            case BACKGROUND -> backgroundEmotion = emotionIndex;
-        }
-
-        normalizeComposerRoles();
-        refreshComposerRoles();
-        refreshAllRowMeta();
-        syncSliderRowVisibility(expanded);
-        if (expanded) {
-            prepareRowsForStagger(true);
-            startStaggerAnimation(true);
-        }
-
-        hasSnapshot = hasAnyChipSelected();
-        refreshSummaryLabel();
-        changeDebounceTimer.restart();
-    }
-
-    private void normalizeComposerRoles() {
-        List<Integer> selected = selectedEmotionIndices();
-        List<Integer> ranked = rankedByIntensity(selected);
-        if (!selected.contains(primaryEmotion)) primaryEmotion = -1;
-        if (!selected.contains(secondaryEmotion)) secondaryEmotion = -1;
-        if (!selected.contains(backgroundEmotion)) backgroundEmotion = -1;
-
-        if (primaryEmotion == -1 && !ranked.isEmpty()) {
-            primaryEmotion = ranked.get(0);
-        }
-
-        if (secondaryEmotion == primaryEmotion) secondaryEmotion = -1;
-        if (secondaryEmotion == -1) {
-            for (int idx : ranked) {
-                if (idx != primaryEmotion) {
-                    secondaryEmotion = idx;
-                    break;
-                }
-            }
-        }
-
-        if (backgroundEmotion == primaryEmotion || backgroundEmotion == secondaryEmotion) {
-            backgroundEmotion = -1;
-        }
-        if (backgroundEmotion == -1) {
-            for (int idx : ranked) {
-                if (idx != primaryEmotion && idx != secondaryEmotion) {
-                    backgroundEmotion = idx;
-                    break;
-                }
-            }
-        }
-    }
-
-    private List<Integer> rankedByIntensity(List<Integer> selected) {
-        if (selected == null || selected.isEmpty()) return List.of();
-        List<Integer> ranked = new ArrayList<>(selected);
-        ranked.sort((a, b) -> Integer.compare(
-                Math.abs(sliders[b].getValue() - 50),
-                Math.abs(sliders[a].getValue() - 50)
-        ));
-        return ranked;
-    }
-
-    private void refreshComposerRoles() {
-        primaryRoleButton.setRoleText("Primary", roleLabel(primaryEmotion));
-        secondaryRoleButton.setRoleText("Secondary", roleLabel(secondaryEmotion));
-        backgroundRoleButton.setRoleText("Background", roleLabel(backgroundEmotion));
-        composerRings.repaint();
-    }
-
-    private String roleLabel(int emotionIndex) {
-        if (emotionIndex < 0 || emotionIndex >= sliders.length) return "Not set";
-        return EMOTION_NAMES[emotionIndex] + " · "
-                + semanticIntensityLabel(emotionIndex, sliders[emotionIndex].getValue());
-    }
-
-    private void onChipToggled(int idx) {
-        if (suppressCallbacks) return;
-        if (idx < 0 || idx >= chips.length) return;
-
-        hasSnapshot = hasAnyChipSelected();
-        normalizeComposerRoles();
-        refreshComposerRoles();
-        refreshAllRowMeta();
-        syncSliderRowVisibility(expanded);
-
-        if (expanded) {
-            prepareRowsForStagger(true);
-            startStaggerAnimation(true);
-        }
-
-        refreshSummaryLabel();
-        changeDebounceTimer.restart();
     }
 
     private void syncSliderRowVisibility(boolean animateIfExpanded) {
@@ -939,7 +698,6 @@ public class DetailedMoodPanel extends JPanel {
             ChangeListener listener = e -> {
                 if (suppressCallbacks || !chips[idx].isSelected()) return;
                 hasSnapshot = true;
-                refreshComposerRoles();
                 refreshRowMeta(idx);
                 refreshSummaryLabel();
                 changeDebounceTimer.restart();
@@ -967,34 +725,7 @@ public class DetailedMoodPanel extends JPanel {
             base = 50;
         }
 
-        Double composer = composerWeightedScore();
-        if (composer != null && composerToggle.isSelected()) {
-            base = (base * 0.65) + (composer * 0.35);
-        }
-
         return clamp((int) Math.round(base));
-    }
-
-    private Double composerWeightedScore() {
-        double signed = 0d;
-        double weight = 0d;
-
-        int[] roleIndices = {primaryEmotion, secondaryEmotion, backgroundEmotion};
-        double[] roleWeights = {PRIMARY_WEIGHT, SECONDARY_WEIGHT, BACKGROUND_WEIGHT};
-
-        for (int i = 0; i < roleIndices.length; i++) {
-            int idx = roleIndices[i];
-            if (idx < 0 || idx >= sliders.length) continue;
-            if (!chips[idx].isSelected()) continue;
-
-            int value = sliders[idx].getValue();
-            double polarity = POSITIVE_EMOTIONS[idx] ? 1d : -1d;
-            signed += polarity * (value - 50d) * roleWeights[i];
-            weight += roleWeights[i];
-        }
-
-        if (weight <= 0d) return null;
-        return 50d + (signed / weight);
     }
 
     private Double avgSelected(boolean positiveBucket) {
