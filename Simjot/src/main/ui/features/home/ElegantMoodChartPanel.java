@@ -800,7 +800,7 @@ public class ElegantMoodChartPanel extends JPanel {
         JPanel emotionCard = new ChartCard();
         emotionCard.setLayout(new BorderLayout());
         emotionCard.setOpaque(false);
-        emotionCard.setPreferredSize(new Dimension(10, 224));
+        emotionCard.setPreferredSize(new Dimension(10, 254));
 
         JPanel inset = new JPanel(new BorderLayout(0, 8));
         inset.setOpaque(false);
@@ -844,7 +844,7 @@ public class ElegantMoodChartPanel extends JPanel {
         header.add(summaryBlock, BorderLayout.EAST);
 
         emotionTrendCanvas = new EmotionTrendCanvas();
-        emotionTrendCanvas.setPreferredSize(new Dimension(10, 110));
+        emotionTrendCanvas.setPreferredSize(new Dimension(10, 140));
 
         JPanel legend = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         legend.setOpaque(false);
@@ -1332,7 +1332,8 @@ public class ElegantMoodChartPanel extends JPanel {
                 }
 
                 double avgIntensity = activeCount > 0 ? intensitySum / activeCount : stack.averageIntensity;
-                int stackHeight = Math.max(2, (int) Math.round((avgIntensity / 100d) * chartH));
+                // Stretch emotion stacks vertically for better visibility
+                int stackHeight = Math.max(3, (int) Math.round((avgIntensity / 100d) * chartH * 2.0f));
                 int yCursor = baseY;
                 int stackTop = baseY;
                 int remainingHeight = stackHeight;
@@ -1362,13 +1363,8 @@ public class ElegantMoodChartPanel extends JPanel {
                     int y = Math.max(MARGIN_TOP, yCursor - segH);
                     int drawH = Math.max(1, yCursor - y);
                     Color fill = main.ui.features.entries.DetailedMoodPanel.emotionColor(emotionIdx);
-                    Color segTop = mix(fill, Color.WHITE, 0.22f, 208);
-                    Color segBottom = mix(fill, new Color(34, 42, 58), 0.08f, 226);
-                    g2.setPaint(new LinearGradientPaint(
-                            x, y, x, y + drawH,
-                            new float[]{0f, 1f},
-                            new Color[]{segTop, segBottom}
-                    ));
+                    // Use solid color for better distinction between emotions
+                    g2.setColor(fill);
                     g2.fillRect(x, y, barW, drawH);
 
                     // Hairline separators between emotion layers.

@@ -463,49 +463,7 @@ public class HeaderPanel extends JPanel {
             }
             g2.setTransform(old);
         
-            // Draw ECG trace under heart (buffered waveform with glow and sweep highlight).
-            float lineAlpha = textAlpha * (0.16f + ecgOpacity * 0.84f);
-            if (lineAlpha > 0.01f) {
-                int ecgWidth = 190;
-                int startX = width / 2 - ecgWidth / 2;
-                int yBase = height / 2 - 8;
-                float amplitude = 12f + Math.max(0f, beatDrive) * 6f + spring * 72f;
-                Path2D tracePath = ecgTrace.createPath(startX, yBase, amplitude);
-
-                Graphics2D eg = (Graphics2D) g2.create();
-                eg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // Subtle baseline for continuity
-                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha * 0.28f)));
-                eg.setStroke(new BasicStroke(1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                eg.setColor(new Color(255, 255, 255, 145));
-                eg.drawLine(startX, yBase, startX + ecgWidth, yBase);
-
-                // Outer glow
-                Color glow = AccentColorUtil.lighten(accent, 0.42f);
-                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha * 0.46f)));
-                eg.setStroke(new BasicStroke(5.4f + spring * 20f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                eg.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 225));
-                eg.draw(tracePath);
-
-                // Main white trace
-                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha)));
-                eg.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                eg.setColor(new Color(255, 255, 255, 236));
-                eg.draw(tracePath);
-
-                // Beat-synced traveling highlight
-                int sweepX = startX + Math.round(ecgWidth * ecgDraw);
-                Shape oldClip2 = eg.getClip();
-                eg.setClip(sweepX - 30, yBase - 42, 60, 84);
-                eg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, lineAlpha * 0.95f)));
-                eg.setStroke(new BasicStroke(3.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                Color sweep = AccentColorUtil.lighten(accent, 0.55f);
-                eg.setColor(new Color(sweep.getRed(), sweep.getGreen(), sweep.getBlue(), 248));
-                eg.draw(tracePath);
-                eg.setClip(oldClip2);
-                eg.dispose();
-            }
+            // ECG trace rendering removed
 
         // Apply overall alpha for fade-in
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, textAlpha));

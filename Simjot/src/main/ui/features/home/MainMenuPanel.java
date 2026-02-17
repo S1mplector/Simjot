@@ -198,7 +198,6 @@ public class MainMenuPanel extends JPanel {
         private final NotebookStore nbStore = new NotebookStore();
 
         private volatile String lastSizeText = "…";
-        private List<Double> lastSparklineValues = List.of();
         private String dailyPromptDateKey = "";
         private String dailyPromptLabel = "SIM DAILY PROMPT";
         private String dailyPromptText = "";
@@ -208,12 +207,8 @@ public class MainMenuPanel extends JPanel {
         private long lastCountsMillis = 0L;
         private long lastMoodMillis = 0L;
 
-        private JPopupMenu moodPopup;
+        // Removed sparkline popup functionality
         private JPopupMenu dailyPromptPopup;
-        private MoodSparkline moodSparklineView;
-        private Timer moodPopupHideTimer;
-        private boolean moodChipHovered = false;
-        private boolean moodPopupHovered = false;
         private final SimEventBus.Listener simListener = new SimEventBus.Listener() {
             @Override
             public void onDailyPromptProduced(String dateKey, String label, String prompt) {
@@ -258,17 +253,7 @@ public class MainMenuPanel extends JPanel {
                 ElegantMoodChartPanel.requestRangeSelection(1);
                 app.switchCard(JournalApp.MOOD_CHART);
             });
-            moodPulseChip.addMouseListener(new MouseAdapter() {
-                @Override public void mouseEntered(MouseEvent e) {
-                    moodChipHovered = true;
-                    showMoodSparklinePopup();
-                }
-
-                @Override public void mouseExited(MouseEvent e) {
-                    moodChipHovered = false;
-                    hideMoodPopupSoon();
-                }
-            });
+            // Removed sparkline popup functionality
             dailyPromptChip.addActionListener(e -> onDailyPromptChipClicked());
 
             countsLbl.setText("– notebooks  •  – entries");
@@ -597,72 +582,7 @@ public class MainMenuPanel extends JPanel {
                 moodPulseChip.setText("Mood avg " + avg + " • Trend " + arrow);
             }
 
-            AnalyticsResult spark = MoodAnalyticsEngine.get().analyze(30, 3);
-            lastSparklineValues = spark == null ? List.of() : spark.dailyAverages;
-        }
-
-        private void showMoodSparklinePopup() {
-            if (lastSparklineValues == null || lastSparklineValues.isEmpty()) {
-                return;
-            }
-            ensureMoodPopup();
-            cancelMoodPopupHide();
-            if (moodSparklineView != null) {
-                moodSparklineView.setValues(lastSparklineValues);
-            }
-            if (!moodPopup.isVisible()) {
-                moodPopup.show(moodPulseChip, 0, moodPulseChip.getHeight() + 4);
-            }
-        }
-
-        private void hideMoodPopupSoon() {
-            cancelMoodPopupHide();
-            moodPopupHideTimer = new Timer(360, e -> {
-                if (!moodChipHovered && !moodPopupHovered && moodPopup != null) {
-                    moodPopup.setVisible(false);
-                }
-            });
-            moodPopupHideTimer.setRepeats(false);
-            moodPopupHideTimer.start();
-        }
-
-        private void ensureMoodPopup() {
-            if (moodPopup != null) return;
-            moodPopup = new JPopupMenu();
-            moodPopup.setBorder(BorderFactory.createLineBorder(new Color(184, 194, 208)));
-
-            JPanel wrap = new JPanel(new BorderLayout(0, 6));
-            wrap.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-            wrap.setBackground(Color.WHITE);
-            wrap.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    moodPopupHovered = true;
-                    cancelMoodPopupHide();
-                }
-
-                @Override
-                public void mouseExited(MouseEvent e) {
-                    moodPopupHovered = false;
-                    hideMoodPopupSoon();
-                }
-            });
-
-            JLabel title = new JLabel("30-day mood pulse");
-            title.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
-            title.setForeground(AeroTheme.TEXT_PRIMARY);
-            wrap.add(title, BorderLayout.NORTH);
-
-            moodSparklineView = new MoodSparkline(lastSparklineValues);
-            wrap.add(moodSparklineView, BorderLayout.CENTER);
-            moodPopup.add(wrap);
-        }
-
-        private void cancelMoodPopupHide() {
-            if (moodPopupHideTimer != null) {
-                moodPopupHideTimer.stop();
-                moodPopupHideTimer = null;
-            }
+            // Removed sparkline functionality
         }
 
         private String trendArrow(List<Double> values) {
@@ -755,66 +675,6 @@ public class MainMenuPanel extends JPanel {
             return String.format(java.util.Locale.US, (u <= 1 ? "%.0f %s" : "%.2f %s"), v, units[u]);
         }
 
-        private static final class MoodSparkline extends JComponent {
-            private List<Double> values;
-
-            private MoodSparkline(List<Double> values) {
-                this.values = values == null ? List.of() : values;
-                setPreferredSize(new Dimension(210, 48));
-                setOpaque(false);
-            }
-
-            private void setValues(List<Double> values) {
-                this.values = values == null ? List.of() : values;
-                repaint();
-            }
-
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth();
-                int h = getHeight();
-                int l = 6, r = 6, t = 6, b = 6;
-                int cw = Math.max(1, w - l - r);
-                int ch = Math.max(1, h - t - b);
-
-                g2.setColor(new Color(236, 242, 249));
-                g2.fillRoundRect(0, 0, w - 1, h - 1, 8, 8);
-                g2.setColor(new Color(201, 211, 224));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 8, 8);
-
-                List<Point> pts = new ArrayList<>();
-                int n = values.size();
-                for (int i = 0; i < n; i++) {
-                    Double v = values.get(i);
-                    if (v == null) continue;
-                    int x = l + (int) Math.round((i / (double) Math.max(1, n - 1)) * cw);
-                    int y = t + ch - (int) Math.round((Math.max(0, Math.min(100, v)) / 100.0) * ch);
-                    pts.add(new Point(x, y));
-                }
-                g2.setColor(new Color(145, 156, 172, 120));
-                g2.drawLine(l, t + ch / 2, l + cw, t + ch / 2);
-
-                if (pts.size() >= 2) {
-                    g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    g2.setColor(new Color(66, 138, 223));
-                    Point prev = pts.get(0);
-                    for (int i = 1; i < pts.size(); i++) {
-                        Point p = pts.get(i);
-                        g2.drawLine(prev.x, prev.y, p.x, p.y);
-                        prev = p;
-                    }
-                    Point last = pts.get(pts.size() - 1);
-                    g2.fillOval(last.x - 2, last.y - 2, 4, 4);
-                } else if (pts.size() == 1) {
-                    Point p = pts.get(0);
-                    g2.setColor(new Color(66, 138, 223));
-                    g2.fillOval(p.x - 2, p.y - 2, 4, 4);
-                }
-                g2.dispose();
-            }
-        }
     }
 
     private void buildUI() {
