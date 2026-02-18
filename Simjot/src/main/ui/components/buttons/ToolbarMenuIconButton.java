@@ -8,6 +8,7 @@
 
 package main.ui.components.buttons;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -16,6 +17,7 @@ import java.awt.GradientPaint;
 import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.Timer;
 
@@ -30,6 +32,7 @@ import main.ui.theme.aero.AeroTheme;
 public class ToolbarMenuIconButton extends ToolbarIconButton {
     private final String iconResourcePath;
     private final String caption;
+    private final boolean vectorChevronIcon;
     private boolean hovering = false;
     private double iconRotationRadians = 0.0;
     private Timer rotationTimer;
@@ -43,6 +46,7 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         this.caption = caption == null ? "" : caption;
         String normalizedIconId = iconId == null ? "" : iconId.toLowerCase();
         this.iconResourcePath = ImageIconRenderer.mapIdToResource(normalizedIconId);
+        this.vectorChevronIcon = "forward".equals(normalizedIconId);
         setOpaque(false);
         setContentAreaFilled(false);
         setBorderPainted(false);
@@ -137,7 +141,9 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         int ix = (w - iconSize) / 2;
         int iy = (h - iconSize) / 2;
         String res = iconResourcePath;
-        if (res != null) {
+        if (vectorChevronIcon) {
+            paintVectorChevronIcon(g2, ix, iy, iconSize, pressed);
+        } else if (res != null) {
             if (Math.abs(iconRotationRadians) > 0.0001) {
                 IconTransforms.drawRotated(g2, res, ix, iy, iconSize, this, true, iconRotationRadians);
             } else {
@@ -159,6 +165,49 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         }
 
         g2.dispose();
+    }
+
+    private void paintVectorChevronIcon(java.awt.Graphics2D g2, int x, int y, int size, boolean pressed) {
+        java.awt.Graphics2D gi = (java.awt.Graphics2D) g2.create();
+        gi.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        double cx = x + size / 2.0;
+        double cy = y + size / 2.0;
+        if (Math.abs(iconRotationRadians) > 0.0001) {
+            gi.rotate(iconRotationRadians, cx, cy);
+        }
+
+        float stroke = Math.max(2.4f, size * 0.14f);
+        int left = x + Math.round(size * 0.32f);
+        int right = x + Math.round(size * 0.68f);
+        int top = y + Math.round(size * 0.28f);
+        int mid = y + Math.round(size * 0.50f);
+        int bot = y + Math.round(size * 0.72f);
+
+        Path2D.Float chevron = new Path2D.Float();
+        chevron.moveTo(left, top);
+        chevron.lineTo(right, mid);
+        chevron.lineTo(left, bot);
+
+        gi.translate(0.8, 0.8);
+        gi.setStroke(new BasicStroke(stroke, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        gi.setColor(new Color(255, 255, 255, 105));
+        gi.draw(chevron);
+        gi.translate(-0.8, -0.8);
+
+        Color iconColor;
+        if (!isEnabled()) {
+            iconColor = new Color(140, 148, 160, 165);
+        } else if (pressed) {
+            iconColor = new Color(44, 55, 72, 238);
+        } else if (hovering) {
+            iconColor = new Color(52, 64, 86, 228);
+        } else {
+            iconColor = new Color(62, 72, 92, 214);
+        }
+        gi.setStroke(new BasicStroke(stroke, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        gi.setColor(iconColor);
+        gi.draw(chevron);
+        gi.dispose();
     }
 
     @Override

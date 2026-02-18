@@ -27,6 +27,7 @@ import java.awt.geom.Path2D;
 import javax.swing.JButton;
 import javax.swing.Timer;
 
+import main.ui.components.icons.IconTransforms;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
@@ -46,6 +47,7 @@ public class ToolbarIconButton extends JButton {
     private Timer glowTimer;
     private float glowPhase=0f;
     private float iconOpacity = 1f; // 0..1 alpha multiplier for icon only
+    private double iconRotationRadians = 0.0;
 
     private static boolean globalGlow = false;
     private static final java.util.List<ToolbarIconButton> INSTANCES = new java.util.ArrayList<>();
@@ -71,6 +73,14 @@ public class ToolbarIconButton extends JButton {
     public void setIconOpacity(float alpha){
         float a = Math.max(0f, Math.min(1f, alpha));
         if (this.iconOpacity != a) { this.iconOpacity = a; repaint(); }
+    }
+
+    /** Rotate icon around its center (used for mirrored/repurposed nav icons). */
+    public void setIconRotationRadians(double radians) {
+        if (Double.isNaN(radians) || Double.isInfinite(radians)) return;
+        if (Math.abs(this.iconRotationRadians - radians) < 0.0001) return;
+        this.iconRotationRadians = radians;
+        repaint();
     }
 
     /** Enable or disable fancy glow animation */
@@ -135,13 +145,23 @@ public class ToolbarIconButton extends JButton {
         if (!useVectorOnly && resourcePath != null) {
             Composite old = g2.getComposite();
             if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
-            painted = ImageIconRenderer.draw(g2, resourcePath, ix, iy, size, this, true);
+            if (Math.abs(iconRotationRadians) > 0.0001) {
+                painted = IconTransforms.drawRotated(g2, resourcePath, ix, iy, size, this, true, iconRotationRadians);
+            } else {
+                painted = ImageIconRenderer.draw(g2, resourcePath, ix, iy, size, this, true);
+            }
             if (iconOpacity < 0.999f) g2.setComposite(old);
         }
         if(!painted){
             Composite old = g2.getComposite();
             if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
+            AffineTransform oldTx = null;
+            if (Math.abs(iconRotationRadians) > 0.0001) {
+                oldTx = g2.getTransform();
+                g2.rotate(iconRotationRadians, getWidth() / 2.0, getHeight() / 2.0);
+            }
             drawVector(g2);
+            if (oldTx != null) g2.setTransform(oldTx);
             if (iconOpacity < 0.999f) g2.setComposite(old);
         }
 
@@ -163,7 +183,8 @@ public class ToolbarIconButton extends JButton {
     // Check if this icon should always use vector rendering (drawing tools)
     private static boolean isVectorOnlyIcon(String iconId) {
         return switch (iconId) {
-            case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text", "text_divider" -> true;
+            case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text", "text_divider",
+                 "view_comfort", "view_compact", "view_minimal", "view_calendar" -> true;
             default -> false;
         };
     }
@@ -542,6 +563,58 @@ public class ToolbarIconButton extends JButton {
                 g2.drawLine(cx - 5, cy - 10, cx + 5, cy - 10);
                 // Bottom serif
                 g2.drawLine(cx - 5, cy + 10, cx + 5, cy + 10);
+                break; }
+
+            case "view_comfort": {
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(62, 72, 90));
+                int x = cx - 10, y = cy - 9, wCard = 20, hCard = 14;
+                g2.drawRoundRect(x + 2, y + 2, wCard - 2, hCard - 2, 4, 4);
+                g2.drawRoundRect(x, y, wCard - 2, hCard - 2, 4, 4);
+                g2.setColor(new Color(92, 102, 120));
+                g2.drawLine(x + 4, y + 5, x + wCard - 6, y + 5);
+                g2.drawLine(x + 4, y + 9, x + wCard - 8, y + 9);
+                break; }
+
+            case "view_compact": {
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(62, 72, 90));
+                int left = cx - 10;
+                int top = cy - 8;
+                for (int i = 0; i < 3; i++) {
+                    int y = top + (i * 6);
+                    g2.fillRoundRect(left, y - 1, 2, 2, 2, 2);
+                    g2.drawLine(left + 4, y, left + 14, y);
+                }
+                break; }
+
+            case "view_minimal": {
+                g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(62, 72, 90));
+                int left = cx - 8;
+                int right = cx + 8;
+                int top = cy - 7;
+                g2.drawLine(left, top, right, top);
+                g2.drawLine(left, top + 6, right - 2, top + 6);
+                g2.drawLine(left, top + 12, right - 4, top + 12);
+                break; }
+
+            case "view_calendar": {
+                int boxW = 20;
+                int boxH = 16;
+                int x = cx - boxW / 2;
+                int y = cy - boxH / 2;
+                g2.setColor(new Color(62, 72, 90));
+                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawRoundRect(x, y, boxW, boxH, 4, 4);
+                g2.drawLine(x, y + 4, x + boxW, y + 4);
+                g2.fillRoundRect(x + 4, y - 2, 2, 4, 2, 2);
+                g2.fillRoundRect(x + boxW - 6, y - 2, 2, 4, 2, 2);
+                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(x + 6, y + 8, x + 6, y + 12);
+                g2.drawLine(x + 10, y + 8, x + 10, y + 12);
+                g2.drawLine(x + 14, y + 8, x + 14, y + 12);
+                g2.drawLine(x + 4, y + 10, x + boxW - 4, y + 10);
                 break; }
             
             default:

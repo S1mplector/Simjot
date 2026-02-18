@@ -9,7 +9,9 @@
 package main.ui.features.entries;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Composite;
@@ -44,11 +46,15 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.text.SimpleDateFormat;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -80,6 +86,7 @@ import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.StyledDocument;
@@ -95,6 +102,7 @@ import main.infrastructure.io.FileIO;
 import main.infrastructure.io.MoodFile;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
+import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.containers.FrostedGlassPanel;
@@ -102,6 +110,7 @@ import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.theme.aero.AeroTheme;
 
 public class NotebookEntriesPanel extends JPanel {
     private static final DateTimeFormatter ENTRY_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
@@ -115,6 +124,16 @@ public class NotebookEntriesPanel extends JPanel {
     private static final int LAZY_APPEND_STEP_ROWS = 8;
     private static final int LAZY_APPEND_TICK_MS = 20;
     private static final int META_PUBLISH_BATCH_SIZE = 6;
+    private static final String CENTER_CARD_LIST = "list";
+    private static final String CENTER_CARD_CALENDAR = "calendar";
+    private static final String VIEW_MODE_PREF_KEY_PREFIX = "entries.view.mode.";
+
+    private enum EntryViewMode {
+        COMFORT,
+        COMPACT,
+        MINIMAL,
+        CALENDAR
+    }
 
     private final JournalApp app;
     private final NotebookInfo nb;
@@ -128,6 +147,11 @@ public class NotebookEntriesPanel extends JPanel {
             "Name (Z-A)",
             "Word Count (High→Low)",
             "Word Count (Low→High)"});
+    private EntryViewMode viewMode = EntryViewMode.COMFORT;
+    private ToolbarIconButton comfortViewBtn;
+    private ToolbarIconButton compactViewBtn;
+    private ToolbarIconButton minimalViewBtn;
+    private ToolbarIconButton calendarViewBtn;
 
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
@@ -140,11 +164,16 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File, Boolean> encryptedFlags = new java.util.HashMap<>();
     private final java.util.Map<File, Integer> rowIndexByFile = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
+    private List<File> lastOrderedFiles = java.util.Collections.emptyList();
     private List<EntryRow> fullRows = java.util.Collections.emptyList();
     private int loadedRows = 0;
     private int lazyAppendTargetRows = -1;
     private String lazySignature = "";
     private SwingWorker<Void, PreviewSnapshot> previewLoader;
+    private volatile boolean disposed = false;
+    private CardLayout centerCardLayout;
+    private JPanel centerCardPanel;
+    private CalendarEntriesPanel calendarPanel;
 
     // Debounced search and background metadata loader
     private final javax.swing.Timer searchDebounce = new javax.swing.Timer(100, e -> update());
@@ -262,7 +291,6 @@ public class NotebookEntriesPanel extends JPanel {
     private WatchService watchService;
     private Thread watchThread;
     private volatile boolean watchRunning;
-    private volatile boolean disposed = false;
     private static final int PREVIEW_MAX_CHARS = 260;
 
     private static class FileMeta {
@@ -325,12 +353,19 @@ public class NotebookEntriesPanel extends JPanel {
         private final JLabel snippet = new JLabel();
         private final JLabel editedContextLabel = new JLabel();
         private final MoodSparkline sparkline = new MoodSparkline();
+        private final JPanel statsPanel = new JPanel();
         private final Color cardBg = new Color(252, 253, 255);
         private final Color cardBorder = new Color(190, 200, 214);
         private final Color metaColor = new Color(105, 110, 120);
         private final Color accent = new Color(88, 133, 255);
         private final Color selectedBg = new Color(236, 244, 255);
         private final Color selectedBorder = new Color(110, 160, 255);
+        private static final int HEIGHT_COMFORT = 126;
+        private static final int HEIGHT_COMPACT = 92;
+        private static final int HEIGHT_MINIMAL = 64;
+        private final javax.swing.border.EmptyBorder comfortPadding = new javax.swing.border.EmptyBorder(8, 18, 8, 12);
+        private final javax.swing.border.EmptyBorder compactPadding = new javax.swing.border.EmptyBorder(6, 16, 6, 10);
+        private final javax.swing.border.EmptyBorder minimalPadding = new javax.swing.border.EmptyBorder(6, 16, 6, 10);
         private boolean selected;
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
@@ -492,7 +527,6 @@ public class NotebookEntriesPanel extends JPanel {
             add(content, BorderLayout.CENTER);
             
             // Right stats panel: vertically stacked stats
-            JPanel statsPanel = new JPanel();
             statsPanel.setLayout(new javax.swing.BoxLayout(statsPanel, javax.swing.BoxLayout.Y_AXIS));
             statsPanel.setOpaque(false);
             statsPanel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
@@ -528,8 +562,8 @@ public class NotebookEntriesPanel extends JPanel {
             add(statsPanel, BorderLayout.EAST);
             
             // Minimal left padding - title should be at very left
-            setBorder(BorderFactory.createEmptyBorder(8, 18, 8, 12));
-            setPreferredSize(new Dimension(1, 126));
+            setBorder(comfortPadding);
+            setPreferredSize(new Dimension(1, HEIGHT_COMFORT));
         }
 
         @Override
@@ -587,6 +621,11 @@ public class NotebookEntriesPanel extends JPanel {
             Object hoverObj = list.getClientProperty("hoverIndex");
             int hoverIdx = hoverObj instanceof Integer ? (Integer) hoverObj : -1;
             hovered = (hoverIdx == index);
+            EntryViewMode viewMode = resolveViewMode(list);
+            boolean showStats = viewMode != EntryViewMode.MINIMAL;
+            boolean showSnippet = viewMode != EntryViewMode.MINIMAL;
+            boolean showEditedContext = viewMode != EntryViewMode.COMPACT;
+            boolean showSparkline = viewMode == EntryViewMode.COMFORT;
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
             long createdTs = -1L;
@@ -611,9 +650,13 @@ public class NotebookEntriesPanel extends JPanel {
             createdLabel.setText(labels.createdText);
             editedLabel.setText(labels.editedText);
             PreviewSnapshot snap = (file != null && previews != null) ? previews.get(file) : null;
-            int wrapWidth = list.getWidth() > 0 ? Math.max(260, list.getWidth() - 360) : 540;
-            wrapWidth = (wrapWidth / 24) * 24;
-            snippet.setText(resolveSnippetHtml(file, snap, token, wrapWidth));
+            if (showSnippet) {
+                int wrapWidth = list.getWidth() > 0 ? Math.max(260, list.getWidth() - 360) : 540;
+                wrapWidth = (wrapWidth / 24) * 24;
+                snippet.setText(resolveSnippetHtml(file, snap, token, wrapWidth));
+            } else {
+                snippet.setText("");
+            }
             editedContextLabel.setText(labels.editedContextText);
 
             int[] trendValues = file != null && moodTrends != null ? moodTrends.get(file) : null;
@@ -621,8 +664,42 @@ public class NotebookEntriesPanel extends JPanel {
                 trendValues = new int[] { moodValue };
             }
             sparkline.setValues(trendValues, moodValue);
+            statsPanel.setVisible(showStats);
+            snippet.setVisible(showSnippet);
+            editedContextLabel.setVisible(showEditedContext);
+            sparkline.setVisible(showSparkline);
+            switch (viewMode) {
+                case COMPACT -> {
+                    setBorder(compactPadding);
+                    setPreferredSize(new Dimension(1, HEIGHT_COMPACT));
+                }
+                case MINIMAL -> {
+                    setBorder(minimalPadding);
+                    setPreferredSize(new Dimension(1, HEIGHT_MINIMAL));
+                }
+                default -> {
+                    setBorder(comfortPadding);
+                    setPreferredSize(new Dimension(1, HEIGHT_COMFORT));
+                }
+            }
             this.selected = isSelected;
             return this;
+        }
+
+        private static EntryViewMode resolveViewMode(JList<? extends EntryRow> list) {
+            if (list == null) return EntryViewMode.COMFORT;
+            Object modeObj = list.getClientProperty("entryViewMode");
+            if (modeObj instanceof EntryViewMode mode) {
+                return mode;
+            }
+            if (modeObj instanceof String name) {
+                try {
+                    return EntryViewMode.valueOf(name);
+                } catch (IllegalArgumentException ignored) {
+                    return EntryViewMode.COMFORT;
+                }
+            }
+            return EntryViewMode.COMFORT;
         }
 
         @Override
@@ -1036,10 +1113,454 @@ public class NotebookEntriesPanel extends JPanel {
         }
     }
 
+    private final class CalendarEntriesPanel extends JPanel {
+        private static final DateTimeFormatter DAY_ENTRY_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+        private final JLabel monthLabel = new JLabel("", JLabel.CENTER);
+        private final JLabel hintLabel = new JLabel("Hover a day to preview. Click a day to lock selection. Double-click opens latest.");
+        private final JPanel weekHeader = new JPanel(new java.awt.GridLayout(1, 7, 4, 2));
+        private final JPanel daysGrid = new JPanel(new java.awt.GridLayout(6, 7, 4, 4));
+        private final FrostedGlassPanel dayEntriesPanel = new FrostedGlassPanel(new BorderLayout(0, 6), 10);
+        private final JLabel dayEntriesLabel = new JLabel("Entries", JLabel.LEFT);
+        private final JPanel dayEntriesList = new JPanel();
+        private final CalendarDayCell[] dayCells = new CalendarDayCell[42];
+        private final DayOfWeek firstDayOfWeek = WeekFields.of(Locale.getDefault()).getFirstDayOfWeek();
+        private final Map<LocalDate, List<File>> filesByDate = new HashMap<>();
+        private YearMonth month = YearMonth.now();
+        private LocalDate selectedDate = null;
+        private LocalDate hoveredDate = null;
+        private float selectedBorderPhase = 0f;
+        private final Timer selectedBorderTimer = new Timer(48, e -> {
+            selectedBorderPhase += 0.85f;
+            if (selectedBorderPhase > 24f) selectedBorderPhase -= 24f;
+            repaintSelectedDayCell();
+        });
+
+        private CalendarEntriesPanel() {
+            setOpaque(false);
+            setLayout(new BorderLayout(8, 8));
+            setBorder(BorderFactory.createEmptyBorder(10, 12, 12, 12));
+
+            JPanel header = new FrostedGlassPanel(new BorderLayout(6, 0), 12);
+            header.setOpaque(false);
+            header.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+            ToolbarIconButton prev = new ToolbarIconButton("back");
+            prev.setToolTipText("Previous month");
+            prev.setPreferredSize(new Dimension(32, 26));
+            prev.setMinimumSize(new Dimension(32, 26));
+            prev.setMaximumSize(new Dimension(32, 26));
+            prev.addActionListener(e -> shiftMonth(-1));
+
+            ToolbarIconButton next = new ToolbarIconButton("back");
+            next.setIconRotationRadians(Math.PI);
+            next.setToolTipText("Next month");
+            next.setPreferredSize(new Dimension(32, 26));
+            next.setMinimumSize(new Dimension(32, 26));
+            next.setMaximumSize(new Dimension(32, 26));
+            next.addActionListener(e -> shiftMonth(1));
+
+            monthLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 15f));
+            monthLabel.setForeground(new Color(58, 66, 82));
+            header.add(prev, BorderLayout.WEST);
+            header.add(monthLabel, BorderLayout.CENTER);
+            header.add(next, BorderLayout.EAST);
+
+            weekHeader.setOpaque(false);
+            for (int i = 0; i < 7; i++) {
+                DayOfWeek day = firstDayOfWeek.plus(i);
+                JLabel lbl = new JLabel(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()), JLabel.CENTER);
+                lbl.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f));
+                lbl.setForeground(new Color(110, 118, 132));
+                weekHeader.add(lbl);
+            }
+
+            daysGrid.setOpaque(false);
+            for (int i = 0; i < dayCells.length; i++) {
+                CalendarDayCell cell = new CalendarDayCell();
+                dayCells[i] = cell;
+                daysGrid.add(cell);
+            }
+
+            hintLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+            hintLabel.setForeground(new Color(108, 116, 132));
+            hintLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 0, 4));
+
+            dayEntriesPanel.setOpaque(false);
+            dayEntriesPanel.setBorder(BorderFactory.createEmptyBorder(6, 8, 8, 8));
+            dayEntriesLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f));
+            dayEntriesLabel.setForeground(new Color(78, 88, 108));
+
+            dayEntriesList.setOpaque(false);
+            dayEntriesList.setLayout(new javax.swing.BoxLayout(dayEntriesList, javax.swing.BoxLayout.Y_AXIS));
+            JScrollPane dayEntriesScroll = new JScrollPane(dayEntriesList);
+            dayEntriesScroll.setOpaque(false);
+            dayEntriesScroll.getViewport().setOpaque(false);
+            dayEntriesScroll.setBorder(BorderFactory.createEmptyBorder());
+            dayEntriesScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            dayEntriesScroll.setPreferredSize(new Dimension(1, 120));
+            dayEntriesScroll.getVerticalScrollBar().setUnitIncrement(14);
+
+            dayEntriesPanel.add(dayEntriesLabel, BorderLayout.NORTH);
+            dayEntriesPanel.add(dayEntriesScroll, BorderLayout.CENTER);
+            dayEntriesPanel.setVisible(true);
+
+            JPanel center = new FrostedGlassPanel(new BorderLayout(6, 6), 12);
+            center.setOpaque(false);
+            center.setBorder(BorderFactory.createEmptyBorder(8, 10, 10, 10));
+            center.add(weekHeader, BorderLayout.NORTH);
+            center.add(daysGrid, BorderLayout.CENTER);
+
+            JPanel footer = new JPanel(new BorderLayout(0, 6));
+            footer.setOpaque(false);
+            footer.add(hintLabel, BorderLayout.NORTH);
+            footer.add(dayEntriesPanel, BorderLayout.CENTER);
+
+            add(header, BorderLayout.NORTH);
+            add(center, BorderLayout.CENTER);
+            add(footer, BorderLayout.SOUTH);
+            rebuildGrid();
+        }
+
+        private void setEntries(List<File> orderedFiles) {
+            filesByDate.clear();
+            if (orderedFiles != null) {
+                for (File f : orderedFiles) {
+                    if (f == null) continue;
+                    LocalDate date = entryDates.getOrDefault(f, resolveEntryDate(entrySortTimestampCached(f)));
+                    filesByDate.computeIfAbsent(date, k -> new ArrayList<>()).add(f);
+                }
+            }
+            if (!filesByDate.isEmpty() && !hasEntriesForMonth(month)) {
+                LocalDate latest = null;
+                for (LocalDate d : filesByDate.keySet()) {
+                    if (latest == null || d.isAfter(latest)) latest = d;
+                }
+                if (latest != null) {
+                    month = YearMonth.from(latest);
+                }
+            }
+            if (selectedDate != null && !filesByDate.containsKey(selectedDate)) {
+                selectedDate = null;
+            }
+            if (hoveredDate != null && !filesByDate.containsKey(hoveredDate)) {
+                hoveredDate = null;
+            }
+            rebuildGrid();
+        }
+
+        private boolean hasEntriesForMonth(YearMonth ym) {
+            if (ym == null || filesByDate.isEmpty()) return false;
+            for (LocalDate d : filesByDate.keySet()) {
+                if (d != null && YearMonth.from(d).equals(ym)) return true;
+            }
+            return false;
+        }
+
+        private void shiftMonth(int delta) {
+            month = month.plusMonths(delta);
+            selectedDate = null;
+            hoveredDate = null;
+            rebuildGrid();
+        }
+
+        private void rebuildGrid() {
+            monthLabel.setText(month.format(DateTimeFormatter.ofPattern("MMMM yyyy")));
+            LocalDate first = month.atDay(1);
+            int offset = (first.getDayOfWeek().getValue() - firstDayOfWeek.getValue() + 7) % 7;
+            LocalDate cursor = first.minusDays(offset);
+            LocalDate today = LocalDate.now();
+            for (CalendarDayCell cell : dayCells) {
+                if (cell == null) continue;
+                LocalDate date = cursor;
+                boolean inMonth = date.getMonth() == month.getMonth() && date.getYear() == month.getYear();
+                List<File> files = filesByDate.getOrDefault(date, java.util.Collections.emptyList());
+                int count = files.size();
+                int avgMood = -1;
+                if (count > 0) {
+                    int moodSum = 0;
+                    int moodCount = 0;
+                    for (File f : files) {
+                        int mood = moodValues.getOrDefault(f, -1);
+                        if (mood >= 0) {
+                            moodSum += mood;
+                            moodCount++;
+                        }
+                    }
+                    if (moodCount > 0) {
+                        avgMood = Math.max(0, Math.min(100, Math.round(moodSum / (float) moodCount)));
+                    }
+                }
+                boolean selected = selectedDate != null && selectedDate.equals(date);
+                cell.setDay(date, inMonth, date.equals(today), selected, count, avgMood);
+                cursor = cursor.plusDays(1);
+            }
+            LocalDate focusDate = hoveredDate != null ? hoveredDate : selectedDate;
+            if (focusDate != null) {
+                boolean fromSelection = hoveredDate == null && selectedDate != null && selectedDate.equals(focusDate);
+                showDayEntriesPreview(focusDate, filesByDate.getOrDefault(focusDate, java.util.Collections.emptyList()), fromSelection);
+            } else {
+                showDayEntriesPreview(null, java.util.Collections.emptyList(), false);
+            }
+            updateSelectedBorderAnimation();
+            revalidate();
+            repaint();
+        }
+
+        private void onDayClicked(LocalDate date, int clickCount) {
+            if (date == null) return;
+            selectedDate = date;
+            hoveredDate = null; // lock preview to selected day until selection changes/clears
+            rebuildGrid();
+            List<File> files = filesByDate.getOrDefault(date, java.util.Collections.emptyList());
+            if (files.isEmpty()) {
+                hintLabel.setText(date + " · no entries");
+                showDayEntriesPreview(date, files, true);
+                return;
+            }
+            hintLabel.setText(date + " · " + files.size() + (files.size() == 1 ? " entry" : " entries")
+                    + " (choose one below or double-click day to open newest)");
+            showDayEntriesPreview(date, files, true);
+            if (clickCount >= 2) {
+                File newest = null;
+                long newestTs = Long.MIN_VALUE;
+                for (File f : files) {
+                    long ts = entrySortTimestampCached(f);
+                    if (newest == null || ts > newestTs) {
+                        newest = f;
+                        newestTs = ts;
+                    }
+                }
+                if (newest != null) {
+                    openFile(newest);
+                }
+            }
+        }
+
+        private void onDayHovered(LocalDate date) {
+            if (date == null) return;
+            if (selectedDate != null) return;
+            hoveredDate = date;
+            List<File> files = filesByDate.getOrDefault(date, java.util.Collections.emptyList());
+            if (files.isEmpty()) {
+                hintLabel.setText(date + " · no entries");
+                showDayEntriesPreview(date, files, false);
+                return;
+            }
+            hintLabel.setText(date + " · " + files.size() + (files.size() == 1 ? " entry" : " entries")
+                    + " (click an item below to open)");
+            showDayEntriesPreview(date, files, false);
+        }
+
+        private void showDayEntriesPreview(LocalDate date, List<File> files, boolean selectedSource) {
+            dayEntriesList.removeAll();
+            if (date == null) {
+                dayEntriesLabel.setText("Day entries");
+                JLabel placeholder = new JLabel("Hover or select a day to list entries.");
+                placeholder.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+                placeholder.setForeground(new Color(112, 122, 138));
+                dayEntriesList.add(placeholder);
+                dayEntriesPanel.revalidate();
+                dayEntriesPanel.repaint();
+                return;
+            }
+            if (files == null || files.isEmpty()) {
+                String prefix = selectedSource ? "Selected day" : "Hovered day";
+                dayEntriesLabel.setText(prefix + " · " + formatEntryDate(date));
+                JLabel empty = new JLabel("No entries on this day.");
+                empty.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+                empty.setForeground(new Color(112, 122, 138));
+                dayEntriesList.add(empty);
+                dayEntriesPanel.revalidate();
+                dayEntriesPanel.repaint();
+                return;
+            }
+
+            List<File> ordered = new ArrayList<>(files);
+            ordered.sort(Comparator.comparingLong(NotebookEntriesPanel.this::entrySortTimestampCached).reversed());
+            String prefix = selectedSource ? "Selected day" : "Hovered day";
+            dayEntriesLabel.setText(prefix + " · " + formatEntryDate(date));
+
+            int maxRows = Math.min(10, ordered.size());
+            for (int i = 0; i < maxRows; i++) {
+                File file = ordered.get(i);
+                dayEntriesList.add(buildDayEntryRow(file));
+                if (i < maxRows - 1) {
+                    dayEntriesList.add(Box.createVerticalStrut(4));
+                }
+            }
+            if (ordered.size() > maxRows) {
+                dayEntriesList.add(Box.createVerticalStrut(6));
+                JLabel more = new JLabel("+" + (ordered.size() - maxRows) + " more entries");
+                more.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+                more.setForeground(new Color(110, 120, 136));
+                dayEntriesList.add(more);
+            }
+
+            dayEntriesPanel.revalidate();
+            dayEntriesPanel.repaint();
+        }
+
+        private void updateSelectedBorderAnimation() {
+            if (selectedDate != null) {
+                if (!selectedBorderTimer.isRunning()) selectedBorderTimer.start();
+            } else {
+                if (selectedBorderTimer.isRunning()) selectedBorderTimer.stop();
+                selectedBorderPhase = 0f;
+            }
+        }
+
+        private void repaintSelectedDayCell() {
+            if (selectedDate == null) return;
+            for (CalendarDayCell cell : dayCells) {
+                if (cell == null || cell.date == null) continue;
+                if (selectedDate.equals(cell.date)) {
+                    cell.repaint();
+                    return;
+                }
+            }
+            daysGrid.repaint();
+        }
+
+        @Override
+        public void removeNotify() {
+            try { selectedBorderTimer.stop(); } catch (Throwable ignored) {}
+            super.removeNotify();
+        }
+
+        private javax.swing.JComponent buildDayEntryRow(File file) {
+            long ts = entrySortTimestampCached(file);
+            LocalDateTime ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault());
+            String time = ldt.format(DAY_ENTRY_TIME_FORMAT);
+            String title = titles.get(file);
+            if (title == null || title.isBlank()) {
+                String nm = file.getName();
+                int dot = nm.lastIndexOf('.');
+                title = dot > 0 ? nm.substring(0, dot) : nm;
+            }
+
+            JLabel row = new JLabel(time + "  \u00b7  " + title);
+            row.setOpaque(true);
+            row.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+            row.setForeground(new Color(62, 72, 90));
+            row.setBackground(new Color(246, 250, 255, 186));
+            row.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(176, 188, 204, 150)),
+                    BorderFactory.createEmptyBorder(5, 8, 5, 8)));
+            row.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            row.setToolTipText("Open " + title);
+            row.addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) {
+                    row.setBackground(new Color(233, 243, 255, 210));
+                }
+                @Override public void mouseExited(MouseEvent e) {
+                    row.setBackground(new Color(246, 250, 255, 186));
+                }
+                @Override public void mouseClicked(MouseEvent e) {
+                    if (file != null && file.exists()) {
+                        openFile(file);
+                    }
+                }
+            });
+            return row;
+        }
+
+        private final class CalendarDayCell extends JPanel {
+            private LocalDate date;
+            private boolean inMonth;
+            private boolean today;
+            private boolean selected;
+            private boolean hovered;
+            private int count;
+            private int avgMood;
+
+            private CalendarDayCell() {
+                setOpaque(false);
+                setPreferredSize(new Dimension(1, 74));
+                addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        if (date != null) onDayClicked(date, e.getClickCount());
+                    }
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        hovered = true;
+                        if (date != null) onDayHovered(date);
+                        repaint();
+                    }
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        hovered = false;
+                        repaint();
+                    }
+                });
+            }
+
+            private void setDay(LocalDate date, boolean inMonth, boolean today, boolean selected, int count, int avgMood) {
+                this.date = date;
+                this.inMonth = inMonth;
+                this.today = today;
+                this.selected = selected;
+                this.count = Math.max(0, count);
+                this.avgMood = avgMood;
+                repaint();
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                if (w <= 2 || h <= 2 || date == null) {
+                    g2.dispose();
+                    return;
+                }
+                Color bg = inMonth ? new Color(248, 250, 255, 170) : new Color(242, 245, 250, 120);
+                if (selected) bg = new Color(226, 238, 255, 205);
+                if (hovered && !selected && selectedDate == null) bg = new Color(232, 243, 255, 212);
+                if (today && !selected) bg = new Color(238, 247, 255, 195);
+                g2.setColor(bg);
+                g2.fillRoundRect(1, 1, w - 2, h - 2, 10, 10);
+                g2.setColor(selected
+                        ? new Color(112, 156, 238, 210)
+                        : ((hovered && selectedDate == null) ? new Color(128, 160, 218, 180) : new Color(180, 190, 205, 150)));
+                g2.drawRoundRect(1, 1, w - 2, h - 2, 10, 10);
+                if (selected) {
+                    g2.setColor(new Color(88, 133, 255, 95));
+                    g2.drawRoundRect(0, 0, w - 1, h - 1, 11, 11);
+                    float[] dashPattern = {6.0f, 4.0f};
+                    g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0f, dashPattern, selectedBorderPhase));
+                    g2.setColor(new Color(88, 133, 255, 188));
+                    g2.drawRoundRect(2, 2, w - 4, h - 4, 9, 9);
+                    g2.setStroke(new BasicStroke(1.0f));
+                }
+
+                g2.setFont(AeroTheme.defaultFont().deriveFont(today ? Font.BOLD : Font.PLAIN, 12.5f));
+                g2.setColor(inMonth ? new Color(50, 60, 78) : new Color(140, 146, 160));
+                g2.drawString(Integer.toString(date.getDayOfMonth()), 8, 18);
+
+                if (count > 0) {
+                    String txt = Integer.toString(count);
+                    int badgeW = Math.max(18, 10 + g2.getFontMetrics(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11f)).stringWidth(txt));
+                    int bx = w - badgeW - 6;
+                    int by = h - 22;
+                    Color mood = avgMood >= 0 ? moodColorAt(avgMood) : new Color(120, 150, 210);
+                    g2.setColor(new Color(mood.getRed(), mood.getGreen(), mood.getBlue(), 170));
+                    g2.fillRoundRect(bx, by, badgeW, 15, 8, 8);
+                    g2.setColor(new Color(255, 255, 255, 220));
+                    g2.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11f));
+                    int tx = bx + (badgeW - g2.getFontMetrics().stringWidth(txt)) / 2;
+                    g2.drawString(txt, tx, by + 11);
+                }
+                g2.dispose();
+            }
+        }
+    }
+
     public NotebookEntriesPanel(JournalApp app, NotebookInfo nb){
         this.app = app; this.nb = nb;
         setLayout(new BorderLayout());
         setBackground(Color.WHITE);
+        this.viewMode = loadPersistedViewMode();
 
         // Top bar
         JPanel top = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
@@ -1068,7 +1589,20 @@ public class NotebookEntriesPanel extends JPanel {
         top.add(Box.createHorizontalStrut(20));
         top.add(new JLabel("Search:")); top.add(searchField);
         top.add(new JLabel("Sort:")); top.add(sortBox);
+        top.add(new JLabel("View:"));
+        JPanel viewModeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        viewModeRow.setOpaque(false);
+        comfortViewBtn = createViewModeButton("view_comfort", "Comfort view", EntryViewMode.COMFORT);
+        compactViewBtn = createViewModeButton("view_compact", "Compact view", EntryViewMode.COMPACT);
+        minimalViewBtn = createViewModeButton("view_minimal", "Minimal view", EntryViewMode.MINIMAL);
+        calendarViewBtn = createViewModeButton("view_calendar", "Calendar view", EntryViewMode.CALENDAR);
+        viewModeRow.add(comfortViewBtn);
+        viewModeRow.add(compactViewBtn);
+        viewModeRow.add(minimalViewBtn);
+        viewModeRow.add(calendarViewBtn);
+        top.add(viewModeRow);
         top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn);
+        applyViewModeSelectionState();
         add(top,BorderLayout.NORTH);
 
         // Debounce search updates to avoid frequent resorting/filtering while typing
@@ -1095,6 +1629,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("moodTrends", moodTrendCache);
         list.putClientProperty("encryptedFlags", encryptedFlags);
         list.putClientProperty("searchQuery", "");
+        list.putClientProperty("entryViewMode", viewMode);
         list.putClientProperty("hoverIndex", -1);
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(-1);
@@ -1142,10 +1677,18 @@ public class NotebookEntriesPanel extends JPanel {
             hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 12));
             hbar.setOpaque(false);
         } catch (Throwable ignored) {}
-        add(listScroll, BorderLayout.CENTER);
+        centerCardLayout = new CardLayout();
+        centerCardPanel = new JPanel(centerCardLayout);
+        centerCardPanel.setOpaque(false);
+        centerCardPanel.add(listScroll, CENTER_CARD_LIST);
+        calendarPanel = new CalendarEntriesPanel();
+        centerCardPanel.add(calendarPanel, CENTER_CARD_CALENDAR);
+        add(centerCardPanel, BorderLayout.CENTER);
+        syncCenterViewMode();
         // Prioritize metadata for visible items on scroll/resize
         try {
             listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
+                if (viewMode == EntryViewMode.CALENDAR) return;
                 ensureLazyRowsForViewport();
                 if (!e.getValueIsAdjusting()) {
                     ensureMetaForVisibleRange();
@@ -1169,6 +1712,81 @@ public class NotebookEntriesPanel extends JPanel {
             ensureMetaForVisibleRange();
             ensurePreviewForVisibleRange();
         });
+    }
+
+    private ToolbarIconButton createViewModeButton(String iconId, String tooltip, EntryViewMode mode) {
+        ToolbarIconButton button = new ToolbarIconButton(iconId);
+        Dimension size = new Dimension(34, 30);
+        button.setPreferredSize(size);
+        button.setMinimumSize(size);
+        button.setMaximumSize(size);
+        button.setToolTipText(tooltip);
+        button.addActionListener(e -> setViewMode(mode));
+        return button;
+    }
+
+    private void setViewMode(EntryViewMode mode) {
+        EntryViewMode next = mode == null ? EntryViewMode.COMFORT : mode;
+        if (viewMode == next) return;
+        viewMode = next;
+        applyViewModeSelectionState();
+        persistViewMode(next);
+        list.putClientProperty("entryViewMode", viewMode);
+        syncCenterViewMode();
+        list.revalidate();
+        list.repaint();
+    }
+
+    private EntryViewMode loadPersistedViewMode() {
+        try {
+            SettingsStore store = SettingsStore.get();
+            String raw = store.getValue(viewModeSettingsKey(), EntryViewMode.COMFORT.name());
+            if (raw == null || raw.isBlank()) return EntryViewMode.COMFORT;
+            return EntryViewMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (Throwable ignored) {
+            return EntryViewMode.COMFORT;
+        }
+    }
+
+    private void persistViewMode(EntryViewMode mode) {
+        if (mode == null) return;
+        try {
+            SettingsStore store = SettingsStore.get();
+            store.setValue(viewModeSettingsKey(), mode.name());
+            store.save();
+        } catch (Throwable ignored) {}
+    }
+
+    private String viewModeSettingsKey() {
+        String id = "";
+        try {
+            if (nb != null && nb.getFolder() != null) {
+                id = nb.getFolder().getAbsolutePath();
+            } else if (nb != null && nb.getName() != null) {
+                id = nb.getName();
+            }
+        } catch (Throwable ignored) {}
+        String hash = Integer.toHexString((id == null ? "" : id.toLowerCase(Locale.ROOT)).hashCode());
+        return VIEW_MODE_PREF_KEY_PREFIX + hash;
+    }
+
+    private void applyViewModeSelectionState() {
+        if (comfortViewBtn != null) comfortViewBtn.setSelected(viewMode == EntryViewMode.COMFORT);
+        if (compactViewBtn != null) compactViewBtn.setSelected(viewMode == EntryViewMode.COMPACT);
+        if (minimalViewBtn != null) minimalViewBtn.setSelected(viewMode == EntryViewMode.MINIMAL);
+        if (calendarViewBtn != null) calendarViewBtn.setSelected(viewMode == EntryViewMode.CALENDAR);
+    }
+
+    private void syncCenterViewMode() {
+        if (centerCardLayout == null || centerCardPanel == null) return;
+        if (viewMode == EntryViewMode.CALENDAR) {
+            centerCardLayout.show(centerCardPanel, CENTER_CARD_CALENDAR);
+            if (calendarPanel != null) {
+                calendarPanel.setEntries(lastOrderedFiles);
+            }
+        } else {
+            centerCardLayout.show(centerCardPanel, CENTER_CARD_LIST);
+        }
     }
 
     private void loadFiles(){
@@ -1281,6 +1899,7 @@ public class NotebookEntriesPanel extends JPanel {
             }
             metaCache.clear();
             metaCache.putAll(refreshedCache);
+            lastOrderedFiles = java.util.Collections.emptyList();
             fullRows = java.util.Collections.emptyList();
             loadedRows = 0;
             lazyAppendTargetRows = -1;
@@ -1300,6 +1919,7 @@ public class NotebookEntriesPanel extends JPanel {
             moodTrendCache.clear();
             encryptedFlags.clear();
             rowIndexByFile.clear();
+            lastOrderedFiles = java.util.Collections.emptyList();
             fullRows = java.util.Collections.emptyList();
             loadedRows = 0;
             lazyAppendTargetRows = -1;
@@ -1371,6 +1991,10 @@ public class NotebookEntriesPanel extends JPanel {
             default -> withinDate = Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER);
         }
         List<File> ordered = orderByDateGroups(filtered, dateDesc, withinDate);
+        lastOrderedFiles = java.util.List.copyOf(ordered);
+        if (calendarPanel != null) {
+            calendarPanel.setEntries(lastOrderedFiles);
+        }
         rebuildMoodTrendCache(ordered);
         String rawQuery = searchField.getText() == null ? "" : searchField.getText().trim();
         list.putClientProperty("searchQuery", rawQuery);
@@ -1427,10 +2051,12 @@ public class NotebookEntriesPanel extends JPanel {
             bar.setValue(Math.min(scrollVal, Math.max(0, bar.getMaximum() - bar.getVisibleAmount())));
         } catch (Throwable ignored) {}
 
-        // After resort/filter, make sure visible items are prioritized
-        ensureMetaForVisibleRange();
-        ensurePreviewForVisibleRange();
-        ensureLazyRowsForViewport();
+        // After resort/filter, make sure visible items are prioritized for list views.
+        if (viewMode != EntryViewMode.CALENDAR) {
+            ensureMetaForVisibleRange();
+            ensurePreviewForVisibleRange();
+            ensureLazyRowsForViewport();
+        }
     }
 
     private void rebuildMoodTrendCache(List<File> orderedFiles) {
@@ -2078,6 +2704,7 @@ public class NotebookEntriesPanel extends JPanel {
         wordCounts.clear();
         titles.clear();
         allFiles.clear();
+        lastOrderedFiles = java.util.Collections.emptyList();
         reorderAnimProgress.clear();
         deleteAnimProgress.clear();
         pendingDeleteFile = null;

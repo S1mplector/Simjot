@@ -45,6 +45,8 @@ import main.ui.theme.aero.AeroTheme;
  * Uses emotion chips to enable only the rows the user cares about.
  */
 public class DetailedMoodPanel extends JPanel {
+    private static final boolean SHOW_HEADER_SUMMARY = false;
+
     private static final String[] EMOTION_NAMES = {
             "Joy", "Calm", "Gratitude", "Energy",
             "Sadness", "Anger", "Anxiety", "Stress"
@@ -193,9 +195,6 @@ public class DetailedMoodPanel extends JPanel {
         title.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 13f));
         title.setForeground(AeroTheme.TEXT_PRIMARY);
 
-        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        headerRight.setOpaque(false);
-
         summaryLabel = new JLabel();
         summaryLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
         summaryLabel.setForeground(new Color(90, 90, 90));
@@ -207,12 +206,15 @@ public class DetailedMoodPanel extends JPanel {
         balanceMeter = new MoodBalanceMeter();
         balanceMeter.setPreferredSize(new Dimension(120, 12));
 
-        headerRight.add(summaryLabel);
-        headerRight.add(utilityStatusLabel);
-        headerRight.add(balanceMeter);
-
         header.add(title, BorderLayout.WEST);
-        header.add(headerRight, BorderLayout.EAST);
+        if (SHOW_HEADER_SUMMARY) {
+            JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+            headerRight.setOpaque(false);
+            headerRight.add(summaryLabel);
+            headerRight.add(utilityStatusLabel);
+            headerRight.add(balanceMeter);
+            header.add(headerRight, BorderLayout.EAST);
+        }
         shell.add(header, BorderLayout.NORTH);
 
         JPanel center = new JPanel();
@@ -741,6 +743,8 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void refreshSummaryLabel() {
+        if (!SHOW_HEADER_SUMMARY) return;
+
         int selectedCount = selectedEmotionIndices().size();
         if (selectedCount == 0) {
             summaryLabel.setText("Not set");
