@@ -109,6 +109,7 @@ import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
 import main.ui.components.scrollbar.ModernScrollBarUI;
+import main.ui.components.spinner.ModernSpinner;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.theme.aero.AeroTheme;
 
@@ -1128,12 +1129,18 @@ public class NotebookEntriesPanel extends JPanel {
         private YearMonth month = YearMonth.now();
         private LocalDate selectedDate = null;
         private LocalDate hoveredDate = null;
+        private LocalDate previewDate = null;
+        private boolean previewSelectedSource = false;
+        private boolean monthResolvedFromData = false;
+        private boolean userNavigatedMonth = false;
+        private String dayEntriesRenderSignature = "";
         private float selectedBorderPhase = 0f;
         private final Timer selectedBorderTimer = new Timer(48, e -> {
             selectedBorderPhase += 0.85f;
             if (selectedBorderPhase > 24f) selectedBorderPhase -= 24f;
             repaintSelectedDayCell();
         });
+        private final Timer previewRefreshTimer = new Timer(90, e -> refreshPreviewFromState());
 
         private CalendarEntriesPanel() {
             setOpaque(false);
@@ -1202,6 +1209,7 @@ public class NotebookEntriesPanel extends JPanel {
             dayEntriesPanel.add(dayEntriesLabel, BorderLayout.NORTH);
             dayEntriesPanel.add(dayEntriesScroll, BorderLayout.CENTER);
             dayEntriesPanel.setVisible(true);
+            previewRefreshTimer.setRepeats(false);
 
             JPanel center = new FrostedGlassPanel(new BorderLayout(6, 6), 12);
             center.setOpaque(false);
@@ -1229,7 +1237,8 @@ public class NotebookEntriesPanel extends JPanel {
                     filesByDate.computeIfAbsent(date, k -> new ArrayList<>()).add(f);
                 }
             }
-            if (!filesByDate.isEmpty() && !hasEntriesForMonth(month)) {
+            // Auto-anchor only once on first data hydrate. After user navigation, never snap month.
+            if (!monthResolvedFromData && !userNavigatedMonth && !filesByDate.isEmpty() && !hasEntriesForMonth(month)) {
                 LocalDate latest = null;
                 for (LocalDate d : filesByDate.keySet()) {
                     if (latest == null || d.isAfter(latest)) latest = d;
@@ -1238,6 +1247,7 @@ public class NotebookEntriesPanel extends JPanel {
                     month = YearMonth.from(latest);
                 }
             }
+            monthResolvedFromData = true;
             if (selectedDate != null && !filesByDate.containsKey(selectedDate)) {
                 selectedDate = null;
             }
@@ -1256,6 +1266,7 @@ public class NotebookEntriesPanel extends JPanel {
         }
 
         private void shiftMonth(int delta) {
+            userNavigatedMonth = true;
             month = month.plusMonths(delta);
             selectedDate = null;
             hoveredDate = null;
@@ -1351,8 +1362,13 @@ public class NotebookEntriesPanel extends JPanel {
         }
 
         private void showDayEntriesPreview(LocalDate date, List<File> files, boolean selectedSource) {
-            dayEntriesList.removeAll();
+            previewDate = date;
+            previewSelectedSource = selectedSource;
             if (date == null) {
+                String signature = "none";
+                if (signature.equals(dayEntriesRenderSignature)) return;
+                dayEntriesRenderSignature = signature;
+                dayEntriesList.removeAll();
                 dayEntriesLabel.setText("Day entries");
                 JLabel placeholder = new JLabel("Hover or select a day to list entries.");
                 placeholder.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
@@ -1363,6 +1379,10 @@ public class NotebookEntriesPanel extends JPanel {
                 return;
             }
             if (files == null || files.isEmpty()) {
+                String signature = "empty|" + selectedSource + "|" + date;
+                if (signature.equals(dayEntriesRenderSignature)) return;
+                dayEntriesRenderSignature = signature;
+                dayEntriesList.removeAll();
                 String prefix = selectedSource ? "Selected day" : "Hovered day";
                 dayEntriesLabel.setText(prefix + " · " + formatEntryDate(date));
                 JLabel empty = new JLabel("No entries on this day.");
@@ -1377,12 +1397,42 @@ public class NotebookEntriesPanel extends JPanel {
             List<File> ordered = new ArrayList<>(files);
             ordered.sort(Comparator.comparingLong(NotebookEntriesPanel.this::entrySortTimestampCached).reversed());
             String prefix = selectedSource ? "Selected day" : "Hovered day";
-            dayEntriesLabel.setText(prefix + " · " + formatEntryDate(date));
+            List<File> missingMetadata = new ArrayList<>();
+            StringBuilder signature = new StringBuilder(128)
+                    .append("rows|").append(selectedSource).append('|').append(date).append('|').append(ordered.size()).append('|');
 
             int maxRows = Math.min(10, ordered.size());
             for (int i = 0; i < maxRows; i++) {
                 File file = ordered.get(i);
-                dayEntriesList.add(buildDayEntryRow(file));
+                boolean loading = file != null && !metaComputed.contains(file);
+                if (loading) {
+                    missingMetadata.add(file);
+                }
+                signature.append(file == null ? "<null>" : file.getAbsolutePath())
+                        .append('@').append(loading ? 'L' : 'R')
+                        .append(':').append(loading ? "<loading>" : resolveEntryTitle(file))
+                        .append(';');
+            }
+
+            String nextSignature = signature.toString();
+            if (nextSignature.equals(dayEntriesRenderSignature)) {
+                if (!missingMetadata.isEmpty()) {
+                    startPrioritizedMetaLoader(missingMetadata);
+                }
+                return;
+            }
+            dayEntriesRenderSignature = nextSignature;
+            dayEntriesList.removeAll();
+            dayEntriesLabel.setText(prefix + " · " + formatEntryDate(date));
+
+            for (int i = 0; i < maxRows; i++) {
+                File file = ordered.get(i);
+                boolean loading = file != null && !metaComputed.contains(file);
+                if (loading) {
+                    dayEntriesList.add(buildDayEntryLoadingRow(file));
+                } else {
+                    dayEntriesList.add(buildDayEntryRow(file));
+                }
                 if (i < maxRows - 1) {
                     dayEntriesList.add(Box.createVerticalStrut(4));
                 }
@@ -1397,6 +1447,38 @@ public class NotebookEntriesPanel extends JPanel {
 
             dayEntriesPanel.revalidate();
             dayEntriesPanel.repaint();
+            if (!missingMetadata.isEmpty()) {
+                startPrioritizedMetaLoader(missingMetadata);
+            }
+        }
+
+        private void onMetadataUpdated(List<File> changedFiles) {
+            if (changedFiles == null || changedFiles.isEmpty() || previewDate == null) return;
+            List<File> files = filesByDate.getOrDefault(previewDate, java.util.Collections.emptyList());
+            if (files.isEmpty()) return;
+            for (File changed : changedFiles) {
+                if (changed != null && files.contains(changed)) {
+                    previewRefreshTimer.restart();
+                    return;
+                }
+            }
+        }
+
+        private void refreshPreviewFromState() {
+            LocalDate date = previewDate;
+            if (date == null) {
+                showDayEntriesPreview(null, java.util.Collections.emptyList(), false);
+                return;
+            }
+            List<File> files = filesByDate.getOrDefault(date, java.util.Collections.emptyList());
+            showDayEntriesPreview(date, files, previewSelectedSource);
+        }
+
+        private javax.swing.JComponent buildDayEntryLoadingRow(File file) {
+            long ts = entrySortTimestampCached(file);
+            LocalDateTime ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault());
+            String time = ldt.format(DAY_ENTRY_TIME_FORMAT);
+            return new DayEntryLoadingRow(time);
         }
 
         private void updateSelectedBorderAnimation() {
@@ -1423,6 +1505,7 @@ public class NotebookEntriesPanel extends JPanel {
         @Override
         public void removeNotify() {
             try { selectedBorderTimer.stop(); } catch (Throwable ignored) {}
+            try { previewRefreshTimer.stop(); } catch (Throwable ignored) {}
             super.removeNotify();
         }
 
@@ -1430,12 +1513,7 @@ public class NotebookEntriesPanel extends JPanel {
             long ts = entrySortTimestampCached(file);
             LocalDateTime ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault());
             String time = ldt.format(DAY_ENTRY_TIME_FORMAT);
-            String title = titles.get(file);
-            if (title == null || title.isBlank()) {
-                String nm = file.getName();
-                int dot = nm.lastIndexOf('.');
-                title = dot > 0 ? nm.substring(0, dot) : nm;
-            }
+            String title = resolveEntryTitle(file);
 
             JLabel row = new JLabel(time + "  \u00b7  " + title);
             row.setOpaque(true);
@@ -1461,6 +1539,45 @@ public class NotebookEntriesPanel extends JPanel {
                 }
             });
             return row;
+        }
+
+        private String resolveEntryTitle(File file) {
+            if (file == null) return "";
+            String title = titles.get(file);
+            if (title != null && !title.isBlank()) return title;
+            String nm = file.getName();
+            int dot = nm.lastIndexOf('.');
+            return dot > 0 ? nm.substring(0, dot) : nm;
+        }
+
+        private final class DayEntryLoadingRow extends JPanel {
+            private final ModernSpinner spinner;
+
+            private DayEntryLoadingRow(String timeLabel) {
+                super(new FlowLayout(FlowLayout.LEFT, 6, 0));
+                setOpaque(true);
+                setBackground(new Color(246, 250, 255, 186));
+                setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(176, 188, 204, 150)),
+                        BorderFactory.createEmptyBorder(3, 7, 3, 8)));
+
+                spinner = new ModernSpinner(12, new Color(96, 132, 188));
+                spinner.setPreferredSize(new Dimension(12, 12));
+                spinner.setMinimumSize(new Dimension(12, 12));
+                spinner.setMaximumSize(new Dimension(12, 12));
+                add(spinner);
+
+                JLabel text = new JLabel(timeLabel + "  ·  Loading title...");
+                text.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
+                text.setForeground(new Color(90, 102, 122));
+                add(text);
+            }
+
+            @Override
+            public void removeNotify() {
+                try { spinner.stop(); } catch (Throwable ignored) {}
+                super.removeNotify();
+            }
         }
 
         private final class CalendarDayCell extends JPanel {
@@ -2864,6 +2981,9 @@ public class NotebookEntriesPanel extends JPanel {
                 }
                 if (changedFiles.isEmpty()) return;
                 repaintFileRows(changedFiles, 12);
+                if (viewMode == EntryViewMode.CALENDAR && calendarPanel != null) {
+                    calendarPanel.onMetadataUpdated(changedFiles);
+                }
                 if (shouldRefreshOrderingForMetadata()) {
                     update();
                 }
