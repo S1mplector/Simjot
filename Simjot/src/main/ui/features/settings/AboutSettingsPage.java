@@ -192,7 +192,6 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
             • Gallery View - Visual gallery to browse and manage journal entries
             • Mood Tracking - Mood selection and visualization for journal entries
             • Settings Management - Comprehensive settings for appearance, storage, and preferences
-            • AI Companion (Sim) - Optional AI assistant for journaling assistance
             • Data Persistence - Local storage with backup and restore capabilities
             • Modern UI - Aero-styled interface with smooth animations and transitions
             • Cross-platform - Runs on Windows, macOS, and Linux systems
@@ -236,7 +235,6 @@ public class AboutSettingsPage extends JPanel implements SettingsPage {
             • Main menu animation toggle option
             • Low Power Mode for battery saving
             • Improved security with lock screen support
-            • AI companion (Sim) integration with local LLM support
             • Rich text editing with math formula support
             • Template system for guided journaling
             """;

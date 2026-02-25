@@ -246,15 +246,11 @@ public class MainMenuPanel extends JPanel {
             }
 
             configureChip(moodPulseChip, "smile");
-            configureChip(dailyPromptChip, "heart");
-            dailyPromptChip.setForeground(new Color(62, 143, 224));
 
             moodPulseChip.addActionListener(e -> {
                 ElegantMoodChartPanel.requestRangeSelection(1);
                 app.switchCard(JournalApp.MOOD_CHART);
             });
-            // Removed sparkline popup functionality
-            dailyPromptChip.addActionListener(e -> onDailyPromptChipClicked());
 
             countsLbl.setText("– notebooks  •  – entries");
             autosaveLbl.setText(" |  Autosave: –  •  Last: –");
@@ -262,15 +258,10 @@ public class MainMenuPanel extends JPanel {
 
             add(Box.createHorizontalStrut(6));
             add(moodPulseChip);
-            add(dailyPromptChip);
 
             updateCounts();
             updateMoodPulse();
             updateAutosave();
-            loadDailyPromptFromSettings();
-            ensureDailyPromptForToday();
-            updateDailyPromptChip();
-            SimEventBus.get().addListener(simListener);
 
             javax.swing.Timer uiTimer = new javax.swing.Timer(1000, e -> updateFast());
             uiTimer.start();
@@ -372,9 +363,6 @@ public class MainMenuPanel extends JPanel {
                 updateMoodPulse();
                 lastMoodMillis = now;
             }
-
-            ensureDailyPromptForToday();
-            updateDailyPromptChip();
             updateAutosave();
             sizeLbl.setText(" |  Size: " + lastSizeText);
         }

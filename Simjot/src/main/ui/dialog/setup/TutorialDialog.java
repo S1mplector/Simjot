@@ -45,14 +45,13 @@ public class TutorialDialog extends JDialog {
         addPage("Notebook Manager", "Organize different notebooks via the notebook manager. \n Create and delete notebooks.", "docs/tut_ntbkmanager.png");
         addPage("Notebook Types", "There are two different type of notebooks, <b>Journal</b> and <b>Poetry</b>.\nJournal is for daily journaling and Poetry is for writing poems.", "docs/tut_ntbktypes.png");
         addPage("Journal Entry Manager", "When in a journal notebook, view, edit and delete journal entries.", "docs/tut_journaling.png");
-        addPage("Journaling Editor", "Freely write down your thoughts in the editor. \n If you're struggling on how to reflect, press the blue heart button to get help from the AI assistant, Sim.", "docs/tut_jrnleditor.png");
+        addPage("Journaling Editor", "Freely write down your thoughts in the editor and use the toolbar tools to structure your writing.", "docs/tut_jrnleditor.png");
         addPage("Poetry Entry Manager", "The poetry manager is the exact same as the journal entry manager.\nCreate, edit and delete poems, and re-visit them whenever you like", "docs/tut_poetry.png");
         addPage("Poetry Editor", "Let your poem come to life in the editor.", "docs/tut_ptryeditor.png");
         addPage("Poem Text Settings", "Customise your poem's text appearance via the toolbar below the title area.", "docs/tut_poetrytext.png");
         addPage("Help With Writing a Poem", "On the rightmost side of the toolbar, we have a few buttons in the Poetry editor. Let's learn what they do.", "docs/tut_ptrybuttonbundle.png");
         addPage("Metering" , "The metering button will help you write a poem with a specific meter.", "docs/tut_ptrymetering.png");
-        addPage("Rhymes", "Click the second from the left button to find rhymes for a word. Click on a word to initiate the rhyme search. \nThis will help you write a poem with rhymes.\n In addition to Simjot's word library, Sim will also dynamically generate rhyme suggestions for you.", "docs/tut_ptryrhymes.png");
-        addPage("AI Assistant", "The AI assistant button will help you write a poem with a specific theme.", "docs/tut_ptryai.png");
+        addPage("Rhymes", "Click the second from the left button to find rhymes for a word. Click on a word to initiate the rhyme search.\nThis helps you write poems with stronger sound patterns.", "docs/tut_ptryrhymes.png");
         addPage("Mood Chart", "All those slider moods converge here.\nSee how your feelings trend over the last 7/30 days or overall.", "docs/breathing_circle.png");
         addPage("Settings & Themes", "Personalise Simjot: change wallpapers, tweak UI sizes and more in <b>Settings</b>.", "docs/settings_interface.png");
         addPage("That's it!", "Enjoy Simjot and happy writing.", null);

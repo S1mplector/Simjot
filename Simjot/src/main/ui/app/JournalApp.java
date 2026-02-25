@@ -704,14 +704,7 @@ public class JournalApp extends JFrame {
         setGlassPane(fadePanel);
         fadePanel.setVisible(true);
 
-        // --- Sim: overlay + brain + scheduler ---
-        try {
-            if (SimSettings.get().isEnabled()) {
-                enableSimFeatures();
-            }
-        } catch (Throwable t) {
-            logWarn("enableSimFeatures", t);
-        }
+        // Sim UI is intentionally disabled in the main application surface.
 
         boolean keepInTray = shouldKeepRunningInTray();
         if (keepInTray) {
@@ -1741,7 +1734,7 @@ public class JournalApp extends JFrame {
                         String[] ids = {
                             "settings","write","save","back","list","close","trash","delete_entry","load",
                             "fullscreen","export","rhyme","explorer","refreshsizes","revealselected",
-                            "general_settings","appearance_settings","storage_settings","sim_settings","about_settings",
+                            "general_settings","appearance_settings","storage_settings","about_settings",
                             "notebook","smile","breathing_widget","pomodoro_widget","sticky_widget"
                         };
                         for (int s : sizes) {

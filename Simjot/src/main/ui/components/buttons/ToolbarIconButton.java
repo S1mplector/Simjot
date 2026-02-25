@@ -184,7 +184,7 @@ public class ToolbarIconButton extends JButton {
     private static boolean isVectorOnlyIcon(String iconId) {
         return switch (iconId) {
             case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text", "text_divider",
-                 "view_comfort", "view_compact", "view_minimal", "view_calendar" -> true;
+                 "view_comfort", "view_calendar" -> true;
             default -> false;
         };
     }
@@ -566,37 +566,40 @@ public class ToolbarIconButton extends JButton {
                 break; }
 
             case "view_comfort": {
-                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(new Color(62, 72, 90));
-                int x = cx - 10, y = cy - 9, wCard = 20, hCard = 14;
-                g2.drawRoundRect(x + 2, y + 2, wCard - 2, hCard - 2, 4, 4);
-                g2.drawRoundRect(x, y, wCard - 2, hCard - 2, 4, 4);
-                g2.setColor(new Color(92, 102, 120));
-                g2.drawLine(x + 4, y + 5, x + wCard - 6, y + 5);
-                g2.drawLine(x + 4, y + 9, x + wCard - 8, y + 9);
-                break; }
+                int cardW = 20;
+                int cardH = 15;
+                int x = cx - (cardW / 2);
+                int y = cy - (cardH / 2);
 
-            case "view_compact": {
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(new Color(62, 72, 90));
-                int left = cx - 10;
-                int top = cy - 8;
-                for (int i = 0; i < 3; i++) {
-                    int y = top + (i * 6);
-                    g2.fillRoundRect(left, y - 1, 2, 2, 2, 2);
-                    g2.drawLine(left + 4, y, left + 14, y);
-                }
-                break; }
+                g2.setColor(new Color(0, 0, 0, 34));
+                g2.fillRoundRect(x + 1, y + 1, cardW, cardH, 4, 4);
 
-            case "view_minimal": {
-                g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(new Color(62, 72, 90));
-                int left = cx - 8;
-                int right = cx + 8;
-                int top = cy - 7;
-                g2.drawLine(left, top, right, top);
-                g2.drawLine(left, top + 6, right - 2, top + 6);
-                g2.drawLine(left, top + 12, right - 4, top + 12);
+                g2.setPaint(new LinearGradientPaint(
+                        x, y, x, y + cardH,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(249, 252, 255), new Color(228, 236, 248)}
+                ));
+                g2.fillRoundRect(x, y, cardW, cardH, 4, 4);
+
+                g2.setColor(new Color(74, 94, 124));
+                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawRoundRect(x, y, cardW, cardH, 4, 4);
+
+                g2.setColor(new Color(88, 133, 255));
+                g2.fillRoundRect(x + 2, y + 3, 2, cardH - 6, 2, 2);
+
+                g2.setColor(new Color(76, 88, 108));
+                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(x + 6, y + 5, x + 15, y + 5);
+
+                g2.setColor(new Color(113, 124, 141));
+                g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(x + 6, y + 8, x + 14, y + 8);
+                g2.drawLine(x + 6, y + 11, x + 12, y + 11);
+
+                g2.setColor(new Color(97, 109, 130));
+                g2.fillOval(x + 16, y + 7, 2, 2);
+                g2.fillOval(x + 16, y + 10, 2, 2);
                 break; }
 
             case "view_calendar": {
@@ -604,17 +607,35 @@ public class ToolbarIconButton extends JButton {
                 int boxH = 16;
                 int x = cx - boxW / 2;
                 int y = cy - boxH / 2;
-                g2.setColor(new Color(62, 72, 90));
-                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+                g2.setColor(new Color(0, 0, 0, 30));
+                g2.fillRoundRect(x + 1, y + 1, boxW, boxH, 4, 4);
+
+                g2.setPaint(new LinearGradientPaint(
+                        x, y, x, y + boxH,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(251, 253, 255), new Color(233, 239, 249)}
+                ));
+                g2.fillRoundRect(x, y, boxW, boxH, 4, 4);
+
+                g2.setColor(new Color(88, 133, 255));
+                g2.fillRoundRect(x, y, boxW, 4, 4, 4);
+
+                g2.setColor(new Color(64, 80, 108));
+                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.drawRoundRect(x, y, boxW, boxH, 4, 4);
-                g2.drawLine(x, y + 4, x + boxW, y + 4);
-                g2.fillRoundRect(x + 4, y - 2, 2, 4, 2, 2);
-                g2.fillRoundRect(x + boxW - 6, y - 2, 2, 4, 2, 2);
-                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(x + 6, y + 8, x + 6, y + 12);
-                g2.drawLine(x + 10, y + 8, x + 10, y + 12);
-                g2.drawLine(x + 14, y + 8, x + 14, y + 12);
-                g2.drawLine(x + 4, y + 10, x + boxW - 4, y + 10);
+                g2.drawLine(x + 4, y - 1, x + 4, y + 3);
+                g2.drawLine(x + boxW - 5, y - 1, x + boxW - 5, y + 3);
+
+                g2.setColor(new Color(126, 137, 154));
+                g2.setStroke(new BasicStroke(1.0f));
+                g2.drawLine(x + 5, y + 8, x + boxW - 5, y + 8);
+                g2.drawLine(x + 5, y + 11, x + boxW - 5, y + 11);
+                g2.drawLine(x + 9, y + 6, x + 9, y + 12);
+                g2.drawLine(x + 13, y + 6, x + 13, y + 12);
+
+                g2.setColor(new Color(88, 133, 255, 220));
+                g2.fillRoundRect(x + 10, y + 9, 3, 3, 2, 2);
                 break; }
             
             default:

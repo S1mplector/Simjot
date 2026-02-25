@@ -131,8 +131,6 @@ public class NotebookEntriesPanel extends JPanel {
 
     private enum EntryViewMode {
         COMFORT,
-        COMPACT,
-        MINIMAL,
         CALENDAR
     }
 
@@ -150,8 +148,6 @@ public class NotebookEntriesPanel extends JPanel {
             "Word Count (Low→High)"});
     private EntryViewMode viewMode = EntryViewMode.COMFORT;
     private ToolbarIconButton comfortViewBtn;
-    private ToolbarIconButton compactViewBtn;
-    private ToolbarIconButton minimalViewBtn;
     private ToolbarIconButton calendarViewBtn;
 
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
@@ -362,11 +358,7 @@ public class NotebookEntriesPanel extends JPanel {
         private final Color selectedBg = new Color(236, 244, 255);
         private final Color selectedBorder = new Color(110, 160, 255);
         private static final int HEIGHT_COMFORT = 126;
-        private static final int HEIGHT_COMPACT = 92;
-        private static final int HEIGHT_MINIMAL = 64;
         private final javax.swing.border.EmptyBorder comfortPadding = new javax.swing.border.EmptyBorder(8, 18, 8, 12);
-        private final javax.swing.border.EmptyBorder compactPadding = new javax.swing.border.EmptyBorder(6, 16, 6, 10);
-        private final javax.swing.border.EmptyBorder minimalPadding = new javax.swing.border.EmptyBorder(6, 16, 6, 10);
         private boolean selected;
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
@@ -623,9 +615,9 @@ public class NotebookEntriesPanel extends JPanel {
             int hoverIdx = hoverObj instanceof Integer ? (Integer) hoverObj : -1;
             hovered = (hoverIdx == index);
             EntryViewMode viewMode = resolveViewMode(list);
-            boolean showStats = viewMode != EntryViewMode.MINIMAL;
-            boolean showSnippet = viewMode != EntryViewMode.MINIMAL;
-            boolean showEditedContext = viewMode != EntryViewMode.COMPACT;
+            boolean showStats = viewMode == EntryViewMode.COMFORT;
+            boolean showSnippet = viewMode == EntryViewMode.COMFORT;
+            boolean showEditedContext = viewMode == EntryViewMode.COMFORT;
             boolean showSparkline = viewMode == EntryViewMode.COMFORT;
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
@@ -669,20 +661,8 @@ public class NotebookEntriesPanel extends JPanel {
             snippet.setVisible(showSnippet);
             editedContextLabel.setVisible(showEditedContext);
             sparkline.setVisible(showSparkline);
-            switch (viewMode) {
-                case COMPACT -> {
-                    setBorder(compactPadding);
-                    setPreferredSize(new Dimension(1, HEIGHT_COMPACT));
-                }
-                case MINIMAL -> {
-                    setBorder(minimalPadding);
-                    setPreferredSize(new Dimension(1, HEIGHT_MINIMAL));
-                }
-                default -> {
-                    setBorder(comfortPadding);
-                    setPreferredSize(new Dimension(1, HEIGHT_COMFORT));
-                }
-            }
+            setBorder(comfortPadding);
+            setPreferredSize(new Dimension(1, HEIGHT_COMFORT));
             this.selected = isSelected;
             return this;
         }
@@ -1709,13 +1689,9 @@ public class NotebookEntriesPanel extends JPanel {
         top.add(new JLabel("View:"));
         JPanel viewModeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         viewModeRow.setOpaque(false);
-        comfortViewBtn = createViewModeButton("view_comfort", "Comfort view", EntryViewMode.COMFORT);
-        compactViewBtn = createViewModeButton("view_compact", "Compact view", EntryViewMode.COMPACT);
-        minimalViewBtn = createViewModeButton("view_minimal", "Minimal view", EntryViewMode.MINIMAL);
+        comfortViewBtn = createViewModeButton("view_comfort", "Classic card view", EntryViewMode.COMFORT);
         calendarViewBtn = createViewModeButton("view_calendar", "Calendar view", EntryViewMode.CALENDAR);
         viewModeRow.add(comfortViewBtn);
-        viewModeRow.add(compactViewBtn);
-        viewModeRow.add(minimalViewBtn);
         viewModeRow.add(calendarViewBtn);
         top.add(viewModeRow);
         top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn);
@@ -1889,8 +1865,6 @@ public class NotebookEntriesPanel extends JPanel {
 
     private void applyViewModeSelectionState() {
         if (comfortViewBtn != null) comfortViewBtn.setSelected(viewMode == EntryViewMode.COMFORT);
-        if (compactViewBtn != null) compactViewBtn.setSelected(viewMode == EntryViewMode.COMPACT);
-        if (minimalViewBtn != null) minimalViewBtn.setSelected(viewMode == EntryViewMode.MINIMAL);
         if (calendarViewBtn != null) calendarViewBtn.setSelected(viewMode == EntryViewMode.CALENDAR);
     }
 

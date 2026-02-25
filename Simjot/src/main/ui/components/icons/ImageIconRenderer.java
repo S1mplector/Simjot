@@ -444,7 +444,6 @@ public final class ImageIconRenderer {
             case "general_settings", "settings_general" -> iconSvg("Layout-Dashboard");
             case "appearance_settings", "settings_appearance" -> iconSvg("Brightness");
             case "storage_settings", "settings_storage" -> iconSvg("Layout");
-            case "sim_settings", "settings_sim" -> iconSvg("Laptop-Help-Message");
             case "about_settings", "settings_about" -> iconSvg("Information-Circle");
             case "security", "security_settings" -> iconSvg("Lock-5");
             case "debug_settings", "settings_debug" -> iconSvg("Cog-Search-1");
