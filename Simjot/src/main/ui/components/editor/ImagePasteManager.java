@@ -10,6 +10,7 @@ package main.ui.components.editor;
 
 import java.awt.AWTEvent;
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Component;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -48,6 +49,7 @@ import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -68,7 +70,7 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.slider.MoodSlider;
+import main.ui.components.slider.ImageSizeSlider;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -215,30 +217,29 @@ public final class ImagePasteManager {
         int maxW = Math.max(defaultMaxWidth * 2, Math.max(currentW * 2, editor.getWidth()));
 
         final File[] srcRef = new File[]{sourceFile};
+        final int originalW = currentIcon.getIconWidth();
+        final int originalH = currentIcon.getIconHeight();
+        final float aspectRatio = originalH / (float) originalW;
 
         JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
-        toolbar.setBackground(Color.WHITE);
+        toolbar.setBackground(new Color(0, 0, 0, 0));
         toolbar.setAlwaysOnTop(true);
         activeOverlay = toolbar;
 
-        JPanel content = new JPanel(new java.awt.BorderLayout(10, 0));
-        content.setOpaque(true);
-        content.setBackground(Color.WHITE);
-        content.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(202, 208, 216), 1),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+        FrostedGlassPanel content = new FrostedGlassPanel(new java.awt.BorderLayout(10, 0), 16);
+        content.setOpacityScale(0.98f);
+        content.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
 
-        MoodSlider sizeSlider = new MoodSlider();
-        sizeSlider.setMinimum(minW);
-        sizeSlider.setMaximum(maxW);
-        sizeSlider.setValue(currentW);
-        sizeSlider.setPreferredSize(new Dimension(180, 28));
-        sizeSlider.setFocusable(false);
+        ImageSizeSlider sizeSlider = createImageSizeSlider(minW, maxW, currentW);
 
-        JLabel sizeLabel = new JLabel(currentW + "px");
-        sizeLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-        sizeLabel.setForeground(new Color(90, 95, 105));
-        sizeLabel.setPreferredSize(new Dimension(45, 20));
+        JLabel widthLabel = new JLabel("Width");
+        widthLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+        widthLabel.setForeground(new Color(48, 58, 75));
+        widthLabel.setPreferredSize(new Dimension(36, 20));
+
+        JLabel sizeLabel = createSizeValueLabel(currentW, originalW);
+        JButton resetBtn = createOverlayTextButton("Reset");
+        resetBtn.setToolTipText("Restore original width");
 
         ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
         deleteBtn.setPreferredSize(new Dimension(30, 30));
@@ -246,15 +247,10 @@ public final class ImagePasteManager {
         deleteBtn.setMaximumSize(new Dimension(30, 30));
         deleteBtn.setToolTipText("Delete image");
 
-        // Track original dimensions for aspect ratio
-        final int originalW = currentIcon.getIconWidth();
-        final int originalH = currentIcon.getIconHeight();
-        final float aspectRatio = originalH / (float) originalW;
-
         sizeSlider.addChangeListener(e -> {
             int newW = sizeSlider.getValue();
             int newH = Math.round(newW * aspectRatio);
-            sizeLabel.setText(newW + "px");
+            updateSizeValueLabel(sizeLabel, newW, originalW);
 
             if (sizeSlider.getValueIsAdjusting()) {
                 // Show live size preview overlay while dragging
@@ -267,6 +263,13 @@ public final class ImagePasteManager {
             }
         });
 
+        resetBtn.addActionListener(e -> {
+            int resetW = clampInt(originalW, minW, maxW);
+            if (sizeSlider.getValue() != resetW) {
+                sizeSlider.setValue(resetW);
+            }
+        });
+
         deleteBtn.addActionListener(e -> {
             try {
                 StyledDocument doc = editor.getStyledDocument();
@@ -276,13 +279,15 @@ public final class ImagePasteManager {
         });
 
 
-        JPanel sliderPanel = new JPanel(new java.awt.BorderLayout(6, 0));
+        JPanel sliderPanel = new JPanel(new java.awt.BorderLayout(8, 0));
         sliderPanel.setOpaque(false);
+        sliderPanel.add(widthLabel, java.awt.BorderLayout.WEST);
         sliderPanel.add(sizeSlider, java.awt.BorderLayout.CENTER);
         sliderPanel.add(sizeLabel, java.awt.BorderLayout.EAST);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         actions.setOpaque(false);
+        actions.add(resetBtn);
         actions.add(deleteBtn);
         content.add(sliderPanel, java.awt.BorderLayout.CENTER);
         content.add(actions, java.awt.BorderLayout.EAST);
@@ -331,6 +336,50 @@ public final class ImagePasteManager {
         dismissActiveOverlay();
     }
 
+    private static ImageSizeSlider createImageSizeSlider(int minW, int maxW, int currentW) {
+        ImageSizeSlider sizeSlider = new ImageSizeSlider();
+        sizeSlider.setMinimum(minW);
+        sizeSlider.setMaximum(maxW);
+        sizeSlider.setValue(clampInt(currentW, minW, maxW));
+        sizeSlider.setPreferredSize(new Dimension(190, 28));
+        sizeSlider.setFocusable(false);
+        return sizeSlider;
+    }
+
+    private static JLabel createSizeValueLabel(int width, int originalWidth) {
+        JLabel sizeLabel = new JLabel();
+        sizeLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+        sizeLabel.setForeground(new Color(33, 43, 60));
+        sizeLabel.setOpaque(true);
+        sizeLabel.setBackground(new Color(255, 255, 255, 165));
+        sizeLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(112, 126, 148, 120), 1, true),
+                BorderFactory.createEmptyBorder(3, 8, 3, 8)));
+        sizeLabel.setPreferredSize(new Dimension(92, 22));
+        updateSizeValueLabel(sizeLabel, width, originalWidth);
+        return sizeLabel;
+    }
+
+    private static void updateSizeValueLabel(JLabel sizeLabel, int width, int originalWidth) {
+        if (sizeLabel == null) return;
+        int safeOriginal = Math.max(1, originalWidth);
+        int pct = Math.max(1, Math.round((width * 100f) / safeOriginal));
+        sizeLabel.setText(width + "px (" + pct + "%)");
+    }
+
+    private static JButton createOverlayTextButton(String text) {
+        JButton button = new JButton(text);
+        button.setFocusable(false);
+        button.setOpaque(false);
+        button.setContentAreaFilled(false);
+        button.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
+        button.setForeground(new Color(45, 57, 76));
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(110, 126, 152, 145), 1, true),
+                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
+        return button;
+    }
+
     /**
      * Shows a subtle "being edited" overlay on the image.
      */
@@ -355,13 +404,33 @@ public final class ImagePasteManager {
                 protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    // Subtle blue tint overlay
-                    g2.setColor(new Color(59, 130, 246, 35));
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                    // Border
-                    g2.setColor(new Color(59, 130, 246, 120));
-                    g2.setStroke(new java.awt.BasicStroke(2f));
-                    g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 8, 8);
+                    int w = getWidth();
+                    int h = getHeight();
+                    int arc = Math.max(8, Math.min(14, Math.min(w, h) / 7));
+
+                    g2.setColor(new Color(45, 124, 220, 24));
+                    g2.fillRoundRect(0, 0, w, h, arc, arc);
+
+                    g2.setColor(new Color(45, 124, 220, 148));
+                    g2.setStroke(new BasicStroke(1.75f));
+                    g2.drawRoundRect(1, 1, Math.max(1, w - 3), Math.max(1, h - 3), arc, arc);
+
+                    // Corner handles communicate "selected/editing" without fully obscuring the image.
+                    int handle = Math.max(8, Math.min(16, Math.min(w, h) / 5));
+                    int pad = 3;
+                    g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    g2.setColor(new Color(32, 102, 194, 210));
+                    g2.drawLine(pad, pad + handle, pad, pad);
+                    g2.drawLine(pad, pad, pad + handle, pad);
+
+                    g2.drawLine(w - pad - handle, pad, w - pad, pad);
+                    g2.drawLine(w - pad, pad, w - pad, pad + handle);
+
+                    g2.drawLine(pad, h - pad - handle, pad, h - pad);
+                    g2.drawLine(pad, h - pad, pad + handle, h - pad);
+
+                    g2.drawLine(w - pad - handle, h - pad, w - pad, h - pad);
+                    g2.drawLine(w - pad, h - pad - handle, w - pad, h - pad);
                     g2.dispose();
                 }
             };
@@ -810,128 +879,15 @@ public final class ImagePasteManager {
                                            Rectangle imageBounds,
                                            Supplier<File> attachmentsDirSupplier,
                                            int defaultMaxWidth) {
-        // Dismiss any existing overlay
-        dismissActiveOverlay();
-        
-        int currentW = currentIcon.getIconWidth();
-        int minW = 60;
-        int maxW = Math.max(defaultMaxWidth * 2, Math.max(currentW * 2, editor.getWidth()));
-        
-        // Mutable holder for the source file
-        final File[] srcRef = new File[]{ sourceFile };
-        
-        // Create a sleek floating toolbar
-        JWindow toolbar = new JWindow(SwingUtilities.getWindowAncestor(editor));
-        toolbar.setBackground(new Color(0, 0, 0, 0));
-        toolbar.setAlwaysOnTop(true);
-        activeOverlay = toolbar;
-        
-        FrostedGlassPanel content = new FrostedGlassPanel(new java.awt.BorderLayout(10, 0), 16);
-        content.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        
-        // Slider for resizing
-        MoodSlider sizeSlider = new MoodSlider();
-        sizeSlider.setMinimum(minW);
-        sizeSlider.setMaximum(maxW);
-        sizeSlider.setValue(currentW);
-        sizeSlider.setPreferredSize(new Dimension(180, 28));
-        sizeSlider.setFocusable(false);
-        
-        // Size label
-        JLabel sizeLabel = new JLabel(currentW + "px");
-        sizeLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-        sizeLabel.setForeground(new Color(90, 95, 105));
-        sizeLabel.setPreferredSize(new Dimension(45, 20));
-        
-        ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
-        deleteBtn.setPreferredSize(new Dimension(30, 30));
-        deleteBtn.setMinimumSize(new Dimension(30, 30));
-        deleteBtn.setMaximumSize(new Dimension(30, 30));
-        deleteBtn.setToolTipText("Delete image");
-        
-        // Track original dimensions for aspect ratio
-        final int originalW = currentIcon.getIconWidth();
-        final int originalH = currentIcon.getIconHeight();
-        final float aspectRatio = originalH / (float) originalW;
-
-        // Slider change listener - defer resize until release, show live preview
-        sizeSlider.addChangeListener(e -> {
-            int newW = sizeSlider.getValue();
-            int newH = Math.round(newW * aspectRatio);
-            sizeLabel.setText(newW + "px");
-            
-            if (sizeSlider.getValueIsAdjusting()) {
-                // Show live size preview overlay while dragging
-                showSizePreviewOverlay(editor, imageBounds, newW, newH);
-            } else {
-                // User released - apply the resize and hide preview
-                hideSizePreviewOverlay();
-                resizeImage(editor, startOffset, srcRef, newW, attachmentsDirSupplier);
-                repositionToolbar(toolbar, editor, startOffset);
-            }
-        });
-        
-        deleteBtn.addActionListener(e -> {
-            try {
-                StyledDocument doc = editor.getStyledDocument();
-                doc.remove(startOffset, 1);
-            } catch (BadLocationException ignored) {}
-            dismissActiveOverlay();
-        });
-
-        
-        // Layout: [slider] [size] [delete]
-        JPanel sliderPanel = new JPanel(new java.awt.BorderLayout(6, 0));
-        sliderPanel.setOpaque(false);
-        sliderPanel.add(sizeSlider, java.awt.BorderLayout.CENTER);
-        sliderPanel.add(sizeLabel, java.awt.BorderLayout.EAST);
-        
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        actions.setOpaque(false);
-        actions.add(deleteBtn);
-        content.add(sliderPanel, java.awt.BorderLayout.CENTER);
-        content.add(actions, java.awt.BorderLayout.EAST);
-        
-        toolbar.setContentPane(content);
-        toolbar.pack();
-        
-        // Position below the image
-        positionToolbar(toolbar, editor, imageBounds);
-        toolbar.setVisible(true);
-
-        // Show "being edited" overlay on the image
-        showImageEditOverlay(editor, imageBounds);
-
-        // Track editor and remove any previous listeners
-        activeEditor = editor;
-        removeActiveListeners(editor);
-        installGlobalMouseListener();
-        
-        // Auto-dismiss when clicking elsewhere
-        activeMouseListener = new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) {
-                Point screenPoint = e.getLocationOnScreen();
-                if (!isMouseOverAnyOverlay(screenPoint)) {
-                    dismissActiveOverlay();
-                }
-            }
-        };
-        editor.addMouseListener(activeMouseListener);
-        
-        // Dismiss on focus loss
-        activeFocusListener = new java.awt.event.FocusAdapter() {
-            @Override public void focusLost(java.awt.event.FocusEvent e) {
-                Timer timer = new Timer(200, ev -> {
-                    Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
-                    if (focused != toolbar && focused != imageEditOverlay && focused != sizePreviewOverlay) {
-                        dismissActiveOverlay();
-                    }
-                });
-                timer.setRepeats(false);
-                timer.start();
-            }
-        };
-        editor.addFocusListener(activeFocusListener);
+        showMinimalToolbarWithFade(
+                editor,
+                startOffset,
+                sourceFile,
+                currentIcon,
+                imageBounds,
+                null,
+                attachmentsDirSupplier,
+                defaultMaxWidth);
     }
     
     private static void positionToolbar(JWindow toolbar, JTextPane editor, Rectangle imageBounds) {
