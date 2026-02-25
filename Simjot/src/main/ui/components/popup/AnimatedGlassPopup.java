@@ -16,16 +16,18 @@ import java.util.function.Supplier;
 /**
  * Reusable animated glass-styled popup window.
  * - Chrome: soft shadow + Aero vertical gradient + glass overlay
- * - Animation: size-based expand/collapse using cosine ease-in-out over 220ms
+ * - Animation: size-based expand/collapse using eased cubic timing
  */
 public class AnimatedGlassPopup extends JWindow {
 
     private static final int ARC = 12;
     private static final int PADDING = 8;
     private static final int SHADOW = 6;
+    private static final int SCREEN_MARGIN = 6;
+    private static final int ANCHOR_GAP = 8;
     private static final int COLLAPSED_W = 50;
     private static final int COLLAPSED_H = 50;
-    private static final int ANIM_TICK_MS = 15;
+    private static final int ANIM_TICK_MS = 16;
     private static final long SHOW_DURATION_MS = 190;
     private static final long HIDE_DURATION_MS = 160;
     private static final long UPDATE_DURATION_MS = 130;
@@ -90,24 +92,26 @@ public class AnimatedGlassPopup extends JWindow {
             }
         };
         chromePanel.setOpaque(false);
+        chromePanel.setDoubleBuffered(true);
         chromePanel.setLayout(new GridBagLayout());
         JPanel inner = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
         inner.setOpaque(false);
+        inner.setBorder(BorderFactory.createEmptyBorder(2, 2, 4, 2));
         for (Component c : content.getComponents()) inner.add(c);
         chromePanel.add(inner);
 
-        Dimension pref = content.getPreferredSize();
-        width = Math.max(220, pref.width + (PADDING*2) + SHADOW*2);
-        height = Math.max(40, pref.height + (PADDING*2) + SHADOW*2);
-        targetX = screenX - width/2;
-        targetY = screenY - height - 8;
+        Dimension pref = inner.getPreferredSize();
+        width = Math.max(228, pref.width + (PADDING * 2) + SHADOW * 2);
+        height = Math.max(46, pref.height + (PADDING * 2) + SHADOW * 2);
+        Rectangle endBounds = resolvePopupBounds(screenX, screenY, width, height);
+        targetX = endBounds.x;
+        targetY = endBounds.y;
 
         setContentPane(chromePanel);
         if (resizeTimer != null && resizeTimer.isRunning()) {
             resizeTimer.stop();
         }
 
-        Rectangle endBounds = new Rectangle(targetX, targetY, width, height);
         if (!wasVisible) {
             Rectangle startBounds = new Rectangle(targetX, targetY, COLLAPSED_W, COLLAPSED_H);
             setBounds(startBounds);
@@ -121,7 +125,6 @@ public class AnimatedGlassPopup extends JWindow {
 
         Rectangle startBounds = getBounds();
         if (startBounds.equals(endBounds)) {
-            revalidate();
             repaint();
             return;
         }
@@ -147,18 +150,19 @@ public class AnimatedGlassPopup extends JWindow {
     private void animateBounds(Rectangle startBounds, Rectangle endBounds, long durationMs, Runnable onComplete) {
         if (durationMs <= 0L) {
             setBounds(endBounds);
-            revalidate();
             repaint();
             if (onComplete != null) onComplete.run();
             return;
         }
 
-        final long startTime = System.currentTimeMillis();
+        final long startTime = System.nanoTime();
         resizeTimer = new javax.swing.Timer(ANIM_TICK_MS, null);
+        resizeTimer.setCoalesce(true);
         resizeTimer.addActionListener(e -> {
-            long now = System.currentTimeMillis();
-            float t = Math.min(1f, (now - startTime) / (float) durationMs);
-            float ease = (float) (0.5 - 0.5 * Math.cos(Math.PI * t));
+            long now = System.nanoTime();
+            float elapsedMs = (now - startTime) / 1_000_000f;
+            float t = Math.min(1f, elapsedMs / (float) durationMs);
+            float ease = 1f - (float) Math.pow(1f - t, 3f);
 
             int x = (int) (startBounds.x + (endBounds.x - startBounds.x) * ease);
             int y = (int) (startBounds.y + (endBounds.y - startBounds.y) * ease);
@@ -166,14 +170,69 @@ public class AnimatedGlassPopup extends JWindow {
             int h = (int) (startBounds.height + (endBounds.height - startBounds.height) * ease);
 
             setBounds(x, y, w, h);
-            revalidate();
             repaint();
             if (t >= 1f) {
                 resizeTimer.stop();
                 setBounds(endBounds);
+                repaint();
                 if (onComplete != null) onComplete.run();
             }
         });
         resizeTimer.start();
+    }
+
+    private Rectangle resolvePopupBounds(int anchorX, int anchorY, int popupWidth, int popupHeight) {
+        Rectangle usable = resolveUsableScreen(anchorX, anchorY);
+        int minX = usable.x + SCREEN_MARGIN;
+        int minY = usable.y + SCREEN_MARGIN;
+        int maxX = usable.x + Math.max(0, usable.width - popupWidth - SCREEN_MARGIN);
+        int maxY = usable.y + Math.max(0, usable.height - popupHeight - SCREEN_MARGIN);
+
+        int preferredX = anchorX - popupWidth / 2;
+        int aboveY = anchorY - popupHeight - ANCHOR_GAP;
+        int belowY = anchorY + ANCHOR_GAP;
+
+        int x = clamp(preferredX, minX, maxX);
+        int y = aboveY;
+        if (aboveY < minY && belowY <= maxY) {
+            y = belowY;
+        }
+        y = clamp(y, minY, maxY);
+
+        return new Rectangle(x, y, popupWidth, popupHeight);
+    }
+
+    private Rectangle resolveUsableScreen(int x, int y) {
+        GraphicsConfiguration best = null;
+        Point p = new Point(x, y);
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        for (GraphicsDevice device : ge.getScreenDevices()) {
+            GraphicsConfiguration gc = device.getDefaultConfiguration();
+            Rectangle bounds = gc.getBounds();
+            if (bounds.contains(p)) {
+                best = gc;
+                break;
+            }
+        }
+        if (best == null && getOwner() != null) {
+            best = getOwner().getGraphicsConfiguration();
+        }
+        if (best == null) {
+            Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+            return new Rectangle(0, 0, Math.max(1, screen.width), Math.max(1, screen.height));
+        }
+
+        Rectangle bounds = new Rectangle(best.getBounds());
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(best);
+        bounds.x += insets.left;
+        bounds.y += insets.top;
+        bounds.width = Math.max(1, bounds.width - insets.left - insets.right);
+        bounds.height = Math.max(1, bounds.height - insets.top - insets.bottom);
+        return bounds;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        if (max < min) return min;
+        return Math.max(min, Math.min(value, max));
     }
 }

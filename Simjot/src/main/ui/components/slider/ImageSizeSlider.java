@@ -8,8 +8,10 @@
 
 package main.ui.components.slider;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
@@ -34,6 +36,33 @@ public class ImageSizeSlider extends JSlider {
         setPreferredSize(new Dimension(190, 28));
         setDoubleBuffered(true);
         setUI(new ImageSizeSliderUI(this));
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        // Replace previous pixels in the repaint region to avoid thumb trails while dragging.
+        g2.setComposite(AlphaComposite.Src);
+        g2.setColor(resolveClearColor());
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        g2.dispose();
+        super.paintComponent(g);
+    }
+
+    private Color resolveClearColor() {
+        Color self = getBackground();
+        if (self != null && self.getAlpha() > 0) {
+            return self;
+        }
+        Container p = getParent();
+        while (p != null) {
+            Color bg = p.getBackground();
+            if (bg != null && bg.getAlpha() > 0) {
+                return bg;
+            }
+            p = p.getParent();
+        }
+        return new Color(245, 245, 245, 170);
     }
 
     private static class ImageSizeSliderUI extends BasicSliderUI {

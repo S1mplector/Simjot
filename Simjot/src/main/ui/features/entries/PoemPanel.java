@@ -371,6 +371,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(poemEditor),
                 () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(poemEditor),
                 () -> RichTextStyler.applyHeaderToSelection(poemEditor),
+                null,
                 null
         );
         toolbarContainer = sharedToolbar.getContainer();

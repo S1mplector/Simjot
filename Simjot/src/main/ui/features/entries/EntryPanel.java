@@ -376,6 +376,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) { }
     protected void installContentOverlay(JComponent textWrapper, JScrollPane scrollPane) { }
+    protected Runnable getCodeBlockInsertAction() { return null; }
 
     // Load an existing entry file into the editor fields
     private void loadExistingEntry(File fileToEdit) {
@@ -1168,6 +1169,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 () -> main.ui.components.editor.RichTextStyler.toggleBulletList(contentArea),
                 () -> main.ui.components.editor.RichTextStyler.toggleNumberedList(contentArea),
                 () -> RichTextStyler.applyHeaderToSelection(contentArea),
+                getCodeBlockInsertAction(),
                 this::insertTextDivider
         );
 

@@ -123,7 +123,6 @@ public class NotetakingPanel extends EntryPanel {
     private main.ui.components.buttons.ToolbarIconButton eraserBtn;
     private main.ui.components.buttons.ToolbarIconButton lassoBtn;
     private main.ui.components.buttons.TextColorButton textColorBtn;
-    private main.ui.components.buttons.ToolbarIconButton codeSyntaxBtn;
     private Color currentTextColor = Color.BLACK;
     private EditingMode editingMode = EditingMode.TEXT;
     private final java.util.Deque<Color> recentColors = new java.util.ArrayDeque<>();
@@ -168,27 +167,44 @@ public class NotetakingPanel extends EntryPanel {
         } catch (Throwable ignored) {}
     }
     
-    private void toggleCodeSyntax() {
-        if (codeSyntaxFormatter != null) {
-            boolean nowEnabled = codeSyntaxFormatter.toggle();
-            SettingsStore.get().setCodeSyntaxFormatterEnabled(nowEnabled);
-            SettingsStore.get().save();
-            updateCodeSyntaxButtonState();
-            String msg = nowEnabled ? "Code syntax highlighting ON" : "Code syntax highlighting OFF";
-            main.ui.components.toast.ToastOverlay.info(msg);
-        }
-    }
-    
-    private void updateCodeSyntaxButtonState() {
-        if (codeSyntaxBtn != null && codeSyntaxFormatter != null) {
-            boolean enabled = codeSyntaxFormatter.isEnabled();
-            codeSyntaxBtn.setSelected(enabled);
-            codeSyntaxBtn.setToolTipText(enabled 
-                ? "Code highlighting ON (click to disable)" 
-                : "Code highlighting OFF (click to enable)");
-        }
+    private void ensureCodeSyntaxEnabled() {
+        if (codeSyntaxFormatter == null) return;
+        if (codeSyntaxFormatter.isEnabled()) return;
+        codeSyntaxFormatter.setEnabled(true);
+        SettingsStore.get().setCodeSyntaxFormatterEnabled(true);
+        SettingsStore.get().save();
     }
 
+    private void insertJavaCodeBlock() {
+        if (contentArea == null) return;
+        if (!contentArea.isEditable()) {
+            main.ui.components.toast.ToastOverlay.info("Editor is read-only.");
+            return;
+        }
+        try {
+            StyledDocument doc = contentArea.getStyledDocument();
+            int pos = Math.max(0, Math.min(contentArea.getCaretPosition(), doc.getLength()));
+
+            boolean needLeadingNewline = pos > 0 && !"\n".equals(doc.getText(pos - 1, 1));
+            boolean needTrailingNewline = pos < doc.getLength() && !"\n".equals(doc.getText(pos, 1));
+
+            String prefix = needLeadingNewline ? "\n" : "";
+            String suffix = needTrailingNewline ? "\n" : "";
+            String template = "```java\n\n```";
+            String block = prefix + template + suffix;
+
+            doc.insertString(pos, block, null);
+            int caretInside = pos + prefix.length() + "```java\n".length();
+            contentArea.setCaretPosition(Math.min(doc.getLength(), caretInside));
+            contentArea.requestFocusInWindow();
+
+            ensureCodeSyntaxEnabled();
+            if (codeSyntaxFormatter != null) {
+                codeSyntaxFormatter.refresh();
+            }
+        } catch (BadLocationException ignored) {}
+    }
+    
     private void maybeShowDrawMenu(MouseEvent e, JComponent invoker) {
         if (!(e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3)) return; // right-click or platform popup
         if (drawToolMenu != null && drawToolMenu.isVisible()) return; // prevent re-show on release
@@ -210,6 +226,11 @@ public class NotetakingPanel extends EntryPanel {
     @Override
     protected boolean supportsGuidanceButton() {
         return false;
+    }
+
+    @Override
+    protected Runnable getCodeBlockInsertAction() {
+        return this::insertJavaCodeBlock;
     }
 
     @Override
@@ -245,14 +266,6 @@ public class NotetakingPanel extends EntryPanel {
     // Install Draw toggle + tool chooser into the right toolbar
     @Override
     protected void installExtraRightToolbarButtons(JPanel rightToolbar) {
-        // Code syntax highlighting toggle button
-        codeSyntaxBtn = new main.ui.components.buttons.ToolbarIconButton("code");
-        codeSyntaxBtn.setToolTipText("Toggle code syntax highlighting (for ```code blocks)");
-        codeSyntaxBtn.addActionListener(e -> toggleCodeSyntax());
-        updateCodeSyntaxButtonState();
-        rightToolbar.add(codeSyntaxBtn);
-        rightToolbar.add(Box.createHorizontalStrut(6));
-        
         // Text color button (Bradley Hand "A" colored by current text color)
         textColorBtn = new main.ui.components.buttons.TextColorButton();
         textColorBtn.setTextColor(currentTextColor);

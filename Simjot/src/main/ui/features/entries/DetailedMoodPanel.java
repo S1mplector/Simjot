@@ -17,8 +17,10 @@ import java.awt.Font;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -82,9 +84,10 @@ public class DetailedMoodPanel extends JPanel {
     private static final int IDX_STRESS = 7;
 
     private static final int CHANGE_DEBOUNCE_MS = 130;
-    private static final int STAGGER_SETTLE_MS = 70;
-    private static final int STAGGER_DELAY_MS = 36;
-    private static final int STAGGER_DURATION_MS = 170;
+    private static final int STAGGER_SETTLE_MS = 28;
+    private static final int STAGGER_DELAY_MS = 20;
+    private static final int STAGGER_DURATION_MS = 120;
+    private static final int HEIGHT_ANIM_TICK_MS = 16;
 
     private final MoodSlider joy = createEmotionSlider();
     private final MoodSlider calm = createEmotionSlider();
@@ -119,13 +122,15 @@ public class DetailedMoodPanel extends JPanel {
     private final Timer heightAnimationTimer;
     private int animationFrom = 0;
     private int animationTo = 0;
-    private long animationStartedAt = 0L;
+    private long animationStartedNanos = 0L;
+    private int animationFrameCounter = 0;
 
     private final Timer changeDebounceTimer;
 
     private final Timer staggerTimer;
     private boolean staggerExpanding = false;
-    private long staggerStartAt = 0L;
+    private long staggerStartNanos = 0L;
+    private final List<Integer> activeStaggerIndices = new ArrayList<>();
 
     private int primaryEmotion = -1;
     private int secondaryEmotion = -1;
@@ -184,6 +189,25 @@ public class DetailedMoodPanel extends JPanel {
             protected float getOpacityScale() {
                 return 0.84f;
             }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                if (w > 0 && h > 0) {
+                    int arc = 16;
+                    g2.setPaint(new GradientPaint(
+                            0, 0, new Color(255, 255, 255, 64),
+                            0, Math.max(1, h / 3), new Color(255, 255, 255, 0)));
+                    g2.fillRoundRect(1, 1, Math.max(1, w - 2), Math.max(1, h - 2), arc, arc);
+                    g2.setColor(new Color(108, 132, 172, 44));
+                    g2.drawRoundRect(1, 1, Math.max(1, w - 3), Math.max(1, h - 3), arc, arc);
+                }
+                g2.dispose();
+            }
         };
         shell.setOpaque(false);
         shell.setBorder(new EmptyBorder(10, 12, 12, 12));
@@ -223,7 +247,7 @@ public class DetailedMoodPanel extends JPanel {
 
         JPanel chipsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         chipsRow.setOpaque(false);
-        chipsRow.setBorder(new EmptyBorder(2, 0, 1, 0));
+        chipsRow.setBorder(new EmptyBorder(2, 0, 2, 0));
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
             EmotionChipButton chip = new EmotionChipButton(EMOTION_NAMES[i], EMOTION_COLORS[i], POSITIVE_EMOTIONS[i]);
             final int idx = i;
@@ -234,9 +258,9 @@ public class DetailedMoodPanel extends JPanel {
 
         JPanel utilityRow = new JPanel(new BorderLayout(8, 0));
         utilityRow.setOpaque(false);
-        utilityRow.setBorder(new EmptyBorder(6, 0, 1, 0));
+        utilityRow.setBorder(new EmptyBorder(6, 0, 2, 0));
 
-        JPanel utilityActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        JPanel utilityActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 1));
         utilityActions.setOpaque(false);
 
         clearActionButton = new UtilityActionButton("Reset");
@@ -267,14 +291,17 @@ public class DetailedMoodPanel extends JPanel {
         shell.add(center, BorderLayout.CENTER);
         add(shell, BorderLayout.CENTER);
 
-        heightAnimationTimer = new Timer(15, e -> stepHeightAnimation());
+        heightAnimationTimer = new Timer(HEIGHT_ANIM_TICK_MS, e -> stepHeightAnimation());
         heightAnimationTimer.setRepeats(true);
+        heightAnimationTimer.setCoalesce(true);
 
         changeDebounceTimer = new Timer(CHANGE_DEBOUNCE_MS, e -> emitChangeNow());
         changeDebounceTimer.setRepeats(false);
+        changeDebounceTimer.setCoalesce(true);
 
         staggerTimer = new Timer(16, e -> stepStaggerAnimation());
         staggerTimer.setRepeats(true);
+        staggerTimer.setCoalesce(true);
 
         installLiveListeners();
         refreshAllRowMeta();
@@ -574,11 +601,8 @@ public class DetailedMoodPanel extends JPanel {
             int from = getHeight() > 0 ? getHeight() : Math.max(0, getPreferredSize().height);
             animateHeight(from, targetHeight);
         } else {
-            int prefW = Math.max(0, getPreferredSize().width);
-            setPreferredSize(new Dimension(prefW, targetHeight));
+            applyAnimatedHeight(targetHeight, true);
             setVisible(targetHeight > 0);
-            revalidate();
-            repaint();
         }
     }
 
@@ -587,8 +611,9 @@ public class DetailedMoodPanel extends JPanel {
         for (int idx : selected) {
             EmotionSliderRow row = sliderRows[idx];
             row.setVisible(true);
-            row.setReveal(expanding ? 0f : 1f);
+            row.setReveal(expanding ? 0f : 1f, false);
         }
+        sliderStack.repaint();
     }
 
     private void startStaggerAnimation(boolean expanding) {
@@ -596,39 +621,41 @@ public class DetailedMoodPanel extends JPanel {
             staggerTimer.stop();
         }
 
+        activeStaggerIndices.clear();
+        activeStaggerIndices.addAll(selectedEmotionIndices());
+        if (activeStaggerIndices.isEmpty()) {
+            return;
+        }
+        if (!expanding) {
+            Collections.reverse(activeStaggerIndices);
+        }
+
         staggerExpanding = expanding;
-        staggerStartAt = System.currentTimeMillis();
+        staggerStartNanos = System.nanoTime();
         staggerTimer.start();
     }
 
     private void stepStaggerAnimation() {
-        List<Integer> selected = selectedEmotionIndices();
-        if (selected.isEmpty()) {
+        if (activeStaggerIndices.isEmpty()) {
             staggerTimer.stop();
             return;
         }
-
-        if (!staggerExpanding) {
-            selected = new ArrayList<>(selected);
-            java.util.Collections.reverse(selected);
-        }
-
-        long elapsed = System.currentTimeMillis() - staggerStartAt;
+        float elapsed = (System.nanoTime() - staggerStartNanos) / 1_000_000f;
         boolean allDone = true;
 
-        for (int order = 0; order < selected.size(); order++) {
-            int idx = selected.get(order);
+        for (int order = 0; order < activeStaggerIndices.size(); order++) {
+            int idx = activeStaggerIndices.get(order);
             EmotionSliderRow row = sliderRows[idx];
 
             long startOffset = (staggerExpanding ? STAGGER_SETTLE_MS : 0L) + (long) order * STAGGER_DELAY_MS;
             float t = clamp01((elapsed - startOffset) / (float) STAGGER_DURATION_MS);
-            float eased = staggerExpanding ? easeOutBack(t) : easeInCubic(t);
+            float eased = staggerExpanding ? easeOutCubic(t) : easeInCubic(t);
             float reveal = staggerExpanding ? eased : (1f - eased);
 
-            if (staggerExpanding) {
+            if (staggerExpanding && !row.isVisible()) {
                 row.setVisible(true);
             }
-            row.setReveal(reveal);
+            row.setReveal(reveal, false);
 
             if (!staggerExpanding && reveal <= 0.01f) {
                 row.setVisible(false);
@@ -638,40 +665,40 @@ public class DetailedMoodPanel extends JPanel {
                 allDone = false;
             }
         }
+        sliderStack.repaint();
 
         if (allDone) {
             staggerTimer.stop();
-            for (int idx : selectedEmotionIndices()) {
-                sliderRows[idx].setReveal(1f);
-                if (expanded) {
-                    sliderRows[idx].setVisible(true);
-                }
+            for (int idx : activeStaggerIndices) {
+                EmotionSliderRow row = sliderRows[idx];
+                row.setReveal(staggerExpanding ? 1f : 0f, false);
+                row.setVisible(staggerExpanding && expanded);
             }
+            sliderStack.repaint();
+            activeStaggerIndices.clear();
         }
     }
 
     private int calcInnerPreferredHeight() {
-        shell.doLayout();
-        shell.validate();
-        return shell.getPreferredSize().height;
+        int innerHeight = Math.max(0, shell.getPreferredSize().height);
+        Insets insets = getInsets();
+        return innerHeight + Math.max(0, insets.top) + Math.max(0, insets.bottom);
     }
 
     private void animateHeight(int from, int to) {
         int safeFrom = Math.max(0, from);
         int safeTo = Math.max(0, to);
         if (safeFrom == safeTo) {
-            int prefW = Math.max(0, getPreferredSize().width);
-            setPreferredSize(new Dimension(prefW, safeTo));
+            applyAnimatedHeight(safeTo, true);
             setVisible(safeTo > 0);
-            revalidate();
-            repaint();
             return;
         }
 
         setVisible(true);
         animationFrom = safeFrom;
         animationTo = safeTo;
-        animationStartedAt = System.currentTimeMillis();
+        animationStartedNanos = System.nanoTime();
+        animationFrameCounter = 0;
         if (heightAnimationTimer.isRunning()) {
             heightAnimationTimer.stop();
         }
@@ -679,19 +706,36 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void stepHeightAnimation() {
-        float p = Math.min(1f, (System.currentTimeMillis() - animationStartedAt) / (float) animMs);
+        float elapsedMs = (System.nanoTime() - animationStartedNanos) / 1_000_000f;
+        float p = Math.min(1f, elapsedMs / (float) Math.max(1, animMs));
         float e = 1f - (float) Math.pow(1f - p, 3f);
         int h = animationFrom + Math.round((animationTo - animationFrom) * e);
-        int prefW = Math.max(0, getPreferredSize().width);
-        setPreferredSize(new Dimension(prefW, h));
-        revalidate();
-        repaint();
+        animationFrameCounter++;
+        boolean fullLayoutPass = (animationFrameCounter % 3 == 0) || p >= 1f;
+        applyAnimatedHeight(h, fullLayoutPass);
         if (p >= 1f) {
             heightAnimationTimer.stop();
             if (animationTo == 0) {
                 setVisible(false);
             }
         }
+    }
+
+    private void applyAnimatedHeight(int height, boolean reflow) {
+        int safeHeight = Math.max(0, height);
+        Insets insets = getInsets();
+        int prefW = Math.max(0, getPreferredSize().width);
+        if (prefW <= 0) {
+            prefW = Math.max(0, shell.getPreferredSize().width + Math.max(0, insets.left) + Math.max(0, insets.right));
+        }
+        Dimension next = new Dimension(prefW, safeHeight);
+        if (!next.equals(getPreferredSize())) {
+            setPreferredSize(next);
+        }
+        if (reflow) {
+            revalidate();
+        }
+        repaint();
     }
 
     private void installLiveListeners() {
@@ -824,11 +868,9 @@ public class DetailedMoodPanel extends JPanel {
         return Math.max(0f, Math.min(1f, value));
     }
 
-    private static float easeOutBack(float t) {
-        float x = clamp01(t) - 1f;
-        float c1 = 1.70158f;
-        float c3 = c1 + 1f;
-        return clamp01(1f + c3 * x * x * x + c1 * x * x);
+    private static float easeOutCubic(float t) {
+        float x = 1f - clamp01(t);
+        return 1f - (x * x * x);
     }
 
     private static float easeInCubic(float t) {
@@ -905,16 +947,22 @@ public class DetailedMoodPanel extends JPanel {
         }
 
         private void setReveal(float value) {
-            reveal = clamp01(value);
-            repaint();
+            setReveal(value, true);
+        }
+
+        private void setReveal(float value, boolean repaintNow) {
+            float next = clamp01(value);
+            if (Math.abs(next - reveal) < 0.003f) return;
+            reveal = next;
+            if (repaintNow) repaint();
         }
 
         @Override
         public void paint(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
-            float alpha = 0.08f + 0.92f * reveal;
-            int dy = Math.round((1f - reveal) * 8f);
-            float scale = 0.965f + 0.035f * reveal;
+            float alpha = 0.2f + 0.8f * reveal;
+            int dy = Math.round((1f - reveal) * 4f);
+            float scale = 0.985f + 0.015f * reveal;
             int w = Math.max(1, getWidth());
             int h = Math.max(1, getHeight());
             g2.translate(0, dy);
@@ -984,17 +1032,18 @@ public class DetailedMoodPanel extends JPanel {
             setFocusPainted(false);
             setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
             setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-            setMargin(new java.awt.Insets(5, 10, 5, 10));
+            setMargin(new java.awt.Insets(6, 11, 7, 11));
 
             animationTimer = new Timer(16, e -> stepAnimation());
             animationTimer.setRepeats(true);
+            animationTimer.setCoalesce(true);
             getModel().addChangeListener(e -> requestAnimation());
         }
 
         @Override
         public Dimension getPreferredSize() {
             Dimension d = super.getPreferredSize();
-            d.height = Math.max(28, d.height + 2);
+            d.height = Math.max(30, d.height + 4);
             d.width += 6;
             return d;
         }
@@ -1128,17 +1177,18 @@ public class DetailedMoodPanel extends JPanel {
             setFocusPainted(false);
             setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
             setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
-            setMargin(new java.awt.Insets(4, 9, 4, 9));
+            setMargin(new java.awt.Insets(5, 10, 6, 10));
 
             animationTimer = new Timer(16, e -> stepAnimation());
             animationTimer.setRepeats(true);
+            animationTimer.setCoalesce(true);
             getModel().addChangeListener(e -> requestAnimation());
         }
 
         @Override
         public Dimension getPreferredSize() {
             Dimension d = super.getPreferredSize();
-            d.height = Math.max(22, d.height);
+            d.height = Math.max(24, d.height + 2);
             d.width += 6;
             return d;
         }

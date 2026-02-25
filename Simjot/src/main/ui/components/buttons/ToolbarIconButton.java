@@ -184,7 +184,7 @@ public class ToolbarIconButton extends JButton {
     private static boolean isVectorOnlyIcon(String iconId) {
         return switch (iconId) {
             case "pen_tool", "highlighter_tool", "eraser_tool", "lasso_tool", "select_text", "text_divider",
-                 "view_comfort", "view_calendar" -> true;
+                 "view_comfort", "view_calendar", "code_block" -> true;
             default -> false;
         };
     }
@@ -636,6 +636,32 @@ public class ToolbarIconButton extends JButton {
 
                 g2.setColor(new Color(88, 133, 255, 220));
                 g2.fillRoundRect(x + 10, y + 9, 3, 3, 2, 2);
+                break; }
+
+            case "code_block": {
+                g2.setStroke(new BasicStroke(2.1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+                Path2D leftBrace = new Path2D.Float();
+                leftBrace.moveTo(cx - 8, cy - 9);
+                leftBrace.curveTo(cx - 11, cy - 9, cx - 11, cy - 6, cx - 9, cy - 4);
+                leftBrace.curveTo(cx - 8, cy - 3, cx - 8, cy - 1, cx - 10, cy + 1);
+                leftBrace.curveTo(cx - 12, cy + 3, cx - 11, cy + 6, cx - 8, cy + 9);
+
+                Path2D rightBrace = new Path2D.Float();
+                rightBrace.moveTo(cx + 8, cy - 9);
+                rightBrace.curveTo(cx + 11, cy - 9, cx + 11, cy - 6, cx + 9, cy - 4);
+                rightBrace.curveTo(cx + 8, cy - 3, cx + 8, cy - 1, cx + 10, cy + 1);
+                rightBrace.curveTo(cx + 12, cy + 3, cx + 11, cy + 6, cx + 8, cy + 9);
+
+                g2.setColor(new Color(88, 133, 255));
+                g2.draw(leftBrace);
+                g2.setColor(new Color(90, 168, 116));
+                g2.draw(rightBrace);
+
+                g2.setColor(new Color(110, 122, 142));
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx - 2, cy - 3, cx + 2, cy - 3);
+                g2.drawLine(cx - 2, cy + 3, cx + 2, cy + 3);
                 break; }
             
             default:

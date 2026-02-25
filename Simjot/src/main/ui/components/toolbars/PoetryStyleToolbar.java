@@ -53,6 +53,7 @@ public class PoetryStyleToolbar extends JPanel {
     private NumberedListButton numberedBtn;
     private HandStyleToggleButton headerBtn;
     private HandStyleToggleButton dividerBtn;
+    private HandStyleToggleButton codeBlockBtn;
 
     public PoetryStyleToolbar(
             JournalApp app,
@@ -70,6 +71,7 @@ public class PoetryStyleToolbar extends JPanel {
             Runnable onBulletList,
             Runnable onNumberedList,
             Runnable onHeaderSelection,
+            Runnable onCodeBlockInsert,
             Runnable onTextDivider
     ) {
         super(new BorderLayout(0, 5));
@@ -131,6 +133,15 @@ public class PoetryStyleToolbar extends JPanel {
             });
         }
 
+        if (onCodeBlockInsert != null) {
+            codeBlockBtn = new HandStyleToggleButton("{}");
+            codeBlockBtn.setToolTipText("Insert Java code block");
+            codeBlockBtn.addActionListener(e -> {
+                onCodeBlockInsert.run();
+                codeBlockBtn.setSelected(false);
+            });
+        }
+
         if (onTextDivider != null) {
             dividerBtn = new HandStyleToggleButton("—");
             dividerBtn.setToolTipText("Insert divider");
@@ -140,7 +151,7 @@ public class PoetryStyleToolbar extends JPanel {
             });
         }
         
-        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, bulletBtn, numberedBtn, headerBtn, dividerBtn}) {
+        for (JComponent btn : new JComponent[]{boldBtn, italicBtn, underlineBtn, strikeBtn, codeBlockBtn, bulletBtn, numberedBtn, headerBtn, dividerBtn}) {
             if (btn == null) continue;
             alignCenter(btn);
         }
@@ -152,6 +163,10 @@ public class PoetryStyleToolbar extends JPanel {
         row.add(underlineBtn);
         row.add(Box.createHorizontalStrut(6));
         row.add(strikeBtn);
+        if (codeBlockBtn != null) {
+            row.add(Box.createHorizontalStrut(6));
+            row.add(codeBlockBtn);
+        }
         row.add(Box.createHorizontalStrut(10));
         row.add(bulletBtn);
         row.add(Box.createHorizontalStrut(6));

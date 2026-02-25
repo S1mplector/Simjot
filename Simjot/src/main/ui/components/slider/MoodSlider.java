@@ -26,11 +26,12 @@ import javax.swing.plaf.basic.BasicSliderUI;
 
 /**
  * A horizontal slider that lets the user pick their mood on a 0-100 scale.
- * The track shows a cool→neutral→warm gradient and the thumb is a plain
- * circular knob.
+ * By default the track shows a cool→neutral→warm gradient, and the thumb is
+ * a plain circular knob.
  */
 public class MoodSlider extends JSlider {
     private float gradientAlpha = 1f;
+    private boolean gradientVisible = true;
     private boolean hovered = false;
     private boolean hoverFadeEnabled = false;
     private Timer fadeTimer;
@@ -62,6 +63,17 @@ public class MoodSlider extends JSlider {
             gradientAlpha = 1f;
             if (fadeTimer != null) fadeTimer.stop();
         }
+        repaint();
+    }
+
+    /**
+     * Toggle the coloured gradient fill of the track.
+     * When disabled, the slider keeps the same shape and thumb
+     * but uses a neutral track fill.
+     */
+    public void setGradientVisible(boolean visible) {
+        if (this.gradientVisible == visible) return;
+        this.gradientVisible = visible;
         repaint();
     }
 
@@ -97,6 +109,10 @@ public class MoodSlider extends JSlider {
 
     float getGradientAlpha() {
         return gradientAlpha;
+    }
+
+    boolean isGradientVisible() {
+        return gradientVisible;
     }
 
     /**
@@ -148,21 +164,28 @@ public class MoodSlider extends JSlider {
             g2.setColor(new Color(0, 0, 0, 35));
             g2.drawRoundRect(trackLeft, plateTop, trackWidth, plateH, plateH, plateH);
 
-            // Build gradient: blue (0) → grey (50) → orange (100) with fade animation
-            float alpha = ((MoodSlider) slider).getGradientAlpha();
-            if (alpha > 0f) {
-                LinearGradientPaint paint = new LinearGradientPaint(
-                        trackLeft, 0, trackLeft + trackWidth, 0,
-                        new float[] { 0f, 0.5f, 1f },
-                        new Color[] {
-                                new Color(0, 122, 204),       // cool blue
-                                new Color(200, 200, 200),      // neutral grey
-                                new Color(255, 120, 50)        // warm orange
-                        });
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                g2.setPaint(paint);
+            MoodSlider moodSlider = (MoodSlider) slider;
+            if (moodSlider.isGradientVisible()) {
+                // Build gradient: blue (0) → grey (50) → orange (100) with fade animation
+                float alpha = moodSlider.getGradientAlpha();
+                if (alpha > 0f) {
+                    LinearGradientPaint paint = new LinearGradientPaint(
+                            trackLeft, 0, trackLeft + trackWidth, 0,
+                            new float[] { 0f, 0.5f, 1f },
+                            new Color[] {
+                                    new Color(0, 122, 204),       // cool blue
+                                    new Color(200, 200, 200),      // neutral grey
+                                    new Color(255, 120, 50)        // warm orange
+                            });
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                    g2.setPaint(paint);
+                    g2.fillRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
+                    g2.setComposite(AlphaComposite.SrcOver); // reset
+                }
+            } else {
+                // Same slider style, but neutral track without mood gradient.
+                g2.setColor(new Color(186, 193, 205, 185));
                 g2.fillRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
-                g2.setComposite(AlphaComposite.SrcOver); // reset
             }
             g2.setColor(new Color(255, 255, 255, 120));
             g2.drawRoundRect(trackLeft, trackTop, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);

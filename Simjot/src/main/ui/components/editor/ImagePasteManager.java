@@ -33,6 +33,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.AWTEventListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Arc2D;
+import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -48,6 +50,7 @@ import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -70,7 +73,7 @@ import main.infrastructure.ffi.NativeAccess;
 import main.infrastructure.io.FileIO;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.slider.ImageSizeSlider;
+import main.ui.components.slider.MoodSlider;
 import main.ui.theme.aero.AeroTheme;
 
 /**
@@ -230,7 +233,7 @@ public final class ImagePasteManager {
         content.setOpacityScale(0.98f);
         content.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
 
-        ImageSizeSlider sizeSlider = createImageSizeSlider(minW, maxW, currentW);
+        MoodSlider sizeSlider = createImageSizeSlider(minW, maxW, currentW);
 
         JLabel widthLabel = new JLabel("Width");
         widthLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
@@ -238,7 +241,7 @@ public final class ImagePasteManager {
         widthLabel.setPreferredSize(new Dimension(36, 20));
 
         JLabel sizeLabel = createSizeValueLabel(currentW, originalW);
-        JButton resetBtn = createOverlayTextButton("Reset");
+        JButton resetBtn = createOverlayResetButton();
         resetBtn.setToolTipText("Restore original width");
 
         ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
@@ -336,13 +339,15 @@ public final class ImagePasteManager {
         dismissActiveOverlay();
     }
 
-    private static ImageSizeSlider createImageSizeSlider(int minW, int maxW, int currentW) {
-        ImageSizeSlider sizeSlider = new ImageSizeSlider();
+    private static MoodSlider createImageSizeSlider(int minW, int maxW, int currentW) {
+        MoodSlider sizeSlider = new MoodSlider();
+        sizeSlider.setGradientVisible(false);
         sizeSlider.setMinimum(minW);
         sizeSlider.setMaximum(maxW);
         sizeSlider.setValue(clampInt(currentW, minW, maxW));
-        sizeSlider.setPreferredSize(new Dimension(190, 28));
+        sizeSlider.setPreferredSize(new Dimension(190, 32));
         sizeSlider.setFocusable(false);
+        sizeSlider.setBackground(new Color(245, 245, 245, 170));
         return sizeSlider;
     }
 
@@ -367,17 +372,85 @@ public final class ImagePasteManager {
         sizeLabel.setText(width + "px (" + pct + "%)");
     }
 
-    private static JButton createOverlayTextButton(String text) {
-        JButton button = new JButton(text);
+    private static JButton createOverlayResetButton() {
+        JButton button = new JButton(new ResetGlyphIcon(13));
         button.setFocusable(false);
         button.setOpaque(false);
         button.setContentAreaFilled(false);
-        button.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11f));
-        button.setForeground(new Color(45, 57, 76));
+        button.setPreferredSize(new Dimension(30, 30));
+        button.setMinimumSize(new Dimension(30, 30));
+        button.setMaximumSize(new Dimension(30, 30));
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(110, 126, 152, 145), 1, true),
-                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
+                BorderFactory.createEmptyBorder(4, 7, 4, 7)));
         return button;
+    }
+
+    private static final class ResetGlyphIcon implements Icon {
+        private final int size;
+
+        private ResetGlyphIcon(int size) {
+            this.size = Math.max(10, size);
+        }
+
+        @Override
+        public int getIconWidth() {
+            return size;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return size;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.translate(x, y);
+
+            Color base = new Color(63, 74, 92);
+            if (c != null && !c.isEnabled()) {
+                base = new Color(base.getRed(), base.getGreen(), base.getBlue(), 110);
+            }
+            g2.setColor(base);
+            g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            double cx = size / 2.0;
+            double cy = size / 2.0;
+            double radius = Math.max(3.8, (size / 2.0) - 2.4);
+            double diameter = radius * 2.0;
+            double startDeg = 35.0;
+            double extentDeg = 302.0;
+
+            Arc2D.Double arc = new Arc2D.Double(cx - radius, cy - radius, diameter, diameter, startDeg, extentDeg, Arc2D.OPEN);
+            g2.draw(arc);
+
+            // Arrowhead aligned to the arc tangent for a cleaner reset glyph.
+            double tipA = Math.toRadians(startDeg);
+            double nearA = Math.toRadians(startDeg + 10.0);
+            double tipX = cx + radius * Math.cos(tipA);
+            double tipY = cy - radius * Math.sin(tipA);
+            double nearX = cx + radius * Math.cos(nearA);
+            double nearY = cy - radius * Math.sin(nearA);
+            double dirX = tipX - nearX;
+            double dirY = tipY - nearY;
+            double len = Math.max(0.001, Math.hypot(dirX, dirY));
+            dirX /= len;
+            dirY /= len;
+            double nx = -dirY;
+            double ny = dirX;
+            double wingLen = 4.1;
+            double wingSpread = 2.6;
+
+            Path2D.Double head = new Path2D.Double();
+            head.moveTo(tipX - dirX * wingLen + nx * wingSpread, tipY - dirY * wingLen + ny * wingSpread);
+            head.lineTo(tipX, tipY);
+            head.lineTo(tipX - dirX * wingLen - nx * wingSpread, tipY - dirY * wingLen - ny * wingSpread);
+            g2.draw(head);
+
+            g2.dispose();
+        }
     }
 
     /**
