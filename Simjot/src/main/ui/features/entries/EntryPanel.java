@@ -217,6 +217,10 @@ public class EntryPanel extends AbstractEditorPanel {
     private javax.swing.event.DocumentListener editorDocListener;
     private javax.swing.Timer metricsDebounceTimer;
     private static final int METRICS_DEBOUNCE_MS = 160;
+    private static final int DETAILED_MOOD_EDITOR_STABILIZE_MS = 420;
+    private javax.swing.Timer editorViewportStabilizerTimer;
+    private Point lockedEditorViewPosition;
+    private int editorCaretPolicyBeforeViewportLock = -1;
     private String lastTypingSnapshot = "";
     private static final java.util.regex.Pattern IMAGE_TOKEN_PATTERN =
             java.util.regex.Pattern.compile("\\[\\[IMG\\|([^|]+)\\|(\\d+)x(\\d+)\\]\\]");
@@ -231,8 +235,72 @@ public class EntryPanel extends AbstractEditorPanel {
 
     private void setDetailedMoodExpanded(boolean expanded) {
         if (detailedMoodPanel == null) return;
+        stabilizeEditorViewportDuringMoodAnimation();
         detailedMoodPanel.setExpanded(expanded);
         refreshDetailedMoodToggleVisual();
+    }
+
+    private void stabilizeEditorViewportDuringMoodAnimation() {
+        if (paperViewport == null || contentArea == null) return;
+
+        stopEditorViewportStabilizer(false);
+        lockedEditorViewPosition = paperViewport.getViewPosition();
+
+        javax.swing.text.DefaultCaret caret = (contentArea.getCaret() instanceof javax.swing.text.DefaultCaret dc)
+                ? dc
+                : null;
+        editorCaretPolicyBeforeViewportLock = caret != null ? caret.getUpdatePolicy() : -1;
+        if (caret != null) {
+            try {
+                caret.setUpdatePolicy(javax.swing.text.DefaultCaret.NEVER_UPDATE);
+            } catch (Throwable ignored) {}
+        }
+
+        final long startedNanos = System.nanoTime();
+        editorViewportStabilizerTimer = new javax.swing.Timer(16, e -> {
+            if (paperViewport == null || !paperViewport.isDisplayable()) {
+                stopEditorViewportStabilizer(false);
+                return;
+            }
+
+            if (lockedEditorViewPosition != null) {
+                Point current = paperViewport.getViewPosition();
+                if (!lockedEditorViewPosition.equals(current)) {
+                    paperViewport.setViewPosition(lockedEditorViewPosition);
+                }
+            }
+
+            float elapsedMs = (System.nanoTime() - startedNanos) / 1_000_000f;
+            if (elapsedMs >= DETAILED_MOOD_EDITOR_STABILIZE_MS) {
+                stopEditorViewportStabilizer(true);
+            }
+        });
+        editorViewportStabilizerTimer.setCoalesce(true);
+        editorViewportStabilizerTimer.setRepeats(true);
+        editorViewportStabilizerTimer.start();
+    }
+
+    private void stopEditorViewportStabilizer(boolean restorePosition) {
+        if (editorViewportStabilizerTimer != null) {
+            editorViewportStabilizerTimer.stop();
+            editorViewportStabilizerTimer = null;
+        }
+        if (restorePosition && paperViewport != null && lockedEditorViewPosition != null && paperViewport.isDisplayable()) {
+            try {
+                paperViewport.setViewPosition(lockedEditorViewPosition);
+            } catch (Throwable ignored) {}
+        }
+        javax.swing.text.DefaultCaret caret = (contentArea != null
+                && contentArea.getCaret() instanceof javax.swing.text.DefaultCaret dc)
+                ? dc
+                : null;
+        if (caret != null && editorCaretPolicyBeforeViewportLock >= 0) {
+            try {
+                caret.setUpdatePolicy(editorCaretPolicyBeforeViewportLock);
+            } catch (Throwable ignored) {}
+        }
+        editorCaretPolicyBeforeViewportLock = -1;
+        lockedEditorViewPosition = null;
     }
 
     private void refreshDetailedMoodToggleVisual() {
@@ -1418,6 +1486,8 @@ public class EntryPanel extends AbstractEditorPanel {
         scrollPane.setViewport(paperViewport);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        // Reserve scrollbar width so editor text does not rewrap while the mood panel animates above it.
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         // Apply modern, slim scrollbars (match PoemPanel)
         JScrollBar vbar = scrollPane.getVerticalScrollBar();
@@ -2486,6 +2556,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     @Override
     public void removeNotify() {
+        stopEditorViewportStabilizer(false);
         try { if (autosaveCoordinator != null) autosaveCoordinator.shutdown(); } catch (Throwable ignored) {}
         awaitingGuidanceResponse = false;
         awaitingTemplateResponse = false;

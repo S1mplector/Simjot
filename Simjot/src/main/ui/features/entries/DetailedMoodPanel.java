@@ -38,6 +38,7 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
 
+import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.slider.MoodSlider;
 import main.ui.theme.aero.AeroTheme;
@@ -86,7 +87,7 @@ public class DetailedMoodPanel extends JPanel {
     private static final int CHANGE_DEBOUNCE_MS = 130;
     private static final int STAGGER_SETTLE_MS = 28;
     private static final int STAGGER_DELAY_MS = 20;
-    private static final int STAGGER_DURATION_MS = 120;
+    private static final int STAGGER_DURATION_MS = 170;
     private static final int HEIGHT_ANIM_TICK_MS = 16;
 
     private final MoodSlider joy = createEmotionSlider();
@@ -116,14 +117,13 @@ public class DetailedMoodPanel extends JPanel {
     private final BiConsumer<Integer, DetailedMoodSnapshot> onChange;
     private boolean expanded = false;
     private boolean hasSnapshot = false;
-    private int animMs = 160;
+    private int animMs = 220;
     private boolean suppressCallbacks = false;
 
     private final Timer heightAnimationTimer;
     private int animationFrom = 0;
     private int animationTo = 0;
     private long animationStartedNanos = 0L;
-    private int animationFrameCounter = 0;
 
     private final Timer changeDebounceTimer;
 
@@ -319,7 +319,7 @@ public class DetailedMoodPanel extends JPanel {
         if (this.expanded == expand) return;
         this.expanded = expand;
 
-        int from = getHeight() > 0 ? getHeight() : Math.max(0, getPreferredSize().height);
+        int from = currentAnimatedHeight();
 
         if (expand) {
             syncSliderRowVisibility(false);
@@ -598,7 +598,7 @@ public class DetailedMoodPanel extends JPanel {
 
         int targetHeight = calcInnerPreferredHeight();
         if (animateIfExpanded && isShowing()) {
-            int from = getHeight() > 0 ? getHeight() : Math.max(0, getPreferredSize().height);
+            int from = currentAnimatedHeight();
             animateHeight(from, targetHeight);
         } else {
             applyAnimatedHeight(targetHeight, true);
@@ -698,7 +698,6 @@ public class DetailedMoodPanel extends JPanel {
         animationFrom = safeFrom;
         animationTo = safeTo;
         animationStartedNanos = System.nanoTime();
-        animationFrameCounter = 0;
         if (heightAnimationTimer.isRunning()) {
             heightAnimationTimer.stop();
         }
@@ -707,14 +706,13 @@ public class DetailedMoodPanel extends JPanel {
 
     private void stepHeightAnimation() {
         float elapsedMs = (System.nanoTime() - animationStartedNanos) / 1_000_000f;
-        float p = Math.min(1f, elapsedMs / (float) Math.max(1, animMs));
-        float e = 1f - (float) Math.pow(1f - p, 3f);
+        float p = clamp01(elapsedMs / (float) Math.max(1, animMs));
+        float e = easeInOut(p);
         int h = animationFrom + Math.round((animationTo - animationFrom) * e);
-        animationFrameCounter++;
-        boolean fullLayoutPass = (animationFrameCounter % 3 == 0) || p >= 1f;
-        applyAnimatedHeight(h, fullLayoutPass);
+        applyAnimatedHeight(h, true);
         if (p >= 1f) {
             heightAnimationTimer.stop();
+            applyAnimatedHeight(animationTo, true);
             if (animationTo == 0) {
                 setVisible(false);
             }
@@ -724,18 +722,23 @@ public class DetailedMoodPanel extends JPanel {
     private void applyAnimatedHeight(int height, boolean reflow) {
         int safeHeight = Math.max(0, height);
         Insets insets = getInsets();
-        int prefW = Math.max(0, getPreferredSize().width);
+        Dimension currentSize = getPreferredSize();
+        int prefW = Math.max(0, currentSize.width);
         if (prefW <= 0) {
             prefW = Math.max(0, shell.getPreferredSize().width + Math.max(0, insets.left) + Math.max(0, insets.right));
         }
         Dimension next = new Dimension(prefW, safeHeight);
-        if (!next.equals(getPreferredSize())) {
+        if (!next.equals(currentSize)) {
             setPreferredSize(next);
         }
         if (reflow) {
             revalidate();
         }
         repaint();
+    }
+
+    private int currentAnimatedHeight() {
+        return Math.max(Math.max(0, getHeight()), Math.max(0, getPreferredSize().height));
     }
 
     private void installLiveListeners() {
@@ -878,6 +881,10 @@ public class DetailedMoodPanel extends JPanel {
         return x * x * x;
     }
 
+    private static float easeInOut(float t) {
+        return NativeAccess.easeSmoothstep(clamp01(t));
+    }
+
     private static final class EmotionSliderRow extends FrostedGlassPanel {
         private final Color accent;
         private final boolean positive;
@@ -960,15 +967,12 @@ public class DetailedMoodPanel extends JPanel {
         @Override
         public void paint(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
-            float alpha = 0.2f + 0.8f * reveal;
-            int dy = Math.round((1f - reveal) * 4f);
-            float scale = 0.985f + 0.015f * reveal;
+            float alpha = 0.18f + 0.82f * reveal;
+            int dy = Math.round((1f - reveal) * 6f);
             int w = Math.max(1, getWidth());
             int h = Math.max(1, getHeight());
             g2.translate(0, dy);
             g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
-            g2.translate((w * (1f - scale)) / 2f, (h * (1f - scale)) / 2f);
-            g2.scale(scale, scale);
             super.paint(g2);
 
             float baseGlow = positive ? 0.16f : 0.2f;
