@@ -63,6 +63,8 @@ public final class NotebookStore {
             changed[0] = true;
         }
 
+        mergeDiscoveredFolders(changed);
+
         if (changed[0]) save();
     }
 
@@ -112,6 +114,151 @@ public final class NotebookStore {
         if (!lower.endsWith(".json")) return false;
         if (lower.equals(FILE_NAME)) return false;
         return lower.contains("conflict");
+    }
+
+    private boolean mergeDiscoveredFolders(boolean[] changed) {
+        File notebooksRoot;
+        try {
+            notebooksRoot = AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
+        } catch (Throwable ignored) {
+            return false;
+        }
+        if (notebooksRoot == null || !notebooksRoot.exists() || !notebooksRoot.isDirectory()) return false;
+        File[] folders = notebooksRoot.listFiles(File::isDirectory);
+        if (folders == null || folders.length == 0) return false;
+
+        boolean merged = false;
+        for (File folder : folders) {
+            if (!isNotebookFolderCandidate(folder)) continue;
+
+            String name = folder.getName();
+            int existingIdx = findIndexByName(name);
+            NotebookInfo before = existingIdx >= 0 ? notebooks.get(existingIdx) : null;
+
+            NotebookInfo candidate = new NotebookInfo(
+                    name,
+                    inferTypeFromFolder(folder),
+                    folder,
+                    inferCreatedMillis(folder),
+                    "legacy");
+            mergeNotebookEntry(candidate);
+
+            NotebookInfo after = null;
+            int updatedIdx = findIndexByName(name);
+            if (updatedIdx >= 0) {
+                after = notebooks.get(updatedIdx);
+            }
+
+            if (before == null && after != null) {
+                merged = true;
+                if (changed != null) changed[0] = true;
+                IoLog.info("notebook-discovery", "Recovered notebook folder: " + folder.getAbsolutePath());
+            } else if (!sameNotebookRecord(before, after)) {
+                merged = true;
+                if (changed != null) changed[0] = true;
+                IoLog.info("notebook-discovery", "Reconciled notebook folder: " + folder.getAbsolutePath());
+            }
+        }
+        return merged;
+    }
+
+    private static boolean isNotebookFolderCandidate(File folder) {
+        if (folder == null || !folder.exists() || !folder.isDirectory()) return false;
+        String name = folder.getName();
+        return name != null && !name.isBlank() && !name.startsWith(".");
+    }
+
+    private static NotebookInfo.Type inferTypeFromFolder(File folder) {
+        int[] scores = new int[3];
+        accumulateTypeScores(folder, scores, 0);
+        if (scores[1] > 0 && scores[1] >= scores[2] && scores[1] >= scores[0]) {
+            return NotebookInfo.Type.POETRY;
+        }
+        if (scores[2] > 0 && scores[2] >= scores[0]) {
+            return NotebookInfo.Type.NOTETAKING;
+        }
+        return NotebookInfo.Type.JOURNAL;
+    }
+
+    private static void accumulateTypeScores(File file, int[] scores, int depth) {
+        if (file == null || scores == null || !file.exists()) return;
+        if (file.isDirectory()) {
+            if (depth > 4) return;
+            File[] children = file.listFiles();
+            if (children == null) return;
+            for (File child : children) {
+                if (child == null) continue;
+                if (child.isDirectory() && child.getName() != null && child.getName().startsWith(".")) continue;
+                accumulateTypeScores(child, scores, depth + 1);
+            }
+            return;
+        }
+
+        String name = file.getName().toLowerCase();
+        if (hasNotebookExtension(name, ".poem")) {
+            scores[1]++;
+        } else if (hasNotebookExtension(name, ".ntk")) {
+            scores[2]++;
+        } else if (hasNotebookExtension(name, ".note")
+                || hasNotebookExtension(name, ".txt")
+                || hasNotebookExtension(name, ".md")
+                || hasNotebookExtension(name, ".rtf")
+                || hasNotebookExtension(name, ".jrnl")) {
+            scores[0]++;
+        }
+    }
+
+    private static boolean hasNotebookExtension(String fileName, String extension) {
+        if (fileName == null || extension == null || extension.isBlank()) return false;
+        return fileName.endsWith(extension) || fileName.contains(extension + ".");
+    }
+
+    private static long inferCreatedMillis(File folder) {
+        long inferred = earliestModified(folder, 0);
+        return inferred > 0L ? inferred : System.currentTimeMillis();
+    }
+
+    private static long earliestModified(File file, int depth) {
+        if (file == null || !file.exists()) return 0L;
+        long best = file.lastModified();
+        if (file.isDirectory()) {
+            if (depth > 4) return best;
+            File[] children = file.listFiles();
+            if (children == null) return best;
+            for (File child : children) {
+                if (child == null) continue;
+                long childModified = earliestModified(child, depth + 1);
+                if (childModified > 0L && (best <= 0L || childModified < best)) {
+                    best = childModified;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static boolean sameNotebookRecord(NotebookInfo a, NotebookInfo b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return sameText(a.getName(), b.getName())
+                && a.getType() == b.getType()
+                && samePath(a.getFolder(), b.getFolder())
+                && a.getCreatedMillis() == b.getCreatedMillis()
+                && sameText(a.getIconId(), b.getIconId())
+                && sameText(a.getDescription(), b.getDescription())
+                && a.getAccentColorRaw() == b.getAccentColorRaw()
+                && sameText(a.getClusterId(), b.getClusterId())
+                && sameText(a.getCustomIconPath(), b.getCustomIconPath());
+    }
+
+    private static boolean samePath(File a, File b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return a.toPath().toAbsolutePath().normalize()
+                .equals(b.toPath().toAbsolutePath().normalize());
+    }
+
+    private static boolean sameText(String a, String b) {
+        return java.util.Objects.equals(a, b);
     }
 
     private void legacyLoad(String raw, boolean[] changed) {
