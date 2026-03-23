@@ -4,14 +4,13 @@
 This document summarizes the current state of testing in the Simjot project, recent improvements, identified gaps, and a prioritized plan to strengthen confidence and prevent regressions. It focuses on testability of non-UI core logic while avoiding Swing UI automation.
 
 Project root: `Simjot/`
-Tests root: `Simjot/tests/`
-Runner script: `scripts/run_tests.sh`
+Tests root: `Simjot/src/test/`
+Primary runner: `mvn -f Simjot/pom.xml test`
 
-## Current State (as of 2025-09-06)
-- No Maven/Gradle build. Custom build and a lightweight test runner via JUnit Platform ConsoleLauncher.
-- Testing approach documented in `TESTING.md` and implemented:
-  - `scripts/run_tests.sh` compiles main sources from `Simjot/src/main/` and tests from `Simjot/tests/**`, downloads JUnit 5 console jar if needed, and runs the suite.
-- Test discovery uses classpath scanning; no JPMS module-test integration.
+## Current State (as of 2025-09-06, partially superseded)
+- Maven build is present in `Simjot/pom.xml`.
+- Tests live under `Simjot/src/test/` and run through JUnit 5 via Maven Surefire.
+- Test discovery follows the Maven layout rather than a custom script-based harness.
 - Initial test suites added and passing:
   - `main.core.service.SettingsStoreTest` — preferences persistence & clamping under `settings/preferences.properties`.
   - `main.core.service.NotebookStoreTest` — create/rename/delete, persistence in `notebooks.json`, mood log cleanup in `mood/mood_log.txt`.
@@ -44,18 +43,18 @@ Runner script: `scripts/run_tests.sh`
 - __Cross-platform path issues__ in utility classes (mac/Linux/Windows differences).
 
 ## Recent Improvements
-- Added classpath-based JUnit 5 test harness with `scripts/run_tests.sh` as described in `TESTING.md`.
+- Added Maven-based JUnit 5 test execution via `mvn test`.
 - Seeded high-value persistence and backup tests using `@TempDir` for isolation.
 - Prompt builder behavior validated for formatting/sanitization.
 
 ## Next Steps (Prioritized)
 1. __CI Pipeline (GitHub Actions)__
-   - Add a workflow to run `scripts/run_tests.sh` on push/PR for macOS and Ubuntu runners.
-   - Cache the JUnit console jar or rely on quick download.
+   - Add a workflow to run `mvn -f Simjot/pom.xml test` on push/PR for macOS and Ubuntu runners.
+   - Cache the local Maven repository for faster builds.
 
 2. __Coverage (JaCoCo via CLI or Gradle shim)__
-   - Short-term: Add JaCoCo agent to the ConsoleLauncher run to produce coverage XML/HTML.
-   - Mid-term: Consider a minimal Gradle wrapper for tests-only (keeping custom build) to simplify coverage and reporting.
+   - Short-term: Add JaCoCo to the Maven test run to produce coverage XML/HTML.
+   - Mid-term: Publish coverage artifacts from CI and set a baseline threshold.
 
 3. __Broaden Unit Tests__
    - Retrieval: `RecencyBuffer`, `RetrievalRanker` boundary and scoring.
@@ -85,11 +84,11 @@ Runner script: `scripts/run_tests.sh`
   - Add contract tests over core flows driven by services.
 
 ## Test Execution
-- Command: `bash scripts/run_tests.sh`
+- Command: `mvn -f Simjot/pom.xml test`
 - Artifacts:
-  - Compiled classes: `build/classes/`
-  - Compiled tests: `build/test-classes/`
-  - JUnit jar: `build/libs/junit-platform-console-standalone-<ver>.jar`
+  - Compiled classes: `Simjot/target/classes/`
+  - Compiled tests: `Simjot/target/test-classes/`
+  - Surefire reports: `Simjot/target/surefire-reports/`
 
 ## Notes
 - Current suite relies on classpath scanning and avoids modules for tests; this is acceptable for unit tests.

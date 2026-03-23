@@ -52,6 +52,22 @@ java_home_ok() {
   [[ -n "${major}" && "${major}" -ge "${REQUIRED_VERSION}" ]]
 }
 
+resolve_maven_cmd() {
+  if [[ -x "${ROOT}/mvnw" ]]; then
+    echo "${ROOT}/mvnw"
+    return 0
+  fi
+  if [[ -x "${PROJECT_DIR}/mvnw" ]]; then
+    echo "${PROJECT_DIR}/mvnw"
+    return 0
+  fi
+  if command -v mvn >/dev/null 2>&1; then
+    echo "mvn"
+    return 0
+  fi
+  return 1
+}
+
 resolve_java_home() {
   if [[ -n "${JAVA_HOME:-}" ]] && java_home_ok "${JAVA_HOME}"; then
     echo "${JAVA_HOME}"
@@ -94,13 +110,13 @@ JAVA_HOME="$(resolve_java_home)" || {
 export JAVA_HOME
 export PATH="${JAVA_HOME}/bin:${PATH}"
 
-BUILD=true
+BUILD_MODE="auto"
 USE_NATIVE=true
 RUN_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --no-build) BUILD=false; shift ;;
-    --build) BUILD=true; shift ;;
+    --no-build) BUILD_MODE="skip"; shift ;;
+    --build) BUILD_MODE="force"; shift ;;
     --no-native) USE_NATIVE=false; shift ;;
     --) shift; RUN_ARGS+=("$@"); break ;;
     *) RUN_ARGS+=("$1"); shift ;;
@@ -165,10 +181,36 @@ if [[ ${#jars[@]} -gt 0 ]]; then
   JAR_PATH="$(ls -t "${PROJECT_DIR}"/target/Simjot-*.jar | head -n 1)"
 fi
 
-if [[ "${BUILD}" == true || -z "${JAR_PATH}" ]]; then
+SHOULD_BUILD=false
+case "${BUILD_MODE}" in
+  force)
+    SHOULD_BUILD=true
+    ;;
+  skip)
+    SHOULD_BUILD=false
+    ;;
+  auto)
+    if [[ -z "${JAR_PATH}" ]]; then
+      SHOULD_BUILD=true
+    fi
+    ;;
+esac
+
+if [[ "${SHOULD_BUILD}" == true ]]; then
+  MAVEN_CMD="$(resolve_maven_cmd)" || {
+    echo "Maven is required to build Simjot, but neither ./mvnw nor mvn was found." >&2
+    echo "Install Maven 3.8+ or add a Maven wrapper, then rerun ./run.sh --build." >&2
+    exit 1
+  }
   echo "Building Simjot with JDK ${REQUIRED_VERSION}+..."
-  mvn -f "${POM_FILE}" -DskipTests package
+  "${MAVEN_CMD}" -f "${POM_FILE}" -DskipTests package
   JAR_PATH="$(ls -t "${PROJECT_DIR}"/target/Simjot-*.jar | head -n 1)"
+fi
+
+if [[ "${BUILD_MODE}" == "skip" && -z "${JAR_PATH}" ]]; then
+  echo "No built Simjot jar was found in ${PROJECT_DIR}/target while --no-build was requested." >&2
+  echo "Run ./run.sh --build after installing Maven 3.8+." >&2
+  exit 1
 fi
 
 if [[ -z "${JAR_PATH}" || ! -f "${JAR_PATH}" ]]; then

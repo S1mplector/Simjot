@@ -11,7 +11,7 @@ cd packaging
 ./build-macos-pkg.sh
 ```
 
-This creates a professional `.pkg` installer in `dist/Simjot-X.X.X.pkg`.
+This creates a professional `.pkg` installer in `dist/Simjot-<version>.pkg`.
 
 ### Requirements
 
@@ -90,8 +90,8 @@ After running the script:
 
 ```
 dist/
-├── Simjot-1.0.0.pkg      # macOS Installer
-└── Simjot-1.0.0.dmg      # DMG (if --dmg used)
+├── Simjot-<version>.pkg      # macOS Installer
+└── Simjot-<version>.dmg      # DMG (if --dmg used)
 
 build/macos-installer/
 ├── Simjot.app/           # The app bundle
@@ -124,8 +124,8 @@ To distribute publicly, sign with a Developer ID:
 
 Then notarize:
 ```bash
-xcrun notarytool submit dist/Simjot-1.0.0.pkg --apple-id YOUR_APPLE_ID --team-id TEAM_ID --password APP_SPECIFIC_PASSWORD --wait
-xcrun stapler staple dist/Simjot-1.0.0.pkg
+xcrun notarytool submit dist/Simjot-<version>.pkg --apple-id YOUR_APPLE_ID --team-id TEAM_ID --password APP_SPECIFIC_PASSWORD --wait
+xcrun stapler staple dist/Simjot-<version>.pkg
 ```
 
 ---
@@ -146,7 +146,7 @@ cd packaging
 build-windows-exe.bat
 ```
 
-This creates a portable executable distribution in `dist/Simjot-X.X.X-portable/`.
+This creates a portable executable distribution in `dist/Simjot-<version>-portable/`.
 
 ### Requirements
 
@@ -191,13 +191,13 @@ After running the script:
 
 ```
 dist/
-├── Simjot-1.0.0-portable/           # Portable app (just extract and run)
+├── Simjot-<version>-portable/           # Portable app (just extract and run)
 │   ├── Simjot.exe                   # Main executable
 │   ├── app/                         # Application files
 │   │   └── simjot_native.dll        # Native library
 │   └── runtime/                     # Bundled JRE
-├── Simjot-1.0.0-windows-portable.zip  # ZIP (if --zip used)
-└── Simjot-1.0.0.msi                   # MSI (if --msi used)
+├── Simjot-<version>-windows-portable.zip  # ZIP (if --zip used)
+└── Simjot-<version>.msi                   # MSI (if --msi used)
 ```
 
 ### Building the Native Library on Windows
@@ -281,8 +281,8 @@ Creates a simple cross-platform distribution folder with launcher scripts:
 ./make-dist.sh
 ```
 
-Output: `dist/Simjot-X.X.X/` with:
-- `Simjot-X.X.X.jar` - The application
+Output: `dist/Simjot-<version>/` with:
+- `Simjot-<version>.jar` - The application
 - `simjot` - Unix launcher script
 - `simjot.bat` - Windows launcher script
 

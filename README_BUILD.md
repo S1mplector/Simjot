@@ -29,17 +29,17 @@ This builds the native library, runs native tests, and launches Simjot with the 
 The simplest way to build Simjot:
 
 ```bash
-cd Simjot
-mvn clean package
+mvn -f Simjot/pom.xml clean package
 ```
 
 This produces:
-- `target/Simjot-1.0.0.jar` – executable JAR with dependencies
-- `target/classes/` – compiled classes
+- `Simjot/target/Simjot-*.jar` – executable shaded JAR with dependencies
+- `Simjot/target/classes/` – compiled classes
 
 Run with:
 ```bash
-java -jar target/Simjot-1.0.0.jar
+cd Simjot
+java --enable-preview -jar target/Simjot-*.jar
 ```
 
 For native acceleration, build the C/C++ library with `./compile-native.sh` and use `./run.sh`.
@@ -59,24 +59,17 @@ Supported IDEs:
 - VS Code with Java extensions
 - NetBeans
 
-### 3. Manual Build
+### 3. Manual Run From an Existing Build
 
-For environments without Maven:
+If you already have a built JAR and just want to launch it without rebuilding:
 
 ```bash
-# Compile sources (excluding module-info.java for classpath mode)
-find Simjot/src/main -name "*.java" ! -name "module-info.java" > sources.txt
-javac -encoding UTF-8 -d build/classes @sources.txt
-
-# Create JAR
-jar --create --file Simjot.jar --main-class main.ui.app.JournalApp -C build/classes .
-
-# Copy resources
-cp -r Simjot/src/main/resources/* build/classes/
+cd Simjot
+java --enable-preview -jar target/Simjot-*.jar
 ```
 
-When running the jar manually, include `--enable-preview` and `--enable-native-access=ALL-UNNAMED`,
-and set `-Djava.library.path` to the native library directory (or use `./run.sh`).
+For native acceleration, also include `--enable-native-access=ALL-UNNAMED`
+and set `-Djava.library.path` to the native library directory, or use `./run.sh`.
 
 ## Native Packaging with jpackage (recommended)
 
@@ -90,13 +83,14 @@ Before packaging, build the native library so it is copied into `Simjot/src/main
 Using `jpackage` to create a native Windows executable:
 
 ```cmd
+cd Simjot
 jpackage --type app-image ^
   --name Simjot ^
   --input target ^
-  --main-jar Simjot-1.0.0.jar ^
+  --main-jar Simjot-<version>.jar ^
   --main-class main.ui.app.JournalApp ^
   --dest dist ^
-  --icon Simjot/src/main/resources/images/simjot_icon.ico
+  --icon src/main/resources/images/simjot_icon.ico
 ```
 
 Output: `dist/Simjot/Simjot.exe`
@@ -104,13 +98,14 @@ Output: `dist/Simjot/Simjot.exe`
 ### macOS
 
 ```bash
+cd Simjot
 jpackage --type app-image \
   --name Simjot \
   --input target \
-  --main-jar Simjot-1.0.0.jar \
+  --main-jar Simjot-<version>.jar \
   --main-class main.ui.app.JournalApp \
   --dest dist \
-  --icon Simjot/src/main/resources/images/simjot_icon.icns
+  --icon src/main/resources/images/simjot_icon.icns
 ```
 
 Output: `dist/Simjot.app`
@@ -118,13 +113,14 @@ Output: `dist/Simjot.app`
 ### Linux
 
 ```bash
+cd Simjot
 jpackage --type app-image \
   --name Simjot \
   --input target \
-  --main-jar Simjot-1.0.0.jar \
+  --main-jar Simjot-<version>.jar \
   --main-class main.ui.app.JournalApp \
   --dest dist \
-  --icon Simjot/src/main/resources/images/simjot_icon.png
+  --icon src/main/resources/images/simjot_icon.png
 ```
 
 Output: `dist/Simjot/bin/Simjot`
@@ -139,7 +135,7 @@ Output: `dist/Simjot/bin/Simjot`
 ### From JAR
 ```bash
 cd Simjot
-java -jar target/Simjot-*.jar
+java --enable-preview -jar target/Simjot-*.jar
 ```
 
 ### With Custom Memory
@@ -159,7 +155,7 @@ SIMJOT_LOG=debug ./run.sh
 | `javac` not found | Ensure JDK 24+ `bin` is on your `PATH` |
 | `jpackage` not found | Included with JDK 14+; verify installation |
 | Missing resources | Ensure resources are copied to `build/classes/` |
-| Maven build fails | Run `mvn clean` then retry |
+| Maven build fails | Run `mvn -f Simjot/pom.xml clean package` for a fresh build |
 | Native library not found | Run `./compile-native.sh` and ensure it copies into `Simjot/src/main/resources/native` |
 | FFM preview warnings | Expected with JDK 24; use `./run.sh` for the correct flags |
 
@@ -173,7 +169,7 @@ SIMJOT_LOG=debug ./run.sh
 | `./compile-native.sh` | C/C++ compiler | `xcode-select --install` | `sudo apt install build-essential` |
 | `./compile-native.sh --haskell` | GHC + Cabal | `brew install ghc cabal-install` | `sudo apt install ghc cabal-install` |
 | `./run.sh` | JDK 24+ | `brew install openjdk@24` | See [Adoptium](https://adoptium.net) |
-| `./run.sh` | Maven 3.8+ | `brew install maven` | `sudo apt install maven` |
+| `./run.sh --build` | Maven 3.8+ | `brew install maven` | `sudo apt install maven` |
 
 Haskell is optional and only required if you want to build the Haskell poetry module.
 
@@ -234,7 +230,7 @@ The easiest way to run Simjot:
 
 This script:
 - Automatically detects and uses JDK 24+
-- Builds the JAR if missing (via Maven)
+- Uses the newest built JAR by default and only invokes Maven when a build is required
 - Configures native library paths for FFM integration
 
 **Options:**

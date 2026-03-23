@@ -4,7 +4,7 @@
   <img src="Simjot/docs/images/simjot_logo.png" alt="Simjot Logo" width="240">
 </p>
 
-A personalizable creative wellness and writing studio with a Aero-inspired UI and rich journaling and poetry tools.
+A personalizable creative wellness and writing studio with an Aero-inspired UI and rich journaling and poetry tools.
 
 ## Features
 
@@ -49,7 +49,7 @@ A personalizable creative wellness and writing studio with a Aero-inspired UI an
 
 ## Screenshots
 
-Below are a few highlights from the current UI. More images live in `Simjot/Simjot/docs/images`.
+Below are a few highlights from the current UI. More images live in `Simjot/docs/images`.
 
 - **Main Interface**
 
@@ -80,7 +80,7 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 ### Prerequisites
 - **Java 24 or higher** installed on your system
 - **JDK 24 or higher** for building the project
-- **Maven 3.8+** for dependency management and building
+- **Maven 3.8+** for building from source or forcing a rebuild
 - **CMake 3.20+** and a C/C++ compiler for the native library (recommended)
 - **GHC/Cabal** for the Haskell poetry module (optional)
 
@@ -95,8 +95,7 @@ Below are a few highlights from the current UI. More images live in `Simjot/Simj
 
 #### Using Maven (Core Build)
 ```bash
-cd Simjot
-mvn clean package
+mvn -f Simjot/pom.xml clean package
 ```
 #### Manual Build
 See [README_BUILD.md](README_BUILD.md) for detailed build instructions including:
@@ -111,16 +110,16 @@ See [README_BUILD.md](README_BUILD.md) for detailed build instructions including
 ./run.sh
 ```
 
-**Option 2: Via Maven**
+**Option 2: Via Java**
 ```bash
 cd Simjot
-mvn exec:java -Dexec.mainClass="main.ui.app.JournalApp"
+java --enable-preview -jar target/Simjot-*.jar
 ```
 
 **Option 3: JAR File**
 ```bash
 cd Simjot
-java -jar target/Simjot-*.jar
+java --enable-preview -jar target/Simjot-*.jar
 ```
 
 **Option 4: Native Executable (after packaging)**
@@ -186,12 +185,12 @@ On first startup, Simjot will prompt you to:
 
 ## License
 
-Simjot is released under the **MIT License**. You may:
+Simjot source code is released under the **MIT License**. You may:
 - Use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
 - Use for personal or commercial purposes
 - Create derivative works
 
-**Note**: Icon assets are under a separate license requiring attribution to the artist Lightning ([@LightningTheAn1](https://x.com/LightningTheAn1)).
+**Note**: Icon assets are under separate attribution-required terms from the source code license.
 
 See [LICENSE.md](LICENSE.md) for full terms.
 
