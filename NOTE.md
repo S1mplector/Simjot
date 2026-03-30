@@ -8,11 +8,9 @@ While Simjot started as my personal coping mechanism, I open source it in the ho
 
 While journaling is often a solitary activity, may Simjot remind you that you're not alone in your struggles. The quotes, prompts, and gentle guidance are all there to provide connection and perspective when you need it most.
 
-Be gentle with yourself. Take your time. Use Simjot as a tool for healing, reflection, and self-discovery. And remember: even the smallest step toward self-care is a victory worth celebrating.
-
 ## Gratitude
 
-Thank you for giving Simjot a place in your life. Thank you for trusting this piece of my heart with your thoughts and feelings. And thank you for being part of this journey toward peace, one journal entry at a time. 
+Thank you for giving Simjot a place in your life. Thank you for trusting this piece of my heart with your thoughts and feelings.
 
 ---
 
