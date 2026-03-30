@@ -23,6 +23,7 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 
 import javax.swing.JButton;
 import javax.swing.Timer;
@@ -566,76 +567,112 @@ public class ToolbarIconButton extends JButton {
                 break; }
 
             case "view_comfort": {
-                int cardW = 20;
-                int cardH = 15;
+                boolean active = selected || getModel().isRollover();
+                int cardW = 21;
+                int cardH = 16;
                 int x = cx - (cardW / 2);
                 int y = cy - (cardH / 2);
 
-                g2.setColor(new Color(0, 0, 0, 34));
-                g2.fillRoundRect(x + 1, y + 1, cardW, cardH, 4, 4);
+                RoundRectangle2D.Float card = new RoundRectangle2D.Float(x, y, cardW, cardH, 5, 5);
+                g2.setColor(new Color(0, 0, 0, active ? 42 : 28));
+                g2.fillRoundRect(x + 1, y + 2, cardW, cardH, 5, 5);
 
+                Color shellTop = active ? new Color(251, 253, 255) : new Color(247, 250, 255);
+                Color shellBottom = active ? new Color(221, 232, 249) : new Color(229, 237, 248);
                 g2.setPaint(new LinearGradientPaint(
                         x, y, x, y + cardH,
-                        new float[]{0f, 1f},
-                        new Color[]{new Color(249, 252, 255), new Color(228, 236, 248)}
+                        new float[]{0f, 0.52f, 1f},
+                        new Color[]{shellTop, mix(shellTop, shellBottom, 0.35f), shellBottom}
                 ));
-                g2.fillRoundRect(x, y, cardW, cardH, 4, 4);
+                g2.fill(card);
 
-                g2.setColor(new Color(74, 94, 124));
-                g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawRoundRect(x, y, cardW, cardH, 4, 4);
+                g2.setPaint(new LinearGradientPaint(
+                        x, y + 1, x, y + cardH * 0.45f,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(255, 255, 255, active ? 215 : 185), new Color(255, 255, 255, 0)}
+                ));
+                g2.fill(new RoundRectangle2D.Float(x + 1, y + 1, cardW - 2, Math.max(4, Math.round(cardH * 0.48f)), 4, 4));
 
-                g2.setColor(new Color(88, 133, 255));
-                g2.fillRoundRect(x + 2, y + 3, 2, cardH - 6, 2, 2);
+                g2.setColor(active ? new Color(78, 102, 142) : new Color(92, 110, 142));
+                g2.setStroke(new BasicStroke(1.15f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.draw(card);
 
-                g2.setColor(new Color(76, 88, 108));
-                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(x + 6, y + 5, x + 15, y + 5);
+                g2.setPaint(new LinearGradientPaint(
+                        x + 2, y + 2, x + 2, y + cardH - 2,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(92, 137, 255), new Color(64, 105, 219)}
+                ));
+                g2.fillRoundRect(x + 2, y + 2, 3, cardH - 4, 3, 3);
 
-                g2.setColor(new Color(113, 124, 141));
-                g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(x + 6, y + 8, x + 14, y + 8);
-                g2.drawLine(x + 6, y + 11, x + 12, y + 11);
+                g2.setColor(new Color(255, 255, 255, 90));
+                g2.drawLine(x + 3, y + 3, x + 3, y + cardH - 4);
 
-                g2.setColor(new Color(97, 109, 130));
+                g2.setColor(new Color(73, 86, 110));
+                g2.setStroke(new BasicStroke(1.45f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(x + 7, y + 5, x + 16, y + 5);
+
+                g2.setColor(new Color(110, 122, 142));
+                g2.setStroke(new BasicStroke(1.1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(x + 7, y + 8, x + 15, y + 8);
+                g2.drawLine(x + 7, y + 11, x + 14, y + 11);
+
+                g2.setColor(new Color(132, 144, 164, 210));
                 g2.fillOval(x + 16, y + 7, 2, 2);
                 g2.fillOval(x + 16, y + 10, 2, 2);
                 break; }
 
             case "view_calendar": {
-                int boxW = 20;
-                int boxH = 16;
+                boolean active = selected || getModel().isRollover();
+                int boxW = 21;
+                int boxH = 17;
                 int x = cx - boxW / 2;
                 int y = cy - boxH / 2;
 
-                g2.setColor(new Color(0, 0, 0, 30));
-                g2.fillRoundRect(x + 1, y + 1, boxW, boxH, 4, 4);
+                RoundRectangle2D.Float page = new RoundRectangle2D.Float(x, y, boxW, boxH, 5, 5);
+                g2.setColor(new Color(0, 0, 0, active ? 40 : 26));
+                g2.fillRoundRect(x + 1, y + 2, boxW, boxH, 5, 5);
 
                 g2.setPaint(new LinearGradientPaint(
                         x, y, x, y + boxH,
-                        new float[]{0f, 1f},
-                        new Color[]{new Color(251, 253, 255), new Color(233, 239, 249)}
+                        new float[]{0f, 0.5f, 1f},
+                        new Color[]{new Color(252, 254, 255), new Color(238, 244, 251), new Color(226, 234, 246)}
                 ));
-                g2.fillRoundRect(x, y, boxW, boxH, 4, 4);
+                g2.fill(page);
 
-                g2.setColor(new Color(88, 133, 255));
-                g2.fillRoundRect(x, y, boxW, 4, 4, 4);
+                g2.setPaint(new LinearGradientPaint(
+                        x, y, x, y + 5,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(101, 146, 255), new Color(67, 110, 225)}
+                ));
+                g2.fillRoundRect(x, y, boxW, 5, 5, 5);
 
-                g2.setColor(new Color(64, 80, 108));
-                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawRoundRect(x, y, boxW, boxH, 4, 4);
-                g2.drawLine(x + 4, y - 1, x + 4, y + 3);
-                g2.drawLine(x + boxW - 5, y - 1, x + boxW - 5, y + 3);
+                g2.setPaint(new GradientPaint(x, y, new Color(255, 255, 255, 165), x, y + 3, new Color(255, 255, 255, 0)));
+                g2.fillRoundRect(x + 1, y + 1, boxW - 2, 2, 4, 4);
 
-                g2.setColor(new Color(126, 137, 154));
-                g2.setStroke(new BasicStroke(1.0f));
+                g2.setColor(active ? new Color(75, 97, 138) : new Color(91, 108, 138));
+                g2.setStroke(new BasicStroke(1.12f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.draw(page);
+
+                g2.setColor(new Color(88, 103, 130));
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(x + 5, y - 1, x + 5, y + 4);
+                g2.drawLine(x + boxW - 6, y - 1, x + boxW - 6, y + 4);
+
+                g2.setColor(new Color(138, 148, 166, 170));
+                g2.setStroke(new BasicStroke(0.95f));
                 g2.drawLine(x + 5, y + 8, x + boxW - 5, y + 8);
                 g2.drawLine(x + 5, y + 11, x + boxW - 5, y + 11);
-                g2.drawLine(x + 9, y + 6, x + 9, y + 12);
-                g2.drawLine(x + 13, y + 6, x + 13, y + 12);
+                g2.drawLine(x + 9, y + 6, x + 9, y + 13);
+                g2.drawLine(x + 13, y + 6, x + 13, y + 13);
 
-                g2.setColor(new Color(88, 133, 255, 220));
-                g2.fillRoundRect(x + 10, y + 9, 3, 3, 2, 2);
+                g2.setPaint(new LinearGradientPaint(
+                        x + 10, y + 9, x + 10, y + 12,
+                        new float[]{0f, 1f},
+                        new Color[]{new Color(159, 192, 255), new Color(89, 136, 255)}
+                ));
+                g2.fillRoundRect(x + 10, y + 9, 4, 4, 2, 2);
+                g2.setColor(new Color(255, 255, 255, 150));
+                g2.drawLine(x + 11, y + 10, x + 13, y + 10);
                 break; }
 
             case "code_block": {
@@ -670,4 +707,14 @@ public class ToolbarIconButton extends JButton {
                 g2.drawLine(cx-5,cy+5,cx+5,cy-5);
         }
     }
-} 
+
+    private static Color mix(Color a, Color b, float t) {
+        float clamped = Math.max(0f, Math.min(1f, t));
+        float inv = 1f - clamped;
+        int r = Math.round(a.getRed() * inv + b.getRed() * clamped);
+        int g = Math.round(a.getGreen() * inv + b.getGreen() * clamped);
+        int bl = Math.round(a.getBlue() * inv + b.getBlue() * clamped);
+        int alpha = Math.round(a.getAlpha() * inv + b.getAlpha() * clamped);
+        return new Color(r, g, bl, alpha);
+    }
+}

@@ -66,16 +66,18 @@ public class NotebookInfo {
     public String getClusterId() { return clusterId; }
     public String getCustomIconPath() { return customIconPath; }
     
+    public static Color defaultAccentFor(Type type) {
+        Type safeType = type == null ? Type.JOURNAL : type;
+        return switch (safeType) {
+            case POETRY -> new Color(147, 112, 219); // Medium purple
+            case JOURNAL -> new Color(100, 149, 237); // Cornflower blue
+            case NOTETAKING -> new Color(60, 179, 113); // Medium sea green
+        };
+    }
+
     /** Returns the accent color, or a default if none set */
     public Color getAccentColor() {
-        if (accentColor == -1) {
-            // Default accent based on type
-            return switch (type) {
-                case POETRY -> new Color(147, 112, 219); // Medium purple
-                case JOURNAL -> new Color(100, 149, 237); // Cornflower blue
-                case NOTETAKING -> new Color(60, 179, 113); // Medium sea green
-            };
-        }
+        if (accentColor == -1) return defaultAccentFor(type);
         return new Color(accentColor, true);
     }
     

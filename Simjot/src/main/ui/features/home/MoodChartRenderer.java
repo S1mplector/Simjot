@@ -255,51 +255,45 @@ final class MoodChartRenderer {
         if (entriesByDate == null || days == null || days.isEmpty() || xPts == null) return;
         int n = days.size();
         float spacing = n > 1 ? chartWidth / (float) (n - 1) : chartWidth;
-        int laneW = Math.max(12, Math.min(20, Math.round(spacing * 0.42f)));
-        int top = MARGIN + 10;
-        int bottom = Math.max(top + 24, height - MARGIN - 12);
-        int laneH = bottom - top;
-        if (laneH <= 0) return;
+        int laneW = Math.max(8, Math.min(12, Math.round(spacing * 0.24f)));
+        int bottom = Math.max(MARGIN + 40, height - MARGIN - 14);
 
         java.awt.Stroke oldStroke = g2.getStroke();
         for (int i = 0; i < n; i++) {
             Double value = i < values.size() ? values.get(i) : null;
             if (!isMissingEntryDay(days.get(i), value, entriesByDate)) continue;
+            if (yPtsDaily == null || i >= yPtsDaily.length || yPtsDaily[i] == Integer.MIN_VALUE) continue;
 
             boolean hovered = hoverIdx != null && hoverIdx == i;
+            int pointY = yPtsDaily[i];
+            int top = Math.max(MARGIN + 18, Math.min(pointY - 10, bottom - 26));
+            int laneH = bottom - top;
+            if (laneH <= 0) continue;
             int x = xPts[i] - laneW / 2;
             RoundRectangle2D lane = new RoundRectangle2D.Float(x, top, laneW, laneH, laneW, laneW);
-            Color topFill = hovered ? new Color(124, 142, 180, 88) : new Color(124, 142, 180, 58);
-            Color midFill = hovered ? new Color(167, 181, 211, 126) : new Color(167, 181, 211, 88);
-            Color bottomFill = hovered ? new Color(205, 214, 231, 158) : new Color(205, 214, 231, 112);
+            Color topFill = hovered ? new Color(130, 148, 184, 32) : new Color(130, 148, 184, 16);
+            Color midFill = hovered ? new Color(174, 186, 214, 54) : new Color(174, 186, 214, 30);
+            Color bottomFill = hovered ? new Color(214, 221, 236, 82) : new Color(214, 221, 236, 46);
 
             g2.setPaint(new LinearGradientPaint(
                     x, top, x, bottom,
-                    new float[]{0f, 0.55f, 1f},
+                    new float[]{0f, 0.68f, 1f},
                     new Color[]{topFill, midFill, bottomFill}
             ));
             g2.fill(lane);
 
-            java.awt.Shape oldClip = g2.getClip();
-            g2.clip(lane);
-            g2.setColor(hovered ? new Color(116, 132, 164, 76) : new Color(126, 140, 170, 54));
-            for (int stripeY = top - 10; stripeY < bottom + laneW; stripeY += 8) {
-                g2.drawLine(x - 6, stripeY, x + laneW + 6, stripeY + laneW);
-            }
-            g2.setClip(oldClip);
-
-            g2.setColor(hovered ? new Color(82, 100, 138, 170) : new Color(104, 120, 152, 120));
+            g2.setColor(hovered ? new Color(98, 114, 148, 112) : new Color(108, 122, 152, 72));
             g2.setStroke(new BasicStroke(
-                    hovered ? 1.5f : 1.15f,
+                    hovered ? 1.2f : 0.95f,
                     BasicStroke.CAP_ROUND,
                     BasicStroke.JOIN_ROUND,
                     10f,
-                    new float[]{3f, 3f},
+                    new float[]{2.5f, 4.5f},
                     0f));
-            g2.drawLine(xPts[i], top + 5, xPts[i], bottom - 18);
+            g2.drawLine(xPts[i], top + 8, xPts[i], bottom - 18);
 
-            g2.setStroke(new BasicStroke(hovered ? 1.2f : 1.05f));
-            g2.setColor(hovered ? new Color(90, 108, 144, 176) : new Color(112, 126, 154, 132));
+            g2.setStroke(new BasicStroke(hovered ? 1.0f : 0.85f));
+            g2.setColor(hovered ? new Color(104, 118, 146, 104) : new Color(116, 128, 154, 70));
             g2.draw(lane);
 
             paintMissingEntryPageGlyph(g2, xPts[i] - 5, bottom - 13, hovered);
@@ -309,12 +303,12 @@ final class MoodChartRenderer {
 
     private void paintMissingEntryPoint(Graphics2D g2, int x, int y, boolean hovered) {
         java.awt.Stroke oldStroke = g2.getStroke();
-        int halo = hovered ? 15 : 13;
-        int ring = hovered ? 11 : 9;
-        g2.setColor(hovered ? new Color(197, 208, 232, 170) : new Color(197, 208, 232, 126));
+        int halo = hovered ? 13 : 11;
+        int ring = hovered ? 9 : 8;
+        g2.setColor(hovered ? new Color(197, 208, 232, 120) : new Color(197, 208, 232, 82));
         g2.fillOval(x - halo / 2, y - halo / 2, halo, halo);
-        g2.setColor(hovered ? new Color(94, 112, 146, 220) : new Color(108, 124, 154, 176));
-        g2.setStroke(new BasicStroke(hovered ? 1.6f : 1.3f));
+        g2.setColor(hovered ? new Color(104, 120, 150, 190) : new Color(114, 128, 154, 132));
+        g2.setStroke(new BasicStroke(hovered ? 1.35f : 1.1f));
         g2.drawOval(x - ring / 2, y - ring / 2, ring, ring);
         g2.setStroke(oldStroke);
     }

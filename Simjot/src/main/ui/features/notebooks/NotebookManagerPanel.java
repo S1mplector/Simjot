@@ -26,6 +26,8 @@ import java.awt.GradientPaint;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.LinearGradientPaint;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -102,6 +104,7 @@ import main.ui.components.spinner.ModernSpinnerUI;
 import main.ui.dialog.confirmation.CustomConfirmDialog;
 import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
+import main.ui.dialog.utils.ModernColorPickerDialog;
 import main.ui.features.entries.GlobalSearchEngine;
 import main.ui.theme.aero.AeroTheme;
 
@@ -1093,6 +1096,44 @@ public class NotebookManagerPanel extends JPanel {
                 g2.setPaint(new GradientPaint(0, 1, new Color(255, 255, 255, 200),
                         0, overlayH * 0.5f, new Color(255, 255, 255, 0)));
                 g2.fill(overlay);
+
+                float sunT = smoothStep(clamp01((t - 0.24f) / 0.76f));
+                if (sunT > 0.001f) {
+                    java.awt.Shape oldClip = g2.getClip();
+                    g2.clip(overlay);
+
+                    Color warmAccent = mix(accent, new Color(255, 222, 152), 0.26f);
+                    Color sunCore = withAlpha(mix(warmAccent, Color.WHITE, 0.58f), Math.round(76f * sunT));
+                    Color sunMid = withAlpha(mix(accent, new Color(255, 244, 214), 0.38f), Math.round(52f * sunT));
+                    Color sunOuter = withAlpha(accent, 0);
+                    float radius = Math.max(w, overlayH) * (0.62f + 0.08f * sunT);
+                    RadialGradientPaint sunGlow = new RadialGradientPaint(
+                            w * 0.42f,
+                            overlayH * 0.28f,
+                            radius,
+                            new float[]{0f, 0.34f, 1f},
+                            new Color[]{sunCore, sunMid, sunOuter}
+                    );
+                    g2.setComposite(AlphaComposite.SrcOver.derive(0.26f + 0.34f * sunT));
+                    g2.setPaint(sunGlow);
+                    g2.fill(overlay);
+
+                    LinearGradientPaint sunSweep = new LinearGradientPaint(
+                            0f, 0f, w * 0.9f, overlayH,
+                            new float[]{0f, 0.45f, 1f},
+                            new Color[]{
+                                    withAlpha(mix(warmAccent, Color.WHITE, 0.42f), Math.round(64f * sunT)),
+                                    withAlpha(mix(accent, new Color(255, 240, 205), 0.52f), Math.round(34f * sunT)),
+                                    withAlpha(accent, 0)
+                            }
+                    );
+                    g2.setComposite(AlphaComposite.SrcOver.derive(0.18f + 0.28f * sunT));
+                    g2.setPaint(sunSweep);
+                    g2.fill(overlay);
+
+                    g2.setClip(oldClip);
+                }
+
                 g2.setComposite(old);
                 g2.setColor(new Color(255, 255, 255, Math.round(130 * t)));
                 g2.drawRoundRect(2, 2, w - 5, overlayH - 2, arc - 2, arc - 2);
@@ -1273,6 +1314,21 @@ public class NotebookManagerPanel extends JPanel {
             return clamped * clamped * (3f - 2f * clamped);
         }
 
+        private static Color mix(Color a, Color b, float t) {
+            float clamped = clamp01(t);
+            float inv = 1f - clamped;
+            int r = Math.round(a.getRed() * inv + b.getRed() * clamped);
+            int g = Math.round(a.getGreen() * inv + b.getGreen() * clamped);
+            int bl = Math.round(a.getBlue() * inv + b.getBlue() * clamped);
+            int alpha = Math.round(a.getAlpha() * inv + b.getAlpha() * clamped);
+            return new Color(r, g, bl, alpha);
+        }
+
+        private static Color withAlpha(Color color, int alpha) {
+            int safeAlpha = Math.max(0, Math.min(255, alpha));
+            return new Color(color.getRed(), color.getGreen(), color.getBlue(), safeAlpha);
+        }
+
         private class NotebookIconPanel extends JComponent {
             @Override
             protected void paintComponent(Graphics g) {
@@ -1310,6 +1366,15 @@ public class NotebookManagerPanel extends JPanel {
             JMenuItem editItem = new JMenuItem("Edit Settings...");
             editItem.addActionListener(ev -> showNotebookOptions(nb));
             menu.add(editItem);
+
+            JMenuItem accentItem = new JMenuItem("Accent Color...");
+            accentItem.addActionListener(ev -> chooseNotebookAccent(nb));
+            menu.add(accentItem);
+
+            JMenuItem resetAccentItem = new JMenuItem("Use Default Accent");
+            resetAccentItem.setEnabled(nb.getAccentColorRaw() != -1);
+            resetAccentItem.addActionListener(ev -> resetNotebookAccent(nb));
+            menu.add(resetAccentItem);
             
             menu.addSeparator();
             
@@ -1334,6 +1399,25 @@ public class NotebookManagerPanel extends JPanel {
         }
     }
 
+    private void chooseNotebookAccent(NotebookInfo nb) {
+        if (nb == null) return;
+        Color picked = ModernColorPickerDialog.showDialog(
+                SwingUtilities.getWindowAncestor(this),
+                "Notebook Accent",
+                nb.getAccentColor());
+        if (picked == null) return;
+        if (store.updateCustomization(nb, nb.getDescription(), picked.getRGB(), nb.getCustomIconPath())) {
+            refresh();
+        }
+    }
+
+    private void resetNotebookAccent(NotebookInfo nb) {
+        if (nb == null || nb.getAccentColorRaw() == -1) return;
+        if (store.updateCustomization(nb, nb.getDescription(), -1, nb.getCustomIconPath())) {
+            refresh();
+        }
+    }
+
     private void promptNew(){
         CreateNotebookDialog dlg = new CreateNotebookDialog((Frame) SwingUtilities.getWindowAncestor(this));
         dlg.setVisible(true);
@@ -1342,7 +1426,7 @@ public class NotebookManagerPanel extends JPanel {
             NotebookInfo.Type type = dlg.getNotebookType();
             if(name!=null && !name.isEmpty()){
                 try {
-                    store.create(name, type, "notebook", "", -1); // Use system accent color
+                    store.create(name, type, "notebook", "", -1); // Use type default accent
                     main.ui.components.toast.ToastOverlay.success("Notebook created");
                     refresh();
                 } catch (IllegalArgumentException ex) {
@@ -1370,9 +1454,9 @@ public class NotebookManagerPanel extends JPanel {
         private TypeCard poetryCard, journalCard, notetakingCard;
 
         // Type-specific colors
-        private static final Color POETRY_COLOR = new Color(147, 112, 219);
-        private static final Color JOURNAL_COLOR = new Color(100, 149, 237);
-        private static final Color NOTETAKING_COLOR = new Color(60, 179, 113);
+        private static final Color POETRY_COLOR = NotebookInfo.defaultAccentFor(NotebookInfo.Type.POETRY);
+        private static final Color JOURNAL_COLOR = NotebookInfo.defaultAccentFor(NotebookInfo.Type.JOURNAL);
+        private static final Color NOTETAKING_COLOR = NotebookInfo.defaultAccentFor(NotebookInfo.Type.NOTETAKING);
 
         CreateNotebookDialog(Frame parent){
             super(parent, "Create Notebook", true);
@@ -1640,13 +1724,18 @@ public class NotebookManagerPanel extends JPanel {
         private final NotebookInfo notebook;
         private final TitleDividerField titleField;
         private final JPanel iconPreview;
+        private final JPanel accentPreview;
+        private final JLabel accentValueLabel;
+        private final RoundedButton resetAccentBtn;
         private String customIconPath = null;
+        private int accentColorRaw;
         
         NotebookOptionsDialog(Frame parent, NotebookInfo nb, NotebookStore store){
             super(parent, "Edit: " + nb.getName(), true);
             this.store = store;
             this.notebook = nb;
             this.customIconPath = nb.getCustomIconPath();
+            this.accentColorRaw = nb.getAccentColorRaw();
             
             setUndecorated(true);
             setBackground(new Color(0,0,0,0));
@@ -1687,23 +1776,20 @@ public class NotebookManagerPanel extends JPanel {
             panel.add(header, BorderLayout.NORTH);
 
             // Center content
-            JPanel center = new JPanel(new GridBagLayout());
+            JPanel center = new JPanel();
             center.setOpaque(false);
-            GridBagConstraints gc = new GridBagConstraints();
-            gc.gridx=0; gc.gridy=0; gc.anchor=GridBagConstraints.WEST; gc.fill=GridBagConstraints.HORIZONTAL; gc.weightx=1.0; gc.insets=new Insets(8,4,8,4);
+            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
 
-            // Icon section
-            gc.gridy = 0;
-            gc.insets = new Insets(8, 4, 6, 4);
             JLabel iconLabel = new JLabel("Notebook Icon:");
             iconLabel.setForeground(Color.DARK_GRAY);
             iconLabel.setFont(iconLabel.getFont().deriveFont(Font.BOLD, 13f));
-            center.add(iconLabel, gc);
-            
-            gc.gridy++;
-            gc.insets = new Insets(8, 4, 8, 4);
+            iconLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(iconLabel);
+            center.add(Box.createVerticalStrut(8));
+
             JPanel iconRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
             iconRow.setOpaque(false);
+            iconRow.setAlignmentX(Component.LEFT_ALIGNMENT);
             
             // Show current icon preview
             iconPreview = new JPanel() {
@@ -1730,6 +1816,14 @@ public class NotebookManagerPanel extends JPanel {
                     } else if (res != null) {
                         main.ui.components.icons.ImageIconRenderer.draw(g2, res, 0, 0, 48, this, true);
                     }
+                    Color accent = resolvedAccentColor();
+                    int barW = Math.max(12, getWidth() - 8);
+                    int barX = (getWidth() - barW) / 2;
+                    int barY = getHeight() - 7;
+                    g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 115));
+                    g2.fillRoundRect(barX, barY, barW, 4, 4, 4);
+                    g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 188));
+                    g2.drawRoundRect(barX, barY, barW, 4, 4, 4);
                     g2.dispose();
                 }
             };
@@ -1754,18 +1848,105 @@ public class NotebookManagerPanel extends JPanel {
                 iconRow.add(removeIconBtn);
             }
             
-            center.add(iconRow, gc);
+            center.add(iconRow);
+            center.add(Box.createVerticalStrut(16));
+
+            JLabel accentLabel = new JLabel("Notebook Accent:");
+            accentLabel.setForeground(Color.DARK_GRAY);
+            accentLabel.setFont(accentLabel.getFont().deriveFont(Font.BOLD, 13f));
+            accentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(accentLabel);
+            center.add(Box.createVerticalStrut(8));
+
+            JPanel accentPanel = new JPanel();
+            accentPanel.setOpaque(false);
+            accentPanel.setLayout(new BoxLayout(accentPanel, BoxLayout.Y_AXIS));
+            accentPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            JPanel accentInfoRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+            accentInfoRow.setOpaque(false);
+            accentInfoRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+            accentPreview = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    Color accent = resolvedAccentColor();
+                    int w = Math.max(1, getWidth() - 1);
+                    int h = Math.max(1, getHeight() - 1);
+                    g2.setPaint(new LinearGradientPaint(
+                            0f, 0f, 0f, h,
+                            new float[] {0f, 1f},
+                            new Color[] {
+                                    mix(accent, Color.WHITE, 0.54f),
+                                    mix(accent, Color.WHITE, 0.16f)
+                            }
+                    ));
+                    g2.fillRoundRect(0, 0, w, h, 10, 10);
+                    g2.setColor(new Color(255, 255, 255, 132));
+                    g2.drawRoundRect(0, 0, w, h, 10, 10);
+                    g2.dispose();
+                }
+            };
+            accentPreview.setPreferredSize(new Dimension(58, 22));
+            accentPreview.setMinimumSize(new Dimension(58, 22));
+            accentPreview.setMaximumSize(new Dimension(58, 22));
+            accentPreview.setBorder(BorderFactory.createLineBorder(new Color(210, 214, 224)));
+            accentInfoRow.add(accentPreview);
+
+            accentValueLabel = new JLabel();
+            accentValueLabel.setForeground(new Color(108, 108, 118));
+            accentValueLabel.setFont(accentValueLabel.getFont().deriveFont(12f));
+            accentInfoRow.add(accentValueLabel);
+
+            JLabel accentHint = new JLabel("Used for notebook stripes, hover glow, and other accents.");
+            accentHint.setForeground(new Color(126, 126, 136));
+            accentHint.setFont(accentHint.getFont().deriveFont(11f));
+            accentHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            accentPanel.add(accentInfoRow);
+            accentPanel.add(Box.createVerticalStrut(6));
+            accentPanel.add(accentHint);
+            accentPanel.add(Box.createVerticalStrut(10));
+
+            JPanel accentButtonsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            accentButtonsRow.setOpaque(false);
+            accentButtonsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+            RoundedButton pickAccentBtn = createDialogButton("Choose Color", "backgroundoptions");
+            pickAccentBtn.setToolTipText("Choose any accent color");
+            pickAccentBtn.addActionListener(e -> chooseAccentColor());
+            accentButtonsRow.add(pickAccentBtn);
+
+            resetAccentBtn = createDialogButton("Use Default", "close");
+            resetAccentBtn.setToolTipText("Reset to the notebook type default");
+            resetAccentBtn.addActionListener(e -> {
+                accentColorRaw = -1;
+                refreshAccentUi();
+            });
+            accentButtonsRow.add(resetAccentBtn);
+            accentPanel.add(accentButtonsRow);
+
+            center.add(accentPanel);
             
             // Cluster info
             if (nb.isClustered()) {
-                gc.gridy++;
-                gc.insets = new Insets(6, 4, 6, 4);
+                center.add(Box.createVerticalStrut(14));
                 JLabel clusterLabel = new JLabel("In cluster: " + nb.getClusterId());
                 clusterLabel.setForeground(new Color(100, 100, 100));
-                center.add(clusterLabel, gc);
+                clusterLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                center.add(clusterLabel);
             }
 
-            panel.add(center, BorderLayout.CENTER);
+            center.add(Box.createVerticalGlue());
+
+            JScrollPane centerScroll = new JScrollPane(center);
+            centerScroll.setOpaque(false);
+            centerScroll.getViewport().setOpaque(false);
+            centerScroll.setBorder(BorderFactory.createEmptyBorder());
+            centerScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            centerScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+            centerScroll.getVerticalScrollBar().setUnitIncrement(16);
+            centerScroll.getVerticalScrollBar().setUI(new ModernScrollBarUI());
+            panel.add(centerScroll, BorderLayout.CENTER);
 
             // Buttons
             JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
@@ -1797,7 +1978,7 @@ public class NotebookManagerPanel extends JPanel {
 
                 boolean updated = false;
                 if (target != null) {
-                    updated = store.updateCustomization(target, "", -1, customIconPath);
+                    updated = store.updateCustomization(target, target.getDescription(), accentColorRaw, customIconPath);
                 }
                 modified = renamed || updated;
                 setVisible(false); 
@@ -1824,8 +2005,36 @@ public class NotebookManagerPanel extends JPanel {
 
             add(panel);
             pack();
-            setSize(460, 460);
+            refreshAccentUi();
+            setSize(500, 620);
             setLocationRelativeTo(parent);
+        }
+
+        private Color resolvedAccentColor() {
+            return accentColorRaw == -1
+                    ? NotebookInfo.defaultAccentFor(notebook.getType())
+                    : new Color(accentColorRaw, true);
+        }
+
+        private void refreshAccentUi() {
+            if (accentPreview != null) {
+                accentPreview.repaint();
+            }
+            if (iconPreview != null) {
+                iconPreview.repaint();
+            }
+            if (accentValueLabel != null) {
+                Color accent = resolvedAccentColor();
+                String hex = String.format("#%06X", accent.getRGB() & 0xFFFFFF);
+                if (accentColorRaw == -1) {
+                    accentValueLabel.setText("Using type default • " + hex);
+                } else {
+                    accentValueLabel.setText("Custom accent • " + hex);
+                }
+            }
+            if (resetAccentBtn != null) {
+                resetAccentBtn.setEnabled(accentColorRaw != -1);
+            }
         }
 
         private NotebookInfo findNotebookByName(String name) {
@@ -1862,12 +2071,29 @@ public class NotebookManagerPanel extends JPanel {
             }
         }
 
+        private void chooseAccentColor() {
+            Color picked = ModernColorPickerDialog.showDialog(this, "Notebook Accent", resolvedAccentColor());
+            if (picked == null) return;
+            accentColorRaw = picked.getRGB();
+            refreshAccentUi();
+        }
+
         private RoundedButton createDialogButton(String text, String iconId) {
                 RoundedButton btn = new RoundedButton(text).withIcon(iconId);
                 btn.setPreferredSize(new Dimension(132, 40));
                 btn.setFocusPainted(false);
                 return btn;
             }
+
+        private Color mix(Color a, Color b, float t) {
+            float clamped = Math.max(0f, Math.min(1f, t));
+            float inv = 1f - clamped;
+            int r = Math.round(a.getRed() * inv + b.getRed() * clamped);
+            int g = Math.round(a.getGreen() * inv + b.getGreen() * clamped);
+            int bl = Math.round(a.getBlue() * inv + b.getBlue() * clamped);
+            int alpha = Math.round(a.getAlpha() * inv + b.getAlpha() * clamped);
+            return new Color(r, g, bl, alpha);
+        }
 
         boolean wasModified(){ return modified; }
     }

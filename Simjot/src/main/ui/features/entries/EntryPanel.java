@@ -189,7 +189,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private MoodTrendBaseline moodTrendBaseline;
     private ToolbarMenuIconButton moodDetailsToggleButton;
     private MoodHoverRevealStrip moodRevealStrip;
-    private JComponent moodToolbarGap;
+    private Component moodToolbarGap;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
