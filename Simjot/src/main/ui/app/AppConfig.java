@@ -112,6 +112,7 @@ public final class AppConfig {
             }
             rootFolder = icloud;
             AppDirectories.setRoot(rootFolder);
+            AppDirectories.restoreMacScopedAccess(rootFolder);
             preflightIcloudRoot(rootFolder);
             return rootFolder;
         }

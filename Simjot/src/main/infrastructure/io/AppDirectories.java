@@ -222,6 +222,46 @@ public final class AppDirectories {
     }
 
     /**
+     * Returns true when notebooks.json is readable from the current process.
+     */
+    public static boolean hasReadableNotebookRegistry(File rootFolder) {
+        if (rootFolder == null) return false;
+        File notebooksJson = new File(rootFolder, "notebooks.json");
+        ensureScopedAccess(notebooksJson);
+        try {
+            Path path = notebooksJson.toPath();
+            return Files.isRegularFile(path) && Files.size(path) > 0L;
+        } catch (IOException | SecurityException ignored) {
+            return notebooksJson.isFile() && notebooksJson.length() > 0L;
+        }
+    }
+
+    /**
+     * Best-effort signal that notebook registry data exists even if Finder-launched
+     * packaged apps cannot yet read it because macOS has not granted folder access.
+     */
+    public static boolean hasNotebookRegistryIndicator(File rootFolder) {
+        if (rootFolder == null) return false;
+        File notebooksJson = new File(rootFolder, "notebooks.json");
+        if (notebooksJson.isFile()) return true;
+        if (!isIcloudRoot(rootFolder)) return false;
+        try {
+            int status = NativeAccess.getMacIcloudItemStatus(notebooksJson.getAbsolutePath());
+            return (status & NativeAccess.ICLOUD_ITEM_EXISTS) != 0;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns true when the current process can use either the notebook registry
+     * or at least one notebook folder containing entries.
+     */
+    public static boolean hasUsableNotebookData(File rootFolder) {
+        return hasReadableNotebookRegistry(rootFolder) || hasReadableNotebookContent(rootFolder);
+    }
+
+    /**
      * Suggest an iCloud Drive path for Simjot on macOS, if available.
      * Does not change the current root.
      */
@@ -596,6 +636,7 @@ public final class AppDirectories {
                 File folder = new File(path.trim());
                 if (isDirectoryOrNoPermission(folder)) {
                     root = folder;
+                    restoreMacScopedAccess(root);
                 }
             }
         } catch (Throwable ignored) {}

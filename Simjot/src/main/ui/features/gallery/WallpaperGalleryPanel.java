@@ -43,9 +43,12 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroTheme;
 import main.ui.util.AccentColorUtil;
  
 
@@ -75,8 +78,7 @@ public class WallpaperGalleryPanel extends JDialog {
 
         ShadowedDialogPanel root = new ShadowedDialogPanel(new BorderLayout(12, 12), 16);
         root.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        root.setFlat(true);
-        root.setFlatColor(Color.WHITE);
+        root.setOpacityScale(0.98f);
 
         setLocationRelativeTo(parent);
 
@@ -94,13 +96,13 @@ public class WallpaperGalleryPanel extends JDialog {
 
         JLabel titleLabel = new JLabel("Choose Wallpaper");
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 24));
-        titleLabel.setForeground(new Color(40, 40, 40));
+        titleLabel.setFont(AeroTheme.defaultBoldFont(24f));
+        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
 
         JLabel subtitleLabel = new JLabel("Select a wallpaper from built-in options or your gallery.");
         subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        subtitleLabel.setForeground(new Color(120, 120, 120));
+        subtitleLabel.setFont(AeroTheme.defaultFont().deriveFont(12f));
+        subtitleLabel.setForeground(new Color(95, 106, 124));
 
         header.add(titleLabel);
         header.add(Box.createVerticalStrut(6));
@@ -132,16 +134,24 @@ public class WallpaperGalleryPanel extends JDialog {
         JPanel preview = createSectionCard(new BorderLayout(8, 8));
         preview.setPreferredSize(new Dimension(280, 0));
         previewImageLabel = new JLabel("Preview", SwingConstants.CENTER);
-        previewImageLabel.setOpaque(false);
-        previewImageLabel.setForeground(new Color(60, 60, 60));
-        previewImageLabel.setBorder(BorderFactory.createLineBorder(new Color(210, 210, 210)));
+        previewImageLabel.setOpaque(true);
+        previewImageLabel.setBackground(new Color(255, 255, 255, 36));
+        previewImageLabel.setForeground(new Color(60, 70, 84));
+        previewImageLabel.setFont(AeroTheme.defaultFont().deriveFont(13f));
+        previewImageLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(214, 224, 238, 168)),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        ));
         preview.add(previewImageLabel, BorderLayout.CENTER);
 
         JPanel swatchRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
-        swatchRow.add(new JLabel("Detected Accent:"));
+        JLabel swatchLabel = new JLabel("Detected Accent:");
+        swatchLabel.setFont(AeroTheme.defaultFont().deriveFont(11.5f));
+        swatchLabel.setForeground(new Color(82, 92, 108));
+        swatchRow.add(swatchLabel);
         accentSwatch = new JPanel();
         accentSwatch.setPreferredSize(new Dimension(42, 18));
-        accentSwatch.setBorder(BorderFactory.createLineBorder(new Color(160,160,160)));
+        accentSwatch.setBorder(BorderFactory.createLineBorder(new Color(150, 166, 188)));
         accentSwatch.setBackground(AccentColorUtil.defaultAccent());
         swatchRow.setOpaque(false);
         swatchRow.add(accentSwatch);
@@ -174,10 +184,10 @@ public class WallpaperGalleryPanel extends JDialog {
     }
 
     private JPanel createSectionCard(LayoutManager layout) {
-        JPanel panel = new JPanel(layout);
-        panel.setOpaque(false);
+        FrostedGlassPanel panel = new FrostedGlassPanel(layout, 20);
+        panel.setOpacityScale(0.92f);
         panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(220, 220, 220)),
+                BorderFactory.createLineBorder(new Color(214, 226, 240, 178)),
                 BorderFactory.createEmptyBorder(8, 8, 8, 8)
         ));
         return panel;
@@ -231,9 +241,15 @@ public class WallpaperGalleryPanel extends JDialog {
                 }
                 if (isSelected) {
                     setOpaque(true);
-                    setBackground(new Color(0, 120, 215, 70));
+                    Color accent = Theme.getWidgetAccent();
+                    setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 82));
+                    setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createLineBorder(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 126)),
+                            BorderFactory.createEmptyBorder(5,5,5,5)
+                    ));
                 } else {
                     setOpaque(false);
+                    setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
                 }
                 return this;
             }
@@ -263,8 +279,8 @@ public class WallpaperGalleryPanel extends JDialog {
 private JPanel buttonPanel;
     
     private void setupButtons() {
-        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
-        buttonPanel.setOpaque(false);
+        buttonPanel = new FrostedGlassPanel(new FlowLayout(FlowLayout.CENTER, 12, 8), 18);
+        ((FrostedGlassPanel) buttonPanel).setOpacityScale(0.88f);
         RoundedButton selectBtn = createDialogButton("Select", "save");
         RoundedButton removeBtn = createDialogButton("Remove", "trash");
         RoundedButton refreshBtn = createDialogButton("Refresh", "rescan");

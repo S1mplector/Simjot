@@ -21,11 +21,13 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.MouseInfo;
 import java.awt.Point;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +38,8 @@ import javax.swing.Timer;
 
 import main.infrastructure.ffi.NativeAccess;
 import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * A beautiful frosted glass dock bar inspired by macOS dock with Frutiger Aero aesthetics.
@@ -617,6 +621,7 @@ public class GlassDockBar extends JPanel {
         if (dockWidth <= 0f || dockHeight <= 0f) {
             return;
         }
+        Color accent = resolveDockAccent();
         // Calculate dock height to encompass items but not labels
         float dockH = dockHeight;
         
@@ -638,15 +643,31 @@ public class GlassDockBar extends JPanel {
                 dockH + spread * 0.7f, 
                 cornerR, cornerR));
         }
+
+        RadialGradientPaint atmosphere = new RadialGradientPaint(
+            new Point2D.Float(dockX + dockWidth * 0.2f, dockH * 0.02f),
+            Math.max(dockWidth * 0.95f, dockH * 2.2f),
+            new float[]{0f, 0.42f, 1f},
+            new Color[]{
+                withAlpha(AeroTheme.lift(accent, 0.58f), 38),
+                withAlpha(Color.WHITE, 14),
+                new Color(255, 255, 255, 0)
+            }
+        );
+        g2.setPaint(atmosphere);
+        g2.fill(shape);
         
-        // Pure glass background - very transparent
-        g2.setColor(new Color(255, 255, 255, 15));
+        GradientPaint body = new GradientPaint(
+            dockX, 0, withAlpha(AeroTheme.lift(accent, 0.9f), 42),
+            dockX, dockH, withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.74f), new Color(232, 239, 248), 0.45f), 18)
+        );
+        g2.setPaint(body);
         g2.fill(shape);
         
         // Subtle frosted overlay
         GradientPaint frost = new GradientPaint(
-            0, 0, new Color(255, 255, 255, 12),
-            0, dockH, new Color(250, 252, 255, 6)
+            dockX, 0, new Color(255, 255, 255, 18),
+            dockX + dockWidth * 0.75f, dockH, withAlpha(AeroTheme.lift(accent, 0.68f), 8)
         );
         g2.setPaint(frost);
         g2.fill(shape);
@@ -658,11 +679,21 @@ public class GlassDockBar extends JPanel {
         );
         g2.setPaint(gloss);
         g2.fill(new RoundRectangle2D.Float(dockX + 1, 1, dockWidth - 2, dockH * 0.35f, cornerRadius - 1, cornerRadius - 1));
+
+        GradientPaint lowerTint = new GradientPaint(
+            dockX, dockH * 0.58f, withAlpha(accent, 0),
+            dockX, dockH, withAlpha(AeroTheme.sink(accent, 0.22f), 34)
+        );
+        g2.setPaint(lowerTint);
+        g2.fill(shape);
         
         // Border - subtle
-        g2.setColor(new Color(255, 255, 255, 45));
+        g2.setColor(withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.6f), 70));
         g2.setStroke(new BasicStroke(1f));
         g2.draw(new RoundRectangle2D.Float(dockX + 0.5f, 0.5f, dockWidth - 1, dockH - 1, cornerRadius, cornerRadius));
+        g2.setColor(new Color(255, 255, 255, 68));
+        g2.draw(new RoundRectangle2D.Float(dockX + 1.35f, 1.35f, dockWidth - 2.7f, dockH - 2.7f,
+                Math.max(14f, cornerRadius - 2f), Math.max(14f, cornerRadius - 2f)));
     }
     
     private void drawItems(Graphics2D g2) {
@@ -741,6 +772,7 @@ public class GlassDockBar extends JPanel {
 
     private void drawItemBackground(Graphics2D g2, float x, float y, float size, float glow, float radius, float reveal) {
         RoundRectangle2D.Float shape = new RoundRectangle2D.Float(x, y, size, size, radius, radius);
+        Color accent = resolveDockAccent();
         float collapsed = 1f - Math.max(0f, Math.min(1f, expandProgress));
         float revealClamped = Math.max(0f, Math.min(1f, reveal));
         if (revealClamped <= 0.001f) {
@@ -753,36 +785,66 @@ public class GlassDockBar extends JPanel {
             for (int i = 0; i < glowLayers; i++) {
                 int baseAlpha = NativeAccess.aeroOuterGlowAlpha(glowLayers - i, glowLayers, 70);
                 int alpha = (int)(baseAlpha * glow);
-                int glowColor = NativeAccess.aeroLerpColor(0x006496FF, 0x5A6496FF, glow);
-                g2.setColor(new Color((glowColor & 0xFFFFFF) | (alpha << 24), true));
+                Color glowColor = AeroTheme.blend(AeroTheme.lift(accent, 0.08f), AeroTheme.sink(accent, 0.08f), 0.42f);
+                g2.setColor(withAlpha(glowColor, alpha));
                 float layer = i;
                 float cornerR = radius + layer;
                 g2.fill(new RoundRectangle2D.Float(x - layer, y - layer, size + layer * 2f, size + layer * 2f, cornerR, cornerR));
             }
         }
         
-        // Item background; increase opacity while collapsed to block icon bleed-through.
-        int collapsedBaseAlpha = Math.round((18 + (26 * collapsed)) * revealClamped);
-        int baseBg = (Math.max(0, Math.min(255, collapsedBaseAlpha)) << 24) | 0x00FFFFFF;
-        int hoverBg = ((Math.round(53 * revealClamped) & 0xFF) << 24) | 0x00FFFFFF;
-        int bgColor = NativeAccess.aeroLerpColor(baseBg, hoverBg, glow);
-        g2.setColor(new Color(bgColor, true));
+        // Item glass capsule; brighten and saturate slightly on hover.
+        Color baseTop = withAlpha(AeroTheme.lift(accent, 0.94f), Math.round((26 + (18 * collapsed)) * revealClamped));
+        Color baseBottom = withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.82f), new Color(236, 242, 250), 0.4f),
+                Math.round((18 + (12 * collapsed)) * revealClamped));
+        Color hoverTop = withAlpha(AeroTheme.lift(accent, 0.78f), Math.round((40 + 22 * glow) * revealClamped));
+        Color hoverBottom = withAlpha(AeroTheme.lift(accent, 0.62f), Math.round((30 + 18 * glow) * revealClamped));
+        GradientPaint body = new GradientPaint(
+            x, y, AeroTheme.blend(baseTop, hoverTop, glow),
+            x, y + size, AeroTheme.blend(baseBottom, hoverBottom, glow)
+        );
+        g2.setPaint(body);
         g2.fill(shape);
         
         // Top gloss - subtle
-        int glossAlpha = Math.round((36 + 34 * glow) * revealClamped);
+        int glossAlpha = Math.round((42 + 38 * glow) * revealClamped);
         GradientPaint itemGloss = new GradientPaint(
             x, y, new Color(255, 255, 255, glossAlpha),
             x, y + size * 0.4f, new Color(255, 255, 255, 0)
         );
         g2.setPaint(itemGloss);
         g2.fill(new RoundRectangle2D.Float(x + 1, y + 1, size - 2, size * 0.35f, radius - 1, radius - 1));
+
+        GradientPaint lowerTint = new GradientPaint(
+            x, y + size * 0.6f, withAlpha(accent, 0),
+            x, y + size, withAlpha(AeroTheme.sink(accent, 0.12f), Math.round((18 + 16 * glow) * revealClamped))
+        );
+        g2.setPaint(lowerTint);
+        g2.fill(shape);
         
         // Border - subtle
-        int borderAlpha = Math.round((28 + 42 * glow) * revealClamped);
-        g2.setColor(new Color(255, 255, 255, borderAlpha));
+        int borderAlpha = Math.round((34 + 46 * glow) * revealClamped);
+        g2.setColor(withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.62f), borderAlpha));
         g2.setStroke(new BasicStroke(0.8f));
         g2.draw(shape);
+        g2.setColor(new Color(255, 255, 255, Math.round((22 + 18 * glow) * revealClamped)));
+        g2.draw(new RoundRectangle2D.Float(x + 1.1f, y + 1.1f, size - 2.2f, size - 2.2f,
+                Math.max(10f, radius - 1.5f), Math.max(10f, radius - 1.5f)));
+    }
+
+    private Color resolveDockAccent() {
+        try {
+            Color accent = Theme.getWidgetAccent();
+            if (accent != null) return accent;
+        } catch (Throwable ignored) {
+        }
+        return AeroTheme.AERO_BLUE;
+    }
+
+    private static Color withAlpha(Color color, int alpha) {
+        if (color == null) return new Color(255, 255, 255, Math.max(0, Math.min(255, alpha)));
+        int safe = Math.max(0, Math.min(255, alpha));
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), safe);
     }
 
     private void drawItemLabel(Graphics2D g2, FontMetrics fm, String label, float x, float y, float width, float glow, float visibility) {

@@ -14,11 +14,17 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LayoutManager;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.Shape;
+import java.awt.geom.Point2D;
 
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
+
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * A container panel for undecorated dialogs that provides:
@@ -148,38 +154,71 @@ public class ShadowedDialogPanel extends JPanel {
     private void paintFrostedBackground(Graphics2D g2, int x, int y, int w, int h, float opacity) {
         int rArc = Math.max(arc, 6);
         RoundRectangle2D fillShape = new RoundRectangle2D.Float(x, y, w, h, rArc, rArc);
+        boolean plain = Theme.isPlainWhite();
+        Color accent = AeroTheme.resolveChromeAccent();
         
-        // Soft translucent gradient base
+        // Tinted dialog glass with a brighter, more Aero-like atmosphere.
+        Color topTone = plain
+                ? new Color(255, 255, 255, 228)
+                : AeroTheme.withAlpha(AeroTheme.lift(accent, 0.9f), 224);
+        Color bottomTone = plain
+                ? new Color(242, 245, 250, 198)
+                : AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.76f), new Color(232, 238, 248), 0.4f), 196);
         GradientPaint base = new GradientPaint(
-            x, y, scaleAlpha(new Color(255, 255, 255, 230), opacity),
-            x, y + h, scaleAlpha(new Color(240, 240, 240, 200), opacity)
+            x, y, scaleAlpha(topTone, opacity),
+            x, y + h, scaleAlpha(bottomTone, opacity)
         );
         g2.setPaint(base);
         g2.fill(fillShape);
+
+        Shape oldClip = g2.getClip();
+        g2.setClip(fillShape);
+        RadialGradientPaint bloom = new RadialGradientPaint(
+                new Point2D.Float(x + w * 0.22f, y + h * 0.06f),
+                Math.max(58f, Math.max(w, h) * 0.82f),
+                new float[]{0f, 0.32f, 1f},
+                new Color[]{
+                        scaleAlpha(AeroTheme.withAlpha(AeroTheme.lift(accent, 0.6f), plain ? 34 : 92), opacity),
+                        scaleAlpha(new Color(255, 255, 255, plain ? 22 : 44), opacity),
+                        new Color(255, 255, 255, 0)
+                }
+        );
+        g2.setPaint(bloom);
+        g2.fillRect(x, y, w, h);
+        g2.setClip(oldClip);
         
         // Glass sheen overlay
         GradientPaint sheen = new GradientPaint(
-            x, y, scaleAlpha(new Color(255, 255, 255, 120), opacity),
-            x, y + h * 0.5f, scaleAlpha(new Color(255, 255, 255, 20), opacity)
+            x, y, scaleAlpha(new Color(255, 255, 255, plain ? 124 : 164), opacity),
+            x, y + h * 0.5f, scaleAlpha(new Color(255, 255, 255, plain ? 24 : 38), opacity)
         );
         g2.setPaint(sheen);
+        g2.fill(fillShape);
+
+        GradientPaint aquaLift = new GradientPaint(
+            x, y + h * 0.58f, scaleAlpha(AeroTheme.withAlpha(accent, 0), opacity),
+            x, y + h, scaleAlpha(AeroTheme.withAlpha(AeroTheme.sink(accent, 0.2f), plain ? 16 : 56), opacity)
+        );
+        g2.setPaint(aquaLift);
         g2.fill(fillShape);
         
         // Subtle bottom shadow
         GradientPaint shadow = new GradientPaint(
-            x, y + h * 0.5f, scaleAlpha(new Color(0, 0, 0, 8), opacity),
-            x, y + h, scaleAlpha(new Color(0, 0, 0, 25), opacity)
+            x, y + h * 0.5f, scaleAlpha(new Color(0, 0, 0, plain ? 8 : 10), opacity),
+            x, y + h, scaleAlpha(new Color(0, 0, 0, plain ? 26 : 30), opacity)
         );
         g2.setPaint(shadow);
         g2.fill(fillShape);
         
         // Inner highlight
         int innerArc = Math.max(rArc - 2, 2);
-        g2.setColor(scaleAlpha(new Color(255, 255, 255, 100), opacity));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, plain ? 102 : 142), opacity));
         g2.draw(new RoundRectangle2D.Float(x + 1.5f, y + 1.5f, w - 3f, h - 3f, innerArc, innerArc));
+        g2.setColor(scaleAlpha(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.5f), plain ? 34 : 74), opacity));
+        g2.draw(new RoundRectangle2D.Float(x + 0.9f, y + 0.9f, w - 1.8f, h - 1.8f, Math.max(rArc - 1, 4), Math.max(rArc - 1, 4)));
         
         // Outer border
-        g2.setColor(scaleAlpha(new Color(0, 0, 0, 30), opacity));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, plain ? 30 : 34), opacity));
         g2.draw(new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, w - 1f, h - 1f, rArc, rArc));
     }
 

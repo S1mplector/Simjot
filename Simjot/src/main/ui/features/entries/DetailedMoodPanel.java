@@ -11,6 +11,7 @@ package main.ui.features.entries;
 import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -183,6 +184,7 @@ public class DetailedMoodPanel extends JPanel {
         this.onChange = onChange;
         setOpaque(false);
         setLayout(new BorderLayout());
+        setAlignmentX(Component.LEFT_ALIGNMENT);
 
         shell = new FrostedGlassPanel(new BorderLayout(10, 8), 16) {
             @Override
@@ -723,7 +725,10 @@ public class DetailedMoodPanel extends JPanel {
         int safeHeight = Math.max(0, height);
         Insets insets = getInsets();
         Dimension currentSize = getPreferredSize();
-        int prefW = Math.max(0, currentSize.width);
+        int prefW = Math.max(Math.max(0, getWidth()), Math.max(0, currentSize.width));
+        if (prefW <= 0 && getParent() != null) {
+            prefW = Math.max(0, getParent().getWidth());
+        }
         if (prefW <= 0) {
             prefW = Math.max(0, shell.getPreferredSize().width + Math.max(0, insets.left) + Math.max(0, insets.right));
         }

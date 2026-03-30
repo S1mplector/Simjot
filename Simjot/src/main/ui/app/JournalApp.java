@@ -587,15 +587,8 @@ public class JournalApp extends JFrame {
         if (rootFolder == null || !AppDirectories.isIcloudRoot(rootFolder)) return;
 
         AppDirectories.restoreMacScopedAccess(rootFolder);
-        if (AppDirectories.hasReadableNotebookContent(rootFolder)) return;
-
-        int notebookCount = 0;
-        try {
-            notebookCount = new NotebookStore().list().size();
-        } catch (Throwable ignored) {
-            notebookCount = 0;
-        }
-        if (notebookCount <= 0) return;
+        if (AppDirectories.hasUsableNotebookData(rootFolder)) return;
+        if (!AppDirectories.hasNotebookRegistryIndicator(rootFolder)) return;
 
         rootAccessReauthAttempted = true;
         String msg = "<html><div style='width:360px;'>" +
@@ -614,7 +607,7 @@ public class JournalApp extends JFrame {
         if (selected == null || !selected.isDirectory()) return;
 
         configureRootFolder(selected, true);
-        if (!AppDirectories.hasReadableNotebookContent(selected)) {
+        if (!AppDirectories.hasUsableNotebookData(selected)) {
             CustomMessageDialog.display(this,
                     "Folder Access",
                     "The folder was re-selected, but macOS still did not expose notebook contents. " +
@@ -1865,6 +1858,7 @@ public class JournalApp extends JFrame {
                                     java.io.File folder = new java.io.File(path);
                                     if (folder.exists() && folder.isDirectory()) {
                                         main.infrastructure.io.AppDirectories.setRoot(folder);
+                                        main.infrastructure.io.AppDirectories.restoreMacScopedAccess(folder);
                                         // Create only active sub-directories
                                         main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.NOTEBOOKS);
                                         main.infrastructure.io.AppDirectories.folder(main.infrastructure.io.AppDirectories.Type.MOOD_DATA);

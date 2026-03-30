@@ -1267,6 +1267,7 @@ public class EntryPanel extends AbstractEditorPanel {
             toolbarGroup.add(stampRow);
             toolbarGroup.add(Box.createVerticalStrut(4));
         }
+        toolbarContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
         toolbarGroup.add(toolbarContainer);
 
         if (supportsMoodControls()) {
@@ -1303,15 +1304,19 @@ public class EntryPanel extends AbstractEditorPanel {
                 } catch (Throwable ignored) {}
             });
             detailedMoodPanel.setBorder(BorderFactory.createEmptyBorder(6, 30, 0, 6));
+            detailedMoodPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
             moodContainer = new JPanel(new BorderLayout());
             moodContainer.setOpaque(false);
             moodContainer.setBorder(BorderFactory.createEmptyBorder(6, 10, 0, 10));
+            moodContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
+            moodContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
             moodContainer.add(moodRow, BorderLayout.NORTH);
             moodContainer.add(detailedMoodPanel, BorderLayout.CENTER);
             moodSummaryPills = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
             moodSummaryPills.setOpaque(false);
             moodSummaryPills.setBorder(BorderFactory.createEmptyBorder(4, 30, 0, 6));
+            moodSummaryPills.setAlignmentX(Component.LEFT_ALIGNMENT);
             moodSummaryPills.setVisible(false);
             moodContainer.add(moodSummaryPills, BorderLayout.SOUTH);
             toolbarGroup.add(Box.createVerticalStrut(6));

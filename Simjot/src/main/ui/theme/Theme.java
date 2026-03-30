@@ -65,6 +65,8 @@ public final class Theme {
         try {
             int rgb = SettingsStore.get().getWidgetAccentRGB();
             if (rgb != Integer.MIN_VALUE) return new Color(rgb, false);
+            int mainMenuRgb = SettingsStore.get().getMainMenuAccentRGB();
+            if (mainMenuRgb != Integer.MIN_VALUE) return new Color(mainMenuRgb, true);
         } catch (Throwable ignored) {}
         return getBaseAccent();
     }

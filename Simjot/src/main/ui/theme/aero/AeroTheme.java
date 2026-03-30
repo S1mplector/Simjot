@@ -48,6 +48,43 @@ public final class AeroTheme {
         return defaultFont().deriveFont(Font.BOLD, size);
     }
 
+    public static Color resolveChromeAccent() {
+        try {
+            Color accent = main.ui.theme.Theme.getWidgetAccent();
+            if (accent != null) return accent;
+        } catch (Throwable ignored) {}
+        return AERO_BLUE;
+    }
+
+    public static Color blend(Color a, Color b, float t) {
+        if (a == null) return b;
+        if (b == null) return a;
+        float k = Math.max(0f, Math.min(1f, t));
+        float inv = 1f - k;
+        int r = Math.round(a.getRed() * inv + b.getRed() * k);
+        int g = Math.round(a.getGreen() * inv + b.getGreen() * k);
+        int bl = Math.round(a.getBlue() * inv + b.getBlue() * k);
+        int al = Math.round(a.getAlpha() * inv + b.getAlpha() * k);
+        return new Color(r, g, bl, al);
+    }
+
+    public static Color withAlpha(Color color, int alpha) {
+        if (color == null) return new Color(255, 255, 255, clamp255(alpha));
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), clamp255(alpha));
+    }
+
+    public static Color lift(Color color, float amount) {
+        return blend(color, Color.WHITE, amount);
+    }
+
+    public static Color sink(Color color, float amount) {
+        return blend(color, Color.BLACK, amount);
+    }
+
+    private static int clamp255(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
     public static void applyVariant(main.ui.theme.Theme.Variant variant) {
         switch (variant) {
             case SEPIA -> {

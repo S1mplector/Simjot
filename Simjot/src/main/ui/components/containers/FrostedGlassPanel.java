@@ -14,10 +14,16 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LayoutManager;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.Shape;
+import java.awt.geom.Point2D;
 
 import javax.swing.JPanel;
+
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroTheme;
 
 /**
  * Frosted glass container for toolbar rows. It lets the wallpaper show through gently
@@ -84,36 +90,69 @@ public class FrostedGlassPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         float opacity = Math.max(0f, Math.min(1f, getOpacityScale()));
+        boolean plain = Theme.isPlainWhite();
+        Color accent = AeroTheme.resolveChromeAccent();
 
         int rArc = Math.max(arc, 6);
         RoundRectangle2D fillShape = new RoundRectangle2D.Float(0, 0, w, h, rArc, rArc);
 
-        // Soft translucent gradient that lets the wallpaper peek through.
+        // Accent-tinted glass base that feels more like Aero and less like neutral white acrylic.
+        Color topTone = plain
+                ? new Color(255, 255, 255, 214)
+                : AeroTheme.withAlpha(AeroTheme.lift(accent, 0.88f), 198);
+        Color bottomTone = plain
+                ? new Color(244, 246, 250, 168)
+                : AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.74f), new Color(229, 238, 248), 0.42f), 160);
         GradientPaint base = new GradientPaint(
-                0, 0, scaleAlpha(new Color(255, 255, 255, 205), opacity),
-                0, h, scaleAlpha(new Color(235, 235, 235, 150), opacity)
+                0, 0, scaleAlpha(topTone, opacity),
+                0, h, scaleAlpha(bottomTone, opacity)
         );
         g2.setPaint(base);
         g2.fill(fillShape);
 
+        // Upper-left bloom gives the panel that dewy, luminous desktop feel.
+        Shape oldClip = g2.getClip();
+        g2.setClip(fillShape);
+        RadialGradientPaint bloom = new RadialGradientPaint(
+                new Point2D.Float(w * 0.22f, h * 0.08f),
+                Math.max(42f, Math.max(w, h) * 0.78f),
+                new float[]{0f, 0.35f, 1f},
+                new Color[]{
+                        scaleAlpha(AeroTheme.withAlpha(AeroTheme.lift(accent, 0.62f), plain ? 38 : 88), opacity),
+                        scaleAlpha(new Color(255, 255, 255, plain ? 26 : 44), opacity),
+                        new Color(255, 255, 255, 0)
+                }
+        );
+        g2.setPaint(bloom);
+        g2.fillRect(0, 0, w, h);
+        g2.setClip(oldClip);
+
         // Glass sheen: bright top fade plus a gentle lower shadow to keep the bar distinct.
         GradientPaint sheen = new GradientPaint(
-                0, 0, scaleAlpha(new Color(255, 255, 255, 110), opacity),
-                0, h * 0.55f, scaleAlpha(new Color(255, 255, 255, 25), opacity)
+                0, 0, scaleAlpha(new Color(255, 255, 255, plain ? 122 : 152), opacity),
+                0, h * 0.58f, scaleAlpha(new Color(255, 255, 255, plain ? 22 : 34), opacity)
         );
         g2.setPaint(sheen);
         g2.fill(fillShape);
+        GradientPaint aquaRim = new GradientPaint(
+                0, h * 0.48f, scaleAlpha(AeroTheme.withAlpha(accent, 0), opacity),
+                0, h, scaleAlpha(AeroTheme.withAlpha(AeroTheme.sink(accent, 0.22f), plain ? 18 : 54), opacity)
+        );
+        g2.setPaint(aquaRim);
+        g2.fill(fillShape);
         GradientPaint shadow = new GradientPaint(
-                0, h * 0.45f, scaleAlpha(new Color(0, 0, 0, 12), opacity),
-                0, h, scaleAlpha(new Color(0, 0, 0, 40), opacity)
+                0, h * 0.45f, scaleAlpha(new Color(0, 0, 0, plain ? 8 : 12), opacity),
+                0, h, scaleAlpha(new Color(0, 0, 0, plain ? 24 : 42), opacity)
         );
         g2.setPaint(shadow);
         g2.fill(fillShape);
 
         int innerArc = Math.max(rArc - 2, 2);
-        g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), opacity));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, plain ? 96 : 132), opacity));
         g2.draw(new RoundRectangle2D.Float(1.5f, 1.5f, w - 3f, h - 3f, innerArc, innerArc));
-        g2.setColor(scaleAlpha(new Color(0, 0, 0, 35), opacity));
+        g2.setColor(scaleAlpha(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.52f), plain ? 40 : 72), opacity));
+        g2.draw(new RoundRectangle2D.Float(0.9f, 0.9f, w - 1.8f, h - 1.8f, Math.max(rArc - 1, 4), Math.max(rArc - 1, 4)));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, plain ? 30 : 38), opacity));
         g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, rArc, rArc));
 
         g2.dispose();
