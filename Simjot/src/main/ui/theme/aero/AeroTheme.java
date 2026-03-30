@@ -50,7 +50,7 @@ public final class AeroTheme {
 
     public static Color resolveChromeAccent() {
         try {
-            Color accent = main.ui.theme.Theme.getWidgetAccent();
+            Color accent = main.ui.theme.Theme.getChromeAccent();
             if (accent != null) return accent;
         } catch (Throwable ignored) {}
         return AERO_BLUE;

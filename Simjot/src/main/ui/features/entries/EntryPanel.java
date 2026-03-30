@@ -26,6 +26,7 @@ import java.awt.Image;
 import java.awt.Insets;
 import java.awt.LinearGradientPaint;
 import java.awt.Paint;
+import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
@@ -187,6 +188,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private JPanel moodSummaryPills;
     private MoodTrendBaseline moodTrendBaseline;
     private ToolbarMenuIconButton moodDetailsToggleButton;
+    private MoodHoverRevealStrip moodRevealStrip;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
@@ -237,6 +239,9 @@ public class EntryPanel extends AbstractEditorPanel {
         if (detailedMoodPanel == null) return;
         stabilizeEditorViewportDuringMoodAnimation();
         detailedMoodPanel.setExpanded(expanded);
+        if (moodRevealStrip != null) {
+            moodRevealStrip.setPinnedVisible(expanded);
+        }
         refreshDetailedMoodToggleVisual();
     }
 
@@ -308,6 +313,188 @@ public class EntryPanel extends AbstractEditorPanel {
         boolean expanded = detailedMoodPanel != null && detailedMoodPanel.isExpanded();
         moodDetailsToggleButton.animateIconRotationRadians(expanded ? Math.PI / 2.0 : 0.0, 200);
         moodDetailsToggleButton.setToolTipText(expanded ? "Hide detailed emotions" : "Show detailed emotions");
+        moodDetailsToggleButton.setIconOpacity(expanded ? 1.0f : 0.84f);
+    }
+
+    private final class MoodHoverRevealStrip extends JComponent {
+        private static final int REVEAL_GAP = 8;
+        private static final int HOTSPOT_PAD = 14;
+        private static final int REVEAL_TICK_MS = 16;
+
+        private final JPanel sliderHost;
+        private final ToolbarMenuIconButton indicatorButton;
+        private final javax.swing.Timer revealTimer;
+        private final MouseAdapter hoverTracker;
+
+        private float revealProgress = 0f;
+        private boolean hoverActive = false;
+        private boolean pinnedVisible = false;
+
+        private MoodHoverRevealStrip(JComponent sliderComponent, ToolbarMenuIconButton indicatorButton) {
+            this.indicatorButton = indicatorButton;
+            setOpaque(false);
+            setLayout(null);
+
+            sliderHost = new JPanel(new BorderLayout());
+            sliderHost.setOpaque(false);
+            sliderHost.add(sliderComponent, BorderLayout.CENTER);
+            add(sliderHost);
+            add(indicatorButton);
+
+            revealTimer = new javax.swing.Timer(REVEAL_TICK_MS, e -> stepRevealAnimation());
+            revealTimer.setCoalesce(true);
+
+            hoverTracker = new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    updateHoverFromEvent(e);
+                }
+
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    updateHoverFromEvent(e);
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    SwingUtilities.invokeLater(() -> refreshHoverFromPointer());
+                }
+            };
+
+            installHoverTracking(this);
+            installHoverTracking(sliderHost);
+            installHoverTracking(sliderComponent);
+            installHoverTracking(indicatorButton);
+
+            refreshIndicatorChrome();
+        }
+
+        private void installHoverTracking(Component component) {
+            if (component == null) return;
+            component.addMouseListener(hoverTracker);
+            component.addMouseMotionListener(hoverTracker);
+        }
+
+        private void updateHoverFromEvent(MouseEvent event) {
+            if (event == null) return;
+            Point p = SwingUtilities.convertPoint(event.getComponent(), event.getPoint(), this);
+            setHoverActive(isHotspotPoint(p));
+        }
+
+        private void refreshHoverFromPointer() {
+            if (!isShowing()) {
+                setHoverActive(false);
+                return;
+            }
+            try {
+                if (MouseInfo.getPointerInfo() == null) {
+                    setHoverActive(false);
+                    return;
+                }
+                Point p = MouseInfo.getPointerInfo().getLocation();
+                SwingUtilities.convertPointFromScreen(p, this);
+                setHoverActive(isHotspotPoint(p));
+            } catch (Throwable ignored) {
+                setHoverActive(false);
+            }
+        }
+
+        private boolean isHotspotPoint(Point p) {
+            if (p == null) return false;
+            if (p.x < 0 || p.y < 0 || p.x >= getWidth() || p.y >= getHeight()) return false;
+            if (pinnedVisible || revealProgress > 0.08f) return true;
+            Rectangle hotspot = indicatorButton.getBounds();
+            if (hotspot.width <= 0 || hotspot.height <= 0) return false;
+            hotspot = new Rectangle(
+                    Math.max(0, hotspot.x - HOTSPOT_PAD),
+                    0,
+                    Math.min(getWidth(), hotspot.width + HOTSPOT_PAD * 2),
+                    getHeight()
+            );
+            return hotspot.contains(p);
+        }
+
+        private void setPinnedVisible(boolean pinnedVisible) {
+            if (this.pinnedVisible == pinnedVisible) return;
+            this.pinnedVisible = pinnedVisible;
+            ensureRevealAnimationRunning();
+        }
+
+        private void setHoverActive(boolean hoverActive) {
+            if (this.hoverActive == hoverActive) return;
+            this.hoverActive = hoverActive;
+            ensureRevealAnimationRunning();
+        }
+
+        private void ensureRevealAnimationRunning() {
+            if (!revealTimer.isRunning()) {
+                revealTimer.start();
+            }
+        }
+
+        private void stepRevealAnimation() {
+            float target = (hoverActive || pinnedVisible) ? 1f : 0f;
+            float diff = target - revealProgress;
+            if (Math.abs(diff) < 0.015f) {
+                revealProgress = target;
+                revealTimer.stop();
+            } else {
+                revealProgress += diff * 0.26f;
+            }
+            doLayout();
+            repaint();
+            refreshIndicatorChrome();
+        }
+
+        private void refreshIndicatorChrome() {
+            if (indicatorButton == null) return;
+            float emphasis = Math.max(revealProgress, pinnedVisible ? 1f : 0f);
+            if (hoverActive && !pinnedVisible) {
+                emphasis = Math.max(emphasis, 0.92f);
+            }
+            indicatorButton.setIconOpacity(0.80f + (0.20f * emphasis));
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension sliderPref = sliderHost.getPreferredSize();
+            Dimension buttonPref = indicatorButton.getPreferredSize();
+            return new Dimension(
+                    sliderPref.width + REVEAL_GAP + buttonPref.width,
+                    Math.max(sliderPref.height, buttonPref.height)
+            );
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public Dimension getMaximumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public void doLayout() {
+            Dimension sliderPref = sliderHost.getPreferredSize();
+            Dimension buttonPref = indicatorButton.getPreferredSize();
+            int rowH = Math.max(sliderPref.height, buttonPref.height);
+            int buttonX = Math.max(0, getWidth() - buttonPref.width);
+            int buttonY = Math.max(0, (rowH - buttonPref.height) / 2);
+            int sliderTravel = sliderPref.width + REVEAL_GAP + 10;
+            int sliderX = Math.round((revealProgress - 1f) * sliderTravel);
+            int sliderY = Math.max(0, (rowH - sliderPref.height) / 2);
+
+            sliderHost.setBounds(sliderX, sliderY, sliderPref.width, sliderPref.height);
+            indicatorButton.setBounds(buttonX, buttonY, buttonPref.width, buttonPref.height);
+        }
+
+        @Override
+        public void removeNotify() {
+            revealTimer.stop();
+            super.removeNotify();
+        }
     }
 
     private static int[] detailedMoodArrayFromSnapshot(DetailedMoodPanel.DetailedMoodSnapshot details) {
@@ -1271,11 +1458,10 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarGroup.add(toolbarContainer);
 
         if (supportsMoodControls()) {
-            JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             moodRow.setOpaque(false);
             moodSlider = new MoodSlider();
-            moodSlider.setHoverFadeEnabled(true);
-            moodRow.add(moodSlider);
+            moodSlider.setHoverFadeEnabled(false);
             moodSlider.addChangeListener(e -> {
                 if (detailedMoodPanel == null || !detailedMoodPanel.hasSnapshot()) {
                     updateMoodSummaryPills(null, moodSlider.getValue());
@@ -1292,7 +1478,10 @@ public class EntryPanel extends AbstractEditorPanel {
             moodDetailsToggleButton.addActionListener(e -> setDetailedMoodExpanded(
                     detailedMoodPanel == null || !detailedMoodPanel.isExpanded()
             ));
-            moodRow.add(moodDetailsToggleButton);
+
+            moodRevealStrip = new MoodHoverRevealStrip(moodSlider, moodDetailsToggleButton);
+            moodRevealStrip.setAlignmentY(Component.CENTER_ALIGNMENT);
+            moodRow.add(moodRevealStrip);
 
             detailedMoodPanel = new DetailedMoodPanel((composite, snapshot) -> {
                 try {
@@ -1322,6 +1511,7 @@ public class EntryPanel extends AbstractEditorPanel {
             toolbarGroup.add(Box.createVerticalStrut(6));
             toolbarGroup.add(moodContainer);
             refreshDetailedMoodToggleVisual();
+            moodRevealStrip.setPinnedVisible(false);
             refreshMoodTrendBaselineFromHistory();
             updateMoodSummaryPills(null, moodSlider.getValue());
         }

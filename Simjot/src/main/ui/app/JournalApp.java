@@ -583,12 +583,11 @@ public class JournalApp extends JFrame {
     private void maybePromptRootAccessReauthorization() {
         if (rootAccessReauthAttempted) return;
         if (!AppLifecycle.isMacOS()) return;
-        if (System.getProperty("jpackage.app-version") == null) return;
+        if (!isPackagedMacApp()) return;
         if (rootFolder == null || !AppDirectories.isIcloudRoot(rootFolder)) return;
 
         AppDirectories.restoreMacScopedAccess(rootFolder);
-        if (AppDirectories.hasUsableNotebookData(rootFolder)) return;
-        if (!AppDirectories.hasNotebookRegistryIndicator(rootFolder)) return;
+        if (!AppDirectories.needsNotebookAccessReauthorization(rootFolder)) return;
 
         rootAccessReauthAttempted = true;
         String msg = "<html><div style='width:360px;'>" +
@@ -607,13 +606,20 @@ public class JournalApp extends JFrame {
         if (selected == null || !selected.isDirectory()) return;
 
         configureRootFolder(selected, true);
-        if (!AppDirectories.hasUsableNotebookData(selected)) {
+        if (AppDirectories.needsNotebookAccessReauthorization(selected)) {
             CustomMessageDialog.display(this,
                     "Folder Access",
                     "The folder was re-selected, but macOS still did not expose notebook contents. " +
                             "Restart Simjot and choose the same folder again if needed.",
                     true);
         }
+    }
+
+    private boolean isPackagedMacApp() {
+        if (!AppLifecycle.isMacOS()) return false;
+        if (System.getProperty("jpackage.app-version") != null) return true;
+        String javaHome = System.getProperty("java.home", "");
+        return javaHome.contains(".app/Contents/runtime");
     }
 
     private void maybePromptIcloudSwitch(File icloudRoot) {

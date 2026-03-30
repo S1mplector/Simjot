@@ -29,6 +29,8 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Point2D;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -125,28 +127,174 @@ public class MainMenuPanel extends JPanel {
         buildUI();
     }
 
+    private static Color resolveMainMenuAccentSafe() {
+        try {
+            int rgb = SettingsStore.get().getMainMenuAccentRGB();
+            if (rgb != Integer.MIN_VALUE) return new Color(rgb, true);
+        } catch (Throwable ignored) {}
+        try {
+            Color accent = Theme.getWidgetAccent();
+            if (accent != null) return accent;
+        } catch (Throwable ignored) {}
+        return AccentColorUtil.defaultAccent();
+    }
+
+    private JPanel createAeroFallbackContent(Color accent) {
+        final Color safeAccent = accent != null ? accent : resolveMainMenuAccentSafe();
+        return new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                if (w > 0 && h > 0) {
+                    GradientPaint sky = new GradientPaint(
+                            0, 0, new Color(250, 253, 255),
+                            0, h, new Color(230, 239, 247)
+                    );
+                    g2.setPaint(sky);
+                    g2.fillRect(0, 0, w, h);
+
+                    RadialGradientPaint skyBloom = new RadialGradientPaint(
+                            new Point2D.Float(w * 0.24f, h * 0.10f),
+                            Math.max(w, h) * 0.72f,
+                            new float[]{0f, 0.42f, 1f},
+                            new Color[]{
+                                    AeroTheme.withAlpha(AeroTheme.lift(safeAccent, 0.58f), 84),
+                                    new Color(255, 255, 255, 38),
+                                    new Color(255, 255, 255, 0)
+                            }
+                    );
+                    g2.setPaint(skyBloom);
+                    g2.fillRect(0, 0, w, h);
+
+                    RadialGradientPaint aquaBloom = new RadialGradientPaint(
+                            new Point2D.Float(w * 0.78f, h * 0.84f),
+                            Math.max(w, h) * 0.60f,
+                            new float[]{0f, 1f},
+                            new Color[]{
+                                    AeroTheme.withAlpha(AeroTheme.lift(safeAccent, 0.72f), 62),
+                                    new Color(255, 255, 255, 0)
+                            }
+                    );
+                    g2.setPaint(aquaBloom);
+                    g2.fillRect(0, 0, w, h);
+
+                    GradientPaint sheen = new GradientPaint(
+                            0, 0, new Color(255, 255, 255, 34),
+                            w, h, new Color(255, 255, 255, 0)
+                    );
+                    g2.setPaint(sheen);
+                    g2.fillRect(0, 0, w, h);
+
+                    g2.setColor(new Color(255, 255, 255, 34));
+                    g2.fill(new Ellipse2D.Float(w * 0.08f, h * 0.16f, 112f, 112f));
+                    g2.fill(new Ellipse2D.Float(w * 0.76f, h * 0.12f, 86f, 86f));
+                    g2.fill(new Ellipse2D.Float(w * 0.68f, h * 0.68f, 132f, 132f));
+                    g2.setColor(new Color(255, 255, 255, 68));
+                    g2.draw(new Ellipse2D.Float(w * 0.08f, h * 0.16f, 112f, 112f));
+                    g2.draw(new Ellipse2D.Float(w * 0.76f, h * 0.12f, 86f, 86f));
+                    g2.draw(new Ellipse2D.Float(w * 0.68f, h * 0.68f, 132f, 132f));
+                }
+                g2.dispose();
+            }
+        };
+    }
+
     private JPanel buildPinnedStickiesRow() {
         java.util.Set<String> ids = SettingsStore.get().getPinnedStickyIds();
         if (ids == null || ids.isEmpty()) return null;
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
-        row.setOpaque(false);
+        Color accent = resolveMainMenuAccentSafe();
+        FrostedGlassPanel row = new FrostedGlassPanel(new FlowLayout(FlowLayout.CENTER, 10, 8), 24);
+        row.setOpacityScale(0.86f);
+        row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(214, 226, 240, 176)),
+                BorderFactory.createEmptyBorder(4, 10, 4, 10)
+        ));
         JLabel title = new JLabel("Pinned Stickies");
-        title.setForeground(AeroTheme.TEXT_PRIMARY);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+        title.setForeground(AeroTheme.blend(AeroTheme.TEXT_PRIMARY, AeroTheme.sink(accent, 0.24f), 0.16f));
+        title.setFont(AeroTheme.defaultBoldFont(15f));
         row.add(title);
         for (String id : ids) {
             String label = readStickyTitle(id);
             if (label == null) continue;
             String res = ImageIconRenderer.mapIdToResource("sticky_widget");
-            JButton b = new JButton(label, res != null ? ImageIconRenderer.icon(res, 16, false) : null);
-            b.setFocusPainted(false);
-            b.setOpaque(false);
-            b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            JButton b = createPinnedStickyButton(label, res);
             b.addActionListener(e -> openSticky(id));
             row.add(b);
         }
         if (row.getComponentCount() <= 1) return null; // nothing valid
         return row;
+    }
+
+    private JButton createPinnedStickyButton(String label, String iconResource) {
+        final Color accent = resolveMainMenuAccentSafe();
+        JButton button = new JButton(label, iconResource != null ? ImageIconRenderer.icon(iconResource, 16, false) : null) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                int arc = Math.max(16, h - 4);
+                boolean hover = getModel().isRollover() || getModel().isPressed();
+
+                if (hover) {
+                    AeroPainters.paintOuterGlow(
+                            g2,
+                            new Rectangle(0, 0, w, h),
+                            arc,
+                            AeroTheme.withAlpha(AeroTheme.lift(accent, 0.16f), 80),
+                            6,
+                            48
+                    );
+                }
+
+                LinearGradientPaint body = new LinearGradientPaint(
+                        0, 0, 0, h,
+                        new float[]{0f, 0.55f, 1f},
+                        new Color[]{
+                                AeroTheme.withAlpha(AeroTheme.lift(accent, hover ? 0.88f : 0.93f), 228),
+                                AeroTheme.withAlpha(AeroTheme.lift(accent, hover ? 0.76f : 0.82f), 214),
+                                AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.72f), new Color(233, 240, 248), 0.42f), 204)
+                        }
+                );
+                g2.setPaint(body);
+                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+                g2.setPaint(new GradientPaint(
+                        0, 0, new Color(255, 255, 255, 112),
+                        0, h * 0.48f, new Color(255, 255, 255, 0)
+                ));
+                g2.fillRoundRect(1, 1, w - 2, Math.max(10, (int) (h * 0.52f)), arc - 2, arc - 2);
+
+                g2.setPaint(new GradientPaint(
+                        0, h * 0.58f, AeroTheme.withAlpha(accent, 0),
+                        0, h, AeroTheme.withAlpha(AeroTheme.sink(accent, 0.12f), 42)
+                ));
+                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+                g2.setColor(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.62f), 150));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                g2.setColor(new Color(255, 255, 255, 116));
+                g2.drawRoundRect(1, 1, w - 3, h - 3, arc - 2, arc - 2);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        button.setFocusPainted(false);
+        button.setOpaque(false);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setForeground(AeroTheme.TEXT_PRIMARY);
+        button.setFont(AeroTheme.defaultFont().deriveFont(12.5f));
+        button.setBorder(BorderFactory.createEmptyBorder(7, 12, 7, 12));
+        button.setIconTextGap(7);
+        button.setRolloverEnabled(true);
+        return button;
     }
 
     private void openSticky(String id) {
@@ -221,7 +369,7 @@ public class MainMenuPanel extends JPanel {
             this.app = app;
             setOpaque(false);
             setLayout(new FlowLayout(FlowLayout.CENTER, 8, 0));
-            Font bradleyHand = new Font("Bradley Hand", Font.PLAIN, 13);
+            Font chromeFont = AeroTheme.defaultFont().deriveFont(12.5f);
             Color c = AeroTheme.TEXT_PRIMARY;
 
             JPanel nbIcon = new JPanel() {
@@ -242,7 +390,7 @@ public class MainMenuPanel extends JPanel {
 
             for (JLabel l : new JLabel[]{countsLbl, autosaveLbl, sizeLbl}) {
                 l.setForeground(c);
-                l.setFont(bradleyHand);
+                l.setFont(chromeFont);
                 add(l);
             }
 
@@ -285,10 +433,10 @@ public class MainMenuPanel extends JPanel {
         private void configureChip(JButton chip, String iconId) {
             chip.setFocusPainted(false);
             chip.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
-            chip.setBackground(new Color(255, 255, 255, 235));
+            chip.setBackground(AeroTheme.withAlpha(AeroTheme.lift(resolveMainMenuAccentSafe(), 0.88f), 224));
             chip.setOpaque(false);
             chip.setForeground(AeroTheme.TEXT_PRIMARY);
-            chip.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            chip.setFont(AeroTheme.defaultFont().deriveFont(12f));
             chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             chip.setContentAreaFilled(false);
             chip.setBorderPainted(false);
@@ -318,23 +466,60 @@ public class MainMenuPanel extends JPanel {
                 int w = getWidth();
                 int h = getHeight();
                 int arc = Math.max(8, Math.min(ARC, h));
+                Color accent = resolveMainMenuAccentSafe();
 
                 Color base = getBackground();
-                if (base == null) base = new Color(255, 255, 255, 235);
+                if (base == null) base = AeroTheme.withAlpha(AeroTheme.lift(accent, 0.88f), 224);
                 if (!isEnabled()) {
                     base = withAlpha(base, 170);
                 } else if (getModel().isPressed()) {
                     base = darken(base, 0.10f);
                 } else if (getModel().isRollover()) {
-                    base = darken(base, 0.04f);
+                    base = AeroTheme.withAlpha(AeroTheme.lift(accent, 0.8f), 236);
                 }
 
-                g2.setColor(base);
+                if (isEnabled() && getModel().isRollover()) {
+                    AeroPainters.paintOuterGlow(
+                            g2,
+                            new Rectangle(0, 0, w, h),
+                            arc,
+                            AeroTheme.withAlpha(AeroTheme.lift(accent, 0.1f), 74),
+                            6,
+                            42
+                    );
+                }
+
+                LinearGradientPaint body = new LinearGradientPaint(
+                        0, 0, 0, h,
+                        new float[]{0f, 0.55f, 1f},
+                        new Color[]{
+                                withAlpha(AeroTheme.lift(base, 0.12f), 230),
+                                withAlpha(base, 218),
+                                withAlpha(AeroTheme.blend(base, AeroTheme.lift(accent, 0.82f), 0.22f), 202)
+                        }
+                );
+                g2.setPaint(body);
                 g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
 
-                Color stroke = isEnabled() ? new Color(183, 193, 208) : new Color(196, 204, 214, 180);
+                g2.setPaint(new GradientPaint(
+                        0, 0, new Color(255, 255, 255, 102),
+                        0, h * 0.55f, new Color(255, 255, 255, 0)
+                ));
+                g2.fillRoundRect(1, 1, w - 2, Math.max(10, (int) (h * 0.58f)), arc - 2, arc - 2);
+
+                g2.setPaint(new GradientPaint(
+                        0, h * 0.58f, AeroTheme.withAlpha(accent, 0),
+                        0, h, AeroTheme.withAlpha(AeroTheme.sink(accent, 0.12f), 36)
+                ));
+                g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+                Color stroke = isEnabled()
+                        ? AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.64f), 142)
+                        : new Color(196, 204, 214, 180);
                 g2.setColor(stroke);
                 g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                g2.setColor(new Color(255, 255, 255, 108));
+                g2.drawRoundRect(1, 1, w - 3, h - 3, arc - 2, arc - 2);
 
                 g2.dispose();
                 super.paintComponent(g);
@@ -707,8 +892,8 @@ public class MainMenuPanel extends JPanel {
             }
             content.setBackground(wallpaperFallback);
         } else {
-            // Blank / default – just use a plain white panel
-            content = new JPanel();
+            // Blank / default – give the landing screen some atmospheric Aero depth.
+            content = createAeroFallbackContent(accent);
             content.setBackground(Color.WHITE);
         }
         // Keep icon cache in sync after accent changes (tinting disabled for current icon set).
@@ -854,7 +1039,7 @@ public class MainMenuPanel extends JPanel {
         // Left: version info with about icon
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         left.setOpaque(false);
-        Font bradleyHand = new Font("Bradley Hand", Font.PLAIN, 13);
+        Font statusFont = AeroTheme.defaultFont().deriveFont(12.5f);
         
         // About icon
         JPanel aboutIcon = new JPanel() {
@@ -875,7 +1060,7 @@ public class MainMenuPanel extends JPanel {
         
         JLabel versionLabel = new JLabel(AppInfo.versionString());
         versionLabel.setForeground(AeroTheme.TEXT_PRIMARY);
-        versionLabel.setFont(bradleyHand);
+        versionLabel.setFont(statusFont);
         left.add(versionLabel);
         southPanel.add(left, BorderLayout.WEST);
 

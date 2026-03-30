@@ -834,7 +834,7 @@ public class GlassDockBar extends JPanel {
 
     private Color resolveDockAccent() {
         try {
-            Color accent = Theme.getWidgetAccent();
+            Color accent = Theme.getChromeAccent();
             if (accent != null) return accent;
         } catch (Throwable ignored) {
         }

@@ -381,7 +381,7 @@ public class HeaderPanel extends JPanel {
             Rectangle panelRect = computePanelRect(width, height, titleBounds, quoteBounds, authorBounds, heartBounds, nextHit);
             panelRectCache = panelRect;
             updateFullscreenHit(panelRect);
-            paintFrostedPanel(g2, panelRect, textAlpha * 0.6f);
+            paintFrostedPanel(g2, panelRect, textAlpha * 0.72f, accent);
 
             if (cachedHeart == null || cachedW != width || cachedH != height || cachedAccent == null || !cachedAccent.equals(accent)) {
                 cachedW = width;
@@ -481,7 +481,7 @@ public class HeaderPanel extends JPanel {
             new Point2D.Double(tb.getX(), tb.getY()),
             new Point2D.Double(tb.getX(), tb.getY() + tb.getHeight()),
             new float[]{0f, 1f},
-            new Color[]{new Color(255,255,255), new Color(245,245,245)}
+            new Color[]{new Color(255,255,255), AeroTheme.lift(accent, 0.72f)}
         );
         Graphics2D gf = (Graphics2D) g2.create();
         gf.setPaint(textPaint);
@@ -546,16 +546,33 @@ public class HeaderPanel extends JPanel {
         Graphics2D nb = (Graphics2D) g2.create();
         nb.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         nb.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, textAlpha))));
-        // Shadow
-        nb.setColor(new Color(0,0,0, nextHover ? 120 : 90));
+        if (nextHover) {
+            nb.setPaint(new RadialGradientPaint(
+                    new Point2D.Float(nextHit.x + nextHit.width / 2f, nextHit.y + nextHit.height / 2f),
+                    nextHit.width * 0.95f,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                            AeroTheme.withAlpha(AeroTheme.lift(accent, 0.16f), 90),
+                            new Color(255, 255, 255, 0)
+                    }
+            ));
+            nb.fillOval(nextHit.x - 4, nextHit.y - 4, nextHit.width + 8, nextHit.height + 8);
+        }
+        nb.setColor(new Color(0,0,0, nextHover ? 112 : 84));
         nb.fillOval(nextHit.x + 1, nextHit.y + 2, nextHit.width, nextHit.height);
-        // Background circle
-        Color bg = new Color(255,255,255, nextHover ? 110 : 70);
-        nb.setColor(bg);
+        nb.setPaint(new RadialGradientPaint(
+                new Point2D.Float(nextHit.x + nextHit.width * 0.35f, nextHit.y + nextHit.height * 0.3f),
+                nextHit.width * 0.9f,
+                new float[]{0f, 0.55f, 1f},
+                new Color[]{
+                        AeroTheme.withAlpha(AeroTheme.lift(accent, 0.92f), nextHover ? 168 : 132),
+                        new Color(255, 255, 255, nextHover ? 104 : 84),
+                        AeroTheme.withAlpha(AeroTheme.lift(accent, 0.72f), nextHover ? 122 : 92)
+                }
+        ));
         nb.fillOval(nextHit.x, nextHit.y, nextHit.width, nextHit.height);
-        // Border
         nb.setStroke(new BasicStroke(1.2f));
-        nb.setColor(new Color(255,255,255, 160));
+        nb.setColor(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.7f), 170));
         nb.drawOval(nextHit.x, nextHit.y, nextHit.width, nextHit.height);
         // Chevron '>'
         Path2D chevron = new Path2D.Double();
@@ -602,14 +619,32 @@ public class HeaderPanel extends JPanel {
         int y = fullscreenHit.y;
         int size = fullscreenHit.width;
         int arc = 10;
-        Color top = fullscreenHover ? new Color(250, 252, 255, 230) : new Color(245, 248, 252, 200);
-        Color bottom = fullscreenHover ? new Color(226, 234, 242, 230) : new Color(225, 230, 238, 190);
+        if (fullscreenHover) {
+            fb.setPaint(new RadialGradientPaint(
+                    new Point2D.Float(x + size / 2f, y + size / 2f),
+                    size * 1.15f,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                            AeroTheme.withAlpha(AeroTheme.lift(accent, 0.14f), 88),
+                            new Color(255, 255, 255, 0)
+                    }
+            ));
+            fb.fillRoundRect(x - 4, y - 4, size + 8, size + 8, arc + 4, arc + 4);
+        }
+        Color top = fullscreenHover
+                ? AeroTheme.withAlpha(AeroTheme.lift(accent, 0.86f), 224)
+                : AeroTheme.withAlpha(AeroTheme.lift(accent, 0.92f), 196);
+        Color bottom = fullscreenHover
+                ? AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.74f), new Color(230, 238, 246), 0.4f), 222)
+                : AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.82f), new Color(232, 238, 246), 0.3f), 188);
         fb.setPaint(new GradientPaint(x, y, top, x, y + size, bottom));
         fb.fillRoundRect(x, y, size, size, arc, arc);
-        fb.setColor(new Color(170, 180, 195, 200));
+        fb.setPaint(new GradientPaint(x, y, new Color(255, 255, 255, 96), x, y + size * 0.55f, new Color(255, 255, 255, 0)));
+        fb.fillRoundRect(x + 1, y + 1, size - 2, Math.max(10, (int) (size * 0.58f)), arc - 2, arc - 2);
+        fb.setColor(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.66f), 168));
         fb.drawRoundRect(x, y, size - 1, size - 1, arc, arc);
         if (fullscreenHover) {
-            fb.setColor(new Color(255, 255, 255, 160));
+            fb.setColor(new Color(255, 255, 255, 176));
             fb.drawRoundRect(x + 1, y + 1, size - 3, size - 3, arc - 2, arc - 2);
         }
 
@@ -694,42 +729,69 @@ public class HeaderPanel extends JPanel {
         return "— " + trimmed;
     }
 
-    private static void paintFrostedPanel(Graphics2D g2, Rectangle r, float alpha) {
+    private static void paintFrostedPanel(Graphics2D g2, Rectangle r, float alpha, Color accent) {
         if (r == null || r.width <= 0 || r.height <= 0) return;
         float clamped = Math.max(0f, Math.min(1f, alpha));
         if (clamped <= 0f) return;
         Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+        boolean plain = Theme.isPlainWhite();
+        Color chrome = accent != null ? accent : AeroTheme.resolveChromeAccent();
         int arc = Math.min(22, Math.min(r.width, r.height));
         int innerArc = Math.max(arc - 2, 2);
         RoundRectangle2D shape = new RoundRectangle2D.Float(r.x, r.y, r.width, r.height, arc, arc);
 
         GradientPaint base = new GradientPaint(
-            r.x, r.y, scaleAlpha(new Color(255, 255, 255, 190), clamped),
-            r.x, r.y + r.height, scaleAlpha(new Color(235, 235, 235, 120), clamped)
+            r.x, r.y, scaleAlpha(plain ? new Color(255, 255, 255, 206) : AeroTheme.withAlpha(AeroTheme.lift(chrome, 0.9f), 214), clamped),
+            r.x, r.y + r.height, scaleAlpha(plain ? new Color(235, 239, 244, 138) : AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(chrome, 0.76f), new Color(232, 239, 246), 0.4f), 170), clamped)
         );
         g2.setPaint(base);
         g2.fill(shape);
 
+        Shape oldClip = g2.getClip();
+        g2.setClip(shape);
+        RadialGradientPaint bloom = new RadialGradientPaint(
+                new Point2D.Float(r.x + r.width * 0.22f, r.y + r.height * 0.10f),
+                Math.max(r.width, r.height) * 0.88f,
+                new float[]{0f, 0.42f, 1f},
+                new Color[]{
+                        scaleAlpha(AeroTheme.withAlpha(AeroTheme.lift(chrome, 0.58f), plain ? 34 : 92), clamped),
+                        scaleAlpha(new Color(255, 255, 255, plain ? 20 : 44), clamped),
+                        new Color(255, 255, 255, 0)
+                }
+        );
+        g2.setPaint(bloom);
+        g2.fillRect(r.x, r.y, r.width, r.height);
+        g2.setClip(oldClip);
+
         GradientPaint sheen = new GradientPaint(
-            r.x, r.y, scaleAlpha(new Color(255, 255, 255, 110), clamped),
-            r.x, r.y + r.height * 0.55f, scaleAlpha(new Color(255, 255, 255, 20), clamped)
+            r.x, r.y, scaleAlpha(new Color(255, 255, 255, plain ? 110 : 152), clamped),
+            r.x, r.y + r.height * 0.55f, scaleAlpha(new Color(255, 255, 255, plain ? 20 : 34), clamped)
         );
         g2.setPaint(sheen);
         g2.fill(shape);
 
+        GradientPaint aquaLift = new GradientPaint(
+                r.x, r.y + r.height * 0.56f, scaleAlpha(AeroTheme.withAlpha(chrome, 0), clamped),
+                r.x, r.y + r.height, scaleAlpha(AeroTheme.withAlpha(AeroTheme.sink(chrome, 0.18f), plain ? 16 : 46), clamped)
+        );
+        g2.setPaint(aquaLift);
+        g2.fill(shape);
+
         GradientPaint shadow = new GradientPaint(
-            r.x, (float) (r.y + r.height * 0.45f), scaleAlpha(new Color(0, 0, 0, 12), clamped),
-            r.x, r.y + r.height, scaleAlpha(new Color(0, 0, 0, 35), clamped)
+            r.x, (float) (r.y + r.height * 0.45f), scaleAlpha(new Color(0, 0, 0, plain ? 12 : 10), clamped),
+            r.x, r.y + r.height, scaleAlpha(new Color(0, 0, 0, plain ? 35 : 30), clamped)
         );
         g2.setPaint(shadow);
         g2.fill(shape);
 
         g2.setStroke(new BasicStroke(1f));
-        g2.setColor(scaleAlpha(new Color(255, 255, 255, 90), clamped));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, plain ? 90 : 130), clamped));
         g2.draw(new RoundRectangle2D.Float(r.x + 1.5f, r.y + 1.5f, r.width - 3f, r.height - 3f, innerArc, innerArc));
-        g2.setColor(scaleAlpha(new Color(0, 0, 0, 30), clamped));
+        g2.setColor(scaleAlpha(AeroTheme.withAlpha(AeroTheme.blend(chrome, Color.WHITE, 0.56f), plain ? 24 : 76), clamped));
+        g2.draw(new RoundRectangle2D.Float(r.x + 0.9f, r.y + 0.9f, r.width - 1.8f, r.height - 1.8f, Math.max(innerArc + 1, 4), Math.max(innerArc + 1, 4)));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, plain ? 30 : 34), clamped));
         g2.draw(new RoundRectangle2D.Float(r.x + 0.5f, r.y + 0.5f, r.width - 1f, r.height - 1f, arc, arc));
 
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);

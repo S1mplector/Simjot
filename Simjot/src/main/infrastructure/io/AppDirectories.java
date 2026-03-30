@@ -262,6 +262,18 @@ public final class AppDirectories {
     }
 
     /**
+     * Finder-launched packaged apps can often read the notebook registry while the
+     * actual notebook folders remain inaccessible until the user re-selects the
+     * root once. This method detects that split-brain state.
+     */
+    public static boolean needsNotebookAccessReauthorization(File rootFolder) {
+        if (rootFolder == null) return false;
+        if (!isIcloudRoot(rootFolder)) return false;
+        if (hasReadableNotebookContent(rootFolder)) return false;
+        return hasNotebookRegistryIndicator(rootFolder);
+    }
+
+    /**
      * Suggest an iCloud Drive path for Simjot on macOS, if available.
      * Does not change the current root.
      */

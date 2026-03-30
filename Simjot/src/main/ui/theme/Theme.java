@@ -71,6 +71,26 @@ public final class Theme {
         return getBaseAccent();
     }
 
+    public static Color getMainMenuAccent() {
+        try {
+            int rgb = SettingsStore.get().getMainMenuAccentRGB();
+            if (rgb != Integer.MIN_VALUE) return new Color(rgb, true);
+        } catch (Throwable ignored) {}
+        try {
+            int widgetRgb = SettingsStore.get().getWidgetAccentRGB();
+            if (widgetRgb != Integer.MIN_VALUE) return new Color(widgetRgb, false);
+        } catch (Throwable ignored) {}
+        return getBaseAccent();
+    }
+
+    public static Color getChromeAccent() {
+        try {
+            Color accent = getMainMenuAccent();
+            if (accent != null) return accent;
+        } catch (Throwable ignored) {}
+        return getWidgetAccent();
+    }
+
     public static float densityToScale(String density) {
         if (density == null) return 1.0f;
         String d = density.trim().toLowerCase();

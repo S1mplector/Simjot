@@ -9,11 +9,15 @@
 package main.ui.features.home;
 
 import java.awt.*;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import javax.swing.SwingWorker;
 import javax.swing.*;
 import main.core.service.SettingsStore;
 import main.infrastructure.ffi.NativeAccess;
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroTheme;
 
 public class BackgroundPanel extends JPanel {
 	private static final long serialVersionUID = 1L;
@@ -293,6 +297,62 @@ public class BackgroundPanel extends JPanel {
                     g2.dispose();
                 }
             }
+
+            Graphics2D overlay = (Graphics2D) g.create();
+            paintAeroAtmosphere(overlay, panelW, panelH, currentOpacity);
+            overlay.dispose();
         }
+    }
+
+    private void paintAeroAtmosphere(Graphics2D g2, int panelW, int panelH, float opacity) {
+        if (panelW <= 0 || panelH <= 0) return;
+        if (Theme.isPlainWhite()) return;
+
+        Color accent = Theme.getChromeAccent();
+        float strength = Math.max(0.14f, Math.min(0.34f, 0.16f + opacity * 0.18f));
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        RadialGradientPaint skyBloom = new RadialGradientPaint(
+                new Point2D.Float(panelW * 0.22f, panelH * 0.08f),
+                Math.max(panelW, panelH) * 0.72f,
+                new float[]{0f, 0.42f, 1f},
+                new Color[]{
+                        AeroTheme.withAlpha(AeroTheme.lift(accent, 0.56f), Math.round(255f * strength)),
+                        new Color(255, 255, 255, Math.round(135f * strength)),
+                        new Color(255, 255, 255, 0)
+                }
+        );
+        g2.setPaint(skyBloom);
+        g2.fillRect(0, 0, panelW, panelH);
+
+        RadialGradientPaint aquaBloom = new RadialGradientPaint(
+                new Point2D.Float(panelW * 0.78f, panelH * 0.82f),
+                Math.max(panelW, panelH) * 0.58f,
+                new float[]{0f, 1f},
+                new Color[]{
+                        AeroTheme.withAlpha(AeroTheme.lift(accent, 0.7f), Math.round(182f * strength)),
+                        new Color(255, 255, 255, 0)
+                }
+        );
+        g2.setPaint(aquaBloom);
+        g2.fillRect(0, 0, panelW, panelH);
+
+        GradientPaint veil = new GradientPaint(
+                0, 0, new Color(255, 255, 255, Math.round(105f * strength)),
+                panelW, panelH, new Color(255, 255, 255, 0)
+        );
+        g2.setPaint(veil);
+        g2.fillRect(0, 0, panelW, panelH);
+
+        float bubbleAlpha = Math.max(14f, 82f * strength);
+        g2.setColor(new Color(255, 255, 255, Math.round(bubbleAlpha * 0.45f)));
+        g2.fill(new Ellipse2D.Float(panelW * 0.08f, panelH * 0.18f, 108f, 108f));
+        g2.fill(new Ellipse2D.Float(panelW * 0.76f, panelH * 0.12f, 84f, 84f));
+        g2.fill(new Ellipse2D.Float(panelW * 0.70f, panelH * 0.70f, 132f, 132f));
+
+        g2.setColor(new Color(255, 255, 255, Math.round(bubbleAlpha)));
+        g2.draw(new Ellipse2D.Float(panelW * 0.08f, panelH * 0.18f, 108f, 108f));
+        g2.draw(new Ellipse2D.Float(panelW * 0.76f, panelH * 0.12f, 84f, 84f));
+        g2.draw(new Ellipse2D.Float(panelW * 0.70f, panelH * 0.70f, 132f, 132f));
     }
 }
