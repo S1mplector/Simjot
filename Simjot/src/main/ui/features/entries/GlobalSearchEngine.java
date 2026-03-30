@@ -37,7 +37,9 @@ import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.MacNativeBridge;
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
+import main.infrastructure.io.MacSecurityBookmarkStore;
 
 public final class GlobalSearchEngine {
     private static final Pattern TAG_PATTERN = Pattern.compile("#([A-Za-z0-9_-]+)");
@@ -196,9 +198,11 @@ public final class GlobalSearchEngine {
     private static File[] listEntryFiles(NotebookInfo nb) {
         if (nb == null || nb.getFolder() == null || !nb.getFolder().exists()) return null;
         File folder = nb.getFolder();
+        try { AppDirectories.restoreMacScopedAccess(AppDirectories.getRoot()); } catch (Throwable ignored) {}
+        try { MacSecurityBookmarkStore.ensureAccess(folder); } catch (Throwable ignored) {}
         String nativeResult = NativeAccess.fsListFiltered(
                 folder.getAbsolutePath(),
-                ".note,.txt,.ntk,.poem,.rtf",
+                ".entry,.note,.txt,.md,.ntk,.poem,.rtf,.jrnl",
                 false);
         if (nativeResult != null && !nativeResult.isEmpty()) {
             List<File> files = new ArrayList<>();
@@ -214,8 +218,9 @@ public final class GlobalSearchEngine {
         return folder.listFiles(f -> {
             if (f == null || !f.isFile()) return false;
             String name = f.getName().toLowerCase(Locale.ROOT);
-            return name.endsWith(".note") || name.endsWith(".txt")
-                    || name.endsWith(".ntk") || name.endsWith(".poem") || name.endsWith(".rtf");
+            return name.endsWith(".entry") || name.endsWith(".note") || name.endsWith(".txt")
+                    || name.endsWith(".md") || name.endsWith(".ntk") || name.endsWith(".poem")
+                    || name.endsWith(".rtf") || name.endsWith(".jrnl");
         });
     }
 

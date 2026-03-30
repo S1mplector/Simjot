@@ -30,11 +30,15 @@ import main.core.security.crypto.EncryptedMetadata;
 import main.core.service.NotebookStore;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.MacSecurityBookmarkStore;
 import main.infrastructure.io.NativeJson;
 
 final class MoodChartModel {
     private static final String META_PREFIX = "SJMETA:";
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
+    private static final Set<String> JOURNAL_EXTENSIONS = Set.of(
+            ".entry", ".note", ".txt", ".md", ".rtf", ".jrnl");
 
     private static final class EntryInfo {
         final LocalDateTime ts;
@@ -143,13 +147,15 @@ final class MoodChartModel {
                 if (nb == null || nb.getType() != NotebookInfo.Type.JOURNAL) continue;
                 File folder = nb.getFolder();
                 if (folder == null) continue;
-                File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
+                try { AppDirectories.restoreMacScopedAccess(AppDirectories.getRoot()); } catch (Throwable ignored) {}
+                try { MacSecurityBookmarkStore.ensureAccess(folder); } catch (Throwable ignored) {}
+                File[] files = folder.listFiles(f -> f != null && f.isFile() && isJournalEntryFile(f.getName()));
                 if (files == null) continue;
                 for (File f : files) {
                     LocalDate d; LocalDateTime ts;
                     try {
                         String name = f.getName();
-                        if (name.matches("\\d{8}_\\d{6}.*\\.txt")) {
+                        if (name.matches("\\d{8}_\\d{6}.*\\.[A-Za-z0-9]+")) {
                             String ymd = name.substring(0, 8);
                             String hms = name.substring(9, 15);
                             ts = LocalDateTime.parse(ymd+"_"+hms, DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
@@ -167,6 +173,14 @@ final class MoodChartModel {
                 }
             }
         } catch (Throwable ignored) {}
+    }
+
+    private boolean isJournalEntryFile(String name) {
+        if (name == null || name.isBlank()) return false;
+        String lower = name.toLowerCase();
+        int dot = lower.lastIndexOf('.');
+        if (dot < 0) return false;
+        return JOURNAL_EXTENSIONS.contains(lower.substring(dot));
     }
 
     private EntryInfo readEntryInfo(File f, LocalDateTime fallbackTs) {

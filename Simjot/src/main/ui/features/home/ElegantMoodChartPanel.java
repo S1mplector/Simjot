@@ -600,12 +600,15 @@ public class ElegantMoodChartPanel extends JPanel {
         MoodRegimeSegmenter.RegimeSegment regime = regimeAt(day);
         EmotionStackAggregator.EmotionStack stack = emotionStacksByDay.get(day);
         List<EmotionScore> topEmotions = topEmotionScores(stack, 3);
+        List<File> linkedEntries = model.getEntriesByDate().get(day);
+        int entryCount = linkedEntries == null ? 0 : linkedEntries.size();
 
         return new InspectorState(
                 idx,
                 day,
                 mood,
                 delta,
+                entryCount,
                 MoodAnalyticsEngine.categorize(mood),
                 anomaly,
                 changePoint,
@@ -1586,6 +1589,7 @@ public class ElegantMoodChartPanel extends JPanel {
         private final LocalDate day;
         private final double mood;
         private final Double delta;
+        private final int entryCount;
         private final String category;
         private final MoodAnomalyDetector.AnomalyPoint anomaly;
         private final MoodChangePointDetector.ChangePoint changePoint;
@@ -1596,6 +1600,7 @@ public class ElegantMoodChartPanel extends JPanel {
                                LocalDate day,
                                double mood,
                                Double delta,
+                               int entryCount,
                                String category,
                                MoodAnomalyDetector.AnomalyPoint anomaly,
                                MoodChangePointDetector.ChangePoint changePoint,
@@ -1605,6 +1610,7 @@ public class ElegantMoodChartPanel extends JPanel {
             this.day = day;
             this.mood = mood;
             this.delta = delta;
+            this.entryCount = entryCount;
             this.category = category;
             this.anomaly = anomaly;
             this.changePoint = changePoint;
@@ -1617,6 +1623,7 @@ public class ElegantMoodChartPanel extends JPanel {
         private final JLabel dateLabel = new JLabel("Inspector");
         private final JLabel moodLabel = new JLabel("Mood: --");
         private final JLabel deltaLabel = new JLabel("Delta: --");
+        private final JLabel entryLabel = new JLabel("Entry: --");
         private final JLabel phaseLabel = new JLabel("Phase: --");
         private final JLabel anomalyLabel = new JLabel("Anomaly: --");
         private final JLabel shiftLabel = new JLabel("Shift: --");
@@ -1642,6 +1649,7 @@ public class ElegantMoodChartPanel extends JPanel {
 
             configureLine(moodLabel, TEXT_SECONDARY, 12f);
             configureLine(deltaLabel, TEXT_MUTED, 11.5f);
+            configureLine(entryLabel, TEXT_MUTED, 11.5f);
             configureLine(phaseLabel, TEXT_MUTED, 11.5f);
             configureLine(anomalyLabel, TEXT_MUTED, 11.5f);
             configureLine(shiftLabel, TEXT_MUTED, 11.5f);
@@ -1654,6 +1662,8 @@ public class ElegantMoodChartPanel extends JPanel {
             stack.add(moodLabel);
             stack.add(Box.createVerticalStrut(3));
             stack.add(deltaLabel);
+            stack.add(Box.createVerticalStrut(2));
+            stack.add(entryLabel);
             stack.add(Box.createVerticalStrut(2));
             stack.add(phaseLabel);
             stack.add(Box.createVerticalStrut(2));
@@ -1684,6 +1694,7 @@ public class ElegantMoodChartPanel extends JPanel {
             dateLabel.setText("Inspector");
             moodLabel.setText("Mood: hover or click a point");
             deltaLabel.setText("Delta: --");
+            entryLabel.setText("Entry: --");
             phaseLabel.setText("Phase: " + describeLatestRegime(regimes));
             anomalyLabel.setText("Anomaly: --");
             shiftLabel.setText("Shifts: " + (points == null ? 0 : points.size()));
@@ -1706,6 +1717,14 @@ public class ElegantMoodChartPanel extends JPanel {
             } else {
                 String arrow = state.delta >= 0 ? "↑" : "↓";
                 deltaLabel.setText("Delta: " + arrow + " " + Math.abs(Math.round(state.delta)));
+            }
+
+            if (state.entryCount <= 0) {
+                entryLabel.setText("Entry: mood logged, no written entry");
+            } else if (state.entryCount == 1) {
+                entryLabel.setText("Entry: 1 linked journal entry");
+            } else {
+                entryLabel.setText("Entry: " + state.entryCount + " linked journal entries");
             }
 
             phaseLabel.setText("Phase: " + describeRegime(state.regime));

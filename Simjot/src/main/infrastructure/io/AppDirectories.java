@@ -166,6 +166,62 @@ public final class AppDirectories {
     }
 
     /**
+     * Best-effort restoration of macOS security-scoped access for the configured
+     * root and the folders Simjot touches during startup.
+     */
+    public static void restoreMacScopedAccess(File rootFolder) {
+        if (rootFolder == null) return;
+
+        ensureScopedAccess(rootFolder);
+        ensureScopedAccess(new File(rootFolder, "notebooks.json"));
+        ensureScopedAccess(new File(rootFolder, ".simjot_setup"));
+
+        File[] keyFolders = new File[] {
+            new File(rootFolder, Type.NOTEBOOKS.folderName()),
+            new File(rootFolder, Type.SETTINGS.folderName()),
+            new File(rootFolder, Type.MOOD_DATA.folderName()),
+            new File(rootFolder, Type.WALLPAPERS.folderName()),
+            new File(rootFolder, Type.CUSTOM_FONTS.folderName())
+        };
+        for (File folder : keyFolders) {
+            ensureScopedAccess(folder);
+        }
+
+        File notebooksDir = new File(rootFolder, Type.NOTEBOOKS.folderName());
+        if (!notebooksDir.exists() || !notebooksDir.isDirectory()) return;
+
+        File[] notebookFolders = notebooksDir.listFiles(File::isDirectory);
+        if (notebookFolders == null || notebookFolders.length == 0) return;
+        int limit = Math.min(notebookFolders.length, 256);
+        for (int i = 0; i < limit; i++) {
+            ensureScopedAccess(notebookFolders[i]);
+        }
+    }
+
+    /**
+     * Finder-launched macOS app bundles can see the configured root path but still
+     * fail to enumerate notebook contents until access is re-authorized once.
+     */
+    public static boolean hasReadableNotebookContent(File rootFolder) {
+        if (rootFolder == null) return false;
+        File notebooksDir = new File(rootFolder, Type.NOTEBOOKS.folderName());
+        if (!notebooksDir.exists() || !notebooksDir.isDirectory()) return false;
+
+        ensureScopedAccess(notebooksDir);
+        File[] notebookFolders = notebooksDir.listFiles(File::isDirectory);
+        if (notebookFolders == null || notebookFolders.length == 0) return false;
+
+        int checked = 0;
+        for (File folder : notebookFolders) {
+            if (folder == null || !folder.isDirectory()) continue;
+            if (containsReadableNotebookEntry(folder)) return true;
+            checked++;
+            if (checked >= 24) break;
+        }
+        return false;
+    }
+
+    /**
      * Suggest an iCloud Drive path for Simjot on macOS, if available.
      * Does not change the current root.
      */
@@ -407,9 +463,53 @@ public final class AppDirectories {
 
     private static int countChildren(File dir, int max) {
         if (dir == null || max <= 0 || !dir.exists() || !dir.isDirectory()) return 0;
+        ensureScopedAccess(dir);
         File[] list = dir.listFiles();
         if (list == null || list.length == 0) return 0;
         return Math.min(max, list.length);
+    }
+
+    private static boolean containsReadableNotebookEntry(File folder) {
+        if (folder == null || !folder.exists() || !folder.isDirectory()) return false;
+        ensureScopedAccess(folder);
+        try (var stream = Files.list(folder.toPath())) {
+            return stream.anyMatch(path -> {
+                try {
+                    return Files.isRegularFile(path) && isNotebookEntryName(path.getFileName().toString());
+                } catch (Throwable ignored) {
+                    return false;
+                }
+            });
+        } catch (IOException | SecurityException ignored) {
+            File[] files = folder.listFiles();
+            if (files == null) return false;
+            for (File file : files) {
+                if (file != null && file.isFile() && isNotebookEntryName(file.getName())) return true;
+            }
+            return false;
+        }
+    }
+
+    private static boolean isNotebookEntryName(String name) {
+        if (name == null || name.isBlank()) return false;
+        String s = name.toLowerCase(java.util.Locale.ROOT);
+        return s.endsWith(".entry")
+                || s.endsWith(".note")
+                || s.endsWith(".txt")
+                || s.endsWith(".md")
+                || s.endsWith(".rtf")
+                || s.endsWith(".ntk")
+                || s.endsWith(".poem")
+                || s.endsWith(".jrnl");
+    }
+
+    private static void ensureScopedAccess(File target) {
+        if (target == null || !target.exists()) return;
+        try {
+            MacSecurityBookmarkStore.ensureAccess(target);
+        } catch (Throwable ignored) {
+            // Best-effort only for macOS packaged-app restores.
+        }
     }
 
     private static File icloudDriveRoot() {

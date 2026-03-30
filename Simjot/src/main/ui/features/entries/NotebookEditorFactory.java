@@ -48,6 +48,7 @@ public class NotebookEditorFactory {
         register(".note", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".txt", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".md", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
+        register(".jrnl", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".rtf", () -> new EntryPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".ntk", () -> new NotetakingPanel(app, AppDirectories.folder(AppDirectories.Type.ENTRIES), cardLayout, cardPanel));
         register(".poem", () -> new PoemPanel(app, AppDirectories.folder(AppDirectories.Type.POEMS), cardLayout, cardPanel));

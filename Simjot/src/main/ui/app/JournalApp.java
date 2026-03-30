@@ -66,6 +66,8 @@ import main.ui.animations.transitions.FadeTransitionPanel;
 import main.ui.components.icons.AppIcon;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.dialog.confirmation.CustomChoiceDialog;
+import main.ui.dialog.confirmation.CustomConfirmDialog;
+import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.dialog.security.ElegantLockScreen;
 import main.ui.dialog.setup.SetupWizardDialog;
@@ -164,6 +166,7 @@ public class JournalApp extends JFrame {
     private final String CONFIG_FILENAME = ".simjournal_config.txt";
 
     private static final String ICLOUD_PROMPT_FLAG = "icloud.migration.prompted";
+    private boolean rootAccessReauthAttempted = false;
     
     /**
      * Timeout for the exit watchdog thread to force application termination.
@@ -561,17 +564,63 @@ public class JournalApp extends JFrame {
         if (!folder.isDirectory()) return;
         rootFolder = folder;
         AppDirectories.setRoot(rootFolder);
+        AppDirectories.restoreMacScopedAccess(rootFolder);
         try { main.infrastructure.ffi.NativeAccess.setupInit(rootFolder.getAbsolutePath()); } catch (Throwable ignored) {}
         AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
         AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
         AppDirectories.folder(AppDirectories.Type.SETTINGS);
         AppDirectories.folder(AppDirectories.Type.WALLPAPERS);
         AppDirectories.folder(AppDirectories.Type.CUSTOM_FONTS);
+        try { main.infrastructure.io.IcloudSyncService.ensureKeyFilesAvailable(rootFolder, 1200); } catch (Throwable ignored) {}
         FileIO.cleanupTempFiles(rootFolder.toPath(), ".tmp", 24L * 60L * 60L * 1000L);
         if (saveConfig) {
             saveJournalFolderConfig();
         }
         try { AppConfig.setRootFolder(rootFolder); } catch (Throwable ignored) {}
+        maybePromptRootAccessReauthorization();
+    }
+
+    private void maybePromptRootAccessReauthorization() {
+        if (rootAccessReauthAttempted) return;
+        if (!AppLifecycle.isMacOS()) return;
+        if (System.getProperty("jpackage.app-version") == null) return;
+        if (rootFolder == null || !AppDirectories.isIcloudRoot(rootFolder)) return;
+
+        AppDirectories.restoreMacScopedAccess(rootFolder);
+        if (AppDirectories.hasReadableNotebookContent(rootFolder)) return;
+
+        int notebookCount = 0;
+        try {
+            notebookCount = new NotebookStore().list().size();
+        } catch (Throwable ignored) {
+            notebookCount = 0;
+        }
+        if (notebookCount <= 0) return;
+
+        rootAccessReauthAttempted = true;
+        String msg = "<html><div style='width:360px;'>" +
+                "Simjot found your iCloud data folder, but macOS has not granted this app " +
+                "reliable access to the notebook contents yet.<br><br>" +
+                "Re-select the same <b>Simjot</b> folder once to let the packaged app read your files." +
+                "</div></html>";
+        boolean reauthorize = CustomConfirmDialog.confirm(this, "Grant Folder Access", msg);
+        if (!reauthorize) return;
+
+        SimjotFileChooser chooser = new SimjotFileChooser(this, "Re-select your Simjot folder");
+        chooser.setMode(SimjotFileChooser.Mode.DIRECTORY);
+        File initialDir = rootFolder.getParentFile() != null ? rootFolder.getParentFile() : rootFolder;
+        chooser.setCurrentDirectory(initialDir);
+        File selected = chooser.showDialog();
+        if (selected == null || !selected.isDirectory()) return;
+
+        configureRootFolder(selected, true);
+        if (!AppDirectories.hasReadableNotebookContent(selected)) {
+            CustomMessageDialog.display(this,
+                    "Folder Access",
+                    "The folder was re-selected, but macOS still did not expose notebook contents. " +
+                            "Restart Simjot and choose the same folder again if needed.",
+                    true);
+        }
     }
 
     private void maybePromptIcloudSwitch(File icloudRoot) {

@@ -63,6 +63,7 @@ import main.core.sim.api.SimEventBus;
 import main.core.sim.prefs.SimSettings;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.io.AppDirectories;
+import main.infrastructure.io.MacSecurityBookmarkStore;
 import main.infrastructure.io.ResourceLoader;
 import main.infrastructure.monitoring.RamMonitor;
 import main.ui.app.JournalApp;
@@ -548,6 +549,8 @@ public class MainMenuPanel extends JPanel {
             if (dir == null || !dir.exists() || !dir.isDirectory()) return 0;
             int total = 0;
             try {
+                try { AppDirectories.restoreMacScopedAccess(AppDirectories.getRoot()); } catch (Throwable ignored) {}
+                try { MacSecurityBookmarkStore.ensureAccess(dir); } catch (Throwable ignored) {}
                 File[] files = dir.listFiles();
                 if (files == null) return 0;
                 for (File f : files) {
@@ -600,9 +603,11 @@ public class MainMenuPanel extends JPanel {
             return s.endsWith(".txt")
                     || s.endsWith(".md")
                     || s.endsWith(".rtf")
+                    || s.endsWith(".entry")
                     || s.endsWith(".note")
                     || s.endsWith(".poem")
-                    || s.endsWith(".ntk");
+                    || s.endsWith(".ntk")
+                    || s.endsWith(".jrnl");
         }
 
         private void updateAutosave() {

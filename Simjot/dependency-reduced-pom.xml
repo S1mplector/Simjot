@@ -8,10 +8,10 @@
   <description>Simjot Journal Application</description>
   <licenses>
     <license>
-      <name>Simjot Proprietary License v1.0</name>
-      <url>https://github.com/simjot/simjot/blob/main/LICENSE</url>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
       <distribution>repo</distribution>
-      <comments>Open source with proprietary restrictions</comments>
+      <comments>Source code is MIT-licensed; icon and artwork assets have separate attribution terms in the repository LICENSE.md.</comments>
     </license>
   </licenses>
   <build>

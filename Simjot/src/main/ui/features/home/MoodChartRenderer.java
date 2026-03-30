@@ -16,6 +16,7 @@ import java.awt.Graphics2D;
 import java.awt.LinearGradientPaint;
 import java.awt.Point;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.time.LocalDate;
@@ -111,6 +112,8 @@ final class MoodChartRenderer {
                 }
             }
 
+            paintMissingEntryHighlights(g2, days, values, entriesByDate, hoverIdx, height, w);
+
             Integer lastX = null, lastY = null;
             for (int i = 0; i < n; i++) {
                 if (yPtsDaily != null && yPtsDaily[i] != Integer.MIN_VALUE) {
@@ -122,6 +125,10 @@ final class MoodChartRenderer {
                         g2.drawLine(lastX, lastY, x, y);
                     }
                     Double v = values.get(i);
+                    boolean missingEntry = isMissingEntryDay(days.get(i), v, entriesByDate);
+                    if (missingEntry) {
+                        paintMissingEntryPoint(g2, x, y, hoverIdx != null && hoverIdx == i);
+                    }
                     g2.setColor(colorFor.apply(v));
                     g2.fillOval(x-3,y-3,6,6);
                     lastX = x; lastY = y;
@@ -164,10 +171,15 @@ final class MoodChartRenderer {
             g2.drawLine(x, MARGIN, x, height - MARGIN);
             Double v = values.get(hoverIdx);
             if (v != null && yPtsDaily != null && yPtsDaily[hoverIdx] != Integer.MIN_VALUE) {
+                boolean missingEntry = isMissingEntryDay(days.get(hoverIdx), v, entriesByDate);
                 String txt = days.get(hoverIdx) + "  " + (int)Math.round(v) + "/100";
-                FontMetrics fm = g2.getFontMetrics();
-                int tw = fm.stringWidth(txt) + 14;
-                int th = fm.getHeight() + 6;
+                String detail = missingEntry ? "No entry written" : null;
+                Font baseFont = g2.getFont();
+                Font detailFont = baseFont.deriveFont(Math.max(10f, baseFont.getSize2D() - 1f));
+                FontMetrics fm = g2.getFontMetrics(baseFont);
+                FontMetrics detailFm = g2.getFontMetrics(detailFont);
+                int tw = Math.max(fm.stringWidth(txt), detail == null ? 0 : detailFm.stringWidth(detail)) + 14;
+                int th = fm.getHeight() + 6 + (detail == null ? 0 : detailFm.getHeight() + 1);
                 int px = Math.min(Math.max(x - tw/2, MARGIN+2), width - MARGIN - tw - 2);
                 int py = Math.max(MARGIN + 2, yPtsDaily[hoverIdx] - th - 8);
                 g2.setColor(new Color(255,255,255,220));
@@ -175,7 +187,15 @@ final class MoodChartRenderer {
                 g2.setColor(new Color(0,0,0,140));
                 g2.drawRoundRect(px, py, tw, th, 8, 8);
                 g2.setColor(Color.DARK_GRAY);
-                g2.drawString(txt, px + 7, py + th - 6);
+                int baseY = py + fm.getAscent() + 4;
+                g2.setFont(baseFont);
+                g2.drawString(txt, px + 7, baseY);
+                if (detail != null) {
+                    g2.setFont(detailFont);
+                    g2.setColor(new Color(92, 108, 136));
+                    g2.drawString(detail, px + 7, baseY + detailFm.getAscent() + 3);
+                    g2.setFont(baseFont);
+                }
             }
         }
 
@@ -223,6 +243,110 @@ final class MoodChartRenderer {
             else yPtsTrend[i] = height - MARGIN - (int)((sum/cnt) / 100.0 * h);
         }
         cacheDirty = false;
+    }
+
+    private void paintMissingEntryHighlights(Graphics2D g2,
+                                             List<LocalDate> days,
+                                             List<Double> values,
+                                             Map<LocalDate, List<File>> entriesByDate,
+                                             Integer hoverIdx,
+                                             int height,
+                                             int chartWidth) {
+        if (entriesByDate == null || days == null || days.isEmpty() || xPts == null) return;
+        int n = days.size();
+        float spacing = n > 1 ? chartWidth / (float) (n - 1) : chartWidth;
+        int laneW = Math.max(12, Math.min(20, Math.round(spacing * 0.42f)));
+        int top = MARGIN + 10;
+        int bottom = Math.max(top + 24, height - MARGIN - 12);
+        int laneH = bottom - top;
+        if (laneH <= 0) return;
+
+        java.awt.Stroke oldStroke = g2.getStroke();
+        for (int i = 0; i < n; i++) {
+            Double value = i < values.size() ? values.get(i) : null;
+            if (!isMissingEntryDay(days.get(i), value, entriesByDate)) continue;
+
+            boolean hovered = hoverIdx != null && hoverIdx == i;
+            int x = xPts[i] - laneW / 2;
+            RoundRectangle2D lane = new RoundRectangle2D.Float(x, top, laneW, laneH, laneW, laneW);
+            Color topFill = hovered ? new Color(124, 142, 180, 88) : new Color(124, 142, 180, 58);
+            Color midFill = hovered ? new Color(167, 181, 211, 126) : new Color(167, 181, 211, 88);
+            Color bottomFill = hovered ? new Color(205, 214, 231, 158) : new Color(205, 214, 231, 112);
+
+            g2.setPaint(new LinearGradientPaint(
+                    x, top, x, bottom,
+                    new float[]{0f, 0.55f, 1f},
+                    new Color[]{topFill, midFill, bottomFill}
+            ));
+            g2.fill(lane);
+
+            java.awt.Shape oldClip = g2.getClip();
+            g2.clip(lane);
+            g2.setColor(hovered ? new Color(116, 132, 164, 76) : new Color(126, 140, 170, 54));
+            for (int stripeY = top - 10; stripeY < bottom + laneW; stripeY += 8) {
+                g2.drawLine(x - 6, stripeY, x + laneW + 6, stripeY + laneW);
+            }
+            g2.setClip(oldClip);
+
+            g2.setColor(hovered ? new Color(82, 100, 138, 170) : new Color(104, 120, 152, 120));
+            g2.setStroke(new BasicStroke(
+                    hovered ? 1.5f : 1.15f,
+                    BasicStroke.CAP_ROUND,
+                    BasicStroke.JOIN_ROUND,
+                    10f,
+                    new float[]{3f, 3f},
+                    0f));
+            g2.drawLine(xPts[i], top + 5, xPts[i], bottom - 18);
+
+            g2.setStroke(new BasicStroke(hovered ? 1.2f : 1.05f));
+            g2.setColor(hovered ? new Color(90, 108, 144, 176) : new Color(112, 126, 154, 132));
+            g2.draw(lane);
+
+            paintMissingEntryPageGlyph(g2, xPts[i] - 5, bottom - 13, hovered);
+        }
+        g2.setStroke(oldStroke);
+    }
+
+    private void paintMissingEntryPoint(Graphics2D g2, int x, int y, boolean hovered) {
+        java.awt.Stroke oldStroke = g2.getStroke();
+        int halo = hovered ? 15 : 13;
+        int ring = hovered ? 11 : 9;
+        g2.setColor(hovered ? new Color(197, 208, 232, 170) : new Color(197, 208, 232, 126));
+        g2.fillOval(x - halo / 2, y - halo / 2, halo, halo);
+        g2.setColor(hovered ? new Color(94, 112, 146, 220) : new Color(108, 124, 154, 176));
+        g2.setStroke(new BasicStroke(hovered ? 1.6f : 1.3f));
+        g2.drawOval(x - ring / 2, y - ring / 2, ring, ring);
+        g2.setStroke(oldStroke);
+    }
+
+    private void paintMissingEntryPageGlyph(Graphics2D g2, int x, int y, boolean hovered) {
+        int w = 10;
+        int h = 12;
+        RoundRectangle2D page = new RoundRectangle2D.Float(x, y, w, h, 4, 4);
+        g2.setColor(hovered ? new Color(255, 255, 255, 222) : new Color(250, 252, 255, 206));
+        g2.fill(page);
+        g2.setColor(hovered ? new Color(92, 110, 144, 176) : new Color(122, 136, 164, 124));
+        g2.draw(page);
+
+        Path2D fold = new Path2D.Float();
+        fold.moveTo(x + w - 4, y + 1);
+        fold.lineTo(x + w - 1, y + 1);
+        fold.lineTo(x + w - 1, y + 4);
+        fold.closePath();
+        g2.setColor(hovered ? new Color(216, 224, 238, 218) : new Color(220, 228, 240, 186));
+        g2.fill(fold);
+
+        g2.setColor(hovered ? new Color(112, 126, 154, 126) : new Color(132, 144, 168, 92));
+        g2.drawLine(x + 2, y + 5, x + w - 3, y + 5);
+        g2.drawLine(x + 2, y + 8, x + w - 4, y + 8);
+    }
+
+    private boolean isMissingEntryDay(LocalDate day,
+                                      Double value,
+                                      Map<LocalDate, List<File>> entriesByDate) {
+        if (day == null || value == null || entriesByDate == null) return false;
+        List<File> files = entriesByDate.get(day);
+        return files == null || files.isEmpty();
     }
 
     /**

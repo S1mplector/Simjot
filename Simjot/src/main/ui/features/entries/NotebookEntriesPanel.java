@@ -98,7 +98,9 @@ import main.core.service.SettingsStore;
 import main.infrastructure.backup.EntryHistoryManager;
 import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.FileIO;
+import main.infrastructure.io.MacSecurityBookmarkStore;
 import main.infrastructure.io.MoodFile;
 import main.infrastructure.io.ResourceLoader;
 import main.ui.app.JournalApp;
@@ -1888,6 +1890,8 @@ public class NotebookEntriesPanel extends JPanel {
         }
 
         File folder = nb.getFolder();
+        try { AppDirectories.restoreMacScopedAccess(AppDirectories.getRoot()); } catch (Throwable ignored) {}
+        try { MacSecurityBookmarkStore.ensureAccess(folder); } catch (Throwable ignored) {}
         java.util.Set<String> exts = app.getEditorFactory().getRegisteredExtensions();
         
         // Build extensions string for native call (e.g. ".txt,.md,.rtf")
@@ -2832,6 +2836,8 @@ public class NotebookEntriesPanel extends JPanel {
         if (disposed) return;
         stopWatching();
         try {
+            try { AppDirectories.restoreMacScopedAccess(AppDirectories.getRoot()); } catch (Throwable ignored) {}
+            try { MacSecurityBookmarkStore.ensureAccess(nb.getFolder()); } catch (Throwable ignored) {}
             Path path = nb.getFolder().toPath();
             watchService = FileSystems.getDefault().newWatchService();
             path.register(watchService,
