@@ -189,6 +189,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private MoodTrendBaseline moodTrendBaseline;
     private ToolbarMenuIconButton moodDetailsToggleButton;
     private MoodHoverRevealStrip moodRevealStrip;
+    private JComponent moodToolbarGap;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
@@ -316,10 +317,39 @@ public class EntryPanel extends AbstractEditorPanel {
         moodDetailsToggleButton.setIconOpacity(expanded ? 1.0f : 0.84f);
     }
 
+    private void updateMoodSectionSpacing(float visibility) {
+        float amount = Math.max(0f, Math.min(1f, visibility));
+        if (detailedMoodPanel != null && detailedMoodPanel.isExpanded()) {
+            amount = 1f;
+        }
+
+        if (moodToolbarGap != null) {
+            int gapH = Math.round(6f * amount);
+            Dimension size = new Dimension(0, gapH);
+            moodToolbarGap.setPreferredSize(size);
+            moodToolbarGap.setMinimumSize(size);
+            moodToolbarGap.setMaximumSize(new Dimension(Integer.MAX_VALUE, gapH));
+        }
+
+        if (moodContainer != null) {
+            int top = Math.round(6f * amount);
+            int left = Math.round(10f * amount);
+            int right = Math.round(2f + (8f * amount));
+            moodContainer.setBorder(BorderFactory.createEmptyBorder(top, left, 0, right));
+        }
+
+        if (toolbarGroup != null) {
+            toolbarGroup.revalidate();
+            toolbarGroup.repaint();
+        }
+    }
+
     private final class MoodHoverRevealStrip extends JComponent {
         private static final int REVEAL_GAP = 8;
         private static final int HOTSPOT_PAD = 14;
         private static final int REVEAL_TICK_MS = 16;
+        private static final int COLLAPSED_PEEK_WIDTH = 12;
+        private static final int COLLAPSED_PEEK_HEIGHT = 12;
 
         private final JPanel sliderHost;
         private final ToolbarMenuIconButton indicatorButton;
@@ -403,15 +433,8 @@ public class EntryPanel extends AbstractEditorPanel {
             if (p == null) return false;
             if (p.x < 0 || p.y < 0 || p.x >= getWidth() || p.y >= getHeight()) return false;
             if (pinnedVisible || revealProgress > 0.08f) return true;
-            Rectangle hotspot = indicatorButton.getBounds();
-            if (hotspot.width <= 0 || hotspot.height <= 0) return false;
-            hotspot = new Rectangle(
-                    Math.max(0, hotspot.x - HOTSPOT_PAD),
-                    0,
-                    Math.min(getWidth(), hotspot.width + HOTSPOT_PAD * 2),
-                    getHeight()
-            );
-            return hotspot.contains(p);
+            int hotspotWidth = Math.min(getWidth(), COLLAPSED_PEEK_WIDTH + HOTSPOT_PAD);
+            return p.x <= hotspotWidth;
         }
 
         private void setPinnedVisible(boolean pinnedVisible) {
@@ -441,27 +464,32 @@ public class EntryPanel extends AbstractEditorPanel {
             } else {
                 revealProgress += diff * 0.26f;
             }
+            revalidate();
             doLayout();
             repaint();
             refreshIndicatorChrome();
+            updateMoodSectionSpacing(visibleProgress());
         }
 
         private void refreshIndicatorChrome() {
             if (indicatorButton == null) return;
-            float emphasis = Math.max(revealProgress, pinnedVisible ? 1f : 0f);
+            float emphasis = visibleProgress();
             if (hoverActive && !pinnedVisible) {
-                emphasis = Math.max(emphasis, 0.92f);
+                emphasis = Math.max(emphasis, 0.78f);
             }
-            indicatorButton.setIconOpacity(0.80f + (0.20f * emphasis));
+            indicatorButton.setIconOpacity(0.28f + (0.70f * emphasis));
         }
 
         @Override
         public Dimension getPreferredSize() {
             Dimension sliderPref = sliderHost.getPreferredSize();
             Dimension buttonPref = indicatorButton.getPreferredSize();
+            int expandedWidth = sliderPref.width + REVEAL_GAP + buttonPref.width;
+            int expandedHeight = Math.max(sliderPref.height, buttonPref.height);
+            float visibility = visibleProgress();
             return new Dimension(
-                    sliderPref.width + REVEAL_GAP + buttonPref.width,
-                    Math.max(sliderPref.height, buttonPref.height)
+                    interpolate(COLLAPSED_PEEK_WIDTH, expandedWidth, visibility),
+                    interpolate(COLLAPSED_PEEK_HEIGHT, expandedHeight, visibility)
             );
         }
 
@@ -479,15 +507,30 @@ public class EntryPanel extends AbstractEditorPanel {
         public void doLayout() {
             Dimension sliderPref = sliderHost.getPreferredSize();
             Dimension buttonPref = indicatorButton.getPreferredSize();
-            int rowH = Math.max(sliderPref.height, buttonPref.height);
-            int buttonX = Math.max(0, getWidth() - buttonPref.width);
-            int buttonY = Math.max(0, (rowH - buttonPref.height) / 2);
-            int sliderTravel = sliderPref.width + REVEAL_GAP + 10;
-            int sliderX = Math.round((revealProgress - 1f) * sliderTravel);
-            int sliderY = Math.max(0, (rowH - sliderPref.height) / 2);
+            int fullWidth = sliderPref.width + REVEAL_GAP + buttonPref.width;
+            int rowH = Math.max(getHeight(), Math.max(sliderPref.height, buttonPref.height));
+            float visibility = visibleProgress();
+
+            int buttonCollapsedX = -Math.round((buttonPref.width - COLLAPSED_PEEK_WIDTH) * 0.5f);
+            int buttonExpandedX = fullWidth - buttonPref.width;
+            int buttonX = interpolate(buttonCollapsedX, buttonExpandedX, visibility);
+            int buttonY = Math.round((rowH - buttonPref.height) * 0.5f);
+
+            int sliderTravel = sliderPref.width + REVEAL_GAP + Math.max(18, buttonPref.width / 2);
+            int sliderX = Math.round((visibility - 1f) * sliderTravel);
+            int sliderY = Math.round((rowH - sliderPref.height) * 0.5f);
 
             sliderHost.setBounds(sliderX, sliderY, sliderPref.width, sliderPref.height);
             indicatorButton.setBounds(buttonX, buttonY, buttonPref.width, buttonPref.height);
+        }
+
+        private float visibleProgress() {
+            if (pinnedVisible) return 1f;
+            return Math.max(0f, Math.min(1f, revealProgress));
+        }
+
+        private int interpolate(int from, int to, float progress) {
+            return Math.round(from + ((to - from) * progress));
         }
 
         @Override
@@ -1497,7 +1540,6 @@ public class EntryPanel extends AbstractEditorPanel {
 
             moodContainer = new JPanel(new BorderLayout());
             moodContainer.setOpaque(false);
-            moodContainer.setBorder(BorderFactory.createEmptyBorder(6, 10, 0, 10));
             moodContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
             moodContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
             moodContainer.add(moodRow, BorderLayout.NORTH);
@@ -1508,10 +1550,12 @@ public class EntryPanel extends AbstractEditorPanel {
             moodSummaryPills.setAlignmentX(Component.LEFT_ALIGNMENT);
             moodSummaryPills.setVisible(false);
             moodContainer.add(moodSummaryPills, BorderLayout.SOUTH);
-            toolbarGroup.add(Box.createVerticalStrut(6));
+            moodToolbarGap = Box.createVerticalStrut(0);
+            toolbarGroup.add(moodToolbarGap);
             toolbarGroup.add(moodContainer);
             refreshDetailedMoodToggleVisual();
             moodRevealStrip.setPinnedVisible(false);
+            updateMoodSectionSpacing(0f);
             refreshMoodTrendBaselineFromHistory();
             updateMoodSummaryPills(null, moodSlider.getValue());
         }
