@@ -478,12 +478,11 @@ public class EntryPanel extends AbstractEditorPanel {
                 return;
             }
 
-            float visibility = visibleProgress();
-            float collapsedCue = 1f - visibility;
-            if (hoverActive) {
-                collapsedCue *= 0.28f;
+            float emphasis = visibleProgress();
+            if (hoverActive && !pinnedVisible) {
+                emphasis = Math.max(emphasis, 0.78f);
             }
-            indicatorButton.setIconOpacity(0.84f * collapsedCue);
+            indicatorButton.setIconOpacity(0.28f + (0.70f * emphasis));
         }
 
         @Override
@@ -583,7 +582,7 @@ public class EntryPanel extends AbstractEditorPanel {
      * Whether this editor should display mood controls under the toolbar.
      * Subclasses can override to disable (e.g., NotetakingPanel).
      */
-    protected boolean supportsMoodControls() { return true; }
+    protected boolean supportsMoodControls() { return false; }
 
     /**
      * Whether to show the clock (insert time) button in the right toolbar.
