@@ -473,11 +473,17 @@ public class EntryPanel extends AbstractEditorPanel {
 
         private void refreshIndicatorChrome() {
             if (indicatorButton == null) return;
-            float emphasis = visibleProgress();
-            if (hoverActive && !pinnedVisible) {
-                emphasis = Math.max(emphasis, 0.78f);
+            if (pinnedVisible) {
+                indicatorButton.setIconOpacity(0.98f);
+                return;
             }
-            indicatorButton.setIconOpacity(0.28f + (0.70f * emphasis));
+
+            float visibility = visibleProgress();
+            float collapsedCue = 1f - visibility;
+            if (hoverActive) {
+                collapsedCue *= 0.28f;
+            }
+            indicatorButton.setIconOpacity(0.84f * collapsedCue);
         }
 
         @Override

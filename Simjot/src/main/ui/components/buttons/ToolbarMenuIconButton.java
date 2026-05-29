@@ -10,6 +10,7 @@ package main.ui.components.buttons;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -40,6 +41,7 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
     private double rotationToRadians = 0.0;
     private long rotationStartMs = 0L;
     private int rotationDurationMs = 180;
+    private float menuIconOpacity = 1f;
 
     public ToolbarMenuIconButton(String caption, String iconId) {
         super(iconId);
@@ -62,6 +64,15 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
             @Override public void mouseEntered(MouseEvent e) { hovering = true; repaint(); }
             @Override public void mouseExited(MouseEvent e) { hovering = false; repaint(); }
         });
+    }
+
+    @Override
+    public void setIconOpacity(float alpha) {
+        float a = Math.max(0f, Math.min(1f, alpha));
+        if (Math.abs(menuIconOpacity - a) < 0.001f) return;
+        menuIconOpacity = a;
+        super.setIconOpacity(a);
+        repaint();
     }
 
     /** Rotate the icon around its center. Use Math.PI to flip 180 degrees. */
@@ -141,14 +152,21 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         int ix = (w - iconSize) / 2;
         int iy = (h - iconSize) / 2;
         String res = iconResourcePath;
-        if (vectorChevronIcon) {
-            paintVectorChevronIcon(g2, ix, iy, iconSize, pressed);
-        } else if (res != null) {
-            if (Math.abs(iconRotationRadians) > 0.0001) {
-                IconTransforms.drawRotated(g2, res, ix, iy, iconSize, this, true, iconRotationRadians);
-            } else {
-                ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
+        if (menuIconOpacity > 0.01f) {
+            Composite oldComposite = g2.getComposite();
+            if (menuIconOpacity < 0.999f) {
+                g2.setComposite(java.awt.AlphaComposite.SrcOver.derive(menuIconOpacity));
             }
+            if (vectorChevronIcon) {
+                paintVectorChevronIcon(g2, ix, iy, iconSize, pressed);
+            } else if (res != null) {
+                if (Math.abs(iconRotationRadians) > 0.0001) {
+                    IconTransforms.drawRotated(g2, res, ix, iy, iconSize, this, true, iconRotationRadians);
+                } else {
+                    ImageIconRenderer.draw(g2, res, ix, iy, iconSize, this, true);
+                }
+            }
+            g2.setComposite(oldComposite);
         }
 
         // Caption appears on hover/press as inline overlay

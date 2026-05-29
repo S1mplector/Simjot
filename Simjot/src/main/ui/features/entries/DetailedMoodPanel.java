@@ -562,13 +562,23 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void onChipToggled(int idx) {
+        if (staggerTimer.isRunning() && activeStaggerIndices.contains(idx)) {
+            staggerTimer.stop();
+            activeStaggerIndices.clear();
+        }
         boolean selected = chips[idx].isSelected();
         if (!selected) {
             sliders[idx].setValue(50);
+        } else if (expanded) {
+            sliderRows[idx].setVisible(true);
+            sliderRows[idx].setReveal(0f, false);
         }
         hasSnapshot = hasAnyChipSelected();
         refreshAllRowMeta();
         syncSliderRowVisibility(expanded);
+        if (selected && expanded) {
+            startStaggerAnimation(true, List.of(idx));
+        }
         refreshSummaryLabel();
         changeDebounceTimer.restart();
     }
@@ -619,12 +629,18 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private void startStaggerAnimation(boolean expanding) {
+        startStaggerAnimation(expanding, selectedEmotionIndices());
+    }
+
+    private void startStaggerAnimation(boolean expanding, List<Integer> indices) {
         if (staggerTimer.isRunning()) {
             staggerTimer.stop();
         }
 
         activeStaggerIndices.clear();
-        activeStaggerIndices.addAll(selectedEmotionIndices());
+        if (indices != null) {
+            activeStaggerIndices.addAll(indices);
+        }
         if (activeStaggerIndices.isEmpty()) {
             return;
         }
@@ -743,7 +759,11 @@ public class DetailedMoodPanel extends JPanel {
     }
 
     private int currentAnimatedHeight() {
-        return Math.max(Math.max(0, getHeight()), Math.max(0, getPreferredSize().height));
+        int preferredHeight = Math.max(0, getPreferredSize().height);
+        if (heightAnimationTimer != null && heightAnimationTimer.isRunning()) {
+            return preferredHeight;
+        }
+        return Math.max(Math.max(0, getHeight()), preferredHeight);
     }
 
     private void installLiveListeners() {
@@ -971,8 +991,12 @@ public class DetailedMoodPanel extends JPanel {
 
         @Override
         public void paint(Graphics g) {
+            float alpha = clamp01(reveal);
+            if (alpha <= 0.01f) {
+                return;
+            }
+
             Graphics2D g2 = (Graphics2D) g.create();
-            float alpha = 0.18f + 0.82f * reveal;
             int dy = Math.round((1f - reveal) * 6f);
             int w = Math.max(1, getWidth());
             int h = Math.max(1, getHeight());
