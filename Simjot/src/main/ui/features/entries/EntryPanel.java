@@ -1725,8 +1725,8 @@ public class EntryPanel extends AbstractEditorPanel {
         scrollPane.setViewport(paperViewport);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        // Reserve scrollbar width so editor text does not rewrap while the mood panel animates above it.
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+        // Only show the vertical bar when content actually overflows.
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         // Apply modern, slim scrollbars (match PoemPanel)
         JScrollBar vbar = scrollPane.getVerticalScrollBar();
