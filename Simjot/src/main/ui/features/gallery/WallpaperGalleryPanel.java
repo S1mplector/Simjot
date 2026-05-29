@@ -27,7 +27,6 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -43,6 +42,7 @@ import javax.swing.SwingWorker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.theme.Theme;
@@ -280,11 +280,11 @@ private JPanel buttonPanel;
     private void setupButtons() {
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
         buttonPanel.setOpaque(false);
-        JButton selectBtn = createDialogButton("Select");
-        JButton removeBtn = createDialogButton("Remove");
-        JButton refreshBtn = createDialogButton("Refresh");
-        JButton openFolderBtn = createDialogButton("Open");
-        JButton cancelBtn = createDialogButton("Cancel");
+        RoundedButton selectBtn = createDialogButton("Select", "save");
+        RoundedButton removeBtn = createDialogButton("Remove", "trash");
+        RoundedButton refreshBtn = createDialogButton("Refresh", "rescan");
+        RoundedButton openFolderBtn = createDialogButton("Open", "open_folder");
+        RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
 
         selectBtn.setToolTipText("Apply selected wallpaper");
         removeBtn.setToolTipText("Remove current wallpaper");
@@ -339,8 +339,8 @@ private JPanel buttonPanel;
         buttonPanel.add(cancelBtn);
     }
 
-    private JButton createDialogButton(String text) {
-        JButton btn = new JButton(text);
+    private RoundedButton createDialogButton(String text, String iconId) {
+        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
         btn.setPreferredSize(new Dimension(132, 40));
         btn.setFocusPainted(false);
         return btn;

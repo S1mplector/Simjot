@@ -26,7 +26,6 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -34,6 +33,7 @@ import javax.swing.JPanel;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
+import main.ui.components.buttons.RoundedButton;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 public class EntryBackgroundDialog extends JDialog {
@@ -102,16 +102,16 @@ public class EntryBackgroundDialog extends JDialog {
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
         btns.setOpaque(false);
-        JButton galleryBtn = createDialogButton("Gallery");
+        RoundedButton galleryBtn = createDialogButton("Gallery", "gallery");
         galleryBtn.setToolTipText("Choose from gallery");
         galleryBtn.addActionListener(e -> selectFromGallery());
-        JButton removeBtn = createDialogButton("Remove");
+        RoundedButton removeBtn = createDialogButton("Remove", "trash");
         removeBtn.setToolTipText("Remove background");
         removeBtn.addActionListener(e -> removeBackground());
-        JButton okBtn = createDialogButton("Save");
+        RoundedButton okBtn = createDialogButton("Save", "save");
         okBtn.setToolTipText("Apply changes");
         okBtn.addActionListener(e -> saveAndClose());
-        JButton cancelBtn = createDialogButton("Cancel");
+        RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
         cancelBtn.setToolTipText("Cancel changes");
         cancelBtn.addActionListener(e -> dispose());
         btns.add(galleryBtn);
@@ -134,8 +134,8 @@ public class EntryBackgroundDialog extends JDialog {
         }
     }
 
-    private JButton createDialogButton(String text) {
-        JButton btn = new JButton(text);
+    private RoundedButton createDialogButton(String text, String iconId) {
+        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
         btn.setPreferredSize(new Dimension(132, 40));
         btn.setFocusPainted(false);
         return btn;
