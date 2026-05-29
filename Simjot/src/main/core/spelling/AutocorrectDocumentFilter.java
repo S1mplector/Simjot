@@ -92,7 +92,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     private PendingSuggestion pendingHoverSuggestion;
     private Point pendingHoverPoint;
 
-    private boolean enabled = true;
+    private boolean suggestionsEnabled = true;
     private boolean undoInProgress = false;
 
     // Track last accepted correction for undo support.
@@ -136,12 +136,20 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
      * Install autocorrect suggestions on a JTextComponent.
      */
     public static AutocorrectDocumentFilter install(JTextComponent component) {
+        return install(component, true);
+    }
+
+    /**
+     * Install smart typography and optionally enable autocorrect suggestions.
+     */
+    public static AutocorrectDocumentFilter install(JTextComponent component, boolean suggestionsEnabled) {
         if (component == null) return null;
         uninstall(component);
 
         Document doc = component.getDocument();
         if (doc instanceof AbstractDocument) {
             AutocorrectDocumentFilter filter = new AutocorrectDocumentFilter(component);
+            filter.setEnabled(suggestionsEnabled);
             ((AbstractDocument) doc).setDocumentFilter(filter);
             try {
                 component.putClientProperty(CLIENT_PROP_FILTER, filter);
@@ -252,11 +260,12 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
             throws BadLocationException {
         super.insertString(fb, offset, string, attr);
 
-        if (!enabled || undoInProgress) return;
+        if (undoInProgress) return;
         if (string != null && !string.isEmpty()) {
             int pivot = offset + string.length();
             applySmartSymbolSubstitutionsAround(pivot);
         }
+        if (!suggestionsEnabled) return;
         pruneSuggestionsAfterDocumentChange();
         if (isTriggerChar(string)) {
             SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
@@ -268,11 +277,12 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
             throws BadLocationException {
         super.replace(fb, offset, length, text, attrs);
 
-        if (!enabled || undoInProgress) return;
+        if (undoInProgress) return;
         if (text != null && !text.isEmpty()) {
             int pivot = offset + text.length();
             applySmartSymbolSubstitutionsAround(pivot);
         }
+        if (!suggestionsEnabled) return;
         pruneSuggestionsAfterDocumentChange();
         if (text != null && isTriggerChar(text)) {
             SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
@@ -282,7 +292,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     @Override
     public void remove(FilterBypass fb, int offset, int length) throws BadLocationException {
         super.remove(fb, offset, length);
-        if (!enabled || undoInProgress) return;
+        if (!suggestionsEnabled || undoInProgress) return;
         pruneSuggestionsAfterDocumentChange();
     }
 
@@ -431,7 +441,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     }
 
     private void onMouseMoved(MouseEvent e) {
-        if (!enabled || pendingSuggestions.isEmpty()) {
+        if (!suggestionsEnabled || pendingSuggestions.isEmpty()) {
             cancelShowPopup();
             scheduleHidePopup();
             return;
@@ -484,7 +494,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
 
     private void showPendingSuggestionPopup() {
         PendingSuggestion suggestion = pendingHoverSuggestion;
-        if (!enabled || suggestion == null || !pendingSuggestions.contains(suggestion)) {
+        if (!suggestionsEnabled || suggestion == null || !pendingSuggestions.contains(suggestion)) {
             pendingHoverSuggestion = null;
             pendingHoverPoint = null;
             return;
@@ -738,7 +748,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
      * Enable or disable autocorrect suggestions.
      */
     public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+        this.suggestionsEnabled = enabled;
         if (!enabled) {
             clearAllSuggestions();
         }
@@ -748,7 +758,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
      * Check if autocorrect suggestions are enabled.
      */
     public boolean isEnabled() {
-        return enabled;
+        return suggestionsEnabled;
     }
 
     /**

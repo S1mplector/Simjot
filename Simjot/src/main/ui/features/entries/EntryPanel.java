@@ -1654,9 +1654,7 @@ public class EntryPanel extends AbstractEditorPanel {
         this.titleUndoManager = new UndoRedoManager(titleField);
 
         try {
-            if (SettingsStore.get().isJournalAutocorrectEnabled()) {
-                AutocorrectDocumentFilter.install(contentArea);
-            }
+            AutocorrectDocumentFilter.install(contentArea, SettingsStore.get().isJournalAutocorrectEnabled());
         } catch (Throwable ignored) {}
 
         // Add document listener for word count and typing snapshot; keep a reference
@@ -1696,9 +1694,7 @@ public class EntryPanel extends AbstractEditorPanel {
             try { updateWordCount(); } catch (Throwable ignored) {}
 
             try {
-                if (SettingsStore.get().isJournalAutocorrectEnabled()) {
-                    AutocorrectDocumentFilter.install(contentArea);
-                }
+                AutocorrectDocumentFilter.install(contentArea, SettingsStore.get().isJournalAutocorrectEnabled());
             } catch (Throwable ignored) {}
         });
         // Autosave on title change too

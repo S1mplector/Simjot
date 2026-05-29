@@ -488,9 +488,7 @@ public class PoemPanel extends AbstractEditorPanel {
         this.poemTitleUndoManager = new UndoRedoManager(poemTitleField);
 
         try {
-            if (SettingsStore.get().isPoetryAutocorrectEnabled()) {
-                AutocorrectDocumentFilter.install(poemEditor);
-            }
+            AutocorrectDocumentFilter.install(poemEditor, SettingsStore.get().isPoetryAutocorrectEnabled());
         } catch (Throwable ignored) {}
 
         textWrapper.add(scrollPane, BorderLayout.CENTER);
