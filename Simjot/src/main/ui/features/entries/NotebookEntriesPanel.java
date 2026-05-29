@@ -351,7 +351,6 @@ public class NotebookEntriesPanel extends JPanel {
         private final JLabel editedLabel = new JLabel();
         private final JLabel snippet = new JLabel();
         private final JLabel editedContextLabel = new JLabel();
-        private final MoodSparkline sparkline = new MoodSparkline();
         private final JPanel statsPanel = new JPanel();
         private final Color cardBg = new Color(252, 253, 255);
         private final Color cardBorder = new Color(190, 200, 214);
@@ -364,7 +363,6 @@ public class NotebookEntriesPanel extends JPanel {
         private boolean selected;
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
-        private int moodValue = -1;
         private float selectionSweepPhase = 0f;
         private float dashedBorderPhase = 0f; // Current animated phase for dashed border
         private boolean hovered = false;
@@ -372,7 +370,6 @@ public class NotebookEntriesPanel extends JPanel {
         private final DateDividerRenderer divider = new DateDividerRenderer();
         private static final int SNIPPET_CACHE_MAX = 768;
         private static final int TIME_CACHE_MAX = 1024;
-        private static final int[] EMPTY_VALUES = new int[0];
         private final Map<File, SnippetHtmlCache> snippetHtmlCache =
                 new LinkedHashMap<>(128, 0.75f, true) {
                     @Override
@@ -510,15 +507,9 @@ public class NotebookEntriesPanel extends JPanel {
             editedContextLabel.setForeground(new Color(118, 126, 141));
             editedContextLabel.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
 
-            sparkline.setPreferredSize(new Dimension(140, 24));
-            sparkline.setMaximumSize(new Dimension(180, 24));
-            sparkline.setMinimumSize(new Dimension(120, 24));
-
             content.add(titleWrapper);
             content.add(snippet);
             content.add(editedContextLabel);
-            content.add(Box.createVerticalStrut(2));
-            content.add(sparkline);
             add(content, BorderLayout.CENTER);
             
             // Right stats panel: vertically stacked stats
@@ -570,12 +561,10 @@ public class NotebookEntriesPanel extends JPanel {
             // Title will be set externally via putClientProperty on the list for this renderer
             @SuppressWarnings("unchecked") Map<File,String> titles = (Map<File,String>) list.getClientProperty("titles");
             @SuppressWarnings("unchecked") Map<File,Integer> wordCounts = (Map<File,Integer>) list.getClientProperty("wordCounts");
-            @SuppressWarnings("unchecked") Map<File,Integer> moods = (Map<File,Integer>) list.getClientProperty("moods");
             @SuppressWarnings("unchecked") Map<File,Long> timestamps = (Map<File,Long>) list.getClientProperty("entryTimestamps");
             @SuppressWarnings("unchecked") Map<File,Float> reorderAnim = (Map<File,Float>) list.getClientProperty("reorderAnim");
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
             @SuppressWarnings("unchecked") Map<File, PreviewSnapshot> previews = (Map<File, PreviewSnapshot>) list.getClientProperty("previews");
-            @SuppressWarnings("unchecked") Map<File, int[]> moodTrends = (Map<File, int[]>) list.getClientProperty("moodTrends");
             @SuppressWarnings("unchecked") Map<File, Boolean> encryptedState = (Map<File, Boolean>) list.getClientProperty("encryptedFlags");
             String searchQuery = String.valueOf(list.getClientProperty("searchQuery") == null
                     ? ""
@@ -591,7 +580,6 @@ public class NotebookEntriesPanel extends JPanel {
             reorderGlow = glow == null ? 0f : glow;
             Float delProg = file != null && deleteAnim != null ? deleteAnim.get(file) : null;
             deleteProgress = delProg == null ? 0f : delProg;
-            moodValue = file != null && moods != null ? moods.getOrDefault(file, -1) : -1;
             encrypted = false;
             if (file != null) {
                 if (encryptedState != null) {
@@ -620,7 +608,6 @@ public class NotebookEntriesPanel extends JPanel {
             boolean showStats = viewMode == EntryViewMode.COMFORT;
             boolean showSnippet = viewMode == EntryViewMode.COMFORT;
             boolean showEditedContext = viewMode == EntryViewMode.COMFORT;
-            boolean showSparkline = viewMode == EntryViewMode.COMFORT;
 
             // Created from filename if matches yyyyMMdd_HHmmss, else fallback to modified
             long createdTs = -1L;
@@ -654,15 +641,9 @@ public class NotebookEntriesPanel extends JPanel {
             }
             editedContextLabel.setText(labels.editedContextText);
 
-            int[] trendValues = file != null && moodTrends != null ? moodTrends.get(file) : null;
-            if ((trendValues == null || trendValues.length == 0) && moodValue >= 0) {
-                trendValues = new int[] { moodValue };
-            }
-            sparkline.setValues(trendValues, moodValue);
             statsPanel.setVisible(showStats);
             snippet.setVisible(showSnippet);
             editedContextLabel.setVisible(showEditedContext);
-            sparkline.setVisible(showSparkline);
             setBorder(comfortPadding);
             setPreferredSize(new Dimension(1, HEIGHT_COMFORT));
             this.selected = isSelected;
@@ -765,9 +746,8 @@ public class NotebookEntriesPanel extends JPanel {
             }
 
             // Accent bar
-            Color base = moodColorAt(moodValue);
-            Color accentTop = shiftColor(base, 0.18f);
-            Color accentBottom = shiftColor(base, -0.22f);
+            Color accentTop = shiftColor(accent, 0.18f);
+            Color accentBottom = shiftColor(accent, -0.22f);
             g2.setPaint(new GradientPaint(0, 8, accentTop, 0, h - 8, accentBottom));
             g2.fillRoundRect(6, 9, 6, h - 18, 6, 6);
 
@@ -958,70 +938,6 @@ public class NotebookEntriesPanel extends JPanel {
                     .replace(">", "&gt;");
         }
 
-        private static final class MoodSparkline extends JComponent {
-            private int[] values = new int[0];
-            private int currentMood = -1;
-
-            private void setValues(int[] values, int currentMood) {
-                int[] nextValues = values == null ? EMPTY_VALUES : values;
-                if (this.values == nextValues && this.currentMood == currentMood) {
-                    return;
-                }
-                this.values = nextValues;
-                this.currentMood = currentMood;
-            }
-
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth();
-                int h = getHeight();
-                if (w <= 2 || h <= 2) {
-                    g2.dispose();
-                    return;
-                }
-
-                g2.setColor(new Color(235, 240, 247, 210));
-                g2.fillRoundRect(0, 0, w - 1, h - 1, 10, 10);
-                g2.setColor(new Color(205, 214, 226, 220));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 10, 10);
-
-                if (values.length < 2) {
-                    Color dot = currentMood >= 0 ? moodColorAt(currentMood) : new Color(165, 176, 194);
-                    g2.setColor(dot);
-                    int r = 4;
-                    g2.fillOval(w / 2 - r, h / 2 - r, r * 2, r * 2);
-                    g2.dispose();
-                    return;
-                }
-
-                int left = 6;
-                int right = w - 7;
-                int top = 5;
-                int bottom = h - 6;
-                float dx = values.length > 1 ? (right - left) / (float) (values.length - 1) : 0f;
-
-                g2.setStroke(new java.awt.BasicStroke(1.8f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
-                int prevX = -1;
-                int prevY = -1;
-                for (int i = 0; i < values.length; i++) {
-                    int mood = Math.max(0, Math.min(100, values[i]));
-                    int x = Math.round(left + i * dx);
-                    int y = bottom - Math.round((bottom - top) * (mood / 100f));
-                    if (prevX >= 0) {
-                        g2.setColor(moodColorAt((values[i - 1] + mood) / 2));
-                        g2.drawLine(prevX, prevY, x, y);
-                    }
-                    prevX = x;
-                    prevY = y;
-                }
-                int lastMood = Math.max(0, Math.min(100, values[values.length - 1]));
-                g2.setColor(moodColorAt(lastMood));
-                g2.fillOval(prevX - 3, prevY - 3, 6, 6);
-                g2.dispose();
-            }
-        }
     }
 
     private static final class DateDividerRenderer extends JComponent {

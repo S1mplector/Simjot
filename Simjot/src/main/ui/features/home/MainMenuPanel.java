@@ -56,8 +56,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import main.core.AppInfo;
-import main.core.analytics.MoodAnalyticsEngine;
-import main.core.analytics.MoodAnalyticsEngine.AnalyticsResult;
 import main.core.service.LastSaveTracker;
 import main.core.service.NotebookStore;
 import main.core.service.SettingsStore;
@@ -334,11 +332,9 @@ public class MainMenuPanel extends JPanel {
 
     //  App Context Indicators (center of status bar)
     private static class AppContextIndicators extends JPanel {
-        private final JournalApp app;
         private final JLabel countsLbl = new JLabel();
         private final JLabel autosaveLbl = new JLabel();
         private final JLabel sizeLbl = new JLabel();
-        private final JButton moodPulseChip = new RoundedChipButton("Mood avg – • Trend –");
         private final JButton dailyPromptChip = new RoundedChipButton("SIM DAILY PROMPT • --:--:-- left");
         private static final String DAILY_PROMPT_DATE_KEY = "sim.dailyPrompt.date";
         private static final String DAILY_PROMPT_LABEL_KEY = "sim.dailyPrompt.label";
@@ -354,7 +350,6 @@ public class MainMenuPanel extends JPanel {
         private long lastDailyPromptRequestMs = 0L;
 
         private long lastCountsMillis = 0L;
-        private long lastMoodMillis = 0L;
 
         // Removed sparkline popup functionality
         private JPopupMenu dailyPromptPopup;
@@ -366,7 +361,6 @@ public class MainMenuPanel extends JPanel {
         };
 
         AppContextIndicators(JournalApp app) {
-            this.app = app;
             setOpaque(false);
             setLayout(new FlowLayout(FlowLayout.CENTER, 8, 0));
             Font chromeFont = AeroTheme.defaultFont().deriveFont(12.5f);
@@ -394,22 +388,11 @@ public class MainMenuPanel extends JPanel {
                 add(l);
             }
 
-            configureChip(moodPulseChip, "smile");
-
-            moodPulseChip.addActionListener(e -> {
-                ElegantMoodChartPanel.requestRangeSelection(1);
-                app.switchCard(JournalApp.MOOD_CHART);
-            });
-
             countsLbl.setText("– notebooks  •  – entries");
             autosaveLbl.setText(" |  Autosave: –  •  Last: –");
             sizeLbl.setText(" |  Size: " + lastSizeText);
 
-            add(Box.createHorizontalStrut(6));
-            add(moodPulseChip);
-
             updateCounts();
-            updateMoodPulse();
             updateAutosave();
 
             javax.swing.Timer uiTimer = new javax.swing.Timer(1000, e -> updateFast());
@@ -544,10 +527,6 @@ public class MainMenuPanel extends JPanel {
             if (now / 10000 != (lastCountsMillis / 10000)) {
                 updateCounts();
                 lastCountsMillis = now;
-            }
-            if (now / 10000 != (lastMoodMillis / 10000)) {
-                updateMoodPulse();
-                lastMoodMillis = now;
             }
             updateAutosave();
             sizeLbl.setText(" |  Size: " + lastSizeText);
@@ -748,40 +727,6 @@ public class MainMenuPanel extends JPanel {
             return total;
         }
 
-        private void updateMoodPulse() {
-            AnalyticsResult scoped = MoodAnalyticsEngine.get().analyze(30, 7);
-            if (scoped == null || scoped.dates == null || scoped.dates.isEmpty()) {
-                moodPulseChip.setText("Mood avg – • Trend –");
-            } else {
-                int avg = (int) Math.round(scoped.overallAverage);
-                String arrow = trendArrow(scoped.smoothedAverages);
-                moodPulseChip.setText("Mood avg " + avg + " • Trend " + arrow);
-            }
-
-            // Removed sparkline functionality
-        }
-
-        private String trendArrow(List<Double> values) {
-            if (values == null || values.isEmpty()) return "→";
-            Double last = null;
-            Double prev = null;
-            for (int i = values.size() - 1; i >= 0; i--) {
-                Double v = values.get(i);
-                if (v == null) continue;
-                if (last == null) {
-                    last = v;
-                } else {
-                    prev = v;
-                    break;
-                }
-            }
-            if (last == null || prev == null) return "→";
-            double delta = last - prev;
-            if (delta > 1.0d) return "↑";
-            if (delta < -1.0d) return "↓";
-            return "→";
-        }
-
         private boolean isEntryFile(String name) {
             if (name == null) return false;
             String s = name.toLowerCase(Locale.ROOT);
@@ -953,7 +898,6 @@ public class MainMenuPanel extends JPanel {
         if (SHOW_GALLERY) {
             dockBar.addItem("Gallery", "image", () -> app.switchCard(JournalApp.GALLERY));
         }
-        dockBar.addItem("Mood", "smile", () -> app.switchCard(JournalApp.MOOD_CHART));
         dockBar.addItem("Settings", "wrench", () -> app.switchCard(JournalApp.SETTINGS));
         dockBar.addItem("Exit", "saveandexit", () -> {
             if (app != null) {
