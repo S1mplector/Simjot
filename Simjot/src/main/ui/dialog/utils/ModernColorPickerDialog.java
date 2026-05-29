@@ -25,6 +25,7 @@ import java.awt.geom.RoundRectangle2D;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JColorChooser;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -280,8 +281,6 @@ public class ModernColorPickerDialog extends JDialog {
      * Show the color picker dialog and return the selected color, or null if cancelled.
      */
     public static Color showDialog(Component parent, String title, Color initialColor) {
-        ModernColorPickerDialog dialog = new ModernColorPickerDialog(parent, initialColor);
-        dialog.setVisible(true);
-        return dialog.isConfirmed() ? dialog.getSelectedColor() : null;
+        return JColorChooser.showDialog(parent, title == null ? "Choose Color" : title, initialColor);
     }
 }

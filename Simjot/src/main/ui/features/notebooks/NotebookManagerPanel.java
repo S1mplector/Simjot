@@ -2079,11 +2079,11 @@ public class NotebookManagerPanel extends JPanel {
         }
 
         private RoundedButton createDialogButton(String text, String iconId) {
-                RoundedButton btn = new RoundedButton(text).withIcon(iconId);
-                btn.setPreferredSize(new Dimension(132, 40));
-                btn.setFocusPainted(false);
-                return btn;
-            }
+            RoundedButton btn = new RoundedButton(text);
+            btn.setPreferredSize(new Dimension(132, 40));
+            btn.setFocusPainted(false);
+            return btn;
+        }
 
         private Color mix(Color a, Color b, float t) {
             float clamped = Math.max(0f, Math.min(1f, t));

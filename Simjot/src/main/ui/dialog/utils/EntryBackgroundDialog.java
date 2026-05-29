@@ -26,6 +26,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -33,9 +34,6 @@ import javax.swing.JPanel;
 
 import main.core.service.SettingsStore;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.RoundedPanel;
-import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.features.gallery.WallpaperGalleryPanel;
 
 public class EntryBackgroundDialog extends JDialog {
@@ -47,19 +45,17 @@ public class EntryBackgroundDialog extends JDialog {
     
     public EntryBackgroundDialog(Frame owner) {
         super(owner, "Entry Background Settings", true);
-        setUndecorated(true);
-        setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
+        getContentPane().setBackground(Color.WHITE);
         
         // Initialize with current settings
         SettingsStore settings = SettingsStore.get();
         selectedImagePath = settings.getEntryBackgroundImage();
         currentOpacity = settings.getEntryBackgroundOpacity();
 
-        ShadowedDialogPanel panel = new ShadowedDialogPanel(new BorderLayout(12, 12), 16);
+        JPanel panel = new JPanel(new BorderLayout(12, 12));
+        panel.setBackground(Color.WHITE);
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        panel.setFlat(true);
-        panel.setFlatColor(Color.WHITE);
 
         JPanel header = new JPanel();
         header.setOpaque(false);
@@ -86,11 +82,11 @@ public class EntryBackgroundDialog extends JDialog {
         center.add(previewTitle);
         center.add(Box.createVerticalStrut(6));
 
-        RoundedPanel previewCard = new RoundedPanel(16);
-        previewCard.setFlat(true);
+        JPanel previewCard = new JPanel(new BorderLayout());
         previewCard.setBackground(new Color(250, 250, 252));
-        previewCard.setLayout(new BorderLayout());
-        previewCard.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        previewCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(210, 214, 224)),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)));
         previewLabel = new JLabel("No background selected", JLabel.CENTER);
         previewLabel.setPreferredSize(new Dimension(360, 200));
         previewLabel.setHorizontalAlignment(JLabel.CENTER);
@@ -106,16 +102,16 @@ public class EntryBackgroundDialog extends JDialog {
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
         btns.setOpaque(false);
-        RoundedButton galleryBtn = createDialogButton("Gallery", "gallery");
+        JButton galleryBtn = createDialogButton("Gallery");
         galleryBtn.setToolTipText("Choose from gallery");
         galleryBtn.addActionListener(e -> selectFromGallery());
-        RoundedButton removeBtn = createDialogButton("Remove", "trash");
+        JButton removeBtn = createDialogButton("Remove");
         removeBtn.setToolTipText("Remove background");
         removeBtn.addActionListener(e -> removeBackground());
-        RoundedButton okBtn = createDialogButton("Save", "save");
+        JButton okBtn = createDialogButton("Save");
         okBtn.setToolTipText("Apply changes");
         okBtn.addActionListener(e -> saveAndClose());
-        RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
+        JButton cancelBtn = createDialogButton("Cancel");
         cancelBtn.setToolTipText("Cancel changes");
         cancelBtn.addActionListener(e -> dispose());
         btns.add(galleryBtn);
@@ -138,8 +134,8 @@ public class EntryBackgroundDialog extends JDialog {
         }
     }
 
-    private RoundedButton createDialogButton(String text, String iconId) {
-        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+    private JButton createDialogButton(String text) {
+        JButton btn = new JButton(text);
         btn.setPreferredSize(new Dimension(132, 40));
         btn.setFocusPainted(false);
         return btn;

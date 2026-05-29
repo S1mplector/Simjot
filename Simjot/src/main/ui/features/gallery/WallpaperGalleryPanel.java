@@ -27,6 +27,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -42,9 +43,6 @@ import javax.swing.SwingWorker;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.infrastructure.io.ResourceLoader;
-import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.FrostedGlassPanel;
-import main.ui.components.containers.ShadowedDialogPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.dialog.message.CustomMessageDialog;
 import main.ui.theme.Theme;
@@ -72,13 +70,12 @@ public class WallpaperGalleryPanel extends JDialog {
     public WallpaperGalleryPanel(Component parent, boolean autoSaveSelection) {
         super(SwingUtilities.getWindowAncestor(parent), "Choose Wallpaper", Dialog.ModalityType.APPLICATION_MODAL);
         this.autoSaveSelection = autoSaveSelection;
-        setUndecorated(true);
-        setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
+        getContentPane().setBackground(Color.WHITE);
 
-        ShadowedDialogPanel root = new ShadowedDialogPanel(new BorderLayout(12, 12), 16);
+        JPanel root = new JPanel(new BorderLayout(12, 12));
+        root.setBackground(Color.WHITE);
         root.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        root.setOpacityScale(0.98f);
 
         setLocationRelativeTo(parent);
 
@@ -113,8 +110,10 @@ public class WallpaperGalleryPanel extends JDialog {
         setupImageGrid();
         JScrollPane listScroll = new JScrollPane(list);
         listScroll.setBorder(BorderFactory.createEmptyBorder());
-        listScroll.setOpaque(false);
-        listScroll.getViewport().setOpaque(false);
+        listScroll.setOpaque(true);
+        listScroll.setBackground(Color.WHITE);
+        listScroll.getViewport().setOpaque(true);
+        listScroll.getViewport().setBackground(Color.WHITE);
         // Apply the same modern scrollbars used in poetry/journal panels
         JScrollBar vbar = listScroll.getVerticalScrollBar();
         vbar.setUI(new ModernScrollBarUI());
@@ -184,10 +183,10 @@ public class WallpaperGalleryPanel extends JDialog {
     }
 
     private JPanel createSectionCard(LayoutManager layout) {
-        FrostedGlassPanel panel = new FrostedGlassPanel(layout, 20);
-        panel.setOpacityScale(0.92f);
+        JPanel panel = new JPanel(layout);
+        panel.setBackground(new Color(250, 250, 252));
         panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(214, 226, 240, 178)),
+                BorderFactory.createLineBorder(new Color(214, 226, 240)),
                 BorderFactory.createEmptyBorder(8, 8, 8, 8)
         ));
         return panel;
@@ -199,8 +198,8 @@ public class WallpaperGalleryPanel extends JDialog {
         list.setFixedCellWidth(160);
         list.setFixedCellHeight(180);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setOpaque(false);
-        list.setBackground(new Color(255, 255, 255, 0));
+        list.setOpaque(true);
+        list.setBackground(Color.WHITE);
 
         // Reusable renderer to avoid reallocations and rescaling during scroll
         class Cell extends JPanel implements ListCellRenderer<WallpaperItem> {
@@ -279,13 +278,13 @@ public class WallpaperGalleryPanel extends JDialog {
 private JPanel buttonPanel;
     
     private void setupButtons() {
-        buttonPanel = new FrostedGlassPanel(new FlowLayout(FlowLayout.CENTER, 12, 8), 18);
-        ((FrostedGlassPanel) buttonPanel).setOpacityScale(0.88f);
-        RoundedButton selectBtn = createDialogButton("Select", "save");
-        RoundedButton removeBtn = createDialogButton("Remove", "trash");
-        RoundedButton refreshBtn = createDialogButton("Refresh", "rescan");
-        RoundedButton openFolderBtn = createDialogButton("Open", "open_folder");
-        RoundedButton cancelBtn = createDialogButton("Cancel", "exit");
+        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
+        buttonPanel.setOpaque(false);
+        JButton selectBtn = createDialogButton("Select");
+        JButton removeBtn = createDialogButton("Remove");
+        JButton refreshBtn = createDialogButton("Refresh");
+        JButton openFolderBtn = createDialogButton("Open");
+        JButton cancelBtn = createDialogButton("Cancel");
 
         selectBtn.setToolTipText("Apply selected wallpaper");
         removeBtn.setToolTipText("Remove current wallpaper");
@@ -340,8 +339,8 @@ private JPanel buttonPanel;
         buttonPanel.add(cancelBtn);
     }
 
-    private RoundedButton createDialogButton(String text, String iconId) {
-        RoundedButton btn = new RoundedButton(text).withIcon(iconId);
+    private JButton createDialogButton(String text) {
+        JButton btn = new JButton(text);
         btn.setPreferredSize(new Dimension(132, 40));
         btn.setFocusPainted(false);
         return btn;
