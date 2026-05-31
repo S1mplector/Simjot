@@ -12,6 +12,8 @@ import java.awt.Color;
 import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Container;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -67,13 +69,8 @@ class CustomFontGlyphView extends GlyphView {
         CustomFont font = resolveFont();
         if (font == null) {
             List<SentenceFocusHighlighter.DimRange> dimRanges = resolveDimRanges();
-            if (!dimRanges.isEmpty() && viewFullyDimmed(dimRanges)) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                Composite oldComposite = g2.getComposite();
-                g2.setComposite(AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA));
-                super.paint(g2, a);
-                g2.setComposite(oldComposite);
-                g2.dispose();
+            if (!dimRanges.isEmpty()) {
+                drawPlatformTextWithDimmedRanges(g, a, dimRanges);
                 return;
             }
             super.paint(g, a);
@@ -239,16 +236,6 @@ class CustomFontGlyphView extends GlyphView {
         return List.of();
     }
 
-    private boolean viewFullyDimmed(List<SentenceFocusHighlighter.DimRange> dimRanges) {
-        int start = getStartOffset();
-        int end = getEndOffset();
-        if (end <= start) return false;
-        for (SentenceFocusHighlighter.DimRange range : dimRanges) {
-            if (range.start() <= start && range.end() >= end) return true;
-        }
-        return false;
-    }
-
     private boolean isOffsetDimmed(int offset, List<SentenceFocusHighlighter.DimRange> dimRanges) {
         for (SentenceFocusHighlighter.DimRange range : dimRanges) {
             if (range.contains(offset)) return true;
@@ -278,6 +265,79 @@ class CustomFontGlyphView extends GlyphView {
             i += chars;
         }
         g2.setComposite(baseComposite);
+    }
+
+    private void drawPlatformTextWithDimmedRanges(Graphics g, Shape a, List<SentenceFocusHighlighter.DimRange> dimRanges) {
+        String text = getViewText();
+        if (text.isEmpty()) return;
+        Rectangle alloc = (a instanceof Rectangle) ? (Rectangle) a : a.getBounds();
+
+        Graphics2D g2 = (Graphics2D) g.create();
+        try {
+            Font font = resolvePlatformFont();
+            Color color = resolveColor();
+            g2.setFont(font);
+            g2.setColor(color);
+
+            FontMetrics metrics = g2.getFontMetrics(font);
+            int baseline = alloc.y + metrics.getAscent();
+            float cursorX = alloc.x;
+            int offset = getStartOffset();
+            Composite baseComposite = g2.getComposite();
+            boolean underline = StyleConstants.isUnderline(getAttributes());
+            boolean strike = StyleConstants.isStrikeThrough(getAttributes());
+
+            for (int i = 0; i < text.length();) {
+                int cp = text.codePointAt(i);
+                int chars = Character.charCount(cp);
+                String glyphText = text.substring(i, i + chars);
+
+                if (cp == '\n' || cp == '\r') {
+                    offset += chars;
+                    i += chars;
+                    continue;
+                }
+
+                boolean dimmed = isOffsetDimmed(offset, dimRanges);
+                g2.setComposite(dimmed ? AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA) : baseComposite);
+
+                if (cp == '\t') {
+                    cursorX += metrics.charWidth(' ') * 4f;
+                } else {
+                    g2.drawString(glyphText, cursorX, baseline);
+                    int width = metrics.stringWidth(glyphText);
+                    if (underline) {
+                        int y = baseline + 1;
+                        g2.drawLine(Math.round(cursorX), y, Math.round(cursorX + width), y);
+                    }
+                    if (strike) {
+                        int y = baseline - Math.max(1, metrics.getAscent() / 3);
+                        g2.drawLine(Math.round(cursorX), y, Math.round(cursorX + width), y);
+                    }
+                    cursorX += width;
+                }
+                offset += chars;
+                i += chars;
+            }
+            g2.setComposite(baseComposite);
+        } finally {
+            g2.dispose();
+        }
+    }
+
+    private Font resolvePlatformFont() {
+        Container container = getContainer();
+        Font base = container instanceof JComponent jc && jc.getFont() != null
+                ? jc.getFont()
+                : new Font("Serif", Font.PLAIN, resolveSize());
+        String family = StyleConstants.getFontFamily(getAttributes());
+        if (family == null || family.isBlank()) family = base.getFamily();
+        int size = StyleConstants.getFontSize(getAttributes());
+        if (size <= 0) size = base.getSize();
+        int style = Font.PLAIN;
+        if (StyleConstants.isBold(getAttributes())) style |= Font.BOLD;
+        if (StyleConstants.isItalic(getAttributes())) style |= Font.ITALIC;
+        return new Font(family, style, size);
     }
 
     private String getViewText() {
