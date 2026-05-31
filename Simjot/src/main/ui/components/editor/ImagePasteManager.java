@@ -33,8 +33,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.AWTEventListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.Arc2D;
-import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -50,9 +48,7 @@ import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -241,8 +237,6 @@ public final class ImagePasteManager {
         widthLabel.setPreferredSize(new Dimension(36, 20));
 
         JLabel sizeLabel = createSizeValueLabel(currentW, originalW);
-        JButton resetBtn = createOverlayResetButton();
-        resetBtn.setToolTipText("Restore original width");
 
         ToolbarIconButton deleteBtn = new ToolbarIconButton("delete");
         deleteBtn.setPreferredSize(new Dimension(30, 30));
@@ -266,13 +260,6 @@ public final class ImagePasteManager {
             }
         });
 
-        resetBtn.addActionListener(e -> {
-            int resetW = clampInt(originalW, minW, maxW);
-            if (sizeSlider.getValue() != resetW) {
-                sizeSlider.setValue(resetW);
-            }
-        });
-
         deleteBtn.addActionListener(e -> {
             try {
                 StyledDocument doc = editor.getStyledDocument();
@@ -290,7 +277,6 @@ public final class ImagePasteManager {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         actions.setOpaque(false);
-        actions.add(resetBtn);
         actions.add(deleteBtn);
         content.add(sliderPanel, java.awt.BorderLayout.CENTER);
         content.add(actions, java.awt.BorderLayout.EAST);
@@ -370,87 +356,6 @@ public final class ImagePasteManager {
         int safeOriginal = Math.max(1, originalWidth);
         int pct = Math.max(1, Math.round((width * 100f) / safeOriginal));
         sizeLabel.setText(width + "px (" + pct + "%)");
-    }
-
-    private static JButton createOverlayResetButton() {
-        JButton button = new JButton(new ResetGlyphIcon(13));
-        button.setFocusable(false);
-        button.setOpaque(false);
-        button.setContentAreaFilled(false);
-        button.setPreferredSize(new Dimension(30, 30));
-        button.setMinimumSize(new Dimension(30, 30));
-        button.setMaximumSize(new Dimension(30, 30));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(110, 126, 152, 145), 1, true),
-                BorderFactory.createEmptyBorder(4, 7, 4, 7)));
-        return button;
-    }
-
-    private static final class ResetGlyphIcon implements Icon {
-        private final int size;
-
-        private ResetGlyphIcon(int size) {
-            this.size = Math.max(10, size);
-        }
-
-        @Override
-        public int getIconWidth() {
-            return size;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return size;
-        }
-
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.translate(x, y);
-
-            Color base = new Color(63, 74, 92);
-            if (c != null && !c.isEnabled()) {
-                base = new Color(base.getRed(), base.getGreen(), base.getBlue(), 110);
-            }
-            g2.setColor(base);
-            g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-
-            double cx = size / 2.0;
-            double cy = size / 2.0;
-            double radius = Math.max(3.8, (size / 2.0) - 2.4);
-            double diameter = radius * 2.0;
-            double startDeg = 35.0;
-            double extentDeg = 302.0;
-
-            Arc2D.Double arc = new Arc2D.Double(cx - radius, cy - radius, diameter, diameter, startDeg, extentDeg, Arc2D.OPEN);
-            g2.draw(arc);
-
-            // Arrowhead aligned to the arc tangent for a cleaner reset glyph.
-            double tipA = Math.toRadians(startDeg);
-            double nearA = Math.toRadians(startDeg + 10.0);
-            double tipX = cx + radius * Math.cos(tipA);
-            double tipY = cy - radius * Math.sin(tipA);
-            double nearX = cx + radius * Math.cos(nearA);
-            double nearY = cy - radius * Math.sin(nearA);
-            double dirX = tipX - nearX;
-            double dirY = tipY - nearY;
-            double len = Math.max(0.001, Math.hypot(dirX, dirY));
-            dirX /= len;
-            dirY /= len;
-            double nx = -dirY;
-            double ny = dirX;
-            double wingLen = 4.1;
-            double wingSpread = 2.6;
-
-            Path2D.Double head = new Path2D.Double();
-            head.moveTo(tipX - dirX * wingLen + nx * wingSpread, tipY - dirY * wingLen + ny * wingSpread);
-            head.lineTo(tipX, tipY);
-            head.lineTo(tipX - dirX * wingLen - nx * wingSpread, tipY - dirY * wingLen - ny * wingSpread);
-            g2.draw(head);
-
-            g2.dispose();
-        }
     }
 
     /**
