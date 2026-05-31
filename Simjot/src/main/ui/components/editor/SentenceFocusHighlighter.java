@@ -8,11 +8,6 @@
 
 package main.ui.components.editor;
 
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
-import java.awt.Shape;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.FocusAdapter;
@@ -26,14 +21,21 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import javax.swing.text.Highlighter;
 import javax.swing.text.JTextComponent;
 
 /**
  * Softly fades completed sentences once the writer starts the next sentence.
  */
 public final class SentenceFocusHighlighter {
+    public static final String DIM_RANGES_PROPERTY = "simjot.sentenceFocus.dimRanges";
+
     private SentenceFocusHighlighter() {}
+
+    public record DimRange(int start, int end) {
+        public boolean contains(int offset) {
+            return offset >= start && offset < end;
+        }
+    }
 
     public static void install(JTextComponent editor, BooleanSupplier enabledSupplier) {
         if (editor == null || enabledSupplier == null) return;
@@ -44,8 +46,7 @@ public final class SentenceFocusHighlighter {
     private static final class Controller {
         private final JTextComponent editor;
         private final BooleanSupplier enabledSupplier;
-        private final Highlighter.HighlightPainter painter = new FadePainter(new Color(255, 255, 255, 118));
-        private final List<Object> tags = new ArrayList<>();
+        private List<DimRange> ranges = List.of();
         private Document document;
         private boolean updateQueued;
 
@@ -109,33 +110,40 @@ public final class SentenceFocusHighlighter {
             try {
                 String text = doc.getText(0, doc.getLength());
                 int caret = Math.max(0, Math.min(editor.getCaretPosition(), text.length()));
-                int activeStart = activeSentenceStart(text, caret);
-                if (activeStart <= 0 || !hasNonWhitespace(text, activeStart, caret)) {
+                int limit = dimLimit(text, caret);
+                if (limit <= 0) {
                     clear();
                     return;
                 }
 
-                List<Range> ranges = completedSentencesBefore(text, activeStart);
-                Highlighter highlighter = editor.getHighlighter();
-                clear();
-                for (Range range : ranges) {
-                    if (range.end > range.start) {
-                        tags.add(highlighter.addHighlight(range.start, range.end, painter));
-                    }
-                }
+                publishRanges(completedSentencesBefore(text, limit));
             } catch (BadLocationException ignored) {
                 clear();
             }
         }
 
         private void clear() {
-            if (tags.isEmpty()) return;
-            Highlighter highlighter = editor.getHighlighter();
-            for (Object tag : tags) {
-                try { highlighter.removeHighlight(tag); } catch (Throwable ignored) {}
-            }
-            tags.clear();
+            publishRanges(List.of());
         }
+
+        private void publishRanges(List<DimRange> nextRanges) {
+            List<DimRange> immutable = nextRanges == null || nextRanges.isEmpty() ? List.of() : List.copyOf(nextRanges);
+            if (ranges.equals(immutable)) return;
+            ranges = immutable;
+            editor.putClientProperty(DIM_RANGES_PROPERTY, ranges);
+            editor.repaint();
+        }
+    }
+
+    private static int dimLimit(String text, int caret) {
+        int activeStart = activeSentenceStart(text, caret);
+        if (activeStart <= 0) return 0;
+        if (hasNonWhitespace(text, activeStart, caret)) {
+            return activeStart;
+        }
+        int terminator = previousTerminatorIndex(text, caret);
+        if (terminator < 0) return 0;
+        return sentenceStartForTerminator(text, terminator);
     }
 
     private static int activeSentenceStart(String text, int caret) {
@@ -153,8 +161,33 @@ public final class SentenceFocusHighlighter {
         return 0;
     }
 
-    private static List<Range> completedSentencesBefore(String text, int limit) {
-        List<Range> ranges = new ArrayList<>();
+    private static int previousTerminatorIndex(String text, int caret) {
+        int scan = Math.max(0, Math.min(caret, text.length())) - 1;
+        while (scan >= 0 && (Character.isWhitespace(text.charAt(scan)) || isSentenceCloser(text.charAt(scan)))) scan--;
+        while (scan >= 0) {
+            if (isSentenceTerminator(text, scan)) return scan;
+            scan--;
+        }
+        return -1;
+    }
+
+    private static int sentenceStartForTerminator(String text, int terminatorIndex) {
+        int scan = Math.max(0, Math.min(terminatorIndex, text.length() - 1)) - 1;
+        while (scan >= 0) {
+            if (isSentenceTerminator(text, scan)) {
+                int start = scan + 1;
+                while (start < text.length() && isSentenceTerminator(text, start)) start++;
+                while (start < text.length() && isSentenceCloser(text.charAt(start))) start++;
+                while (start < text.length() && Character.isWhitespace(text.charAt(start))) start++;
+                return start;
+            }
+            scan--;
+        }
+        return 0;
+    }
+
+    private static List<DimRange> completedSentencesBefore(String text, int limit) {
+        List<DimRange> ranges = new ArrayList<>();
         int sentenceStart = nextNonWhitespace(text, 0, limit);
         int i = sentenceStart;
         while (i < limit) {
@@ -164,7 +197,7 @@ public final class SentenceFocusHighlighter {
                 while (end < limit && isSentenceTerminator(text, end)) end++;
                 while (end < limit && isSentenceCloser(text.charAt(end))) end++;
                 if (hasSentenceBody(text, sentenceStart, i)) {
-                    ranges.add(new Range(sentenceStart, end));
+                    ranges.add(new DimRange(sentenceStart, end));
                 }
                 sentenceStart = nextNonWhitespace(text, end, limit);
                 i = sentenceStart;
@@ -219,42 +252,4 @@ public final class SentenceFocusHighlighter {
         return ch == '"' || ch == '\'' || ch == ')' || ch == ']' || ch == '}' || ch == '\u201d' || ch == '\u2019';
     }
 
-    private record Range(int start, int end) {}
-
-    private static final class FadePainter implements Highlighter.HighlightPainter {
-        private final Color veil;
-
-        private FadePainter(Color veil) {
-            this.veil = veil;
-        }
-
-        @Override
-        public void paint(Graphics g, int offs0, int offs1, Shape bounds, JTextComponent c) {
-            if (offs0 >= offs1) return;
-            try {
-                Rectangle start = c.modelToView2D(offs0).getBounds();
-                Rectangle end = c.modelToView2D(Math.max(offs0, offs1 - 1)).getBounds();
-                Rectangle clip = bounds instanceof Rectangle r ? r : c.getVisibleRect();
-
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(veil);
-
-                if (start.y == end.y) {
-                    int x = Math.max(start.x, clip.x);
-                    int width = Math.max(0, end.x + end.width - x);
-                    g2.fillRect(x, start.y, width, start.height);
-                } else {
-                    int right = clip.x + clip.width;
-                    g2.fillRect(start.x, start.y, Math.max(0, right - start.x), start.height);
-                    int y = start.y + start.height;
-                    while (y < end.y) {
-                        g2.fillRect(clip.x, y, clip.width, start.height);
-                        y += start.height;
-                    }
-                    g2.fillRect(clip.x, end.y, Math.max(0, end.x + end.width - clip.x), end.height);
-                }
-                g2.dispose();
-            } catch (BadLocationException ignored) {}
-        }
-    }
 }

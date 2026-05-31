@@ -9,11 +9,14 @@
 package main.ui.components.editor;
 
 import java.awt.Color;
+import java.awt.AlphaComposite;
+import java.awt.Composite;
 import java.awt.Container;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
+import java.util.List;
 
 import javax.swing.JComponent;
 import javax.swing.text.BadLocationException;
@@ -32,6 +35,7 @@ import main.infrastructure.font.NativeFontSupport;
  */
 class CustomFontGlyphView extends GlyphView {
     private static final CustomFontRenderer RENDERER = new CustomFontRenderer();
+    private static final float DIMMED_TEXT_ALPHA = 0.38f;
 
     CustomFontGlyphView(Element elem) {
         super(elem);
@@ -62,6 +66,16 @@ class CustomFontGlyphView extends GlyphView {
     public void paint(Graphics g, Shape a) {
         CustomFont font = resolveFont();
         if (font == null) {
+            List<SentenceFocusHighlighter.DimRange> dimRanges = resolveDimRanges();
+            if (!dimRanges.isEmpty() && viewFullyDimmed(dimRanges)) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                Composite oldComposite = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA));
+                super.paint(g2, a);
+                g2.setComposite(oldComposite);
+                g2.dispose();
+                return;
+            }
             super.paint(g, a);
             return;
         }
@@ -73,8 +87,14 @@ class CustomFontGlyphView extends GlyphView {
 
         Graphics2D g2 = (Graphics2D) g.create();
         try {
-            g2.setColor(resolveColor());
-            RENDERER.drawText(g2, font, text, alloc.x, baseline, size, g2.getColor());
+            Color color = resolveColor();
+            g2.setColor(color);
+            List<SentenceFocusHighlighter.DimRange> dimRanges = resolveDimRanges();
+            if (dimRanges.isEmpty()) {
+                RENDERER.drawText(g2, font, text, alloc.x, baseline, size, color);
+            } else {
+                drawCustomTextWithDimmedRanges(g2, font, text, alloc.x, baseline, size, color, dimRanges);
+            }
         } finally {
             g2.dispose();
         }
@@ -203,6 +223,61 @@ class CustomFontGlyphView extends GlyphView {
             }
         }
         return color != null ? color : Color.BLACK;
+    }
+
+    private List<SentenceFocusHighlighter.DimRange> resolveDimRanges() {
+        Container container = getContainer();
+        if (container instanceof JComponent jc) {
+            Object value = jc.getClientProperty(SentenceFocusHighlighter.DIM_RANGES_PROPERTY);
+            if (value instanceof List<?> raw && !raw.isEmpty()
+                    && raw.get(0) instanceof SentenceFocusHighlighter.DimRange) {
+                @SuppressWarnings("unchecked")
+                List<SentenceFocusHighlighter.DimRange> ranges = (List<SentenceFocusHighlighter.DimRange>) raw;
+                return ranges;
+            }
+        }
+        return List.of();
+    }
+
+    private boolean viewFullyDimmed(List<SentenceFocusHighlighter.DimRange> dimRanges) {
+        int start = getStartOffset();
+        int end = getEndOffset();
+        if (end <= start) return false;
+        for (SentenceFocusHighlighter.DimRange range : dimRanges) {
+            if (range.start() <= start && range.end() >= end) return true;
+        }
+        return false;
+    }
+
+    private boolean isOffsetDimmed(int offset, List<SentenceFocusHighlighter.DimRange> dimRanges) {
+        for (SentenceFocusHighlighter.DimRange range : dimRanges) {
+            if (range.contains(offset)) return true;
+            if (range.start() > offset) return false;
+        }
+        return false;
+    }
+
+    private void drawCustomTextWithDimmedRanges(Graphics2D g2, CustomFont font, String text, int x, int baseline,
+                                                int size, Color color, List<SentenceFocusHighlighter.DimRange> dimRanges) {
+        float cursorX = x;
+        int offset = getStartOffset();
+        Composite baseComposite = g2.getComposite();
+        for (int i = 0; i < text.length();) {
+            int cp = text.codePointAt(i);
+            int chars = Character.charCount(cp);
+            String glyphText = text.substring(i, i + chars);
+            boolean dimmed = isOffsetDimmed(offset, dimRanges);
+            if (dimmed) {
+                g2.setComposite(AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA));
+            } else {
+                g2.setComposite(baseComposite);
+            }
+            RENDERER.drawText(g2, font, glyphText, Math.round(cursorX), baseline, size, color);
+            cursorX += advanceForCodepoint(font, cp, size);
+            offset += chars;
+            i += chars;
+        }
+        g2.setComposite(baseComposite);
     }
 
     private String getViewText() {
