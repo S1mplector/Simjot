@@ -146,6 +146,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private boolean titleFocusedOnce = false;
     private AnimatedGlassPopup formatPopup;
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
+    private NotebookInfo notebookProfile;
     private NativeAutosaveCoordinator autosaveCoordinator;
     private volatile boolean isAutosaving = false;
     
@@ -231,6 +232,7 @@ public class EntryPanel extends AbstractEditorPanel {
 
     public EntryPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
+        notebookProfile = NotebookPersonalization.resolveForFolder(journalFolder);
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
@@ -1326,17 +1328,13 @@ public class EntryPanel extends AbstractEditorPanel {
         if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
             spacing = Math.min(0.6f, spacing + 0.08f);
         }
-        return spacing;
+        return NotebookPersonalization.adjustLineSpacing(spacing, notebookProfile);
     }
 
     private void applyParagraphRhythm(MutableAttributeSet attrs) {
-        if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
-            StyleConstants.setSpaceAbove(attrs, 2f);
-            StyleConstants.setSpaceBelow(attrs, 6f);
-        } else {
-            StyleConstants.setSpaceAbove(attrs, 0f);
-            StyleConstants.setSpaceBelow(attrs, 0f);
-        }
+        boolean polish = SettingsStore.get().isEditorTypographyPolishEnabled();
+        StyleConstants.setSpaceAbove(attrs, NotebookPersonalization.paragraphSpaceAbove(notebookProfile, polish));
+        StyleConstants.setSpaceBelow(attrs, NotebookPersonalization.paragraphSpaceBelow(notebookProfile, polish));
     }
 
     private void applyPaperFeelInsets() {
@@ -1403,7 +1401,7 @@ public class EntryPanel extends AbstractEditorPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        String bgPath = SettingsStore.get().getEntryBackgroundImage();
+        String bgPath = NotebookPersonalization.backgroundOrDefault(notebookProfile, SettingsStore.get().getEntryBackgroundImage());
         float opacity = SettingsStore.get().getEntryBackgroundOpacity();
         backgroundPainter.paint(g, this, bgPath, opacity, false);
     }
@@ -1441,7 +1439,7 @@ public class EntryPanel extends AbstractEditorPanel {
         rightToolbar.add(createToolbarActionButton("backgroundoptions", "Choose wallpaper", this::openEntryBackgroundSettings));
 
         // Create shared poetry-style toolbar
-        NotebookInfo nbInfo = new NotebookInfo(
+        NotebookInfo nbInfo = notebookProfile != null ? notebookProfile : new NotebookInfo(
                 journalFolder.getName(),
                 NotebookInfo.Type.JOURNAL,
                 journalFolder,
@@ -1594,7 +1592,7 @@ public class EntryPanel extends AbstractEditorPanel {
         contentArea.setDoubleBuffered(true);
 
         // Load font settings from Appearance settings
-        String fontFamily = SettingsStore.get().getEditorFontFamily();
+        String fontFamily = NotebookPersonalization.fontOrDefault(notebookProfile, SettingsStore.get().getEditorFontFamily());
         int savedFontSize = SettingsStore.get().getJournalFontSize();
         String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
         CustomFontApplier.applyToTextPane(contentArea, fontFamily, savedFontSize);
@@ -1776,10 +1774,10 @@ public class EntryPanel extends AbstractEditorPanel {
         saveButton = EditorUIUtils.createSaveButton("Save Entry", this::saveEntry);
 
         // Word count label
-        wordCountLabel = new JLabel("Words: 0");
-        wordCountLabel.setForeground(Color.GRAY);
-        wordCountLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
-        wordCountLabel.setBorder(new EmptyBorder(0, 10, 5, 0));
+        wordCountLabel = new JLabel("0 words");
+        wordCountLabel.setForeground(new Color(118, 120, 126));
+        wordCountLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        wordCountLabel.setBorder(new EmptyBorder(0, 10, 4, 0));
         bottomPanel.add(wordCountLabel);
 
         // Save state indicator (reusable component)
@@ -2507,7 +2505,7 @@ public class EntryPanel extends AbstractEditorPanel {
     private void updateWordCount(String text) {
         int count = countWords(text);
         if (wordCountLabel != null) {
-            wordCountLabel.setText("Words: " + count);
+            wordCountLabel.setText(count + " words");
             return;
         }
 
@@ -2515,8 +2513,8 @@ public class EntryPanel extends AbstractEditorPanel {
         for (Component comp : getComponents()) {
             if (comp instanceof JPanel panel) {
                 for (Component innerComp : panel.getComponents()) {
-                    if (innerComp instanceof JLabel label && label.getText().startsWith("Words:")) {
-                        label.setText("Words: " + count);
+                    if (innerComp instanceof JLabel label && label.getText().endsWith("words")) {
+                        label.setText(count + " words");
                         return;
                     }
                 }

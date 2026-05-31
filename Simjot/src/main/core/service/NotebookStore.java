@@ -247,7 +247,11 @@ public final class NotebookStore {
                 && sameText(a.getDescription(), b.getDescription())
                 && a.getAccentColorRaw() == b.getAccentColorRaw()
                 && sameText(a.getClusterId(), b.getClusterId())
-                && sameText(a.getCustomIconPath(), b.getCustomIconPath());
+                && sameText(a.getCustomIconPath(), b.getCustomIconPath())
+                && sameText(a.getBackgroundImagePath(), b.getBackgroundImagePath())
+                && sameText(a.getCoverImagePath(), b.getCoverImagePath())
+                && sameText(a.getEditorFontFamily(), b.getEditorFontFamily())
+                && sameText(a.getEditorStylePreset(), b.getEditorStylePreset());
     }
 
     private static boolean samePath(File a, File b) {
@@ -301,6 +305,10 @@ public final class NotebookStore {
             Long accentColor = extractJsonLong(obj, "accentColor");
             String clusterId = extractJsonString(obj, "clusterId");
             String customIconPath = extractJsonString(obj, "customIconPath");
+            String backgroundImagePath = extractJsonString(obj, "backgroundImagePath");
+            String coverImagePath = extractJsonString(obj, "coverImagePath");
+            String editorFontFamily = extractJsonString(obj, "editorFontFamily");
+            String editorStylePreset = extractJsonString(obj, "editorStylePreset");
             
             if (name == null || typeStr == null || folderStr == null) continue;
             NotebookInfo.Type type;
@@ -310,12 +318,18 @@ public final class NotebookStore {
             long createdMs = created != null ? created : (folder.exists() ? folder.lastModified() : System.currentTimeMillis());
             int accent = accentColor != null ? accentColor.intValue() : -1;
             String normalizedIconPath = normalizeStoredPath(customIconPath, changed);
+            String normalizedBackgroundPath = normalizeStoredPath(backgroundImagePath, changed);
+            String normalizedCoverPath = normalizeStoredPath(coverImagePath, changed);
             mergeNotebookEntry(new NotebookInfo(name, type, folder, createdMs, 
                 iconId == null ? "legacy" : iconId,
                 description == null ? "" : description,
                 accent,
                 clusterId,
-                normalizedIconPath));
+                normalizedIconPath,
+                normalizedBackgroundPath,
+                normalizedCoverPath,
+                editorFontFamily,
+                editorStylePreset));
         }
     }
 
@@ -435,11 +449,28 @@ public final class NotebookStore {
     
     /** Update notebook customization (description, accent color) */
     public boolean updateCustomization(NotebookInfo nb, String description, int accentColor) {
-        return updateCustomization(nb, description, accentColor, null);
+        return updateCustomization(nb, description, accentColor, nb != null ? nb.getCustomIconPath() : null);
     }
     
     /** Update notebook customization (description, accent color, custom icon path) */
     public boolean updateCustomization(NotebookInfo nb, String description, int accentColor, String customIconPath) {
+        return updateCustomization(nb, description, accentColor, customIconPath,
+                nb != null ? nb.getBackgroundImagePath() : null,
+                nb != null ? nb.getEditorFontFamily() : null,
+                nb != null ? nb.getEditorStylePreset() : null);
+    }
+
+    /** Update notebook customization and writing personalization. */
+    public boolean updateCustomization(NotebookInfo nb, String description, int accentColor, String customIconPath,
+                                       String backgroundImagePath, String editorFontFamily, String editorStylePreset) {
+        return updateCustomization(nb, description, accentColor, customIconPath, backgroundImagePath,
+                nb != null ? nb.getCoverImagePath() : null, editorFontFamily, editorStylePreset);
+    }
+
+    /** Update notebook customization, writing personalization, and cover preview. */
+    public boolean updateCustomization(NotebookInfo nb, String description, int accentColor, String customIconPath,
+                                       String backgroundImagePath, String coverImagePath,
+                                       String editorFontFamily, String editorStylePreset) {
         if (nb == null) return false;
         int idx = -1;
         for (int i = 0; i < notebooks.size(); i++) {
@@ -449,7 +480,15 @@ public final class NotebookStore {
             }
         }
         if (idx < 0) return false;
-        NotebookInfo updated = notebooks.get(idx).withCustomization(description, accentColor, customIconPath);
+        NotebookInfo current = notebooks.get(idx);
+        NotebookInfo updated = current.withCustomization(
+                description,
+                accentColor,
+                customIconPath,
+                backgroundImagePath,
+                coverImagePath,
+                editorFontFamily,
+                editorStylePreset);
         notebooks.set(idx, updated);
         save();
         return true;
@@ -589,7 +628,8 @@ public final class NotebookStore {
                 Files.move(nb.getFolder().toPath(), newFolder.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
             NotebookInfo updated = new NotebookInfo(newName, nb.getType(), newFolder, nb.getCreatedMillis(), nb.getIconId(),
-                nb.getDescription(), nb.getAccentColorRaw(), nb.getClusterId(), nb.getCustomIconPath());
+                nb.getDescription(), nb.getAccentColorRaw(), nb.getClusterId(), nb.getCustomIconPath(),
+                nb.getBackgroundImagePath(), nb.getCoverImagePath(), nb.getEditorFontFamily(), nb.getEditorStylePreset());
             notebooks.remove(nb);
             notebooks.add(updated);
             save();
@@ -656,7 +696,12 @@ public final class NotebookStore {
         int accent = chooseAccent(existing.getAccentColorRaw(), incoming.getAccentColorRaw());
         String clusterId = chooseNonEmpty(existing.getClusterId(), incoming.getClusterId());
         String customIcon = choosePath(existing.getCustomIconPath(), incoming.getCustomIconPath(), root);
-        return new NotebookInfo(name, type, folder, created, iconId, description, accent, clusterId, customIcon);
+        String backgroundImage = choosePath(existing.getBackgroundImagePath(), incoming.getBackgroundImagePath(), root);
+        String coverImage = choosePath(existing.getCoverImagePath(), incoming.getCoverImagePath(), root);
+        String fontFamily = chooseNonEmpty(existing.getEditorFontFamily(), incoming.getEditorFontFamily());
+        String stylePreset = chooseNonEmpty(existing.getEditorStylePreset(), incoming.getEditorStylePreset());
+        return new NotebookInfo(name, type, folder, created, iconId, description, accent, clusterId, customIcon,
+                backgroundImage, coverImage, fontFamily, stylePreset);
     }
 
     private static File chooseFolder(File existing, File incoming, File root) {
@@ -749,6 +794,18 @@ public final class NotebookStore {
             }
             if (nb.getCustomIconPath() != null && !nb.getCustomIconPath().isBlank()) {
                 sb.append(",\"customIconPath\":\"").append(jsonEscape(encodeStoredPath(nb.getCustomIconPath()))).append("\"");
+            }
+            if (nb.getBackgroundImagePath() != null && !nb.getBackgroundImagePath().isBlank()) {
+                sb.append(",\"backgroundImagePath\":\"").append(jsonEscape(encodeStoredPath(nb.getBackgroundImagePath()))).append("\"");
+            }
+            if (nb.getCoverImagePath() != null && !nb.getCoverImagePath().isBlank()) {
+                sb.append(",\"coverImagePath\":\"").append(jsonEscape(encodeStoredPath(nb.getCoverImagePath()))).append("\"");
+            }
+            if (nb.getEditorFontFamily() != null && !nb.getEditorFontFamily().isBlank()) {
+                sb.append(",\"editorFontFamily\":\"").append(jsonEscape(nb.getEditorFontFamily())).append("\"");
+            }
+            if (nb.getEditorStylePreset() != null && !nb.getEditorStylePreset().isBlank()) {
+                sb.append(",\"editorStylePreset\":\"").append(jsonEscape(nb.getEditorStylePreset())).append("\"");
             }
             sb.append("}");
         }

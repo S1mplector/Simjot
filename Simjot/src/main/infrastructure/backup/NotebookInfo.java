@@ -30,6 +30,10 @@ public class NotebookInfo {
     private final int accentColor; // ARGB packed int, -1 means default
     private final String clusterId; // null means unclustered
     private final String customIconPath; // null means use default icon
+    private final String backgroundImagePath; // null means use global editor background
+    private final String coverImagePath; // null means use background as cover preview
+    private final String editorFontFamily; // null means use global editor font
+    private final String editorStylePreset; // null/default means use global editor rhythm
 
     /** Legacy constructor for backward compatibility */
     public NotebookInfo(String name, Type type, File folder, long createdMillis, String iconId) {
@@ -45,6 +49,22 @@ public class NotebookInfo {
     /** Full constructor with all customization options */
     public NotebookInfo(String name, Type type, File folder, long createdMillis, String iconId,
                         String description, int accentColor, String clusterId, String customIconPath) {
+        this(name, type, folder, createdMillis, iconId, description, accentColor, clusterId,
+                customIconPath, null, null, null);
+    }
+
+    /** Full constructor with lightweight writing personalization options */
+    public NotebookInfo(String name, Type type, File folder, long createdMillis, String iconId,
+                        String description, int accentColor, String clusterId, String customIconPath,
+                        String backgroundImagePath, String editorFontFamily, String editorStylePreset) {
+        this(name, type, folder, createdMillis, iconId, description, accentColor, clusterId,
+                customIconPath, backgroundImagePath, null, editorFontFamily, editorStylePreset);
+    }
+
+    /** Full constructor with lightweight writing personalization options */
+    public NotebookInfo(String name, Type type, File folder, long createdMillis, String iconId,
+                        String description, int accentColor, String clusterId, String customIconPath,
+                        String backgroundImagePath, String coverImagePath, String editorFontFamily, String editorStylePreset) {
         this.name = name;
         this.type = type;
         this.folder = folder;
@@ -54,6 +74,10 @@ public class NotebookInfo {
         this.accentColor = accentColor;
         this.clusterId = clusterId;
         this.customIconPath = customIconPath;
+        this.backgroundImagePath = blankToNull(backgroundImagePath);
+        this.coverImagePath = blankToNull(coverImagePath);
+        this.editorFontFamily = blankToNull(editorFontFamily);
+        this.editorStylePreset = normalizePreset(editorStylePreset);
     }
 
     public String getName() { return name; }
@@ -65,6 +89,10 @@ public class NotebookInfo {
     public int getAccentColorRaw() { return accentColor; }
     public String getClusterId() { return clusterId; }
     public String getCustomIconPath() { return customIconPath; }
+    public String getBackgroundImagePath() { return backgroundImagePath; }
+    public String getCoverImagePath() { return coverImagePath; }
+    public String getEditorFontFamily() { return editorFontFamily; }
+    public String getEditorStylePreset() { return editorStylePreset; }
     
     public static Color defaultAccentFor(Type type) {
         Type safeType = type == null ? Type.JOURNAL : type;
@@ -88,17 +116,47 @@ public class NotebookInfo {
     
     /** Create a copy with a new cluster assignment */
     public NotebookInfo withCluster(String newClusterId) {
-        return new NotebookInfo(name, type, folder, createdMillis, iconId, description, accentColor, newClusterId, customIconPath);
+        return new NotebookInfo(name, type, folder, createdMillis, iconId, description, accentColor, newClusterId,
+                customIconPath, backgroundImagePath, coverImagePath, editorFontFamily, editorStylePreset);
     }
     
     /** Create a copy with updated customization */
     public NotebookInfo withCustomization(String newDescription, int newAccentColor) {
-        return new NotebookInfo(name, type, folder, createdMillis, iconId, newDescription, newAccentColor, clusterId, customIconPath);
+        return new NotebookInfo(name, type, folder, createdMillis, iconId, newDescription, newAccentColor, clusterId,
+                customIconPath, backgroundImagePath, coverImagePath, editorFontFamily, editorStylePreset);
     }
     
     /** Create a copy with updated customization including custom icon */
     public NotebookInfo withCustomization(String newDescription, int newAccentColor, String newCustomIconPath) {
-        return new NotebookInfo(name, type, folder, createdMillis, iconId, newDescription, newAccentColor, clusterId, newCustomIconPath);
+        return new NotebookInfo(name, type, folder, createdMillis, iconId, newDescription, newAccentColor, clusterId,
+                newCustomIconPath, backgroundImagePath, coverImagePath, editorFontFamily, editorStylePreset);
+    }
+
+    /** Create a copy with updated lightweight writing personalization. */
+    public NotebookInfo withCustomization(String newDescription, int newAccentColor, String newCustomIconPath,
+                                          String newBackgroundImagePath, String newEditorFontFamily,
+                                          String newEditorStylePreset) {
+        return withCustomization(newDescription, newAccentColor, newCustomIconPath, newBackgroundImagePath,
+                coverImagePath, newEditorFontFamily, newEditorStylePreset);
+    }
+
+    /** Create a copy with updated lightweight writing personalization and cover. */
+    public NotebookInfo withCustomization(String newDescription, int newAccentColor, String newCustomIconPath,
+                                          String newBackgroundImagePath, String newCoverImagePath,
+                                          String newEditorFontFamily, String newEditorStylePreset) {
+        return new NotebookInfo(name, type, folder, createdMillis, iconId, newDescription, newAccentColor, clusterId,
+                newCustomIconPath, newBackgroundImagePath, newCoverImagePath, newEditorFontFamily, newEditorStylePreset);
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String normalizePreset(String preset) {
+        String trimmed = blankToNull(preset);
+        return trimmed == null ? null : trimmed;
     }
 
     @Override public String toString(){ return name; }

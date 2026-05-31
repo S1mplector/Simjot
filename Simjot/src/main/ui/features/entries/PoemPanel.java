@@ -145,6 +145,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     // Helpers
     private final BackgroundPainter backgroundPainter = new BackgroundPainter();
+    private NotebookInfo notebookProfile;
     private SaveIndicatorPanel saveIndicator;
     private volatile boolean isAutosaving = false;
     private NativeAutosaveCoordinator autosaveCoordinator;
@@ -207,6 +208,7 @@ public class PoemPanel extends AbstractEditorPanel {
 
     public PoemPanel(JournalApp app, File journalFolder, CardLayout cardLayout, JPanel cardPanel) {
         super(app, journalFolder, cardLayout, cardPanel);
+        notebookProfile = NotebookPersonalization.resolveForFolder(journalFolder);
         // Set a transparent background so the parent's background can show through
         setBackground(new Color(0, 0, 0, 0));
         initUI();
@@ -278,7 +280,7 @@ public class PoemPanel extends AbstractEditorPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        String bgPath = SettingsStore.get().getPoemBackgroundImage();
+        String bgPath = NotebookPersonalization.backgroundOrDefault(notebookProfile, SettingsStore.get().getPoemBackgroundImage());
         float opacity = SettingsStore.get().getPoemBackgroundOpacity();
         backgroundPainter.paint(g, this, bgPath, opacity, true);
     }
@@ -340,7 +342,7 @@ public class PoemPanel extends AbstractEditorPanel {
         rightToolbar.add(createToolbarActionButton("fullscreen", "Toggle focus mode", this::toggleDistractionFree));
         rightToolbar.add(createToolbarActionButton("backgroundoptions", "Choose wallpaper", this::openPoemBackgroundSettings));
         // Create shared toolbar and wire callbacks
-        NotebookInfo nbInfo = new NotebookInfo(
+        NotebookInfo nbInfo = notebookProfile != null ? notebookProfile : new NotebookInfo(
                 journalFolder.getName(),
                 NotebookInfo.Type.POETRY,
                 journalFolder,
@@ -426,7 +428,7 @@ public class PoemPanel extends AbstractEditorPanel {
         applyPaperFeelInsets();
 
         // Load font settings from Appearance settings
-        String fontFamily = SettingsStore.get().getEditorFontFamily();
+        String fontFamily = NotebookPersonalization.fontOrDefault(notebookProfile, SettingsStore.get().getEditorFontFamily());
         int savedFontSize = SettingsStore.get().getPoemFontSize();
         String lineSpacingStr = SettingsStore.get().getEditorLineSpacing();
         CustomFontApplier.applyToTextPane(poemEditor, fontFamily, savedFontSize);
@@ -1630,17 +1632,13 @@ public class PoemPanel extends AbstractEditorPanel {
         if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
             spacing = Math.min(0.6f, spacing + 0.08f);
         }
-        return spacing;
+        return NotebookPersonalization.adjustLineSpacing(spacing, notebookProfile);
     }
 
     private void applyParagraphRhythm(MutableAttributeSet attrs) {
-        if (SettingsStore.get().isEditorTypographyPolishEnabled()) {
-            StyleConstants.setSpaceAbove(attrs, 2f);
-            StyleConstants.setSpaceBelow(attrs, 6f);
-        } else {
-            StyleConstants.setSpaceAbove(attrs, 0f);
-            StyleConstants.setSpaceBelow(attrs, 0f);
-        }
+        boolean polish = SettingsStore.get().isEditorTypographyPolishEnabled();
+        StyleConstants.setSpaceAbove(attrs, NotebookPersonalization.paragraphSpaceAbove(notebookProfile, polish));
+        StyleConstants.setSpaceBelow(attrs, NotebookPersonalization.paragraphSpaceBelow(notebookProfile, polish));
     }
 
     private void applyPaperFeelInsets() {

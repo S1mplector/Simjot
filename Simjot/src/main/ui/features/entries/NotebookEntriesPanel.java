@@ -356,7 +356,7 @@ public class NotebookEntriesPanel extends JPanel {
         private final Color cardBg = new Color(252, 253, 255);
         private final Color cardBorder = new Color(190, 200, 214);
         private final Color metaColor = new Color(105, 110, 120);
-        private final Color accent = new Color(88, 133, 255);
+        private Color accent = new Color(88, 133, 255);
         private final Color selectedBg = new Color(236, 244, 255);
         private final Color selectedBorder = new Color(110, 160, 255);
         private static final int HEIGHT_COMFORT = 126;
@@ -572,6 +572,8 @@ public class NotebookEntriesPanel extends JPanel {
                     : list.getClientProperty("searchQuery"));
             String token = firstQueryToken(searchQuery);
             File file = value != null ? value.file : null;
+            Object accentObj = list.getClientProperty("notebookAccent");
+            accent = accentObj instanceof Color c ? c : new Color(88, 133, 255);
             String fallback = file != null ? file.getName() : "";
             int dotIdx = fallback.lastIndexOf('.');
             if (dotIdx > 0) fallback = fallback.substring(0, dotIdx);
@@ -667,6 +669,16 @@ public class NotebookEntriesPanel extends JPanel {
             return EntryViewMode.COMFORT;
         }
 
+        private static Color mix(Color a, Color b, float t) {
+            float clamped = Math.max(0f, Math.min(1f, t));
+            float inv = 1f - clamped;
+            int r = Math.round(a.getRed() * inv + b.getRed() * clamped);
+            int g = Math.round(a.getGreen() * inv + b.getGreen() * clamped);
+            int bl = Math.round(a.getBlue() * inv + b.getBlue() * clamped);
+            int alpha = Math.round(a.getAlpha() * inv + b.getAlpha() * clamped);
+            return new Color(r, g, bl, alpha);
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -693,8 +705,9 @@ public class NotebookEntriesPanel extends JPanel {
             g2.fillRoundRect(6, 5, w - 8, h - 8, arc, arc);
 
             // Base glass gradient
-            Color top = hoverActive ? new Color(241, 248, 255) : (selectedOnly ? new Color(246, 249, 253) : cardBg);
-            Color bottom = hoverActive ? new Color(228, 236, 248) : (selectedOnly ? new Color(235, 240, 246) : new Color(235, 240, 248));
+            Color softAccent = mix(accent, Color.WHITE, hoverActive ? 0.78f : 0.88f);
+            Color top = hoverActive ? mix(softAccent, new Color(241, 248, 255), 0.56f) : (selectedOnly ? mix(softAccent, new Color(246, 249, 253), 0.72f) : cardBg);
+            Color bottom = hoverActive ? mix(softAccent, new Color(228, 236, 248), 0.48f) : (selectedOnly ? mix(softAccent, new Color(235, 240, 246), 0.68f) : new Color(235, 240, 248));
             g2.setPaint(new GradientPaint(0, 3, top, 0, h - 3, bottom));
             g2.fill(shape);
 
@@ -748,13 +761,13 @@ public class NotebookEntriesPanel extends JPanel {
 
             // Borders
             if (hoverActive) {
-                g2.setColor(new Color(120, 170, 255, 90));
+                g2.setColor(NotebookPersonalization.withAlpha(accent, 90));
                 g2.drawRoundRect(3, 2, w - 6, h - 4, arc + 2, arc + 2);
             }
             if (hoverActive) {
-                g2.setColor(selectedBorder);
+                g2.setColor(NotebookPersonalization.withAlpha(accent, 210));
             } else if (selectedOnly) {
-                g2.setColor(new Color(140, 160, 190, 120));
+                g2.setColor(NotebookPersonalization.withAlpha(accent, 120));
             } else {
                 g2.setColor(cardBorder);
             }
@@ -768,7 +781,7 @@ public class NotebookEntriesPanel extends JPanel {
                 float[] dashPattern = {6.0f, 4.0f}; // Dash length 6, gap 4
                 java.awt.BasicStroke dashedStroke = new java.awt.BasicStroke(2.0f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND, 0.0f, dashPattern, dashedBorderPhase);
                 g2.setStroke(dashedStroke);
-                g2.setColor(new Color(88, 133, 255, 180)); // Accent color with good visibility
+                g2.setColor(NotebookPersonalization.withAlpha(accent, 180)); // Notebook accent color
                 g2.drawRoundRect(2, 1, w - 4, h - 2, arc + 3, arc + 3);
                 
                 // Reset stroke for any subsequent drawing
@@ -1637,6 +1650,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("searchQuery", "");
         list.putClientProperty("entryViewMode", viewMode);
         list.putClientProperty("hoverIndex", -1);
+        list.putClientProperty("notebookAccent", nb.getAccentColor());
         list.setBackground(new Color(247, 247, 249));
         list.setFixedCellHeight(-1);
         list.setCellRenderer(new EntryCardRenderer());

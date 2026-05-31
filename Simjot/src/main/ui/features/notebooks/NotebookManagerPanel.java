@@ -69,6 +69,7 @@ import javax.swing.BoxLayout;
 import javax.imageio.ImageIO;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -91,6 +92,7 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.monitoring.AppPerf;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
+import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.RoundedPanel;
@@ -106,6 +108,7 @@ import main.ui.dialog.file.SimjotFileChooser;
 import main.ui.dialog.input.CustomInputDialog;
 import main.ui.dialog.utils.ModernColorPickerDialog;
 import main.ui.features.entries.GlobalSearchEngine;
+import main.ui.features.entries.NotebookPersonalization;
 import main.ui.theme.aero.AeroTheme;
 
 public class NotebookManagerPanel extends JPanel {
@@ -1340,9 +1343,10 @@ public class NotebookManagerPanel extends JPanel {
                 float t = smoothStep(hoverT);
                 Icon base = baseIcon;
                 Icon hoverI = hoverIcon;
+                NotebookPersonalization.paintNotebookCover(g2, this, nb, x, y, size, 0.78f * t);
                 if (base != null && hoverI != null && t > 0.001f) {
                     Composite old = g2.getComposite();
-                    float baseAlpha = 1f - t;
+                    float baseAlpha = 1f;
                     if (baseAlpha > 0.001f) {
                         g2.setComposite(AlphaComposite.SrcOver.derive(baseAlpha));
                         base.paintIcon(this, g2, x, y);
@@ -1726,8 +1730,14 @@ public class NotebookManagerPanel extends JPanel {
         private final JPanel iconPreview;
         private final JPanel accentPreview;
         private final JLabel accentValueLabel;
+        private final JLabel backgroundValueLabel;
+        private final JLabel coverValueLabel;
         private final RoundedButton resetAccentBtn;
         private String customIconPath = null;
+        private String backgroundImagePath = null;
+        private String coverImagePath = null;
+        private String editorFontFamily = null;
+        private String editorStylePreset = null;
         private int accentColorRaw;
         
         NotebookOptionsDialog(Frame parent, NotebookInfo nb, NotebookStore store){
@@ -1735,6 +1745,10 @@ public class NotebookManagerPanel extends JPanel {
             this.store = store;
             this.notebook = nb;
             this.customIconPath = nb.getCustomIconPath();
+            this.backgroundImagePath = nb.getBackgroundImagePath();
+            this.coverImagePath = nb.getCoverImagePath();
+            this.editorFontFamily = nb.getEditorFontFamily();
+            this.editorStylePreset = nb.getEditorStylePreset();
             this.accentColorRaw = nb.getAccentColorRaw();
             
             setUndecorated(true);
@@ -1799,6 +1813,10 @@ public class NotebookManagerPanel extends JPanel {
                     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
                     // Draw the actual notebook icon (custom or default)
                     String res = main.ui.components.icons.ImageIconRenderer.mapIdToResource("notebook");
+                    NotebookInfo previewNotebook = notebook.withCustomization(
+                            notebook.getDescription(), accentColorRaw, customIconPath,
+                            backgroundImagePath, coverImagePath, editorFontFamily, editorStylePreset);
+                    NotebookPersonalization.paintNotebookCover(g2, this, previewNotebook, 0, 0, 48, 0.82f);
                     java.awt.image.BufferedImage img = null;
                     if (customIconPath != null && !customIconPath.isEmpty()) {
                         try {
@@ -1926,6 +1944,112 @@ public class NotebookManagerPanel extends JPanel {
             accentPanel.add(accentButtonsRow);
 
             center.add(accentPanel);
+            center.add(Box.createVerticalStrut(16));
+
+            JLabel writingLabel = new JLabel("Notebook Writing:");
+            writingLabel.setForeground(Color.DARK_GRAY);
+            writingLabel.setFont(writingLabel.getFont().deriveFont(Font.BOLD, 13f));
+            writingLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            center.add(writingLabel);
+            center.add(Box.createVerticalStrut(8));
+
+            JPanel writingPanel = new JPanel();
+            writingPanel.setOpaque(false);
+            writingPanel.setLayout(new BoxLayout(writingPanel, BoxLayout.Y_AXIS));
+            writingPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            backgroundValueLabel = new JLabel();
+            backgroundValueLabel.setForeground(new Color(108, 108, 118));
+            backgroundValueLabel.setFont(backgroundValueLabel.getFont().deriveFont(12f));
+            backgroundValueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            writingPanel.add(backgroundValueLabel);
+            writingPanel.add(Box.createVerticalStrut(8));
+
+            JPanel backgroundButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            backgroundButtons.setOpaque(false);
+            backgroundButtons.setAlignmentX(Component.LEFT_ALIGNMENT);
+            RoundedButton chooseBackgroundBtn = createDialogButton("Choose Background", "backgroundoptions");
+            chooseBackgroundBtn.setToolTipText("Use a notebook-specific editor background");
+            chooseBackgroundBtn.addActionListener(e -> chooseNotebookBackground());
+            backgroundButtons.add(chooseBackgroundBtn);
+            RoundedButton clearBackgroundBtn = createDialogButton("Use Global", "close");
+            clearBackgroundBtn.setToolTipText("Use the global editor background");
+            clearBackgroundBtn.addActionListener(e -> {
+                backgroundImagePath = null;
+                refreshWritingUi();
+            });
+            backgroundButtons.add(clearBackgroundBtn);
+            writingPanel.add(backgroundButtons);
+            writingPanel.add(Box.createVerticalStrut(10));
+
+            coverValueLabel = new JLabel();
+            coverValueLabel.setForeground(new Color(108, 108, 118));
+            coverValueLabel.setFont(coverValueLabel.getFont().deriveFont(12f));
+            coverValueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            writingPanel.add(coverValueLabel);
+            writingPanel.add(Box.createVerticalStrut(8));
+
+            JPanel coverButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            coverButtons.setOpaque(false);
+            coverButtons.setAlignmentX(Component.LEFT_ALIGNMENT);
+            RoundedButton chooseCoverBtn = createDialogButton("Choose Cover", "backgroundoptions");
+            chooseCoverBtn.setToolTipText("Use a notebook-specific hover cover");
+            chooseCoverBtn.addActionListener(e -> chooseNotebookCover());
+            coverButtons.add(chooseCoverBtn);
+            RoundedButton coverFromBackgroundBtn = createDialogButton("Use Background", "backgroundoptions");
+            coverFromBackgroundBtn.setToolTipText("Use the editor background as this notebook cover");
+            coverFromBackgroundBtn.addActionListener(e -> {
+                coverImagePath = null;
+                refreshWritingUi();
+            });
+            coverButtons.add(coverFromBackgroundBtn);
+            writingPanel.add(coverButtons);
+            writingPanel.add(Box.createVerticalStrut(10));
+
+            JPanel fontRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            fontRow.setOpaque(false);
+            fontRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+            fontRow.add(new JLabel("Font:"));
+            JComboBox<String> fontBox = new JComboBox<>(new String[]{
+                    "Use global", "Serif", "SansSerif", "Monospaced", "Snell Roundhand", "Georgia", "Helvetica Neue"
+            });
+            fontBox.setUI(new ModernComboBoxUI());
+            fontBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+            fontBox.setSelectedItem(editorFontFamily == null || editorFontFamily.isBlank() ? "Use global" : editorFontFamily);
+            fontBox.addActionListener(e -> {
+                Object selected = fontBox.getSelectedItem();
+                String value = selected == null ? "" : selected.toString();
+                editorFontFamily = "Use global".equals(value) ? null : value;
+            });
+            fontRow.add(fontBox);
+            fontRow.add(new JLabel("Style:"));
+            JComboBox<String> styleBox = new JComboBox<>(new String[]{
+                    NotebookPersonalization.PRESET_DEFAULT,
+                    NotebookPersonalization.PRESET_JOURNAL,
+                    NotebookPersonalization.PRESET_DRAFT,
+                    NotebookPersonalization.PRESET_POEM
+            });
+            styleBox.setUI(new ModernComboBoxUI());
+            styleBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+            styleBox.setSelectedItem(editorStylePreset == null || editorStylePreset.isBlank()
+                    ? NotebookPersonalization.PRESET_DEFAULT
+                    : editorStylePreset);
+            styleBox.addActionListener(e -> {
+                Object selected = styleBox.getSelectedItem();
+                String value = selected == null ? "" : selected.toString();
+                editorStylePreset = NotebookPersonalization.PRESET_DEFAULT.equals(value) ? null : value;
+            });
+            fontRow.add(styleBox);
+            writingPanel.add(fontRow);
+
+            JLabel writingHint = new JLabel("Cover previews are clipped inside the notebook drawing on hover.");
+            writingHint.setForeground(new Color(126, 126, 136));
+            writingHint.setFont(writingHint.getFont().deriveFont(11f));
+            writingHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+            writingPanel.add(Box.createVerticalStrut(6));
+            writingPanel.add(writingHint);
+
+            center.add(writingPanel);
             
             // Cluster info
             if (nb.isClustered()) {
@@ -1978,7 +2102,8 @@ public class NotebookManagerPanel extends JPanel {
 
                 boolean updated = false;
                 if (target != null) {
-                    updated = store.updateCustomization(target, target.getDescription(), accentColorRaw, customIconPath);
+                    updated = store.updateCustomization(target, target.getDescription(), accentColorRaw, customIconPath,
+                            backgroundImagePath, coverImagePath, editorFontFamily, editorStylePreset);
                 }
                 modified = renamed || updated;
                 setVisible(false); 
@@ -2006,7 +2131,8 @@ public class NotebookManagerPanel extends JPanel {
             add(panel);
             pack();
             refreshAccentUi();
-            setSize(500, 620);
+            refreshWritingUi();
+            setSize(540, 700);
             setLocationRelativeTo(parent);
         }
 
@@ -2034,6 +2160,26 @@ public class NotebookManagerPanel extends JPanel {
             }
             if (resetAccentBtn != null) {
                 resetAccentBtn.setEnabled(accentColorRaw != -1);
+            }
+        }
+
+        private void refreshWritingUi() {
+            if (backgroundValueLabel != null) {
+                backgroundValueLabel.setText(backgroundImagePath == null || backgroundImagePath.isBlank()
+                        ? "Background: using global editor background"
+                        : "Background: " + new File(backgroundImagePath).getName());
+            }
+            if (coverValueLabel != null) {
+                if (coverImagePath != null && !coverImagePath.isBlank()) {
+                    coverValueLabel.setText("Cover: " + new File(coverImagePath).getName());
+                } else if (backgroundImagePath != null && !backgroundImagePath.isBlank()) {
+                    coverValueLabel.setText("Cover: using notebook background");
+                } else {
+                    coverValueLabel.setText("Cover: default notebook drawing");
+                }
+            }
+            if (iconPreview != null) {
+                iconPreview.repaint();
             }
         }
 
@@ -2068,6 +2214,55 @@ public class NotebookManagerPanel extends JPanel {
                 }
             } catch (IOException ex) {
                 CustomConfirmDialog.confirm(this, "Icon Load Failed", "Could not load selected image.");
+            }
+        }
+
+        private void chooseNotebookBackground() {
+            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Select Notebook Background");
+            chooser.setMode(SimjotFileChooser.Mode.OPEN);
+            chooser.addFileFilter("Images", "png", "jpg", "jpeg", "gif", "bmp", "webp");
+            if (backgroundImagePath != null && !backgroundImagePath.isBlank()) {
+                File current = new File(backgroundImagePath);
+                File dir = current.getParentFile();
+                if (dir != null && dir.isDirectory()) {
+                    chooser.setCurrentDirectory(dir);
+                }
+            }
+            File selected = chooser.showDialog();
+            if (selected == null || !selected.exists()) return;
+            try {
+                BufferedImage img = ImageIO.read(selected);
+                if (img != null) {
+                    backgroundImagePath = selected.getAbsolutePath();
+                    refreshWritingUi();
+                }
+            } catch (IOException ex) {
+                CustomConfirmDialog.confirm(this, "Background Load Failed", "Could not load selected image.");
+            }
+        }
+
+        private void chooseNotebookCover() {
+            SimjotFileChooser chooser = new SimjotFileChooser(SwingUtilities.getWindowAncestor(this), "Select Notebook Cover");
+            chooser.setMode(SimjotFileChooser.Mode.OPEN);
+            chooser.addFileFilter("Images", "png", "jpg", "jpeg", "gif", "bmp", "webp");
+            String currentPath = coverImagePath != null && !coverImagePath.isBlank() ? coverImagePath : backgroundImagePath;
+            if (currentPath != null && !currentPath.isBlank()) {
+                File current = new File(currentPath);
+                File dir = current.getParentFile();
+                if (dir != null && dir.isDirectory()) {
+                    chooser.setCurrentDirectory(dir);
+                }
+            }
+            File selected = chooser.showDialog();
+            if (selected == null || !selected.exists()) return;
+            try {
+                BufferedImage img = ImageIO.read(selected);
+                if (img != null) {
+                    coverImagePath = selected.getAbsolutePath();
+                    refreshWritingUi();
+                }
+            } catch (IOException ex) {
+                CustomConfirmDialog.confirm(this, "Cover Load Failed", "Could not load selected image.");
             }
         }
 
