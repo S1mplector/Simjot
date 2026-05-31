@@ -127,6 +127,7 @@ public class NotebookEntriesPanel extends JPanel {
     private static final int LAZY_APPEND_STEP_ROWS = 8;
     private static final int LAZY_APPEND_TICK_MS = 20;
     private static final int META_PUBLISH_BATCH_SIZE = 6;
+    private static final int FAST_ANIM_TICK_MS = 24;
     private static final String CENTER_CARD_LIST = "list";
     private static final String CENTER_CARD_CALENDAR = "calendar";
     private static final String VIEW_MODE_PREF_KEY_PREFIX = "entries.view.mode.";
@@ -218,7 +219,7 @@ public class NotebookEntriesPanel extends JPanel {
     // Delete animation state: file -> progress (0=start, 1=gone)
     private final java.util.Map<File, Float> deleteAnimProgress = new java.util.HashMap<>();
     private File pendingDeleteFile = null;
-    private final javax.swing.Timer deleteAnimTimer = new javax.swing.Timer(16, e -> {
+    private final javax.swing.Timer deleteAnimTimer = new javax.swing.Timer(FAST_ANIM_TICK_MS, e -> {
         try {
             if (pendingDeleteFile == null || !deleteAnimProgress.containsKey(pendingDeleteFile)) {
                 ((javax.swing.Timer) e.getSource()).stop();
@@ -241,7 +242,7 @@ public class NotebookEntriesPanel extends JPanel {
         } catch (Throwable ignored) {}
     });
     
-    private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(16, e -> {
+    private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(FAST_ANIM_TICK_MS, e -> {
         try {
             java.util.List<File> toRemove = new java.util.ArrayList<>();
             java.util.List<File> toRepaint = new java.util.ArrayList<>();
@@ -744,12 +745,6 @@ public class NotebookEntriesPanel extends JPanel {
                 g2.setComposite(old);
                 g2.setClip(sweepClip);
             }
-
-            // Accent bar
-            Color accentTop = shiftColor(accent, 0.18f);
-            Color accentBottom = shiftColor(accent, -0.22f);
-            g2.setPaint(new GradientPaint(0, 8, accentTop, 0, h - 8, accentBottom));
-            g2.fillRoundRect(6, 9, 6, h - 18, 6, 6);
 
             // Borders
             if (hoverActive) {
@@ -2242,7 +2237,32 @@ public class NotebookEntriesPanel extends JPanel {
 
     private void repaintFileRows(List<File> files, int padding) {
         if (files == null || files.isEmpty()) return;
-        for (File file : files) repaintFileRow(file, padding);
+        int pad = Math.max(0, padding);
+        java.util.List<java.awt.Rectangle> dirtyRows = new ArrayList<>();
+        for (File file : files) {
+            int index = rowIndexForFile(file);
+            if (index < 0 || index >= model.size()) continue;
+            java.awt.Rectangle bounds = list.getCellBounds(index, index);
+            if (bounds == null) continue;
+            dirtyRows.add(new java.awt.Rectangle(
+                    Math.max(0, bounds.x - pad),
+                    Math.max(0, bounds.y - pad),
+                    bounds.width + (pad * 2),
+                    bounds.height + (pad * 2)));
+        }
+        if (dirtyRows.isEmpty()) return;
+        dirtyRows.sort(Comparator.comparingInt(r -> r.y));
+        java.awt.Rectangle merged = dirtyRows.get(0);
+        for (int i = 1; i < dirtyRows.size(); i++) {
+            java.awt.Rectangle next = dirtyRows.get(i);
+            if (next.y <= merged.y + merged.height + pad) {
+                merged = merged.union(next);
+            } else {
+                list.repaint(merged.x, merged.y, merged.width, merged.height);
+                merged = next;
+            }
+        }
+        list.repaint(merged.x, merged.y, merged.width, merged.height);
     }
 
     private void bumpReorderAnimation(java.util.Set<File> files){
@@ -3261,17 +3281,6 @@ public class NotebookEntriesPanel extends JPanel {
             return lerp(cool, mid, v / 0.5f);
         }
         return lerp(mid, warm, (v - 0.5f) / 0.5f);
-    }
-
-    private static Color shiftColor(Color base, float delta) {
-        if (base == null) return new Color(120, 120, 120);
-        float r = base.getRed() / 255f;
-        float g = base.getGreen() / 255f;
-        float b = base.getBlue() / 255f;
-        r = Math.max(0f, Math.min(1f, r + delta));
-        g = Math.max(0f, Math.min(1f, g + delta));
-        b = Math.max(0f, Math.min(1f, b + delta));
-        return new Color(r, g, b, base.getAlpha() / 255f);
     }
 
     private static Color lerp(Color a, Color b, float t) {
