@@ -580,18 +580,29 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         JPanel root = new JPanel();
         root.setOpaque(false);
         root.setLayout(new javax.swing.BoxLayout(root, javax.swing.BoxLayout.Y_AXIS));
-        root.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        root.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
-        JLabel title = new JLabel("<html><b>Autocorrect suggestion</b></html>");
-        title.setForeground(new Color(46, 50, 62));
-        title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD, 12f));
+        JLabel correction = new JLabel(escapeHtml(suggestion.correction));
+        correction.setForeground(new Color(36, 42, 56));
+        correction.setFont(correction.getFont().deriveFont(java.awt.Font.BOLD, 18f));
+        correction.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
 
-        JLabel body = new JLabel("<html><span style='color:#444'>"
-                + escapeHtml(suggestion.original) + " &rarr; <b>"
-                + escapeHtml(suggestion.correction)
-                + "</b></span></html>");
-        body.setForeground(new Color(65, 70, 84));
-        body.setFont(body.getFont().deriveFont(java.awt.Font.PLAIN, 12f));
+        JPanel flagged = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        flagged.setOpaque(false);
+        flagged.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        JLabel flaggedLabel = new JLabel("Flagged");
+        flaggedLabel.setForeground(new Color(108, 116, 132));
+        flaggedLabel.setFont(flaggedLabel.getFont().deriveFont(java.awt.Font.PLAIN, 11f));
+        JLabel original = new JLabel(escapeHtml(suggestion.original));
+        original.setOpaque(true);
+        original.setBackground(new Color(255, 224, 224));
+        original.setForeground(new Color(112, 38, 38));
+        original.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(234, 130, 130)),
+                BorderFactory.createEmptyBorder(1, 6, 1, 6)));
+        original.setFont(original.getFont().deriveFont(java.awt.Font.BOLD, 12f));
+        flagged.add(flaggedLabel);
+        flagged.add(original);
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actions.setOpaque(false);
@@ -603,10 +614,10 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         actions.add(accept);
         actions.add(ignore);
 
-        root.add(title);
-        root.add(javax.swing.Box.createVerticalStrut(8));
-        root.add(body);
-        root.add(javax.swing.Box.createVerticalStrut(10));
+        root.add(correction);
+        root.add(javax.swing.Box.createVerticalStrut(5));
+        root.add(flagged);
+        root.add(javax.swing.Box.createVerticalStrut(9));
         root.add(actions);
         return root;
     }
@@ -877,6 +888,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     private static final class RedUnderlinePainter extends LayeredHighlighter.LayerPainter {
         private static final Color STROKE = new Color(212, 64, 64, 220);
         private static final Color GLOW = new Color(255, 142, 142, 96);
+        private static final Color FILL = new Color(255, 94, 94, 38);
 
         @Override
         public void paint(Graphics g, int offs0, int offs1, Shape bounds, JTextComponent c) {
@@ -891,6 +903,9 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
                 Shape s = view.modelToView(offs0, Position.Bias.Forward, offs1, Position.Bias.Backward, bounds);
                 Rectangle r = (s instanceof Rectangle) ? (Rectangle) s : s.getBounds();
                 if (r.width <= 0 || r.height <= 0) return r;
+
+                g2.setColor(FILL);
+                g2.fillRoundRect(r.x - 1, r.y + 1, r.width + 2, Math.max(1, r.height - 2), 6, 6);
 
                 int y = r.y + r.height - 2;
                 g2.setColor(GLOW);
