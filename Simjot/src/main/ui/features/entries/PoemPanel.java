@@ -101,6 +101,7 @@ import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
 import main.ui.components.editor.PaperFeelViewport;
 import main.ui.components.editor.RichTextStyler;
+import main.ui.components.editor.SentenceFocusHighlighter;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.scrollbar.ModernScrollBarUI;
@@ -461,6 +462,7 @@ public class PoemPanel extends AbstractEditorPanel {
         // Enable link detection and styling on paste (deferred until displayable)
         LinkManager.installWhenReady(poemEditor);
         CurrentLineGlowHighlighter.install(poemEditor, () -> SettingsStore.get().isEditorTypographyPolishEnabled());
+        SentenceFocusHighlighter.install(poemEditor, () -> SettingsStore.get().isEditorTypographyPolishEnabled());
 
         JScrollPane scrollPane = new JScrollPane(poemEditor);
         scrollPane.setOpaque(false);

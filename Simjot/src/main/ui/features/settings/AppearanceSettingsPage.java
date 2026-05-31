@@ -205,7 +205,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         paperFeelChk.setUI(new ModernCheckBoxUI());
         paperFeelChk.setBackground(new Color(0, 0, 0, 0));
 
-        typographyPolishChk = new JCheckBox("Typography polish (focus glow)", store.isEditorTypographyPolishEnabled());
+        typographyPolishChk = new JCheckBox("Typography polish (focus glow + sentence dimming)", store.isEditorTypographyPolishEnabled());
         typographyPolishChk.setUI(new ModernCheckBoxUI());
         typographyPolishChk.setBackground(new Color(0, 0, 0, 0));
 

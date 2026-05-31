@@ -121,6 +121,7 @@ import main.ui.components.editor.ImagePasteManager;
 import main.ui.components.editor.LinkManager;
 import main.ui.components.editor.PaperFeelViewport;
 import main.ui.components.editor.RichTextStyler;
+import main.ui.components.editor.SentenceFocusHighlighter;
 import main.ui.components.fields.TitleDividerField;
 import main.ui.components.indicators.SaveIndicatorPanel;
 import main.ui.components.popup.AnimatedGlassPopup;
@@ -1648,6 +1649,7 @@ public class EntryPanel extends AbstractEditorPanel {
             sharedToolbar.setToggleStates(st.bold(), st.italic(), st.underline(), st.strike());
         });
         CurrentLineGlowHighlighter.install(contentArea, () -> SettingsStore.get().isEditorTypographyPolishEnabled());
+        SentenceFocusHighlighter.install(contentArea, () -> SettingsStore.get().isEditorTypographyPolishEnabled());
 
         // Add undo/redo support
         this.contentUndoManager = new UndoRedoManager(contentArea);
