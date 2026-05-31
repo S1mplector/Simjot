@@ -461,8 +461,8 @@ public final class ImageIconRenderer {
 
     private static String resolveCustomResource(String id) {
         if (id == null || id.isEmpty()) return null;
-        String direct = CUSTOM_PNG_DIR + id + ".png";
-        if (resourceExists(direct)) return direct;
+        String direct = resolveOriginalIconResource(id);
+        if (direct != null) return direct;
         String alias = switch (id) {
             case "smile", "mood", "moodchart" -> "moodchart";
             case "saveandexit", "save_and_exit" -> "exit";
@@ -497,8 +497,16 @@ public final class ImageIconRenderer {
             default -> null;
         };
         if (alias == null) return null;
-        String aliasPath = CUSTOM_PNG_DIR + alias + ".png";
-        return resourceExists(aliasPath) ? aliasPath : null;
+        return resolveOriginalIconResource(alias);
+    }
+
+    private static String resolveOriginalIconResource(String name) {
+        if (name == null || name.isEmpty()) return null;
+        for (String ext : new String[]{".png", ".jpg", ".jpeg"}) {
+            String path = CUSTOM_PNG_DIR + name + ext;
+            if (resourceExists(path)) return path;
+        }
+        return null;
     }
 
     // Convenience mapping for common IDs used across the app

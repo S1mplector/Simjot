@@ -1602,8 +1602,8 @@ public class NotebookEntriesPanel extends JPanel {
         top.add(new JLabel("View:"));
         JPanel viewModeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         viewModeRow.setOpaque(false);
-        comfortViewBtn = createViewModeButton("view_comfort", "Classic card view", EntryViewMode.COMFORT);
-        calendarViewBtn = createViewModeButton("view_calendar", "Calendar view", EntryViewMode.CALENDAR);
+        comfortViewBtn = createViewModeButton("paragraph_selector", "Classic card view", EntryViewMode.COMFORT);
+        calendarViewBtn = createViewModeButton("calendar_selector", "Calendar view", EntryViewMode.CALENDAR);
         viewModeRow.add(comfortViewBtn);
         viewModeRow.add(calendarViewBtn);
         top.add(viewModeRow);
@@ -1722,7 +1722,7 @@ public class NotebookEntriesPanel extends JPanel {
 
     private ToolbarIconButton createViewModeButton(String iconId, String tooltip, EntryViewMode mode) {
         ToolbarIconButton button = new ToolbarIconButton(iconId);
-        Dimension size = new Dimension(34, 30);
+        Dimension size = new Dimension(42, 38);
         button.setPreferredSize(size);
         button.setMinimumSize(size);
         button.setMaximumSize(size);
