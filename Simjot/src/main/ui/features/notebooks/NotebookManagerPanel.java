@@ -871,16 +871,8 @@ public class NotebookManagerPanel extends JPanel {
     }
 
     private static Icon createIcon(NotebookInfo nb, boolean withPen){
-        // Prefer a custom icon if set, with HiDPI-friendly rendering.
-        String customPath = nb.getCustomIconPath();
-        if (customPath != null && !customPath.isEmpty()) {
-            BufferedImage customImg = loadCustomIcon(customPath);
-            if (customImg != null) {
-                return new HiDpiImageIcon(customImg, NOTEBOOK_ICON_SIZE);
-            }
-        }
-
-        // Default notebook icon from resources (HiDPI-aware).
+        // Always draw the notebook line art. User-selected images are cover art
+        // clipped into the notebook mask, not replacements for the notebook frame.
         String res = ImageIconRenderer.mapIdToResource(withPen ? "notebook" : "notebook_nopen");
         if (res != null) {
             return ImageIconRenderer.icon(res, NOTEBOOK_ICON_SIZE, true);
@@ -969,10 +961,8 @@ public class NotebookManagerPanel extends JPanel {
             dragSource = new DragSource();
             dragSource.createDefaultDragGestureRecognizer(this, DnDConstants.ACTION_MOVE, this);
 
-            String customPath = nb.getCustomIconPath();
-            boolean hasCustomIcon = customPath != null && !customPath.isEmpty() && loadCustomIcon(customPath) != null;
             baseIcon = createIcon(nb, false);
-            hoverIcon = hasCustomIcon ? null : createIcon(nb, true);
+            hoverIcon = createIcon(nb, true);
             JComponent icon = new NotebookIconPanel();
             icon.setPreferredSize(new Dimension(NOTEBOOK_ICON_SIZE + 8, NOTEBOOK_ICON_SIZE + 8));
             MouseAdapter forward = new MouseAdapter(){
@@ -1343,7 +1333,9 @@ public class NotebookManagerPanel extends JPanel {
                 float t = smoothStep(hoverT);
                 Icon base = baseIcon;
                 Icon hoverI = hoverIcon;
-                NotebookPersonalization.paintNotebookCover(g2, this, nb, x, y, size, 0.78f * t);
+                boolean customIconCover = nb.getCustomIconPath() != null && !nb.getCustomIconPath().isBlank();
+                float coverAlpha = customIconCover ? 0.9f : 0.78f * t;
+                NotebookPersonalization.paintNotebookCover(g2, this, nb, x, y, size, coverAlpha);
                 if (base != null && hoverI != null && t > 0.001f) {
                     Composite old = g2.getComposite();
                     float baseAlpha = 1f;
@@ -1817,21 +1809,7 @@ public class NotebookManagerPanel extends JPanel {
                             notebook.getDescription(), accentColorRaw, customIconPath,
                             backgroundImagePath, coverImagePath, editorFontFamily, editorStylePreset);
                     NotebookPersonalization.paintNotebookCover(g2, this, previewNotebook, 0, 0, 48, 0.82f);
-                    java.awt.image.BufferedImage img = null;
-                    if (customIconPath != null && !customIconPath.isEmpty()) {
-                        try {
-                            img = javax.imageio.ImageIO.read(new java.io.File(customIconPath));
-                            if (img != null) {
-                                java.awt.Image scaled = img.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH);
-                                g2.drawImage(scaled, 0, 0, null);
-                                g2.dispose();
-                                return;
-                            }
-                        } catch (Exception ignored) {}
-                    }
-                    if (img != null) {
-                        g2.drawImage(img, 0, 0, null);
-                    } else if (res != null) {
+                    if (res != null) {
                         main.ui.components.icons.ImageIconRenderer.draw(g2, res, 0, 0, 48, this, true);
                     }
                     Color accent = resolvedAccentColor();
