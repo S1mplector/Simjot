@@ -1839,6 +1839,8 @@ public class NotebookManagerPanel extends JPanel {
                 removeIconBtn.setToolTipText("Reset to default icon");
                 removeIconBtn.addActionListener(e -> {
                     customIconPath = null;
+                    coverImagePath = null;
+                    refreshWritingUi();
                     iconPreview.repaint();
                 });
                 iconRow.add(removeIconBtn);

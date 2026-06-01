@@ -243,7 +243,7 @@ public class NotebookEntriesPanel extends JPanel {
     });
     
     private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(FAST_ANIM_TICK_MS, e -> {
-        try {
+z           try {
             java.util.List<File> toRemove = new java.util.ArrayList<>();
             java.util.List<File> toRepaint = new java.util.ArrayList<>();
             for (java.util.Map.Entry<File, Float> en : reorderAnimProgress.entrySet()) {
