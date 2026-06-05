@@ -1,35 +1,35 @@
 #!/bin/bash
 
 # Script to add/update copyright headers to source files
-# Supports: Java, C, C++, Haskell
+# Supports: Java, C, C++, Objective-C++, Haskell
 # Usage: ./add_copyright.sh
 #
 # This script will:
-# - Replace old copyright headers with new MIT header
+# - Replace old copyright headers with new No Derivatives header
 # - Add header to files without one
 
-# MIT License header for C-style comments (Java, C, C++)
+# No Derivatives License header for C-style comments (Java, C, C++, Objective-C++)
 C_HEADER="/*
- * SIMJOT - MIT License
+ * SIMJOT - No Derivatives License
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * See LICENSE.md for full terms.
+ * See LICENSE for full terms.
  */"
 
-# MIT License header for Haskell
+# No Derivatives License header for Haskell
 HS_HEADER="{-
- - SIMJOT - MIT License
+ - SIMJOT - No Derivatives License
  - 
  - Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  - 
- - See LICENSE.md for full terms.
+ - See LICENSE for full terms.
  -}"
 
-# Check if file already has the new MIT header
+# Check if file already has the new No Derivatives header
 has_new_header() {
     local file="$1"
-    head -n 10 "$file" | grep -q "SIMJOT - MIT License"
+    head -n 10 "$file" | grep -q "SIMJOT - No Derivatives License"
 }
 
 # Remove old C-style copyright block (/* ... */ at start of file)
@@ -126,7 +126,7 @@ update_c_header() {
     
     # Already has new header - skip
     if has_new_header "$file"; then
-        echo "Skipping $file (already has MIT header)"
+        echo "Skipping $file (already has No Derivatives header)"
         return
     fi
     
@@ -150,7 +150,7 @@ update_hs_header() {
     local file="$1"
     
     if has_new_header "$file"; then
-        echo "Skipping $file (already has MIT header)"
+        echo "Skipping $file (already has No Derivatives header)"
         return
     fi
     
@@ -169,22 +169,22 @@ update_hs_header() {
 }
 
 # Find and process Java files
-find src -name "*.java" | while read file; do
+find src -path "src/main/native/build" -prune -o -name "*.java" -print | while read file; do
     update_c_header "$file"
 done
 
 # Find and process C files
-find src -name "*.c" -o -name "*.h" | while read file; do
+find src -path "src/main/native/build" -prune -o \( -name "*.c" -o -name "*.h" \) -print | while read file; do
     update_c_header "$file"
 done
 
-# Find and process C++ files
-find src -name "*.cpp" -o -name "*.hpp" -o -name "*.cc" -o -name "*.hh" | while read file; do
+# Find and process C++ / Objective-C++ files
+find src -path "src/main/native/build" -prune -o \( -name "*.cpp" -o -name "*.hpp" -o -name "*.cc" -o -name "*.hh" -o -name "*.mm" \) -print | while read file; do
     update_c_header "$file"
 done
 
 # Find and process Haskell files
-find src -name "*.hs" | while read file; do
+find src -path "src/main/native/build" -prune -o -name "*.hs" -print | while read file; do
     update_hs_header "$file"
 done
 

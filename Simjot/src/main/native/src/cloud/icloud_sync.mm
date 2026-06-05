@@ -1,11 +1,9 @@
 /*
- * SIMJOT - MIT License
+ * SIMJOT - No Derivatives License
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * See LICENSE.md for full terms.
- * 
- * Advanced iCloud Sync Module - Optimized cloud synchronization for macOS
+ * See LICENSE for full terms.
  */
 
 #include "simjot_native.h"

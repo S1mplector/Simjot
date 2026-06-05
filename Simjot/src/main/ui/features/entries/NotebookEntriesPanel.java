@@ -1,9 +1,9 @@
 /*
- * SIMJOT - MIT License
+ * SIMJOT - No Derivatives License
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * See LICENSE.md for full terms.
+ * See LICENSE for full terms.
  */
 
 package main.ui.features.entries;
@@ -243,7 +243,7 @@ public class NotebookEntriesPanel extends JPanel {
     });
     
     private final javax.swing.Timer reorderAnimTimer = new javax.swing.Timer(FAST_ANIM_TICK_MS, e -> {
-z           try {
+        try {
             java.util.List<File> toRemove = new java.util.ArrayList<>();
             java.util.List<File> toRepaint = new java.util.ArrayList<>();
             for (java.util.Map.Entry<File, Float> en : reorderAnimProgress.entrySet()) {
@@ -1022,6 +1022,21 @@ z           try {
 
     private final class CalendarEntriesPanel extends JPanel {
         private static final DateTimeFormatter DAY_ENTRY_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+        private final Font monthFont = AeroTheme.defaultFont().deriveFont(Font.BOLD, 15f);
+        private final Font weekHeaderFont = AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f);
+        private final Font hintFont = AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f);
+        private final Font dayEntriesHeaderFont = AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f);
+        private final Font dayRowFont = AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f);
+        private final Font dayNumberFont = AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12.5f);
+        private final Font todayNumberFont = AeroTheme.defaultFont().deriveFont(Font.BOLD, 12.5f);
+        private final Font dayBadgeFont = AeroTheme.defaultFont().deriveFont(Font.BOLD, 11f);
+        private final Color dayRowBackground = new Color(246, 250, 255);
+        private final Color dayRowHoverBackground = new Color(233, 243, 255);
+        private final Color dayRowBorder = new Color(176, 188, 204, 150);
+        private final Color dayRowForeground = new Color(62, 72, 90);
+        private final Color dayLoadingForeground = new Color(90, 102, 122);
+        private final Color mutedCalendarText = new Color(112, 122, 138);
+        private final Color calendarSpinnerColor = new Color(96, 132, 188);
         private final JLabel monthLabel = new JLabel("", JLabel.CENTER);
         private final JLabel hintLabel = new JLabel("Hover a day to preview. Click a day to lock selection. Double-click opens latest.");
         private final JPanel weekHeader = new JPanel(new java.awt.GridLayout(1, 7, 4, 2));
@@ -1071,7 +1086,7 @@ z           try {
             next.setMaximumSize(new Dimension(32, 26));
             next.addActionListener(e -> shiftMonth(1));
 
-            monthLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 15f));
+            monthLabel.setFont(monthFont);
             monthLabel.setForeground(new Color(58, 66, 82));
             header.add(prev, BorderLayout.WEST);
             header.add(monthLabel, BorderLayout.CENTER);
@@ -1081,7 +1096,7 @@ z           try {
             for (int i = 0; i < 7; i++) {
                 DayOfWeek day = firstDayOfWeek.plus(i);
                 JLabel lbl = new JLabel(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()), JLabel.CENTER);
-                lbl.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f));
+                lbl.setFont(weekHeaderFont);
                 lbl.setForeground(new Color(110, 118, 132));
                 weekHeader.add(lbl);
             }
@@ -1093,13 +1108,13 @@ z           try {
                 daysGrid.add(cell);
             }
 
-            hintLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
+            hintLabel.setFont(hintFont);
             hintLabel.setForeground(new Color(108, 116, 132));
             hintLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 0, 4));
 
             dayEntriesPanel.setOpaque(false);
             dayEntriesPanel.setBorder(BorderFactory.createEmptyBorder(6, 8, 8, 8));
-            dayEntriesLabel.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11.5f));
+            dayEntriesLabel.setFont(dayEntriesHeaderFont);
             dayEntriesLabel.setForeground(new Color(78, 88, 108));
 
             dayEntriesList.setOpaque(false);
@@ -1277,8 +1292,8 @@ z           try {
                 dayEntriesList.removeAll();
                 dayEntriesLabel.setText("Day entries");
                 JLabel placeholder = new JLabel("Hover or select a day to list entries.");
-                placeholder.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
-                placeholder.setForeground(new Color(112, 122, 138));
+                placeholder.setFont(hintFont);
+                placeholder.setForeground(mutedCalendarText);
                 dayEntriesList.add(placeholder);
                 dayEntriesPanel.revalidate();
                 dayEntriesPanel.repaint();
@@ -1292,8 +1307,8 @@ z           try {
                 String prefix = selectedSource ? "Selected day" : "Hovered day";
                 dayEntriesLabel.setText(prefix + " · " + formatEntryDate(date));
                 JLabel empty = new JLabel("No entries on this day.");
-                empty.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 11.5f));
-                empty.setForeground(new Color(112, 122, 138));
+                empty.setFont(hintFont);
+                empty.setForeground(mutedCalendarText);
                 dayEntriesList.add(empty);
                 dayEntriesPanel.revalidate();
                 dayEntriesPanel.repaint();
@@ -1423,20 +1438,20 @@ z           try {
 
             JLabel row = new JLabel(time + "  \u00b7  " + title);
             row.setOpaque(true);
-            row.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-            row.setForeground(new Color(62, 72, 90));
-            row.setBackground(new Color(246, 250, 255, 186));
+            row.setFont(dayRowFont);
+            row.setForeground(dayRowForeground);
+            row.setBackground(dayRowBackground);
             row.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(176, 188, 204, 150)),
+                    BorderFactory.createLineBorder(dayRowBorder),
                     BorderFactory.createEmptyBorder(5, 8, 5, 8)));
             row.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
             row.setToolTipText("Open " + title);
             row.addMouseListener(new MouseAdapter() {
                 @Override public void mouseEntered(MouseEvent e) {
-                    row.setBackground(new Color(233, 243, 255, 210));
+                    row.setBackground(dayRowHoverBackground);
                 }
                 @Override public void mouseExited(MouseEvent e) {
-                    row.setBackground(new Color(246, 250, 255, 186));
+                    row.setBackground(dayRowBackground);
                 }
                 @Override public void mouseClicked(MouseEvent e) {
                     if (file != null && file.exists()) {
@@ -1461,22 +1476,33 @@ z           try {
 
             private DayEntryLoadingRow(String timeLabel) {
                 super(new FlowLayout(FlowLayout.LEFT, 6, 0));
-                setOpaque(true);
-                setBackground(new Color(246, 250, 255, 186));
+                setOpaque(false);
+                setBackground(dayRowBackground);
                 setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(176, 188, 204, 150)),
+                        BorderFactory.createLineBorder(dayRowBorder),
                         BorderFactory.createEmptyBorder(3, 7, 3, 8)));
 
-                spinner = new ModernSpinner(12, new Color(96, 132, 188));
+                spinner = new ModernSpinner(12, calendarSpinnerColor);
+                spinner.setOpaque(false);
                 spinner.setPreferredSize(new Dimension(12, 12));
                 spinner.setMinimumSize(new Dimension(12, 12));
                 spinner.setMaximumSize(new Dimension(12, 12));
                 add(spinner);
 
                 JLabel text = new JLabel(timeLabel + "  ·  Loading title...");
-                text.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 12f));
-                text.setForeground(new Color(90, 102, 122));
+                text.setOpaque(false);
+                text.setFont(dayRowFont);
+                text.setForeground(dayLoadingForeground);
                 add(text);
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(dayRowBackground);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+                super.paintComponent(g);
             }
 
             @Override
@@ -1518,13 +1544,20 @@ z           try {
             }
 
             private void setDay(LocalDate date, boolean inMonth, boolean today, boolean selected, int count, int avgMood) {
+                int normalizedCount = Math.max(0, count);
+                boolean changed = !Objects.equals(this.date, date)
+                        || this.inMonth != inMonth
+                        || this.today != today
+                        || this.selected != selected
+                        || this.count != normalizedCount
+                        || this.avgMood != avgMood;
                 this.date = date;
                 this.inMonth = inMonth;
                 this.today = today;
                 this.selected = selected;
-                this.count = Math.max(0, count);
+                this.count = normalizedCount;
                 this.avgMood = avgMood;
-                repaint();
+                if (changed) repaint();
             }
 
             @Override
@@ -1557,20 +1590,20 @@ z           try {
                     g2.setStroke(new BasicStroke(1.0f));
                 }
 
-                g2.setFont(AeroTheme.defaultFont().deriveFont(today ? Font.BOLD : Font.PLAIN, 12.5f));
+                g2.setFont(today ? todayNumberFont : dayNumberFont);
                 g2.setColor(inMonth ? new Color(50, 60, 78) : new Color(140, 146, 160));
                 g2.drawString(Integer.toString(date.getDayOfMonth()), 8, 18);
 
                 if (count > 0) {
                     String txt = Integer.toString(count);
-                    int badgeW = Math.max(18, 10 + g2.getFontMetrics(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11f)).stringWidth(txt));
+                    g2.setFont(dayBadgeFont);
+                    int badgeW = Math.max(18, 10 + g2.getFontMetrics().stringWidth(txt));
                     int bx = w - badgeW - 6;
                     int by = h - 22;
                     Color mood = avgMood >= 0 ? moodColorAt(avgMood) : new Color(120, 150, 210);
                     g2.setColor(new Color(mood.getRed(), mood.getGreen(), mood.getBlue(), 170));
                     g2.fillRoundRect(bx, by, badgeW, 15, 8, 8);
                     g2.setColor(new Color(255, 255, 255, 220));
-                    g2.setFont(AeroTheme.defaultFont().deriveFont(Font.BOLD, 11f));
                     int tx = bx + (badgeW - g2.getFontMetrics().stringWidth(txt)) / 2;
                     g2.drawString(txt, tx, by + 11);
                 }

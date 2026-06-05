@@ -1,33 +1,46 @@
-MIT License
+SIMJOT NO DERIVATIVES LICENSE
 
 Copyright (c) 2024-2025 Ilgaz Mehmetoğlu
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is granted to view, use, run, copy, and redistribute unmodified
+copies of this software and its documentation, subject to the conditions below.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+No Derivatives:
+
+You may not modify, adapt, translate, transform, build upon, merge, publish,
+distribute, sublicense, sell, or otherwise make available modified versions or
+derivative works of this software or its documentation without prior written
+permission from the copyright holder.
+
+Redistribution Conditions:
+
+Redistributions must be complete, unmodified copies and must retain this
+license, all copyright notices, attribution notices, and notices for third-party
+components included with the software.
+
+Third-Party Components:
+
+Third-party libraries, dependencies, and bundled components remain governed by
+their own license terms. Nothing in this license changes those third-party
+license terms.
+
+Warranty Disclaimer:
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
+ICON ASSETS NOTICE:
 
-ICON ASSETS EXCEPTION:
-
-The icons in this repository are NOT covered by the MIT License above.
+The icons in this repository are not covered by this software license.
 All icon artwork is the exclusive intellectual property of:
 
   Lightning (@LightningTheAn1) - https://x.com/LightningTheAn1
 
-Icons may be used (including commercially) with proper attribution to the artist.
-See LICENSE.md in the repository root for full icon license terms.
+Icons may be used, including commercially, with proper attribution to the
+artist. Icon artwork may not be modified or redistributed without permission
+from the artist unless a separate license says otherwise.

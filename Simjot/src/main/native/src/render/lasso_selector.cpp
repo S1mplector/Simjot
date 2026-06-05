@@ -1,14 +1,9 @@
-/**
- * Lasso Selector Utility
+/*
+ * SIMJOT - No Derivatives License
  * 
- * Provides functions for lasso selection of strokes:
- * - Point-in-polygon testing (ray casting algorithm)
- * - Stroke selection based on lasso polygon
- * - Bounding box computation
- * - Stroke translation
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * Copyright (c) 2025 Simjot
- * MIT License
+ * See LICENSE for full terms.
  */
 
 #include "simjot_native.h"

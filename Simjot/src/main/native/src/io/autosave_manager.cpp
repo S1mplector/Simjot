@@ -1,9 +1,9 @@
 /*
- * SIMJOT - MIT License
+ * SIMJOT - No Derivatives License
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * See LICENSE.md for full terms.
+ * See LICENSE for full terms.
  */
 
 /**
@@ -18,7 +18,7 @@
  * - Statistics and monitoring
  * 
  * @author S1mplector
- * @copyright 2024-2025 Ilgaz Mehmetoğlu. MIT License.
+ * @copyright 2024-2025 Ilgaz Mehmetoğlu. No Derivatives License.
  */
 
 #include "../include/simjot_native.h"

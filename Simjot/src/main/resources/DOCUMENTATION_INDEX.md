@@ -16,7 +16,7 @@ This directory contains comprehensive documentation and notices for all third-pa
 - **`README.md`** - Project overview and quick start guide
 - **`README_BUILD.md`** - Build instructions and setup guide
 - **`TESTING.md`** - Testing framework and guidelines
-- **`LICENSE.md`** - Project license information
+- **`LICENSE`** - Project license information
 
 ## Resource Documentation (This Directory)
 
@@ -76,7 +76,7 @@ When adding new third-party assets or libraries:
 
 For questions about licensing, usage rights, or compliance:
 - Review the specific notice files for detailed information
-- Check the main project LICENSE.md for overall project licensing
+- Check the main project LICENSE for overall project licensing
 - Contact project maintainers for clarification
 
 ---

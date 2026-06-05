@@ -1,15 +1,9 @@
-/**
- * Stroke Optimizer - Performance optimization for large stroke collections
+/*
+ * SIMJOT - No Derivatives License
  * 
- * Features:
- * - Quadtree spatial index for O(log n) hit testing and visibility culling
- * - Dirty region tracking for incremental rendering
- * - Stroke batching for reduced draw calls
- * - Level-of-detail (LOD) rendering based on zoom level
- * - Stroke simplification for dense point sequences
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * Copyright (c) 2025 Simjot
- * MIT License
+ * See LICENSE for full terms.
  */
 
 #include "simjot_native.h"

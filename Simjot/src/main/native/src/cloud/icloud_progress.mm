@@ -1,11 +1,9 @@
 /*
- * SIMJOT - MIT License
+ * SIMJOT - No Derivatives License
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * See LICENSE.md for full terms.
- * 
- * iCloud Sync - Progress Tracking & Performance Metrics
+ * See LICENSE for full terms.
  */
 
 #include "simjot_native.h"

@@ -7,7 +7,7 @@
 
     <groupId>com.simjot</groupId>
     <artifactId>simjot</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
     <packaging>jar</packaging>
 
     <name>Simjot</name>
@@ -15,10 +15,10 @@
     
     <licenses>
         <license>
-            <name>MIT License</name>
-            <url>https://opensource.org/licenses/MIT</url>
+            <name>Simjot No Derivatives License</name>
+            <url>LICENSE</url>
             <distribution>repo</distribution>
-            <comments>Source code is MIT-licensed; icon and artwork assets have separate attribution terms in the repository LICENSE.md.</comments>
+            <comments>Source code is licensed for unmodified redistribution only; derivative works require prior written permission. Icon and artwork assets have separate attribution terms in the repository LICENSE.</comments>
         </license>
     </licenses>
 

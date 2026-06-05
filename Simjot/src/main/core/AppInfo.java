@@ -1,9 +1,9 @@
 /*
- * SIMJOT - MIT License
+ * SIMJOT - No Derivatives License
  * 
  * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
  * 
- * See LICENSE.md for full terms.
+ * See LICENSE for full terms.
  */
 
 package main.core;
@@ -16,9 +16,9 @@ public final class AppInfo {
     private AppInfo() {}
 
     public static final String NAME = "Simjot";
-    public static final String VERSION = "0.1.1";
+    public static final String VERSION = "0.2.0";
     public static final String AUTHOR = "Ilgaz Mehmetoglu";
-    public static final String LICENSE = "MIT License";
+    public static final String LICENSE = "No Derivatives License";
     
     /**
      * Returns formatted version string (e.g., "v1.0.0")
