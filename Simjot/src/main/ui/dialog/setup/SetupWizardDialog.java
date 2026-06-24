@@ -34,6 +34,7 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -45,6 +46,7 @@ import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
+import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.components.spinner.ModernSpinner;
 import main.ui.theme.aero.AeroTheme;
 
@@ -70,6 +72,7 @@ public class SetupWizardDialog extends JDialog {
     private int currentStep = 0;
     private CardLayout cardLayout;
     private JPanel cardPanel;
+    private JScrollPane cardScrollPane;
     private StepIndicator stepIndicator;
     
     // Step panels
@@ -141,7 +144,15 @@ public class SetupWizardDialog extends JDialog {
         cardPanel.add(initializingPanel, "initializing");
         cardPanel.add(completePanel, "complete");
         
-        mainPanel.add(cardPanel, BorderLayout.CENTER);
+        cardScrollPane = new JScrollPane(cardPanel,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        cardScrollPane.setBorder(null);
+        cardScrollPane.setOpaque(false);
+        cardScrollPane.getViewport().setOpaque(false);
+        cardScrollPane.getVerticalScrollBar().setUnitIncrement(18);
+        cardScrollPane.getVerticalScrollBar().setUI(new AeroScrollBarUI());
+        mainPanel.add(cardScrollPane, BorderLayout.CENTER);
         
         setContentPane(mainPanel);
         
@@ -679,6 +690,7 @@ public class SetupWizardDialog extends JDialog {
         
         String[] cards = {"welcome", "location", "initializing", "complete"};
         cardLayout.show(cardPanel, cards[step]);
+        SwingUtilities.invokeLater(() -> cardScrollPane.getVerticalScrollBar().setValue(0));
         
         // Refresh complete panel with actual path
         if (step == 3 && rootFolder != null) {
