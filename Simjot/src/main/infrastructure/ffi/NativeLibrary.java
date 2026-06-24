@@ -4883,7 +4883,8 @@ public final class NativeLibrary implements AutoCloseable {
             if (handle == null) return result;
             MemorySegment pathSeg = tempArena.allocateFrom(rootPath);
             MemorySegment outSeg = tempArena.allocate(ValueLayout.JAVA_INT, 8);
-            handle.invokeExact(pathSeg, outSeg);
+            int checkedDirectories = (int) handle.invokeExact(pathSeg, outSeg);
+            if (checkedDirectories < 0) return result;
             for (int i = 0; i < 8; i++) {
                 result[i] = outSeg.getAtIndex(ValueLayout.JAVA_INT, i);
             }
