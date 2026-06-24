@@ -37,6 +37,11 @@
 #pragma comment(lib, "Shcore.lib")
 #endif
 
+#ifdef SIMJOT_HAVE_X11
+#include <X11/Xlib.h>
+#include <X11/Xresource.h>
+#endif
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * CONSTANTS
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -252,6 +257,50 @@ static float windows_get_display_dpi(uint32_t displayIndex) {
 
 #if !defined(__APPLE__) && !defined(_WIN32)
 
+static float linux_get_x11_scale(void) {
+#ifdef SIMJOT_HAVE_X11
+    Display* display = XOpenDisplay(NULL);
+    if (!display) return 1.0f;
+
+    float dpi = 0.0f;
+    const char* resources = XResourceManagerString(display);
+    if (resources && *resources) {
+        XrmInitialize();
+        XrmDatabase database = XrmGetStringDatabase(resources);
+        if (database) {
+            char* type = NULL;
+            XrmValue value = {0};
+            if (XrmGetResource(database, "Xft.dpi", "Xft.Dpi", &type, &value)
+                    && value.addr && value.size > 0) {
+                char text[64];
+                size_t length = (size_t)value.size;
+                if (length >= sizeof(text)) length = sizeof(text) - 1;
+                memcpy(text, value.addr, length);
+                text[length] = '\0';
+                dpi = (float)atof(text);
+            }
+            XrmDestroyDatabase(database);
+        }
+    }
+
+    if (dpi < 50.0f || dpi > 600.0f) {
+        int screen = DefaultScreen(display);
+        int widthPixels = DisplayWidth(display, screen);
+        int widthMillimeters = DisplayWidthMM(display, screen);
+        if (widthPixels > 0 && widthMillimeters > 0) {
+            dpi = (float)widthPixels * 25.4f / (float)widthMillimeters;
+        }
+    }
+
+    XCloseDisplay(display);
+    return (dpi >= 50.0f && dpi <= 600.0f)
+        ? clamp_scale(dpi / BASE_DPI)
+        : 1.0f;
+#else
+    return 1.0f;
+#endif
+}
+
 static float linux_get_env_scale(void) {
     float scale = 1.0f;
     
@@ -280,10 +329,8 @@ static float linux_get_env_scale(void) {
 }
 
 static float linux_get_display_scale(uint32_t displayIndex) {
-    /* Linux doesn't have great per-monitor scaling detection without X11/Wayland libs */
-    /* For now, use environment-based detection */
     (void)displayIndex;
-    return linux_get_env_scale();
+    return clamp_scale(fmaxf(linux_get_env_scale(), linux_get_x11_scale()));
 }
 
 static int linux_get_display_count(void) {
@@ -292,12 +339,12 @@ static int linux_get_display_count(void) {
 }
 
 static float linux_get_primary_scale(void) {
-    return linux_get_env_scale();
+    return clamp_scale(fmaxf(linux_get_env_scale(), linux_get_x11_scale()));
 }
 
 static float linux_get_display_dpi(uint32_t displayIndex) {
     (void)displayIndex;
-    return BASE_DPI * linux_get_env_scale();
+    return BASE_DPI * linux_get_primary_scale();
 }
 
 #endif /* Linux */

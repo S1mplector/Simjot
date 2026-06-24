@@ -90,6 +90,7 @@ import main.ui.features.settings.SettingsPanel;
 import main.ui.features.splash.AeroSplashScreen;
 import main.ui.sim.chat.SimChatPanel;
 import main.ui.sim.overlay.SimOverlay;
+import main.ui.scaling.UIScalingManager;
 import main.ui.theme.aero.AeroLookAndFeel;
 import main.ui.util.AccentColorUtil;
 
@@ -1749,6 +1750,8 @@ public class JournalApp extends JFrame {
     public static void main(String[] args) {
         launchArgs = (args == null) ? new String[0] : args.clone();
         startInTrayOnLaunch = hasArg(args, START_IN_TRAY_ARG);
+        // DPI scaling must be configured before AWT/Swing creates its first component.
+        try { UIScalingManager.initializeEarly(); } catch (Throwable ignored) {}
         try { CrashReporter.install(); } catch (Throwable ignored) {}
         try { AppPerf.applySystemHints(); } catch (Throwable ignored) {}
         SwingUtilities.invokeLater(() -> {

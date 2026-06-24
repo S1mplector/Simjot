@@ -35,7 +35,6 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.scrollbar.AeroScrollBarUI;
 import main.ui.features.splash.SettingsSaveSplash;
-import main.ui.scaling.UIScalingManager;
 import main.ui.theme.Theme;
 import main.ui.theme.ThemePalette;
 import main.ui.theme.aero.AeroTheme;
@@ -185,7 +184,6 @@ public class SettingsPanel extends JPanel {
                 try {
                     javax.swing.SwingUtilities.invokeAndWait(() -> {
                         try { ThemePalette.refresh(); } catch (Throwable ignored) {}
-                        try { UIScalingManager.updateScale(Theme.densityToScale(store.getLayoutDensity())); } catch (Throwable ignored) {}
                         try { javax.swing.SwingUtilities.updateComponentTreeUI(app); } catch (Throwable ignored) {}
                     });
                 } catch (Throwable ignored) {}

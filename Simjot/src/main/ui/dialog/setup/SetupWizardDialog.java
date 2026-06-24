@@ -13,7 +13,6 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -23,8 +22,6 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.io.File;
 import java.util.ArrayList;
@@ -46,7 +43,6 @@ import javax.swing.border.EmptyBorder;
 import main.core.AppInfo;
 import main.core.service.SettingsStore;
 import main.infrastructure.io.AppDirectories;
-import main.ui.components.buttons.IconMenuButton;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.spinner.ModernSpinner;
@@ -256,8 +252,8 @@ public class SetupWizardDialog extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setOpaque(false);
         
-        IconMenuButton getStartedBtn = createNavButton("Get Started", "install");
-        getStartedBtn.setPreferredSize(new Dimension(140, 84));
+        RoundedButton getStartedBtn = createNavButton("Get Started", "install");
+        getStartedBtn.setPreferredSize(new Dimension(150, 38));
         getStartedBtn.addActionListener(e -> showStep(1));
         buttonPanel.add(getStartedBtn);
         
@@ -394,8 +390,8 @@ public class SetupWizardDialog extends JDialog {
         JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
         navPanel.setOpaque(false);
         
-        IconMenuButton backBtn = createNavButton("Back", "back");
-        backBtn.setPreferredSize(new Dimension(110, 84));
+        RoundedButton backBtn = createNavButton("Back", "back");
+        backBtn.setPreferredSize(new Dimension(110, 36));
         backBtn.addActionListener(e -> showStep(0));
         navPanel.add(backBtn);
         
@@ -411,53 +407,17 @@ public class SetupWizardDialog extends JDialog {
     }
 
     private JComponent createLocationButton(String title, String subtitle, String iconId, Runnable action) {
-        JPanel row = new JPanel(new BorderLayout(12, 0));
-        row.setOpaque(false);
-        row.setBorder(new EmptyBorder(6, 10, 6, 10));
-        row.setMaximumSize(new Dimension(420, 90));
-
-        IconMenuButton iconBtn = new IconMenuButton(title, iconId);
-        iconBtn.setPreferredSize(new Dimension(84, 80));
-        iconBtn.setMinimumSize(new Dimension(84, 80));
-        iconBtn.setMaximumSize(new Dimension(96, 90));
-        iconBtn.setToolTipText(title);
-        iconBtn.addActionListener(e -> action.run());
-
-        JPanel text = new JPanel();
-        text.setOpaque(false);
-        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(AeroTheme.defaultBoldFont(13f));
-        titleLabel.setForeground(AeroTheme.TEXT_PRIMARY);
-        JLabel subtitleLabel = new JLabel(subtitle);
-        subtitleLabel.setFont(AeroTheme.defaultFont().deriveFont(11f));
-        subtitleLabel.setForeground(TEXT_SECONDARY);
-        text.add(titleLabel);
-        text.add(Box.createVerticalStrut(4));
-        text.add(subtitleLabel);
-
-        row.add(iconBtn, BorderLayout.WEST);
-        row.add(text, BorderLayout.CENTER);
-
-        Cursor hand = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
-        row.setCursor(hand);
-        text.setCursor(hand);
-        titleLabel.setCursor(hand);
-        subtitleLabel.setCursor(hand);
-
-        MouseAdapter clicker = new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) { iconBtn.doClick(); }
-        };
-        row.addMouseListener(clicker);
-        text.addMouseListener(clicker);
-        titleLabel.addMouseListener(clicker);
-        subtitleLabel.addMouseListener(clicker);
-
-        return row;
+        RoundedButton button = new RoundedButton(title).withIcon(iconId);
+        button.setPreferredSize(new Dimension(420, 42));
+        button.setMinimumSize(new Dimension(320, 42));
+        button.setMaximumSize(new Dimension(420, 42));
+        button.setToolTipText(subtitle);
+        button.addActionListener(e -> action.run());
+        return button;
     }
 
-    private static IconMenuButton createNavButton(String label, String iconId) {
-        IconMenuButton btn = new IconMenuButton(label, iconId);
+    private static RoundedButton createNavButton(String label, String iconId) {
+        RoundedButton btn = new RoundedButton(label).withIcon(iconId);
         btn.setToolTipText(label);
         btn.setFont(AeroTheme.defaultBoldFont(13f));
         return btn;
@@ -702,8 +662,8 @@ public class SetupWizardDialog extends JDialog {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setOpaque(false);
         
-        IconMenuButton startBtn = createNavButton("Start", "check");
-        startBtn.setPreferredSize(new Dimension(150, 90));
+        RoundedButton startBtn = createNavButton("Start", "check");
+        startBtn.setPreferredSize(new Dimension(150, 38));
         startBtn.addActionListener(e -> dispose());
         buttonPanel.add(startBtn);
         
