@@ -108,8 +108,10 @@ public final class SentenceFocusHighlighter {
                 return;
             }
             try {
-                String text = doc.getText(0, doc.getLength());
-                int caret = Math.max(0, Math.min(editor.getCaretPosition(), text.length()));
+                int docLen = doc.getLength();
+                int caret = Math.max(0, Math.min(editor.getCaretPosition(), docLen));
+                int fetchLen = Math.min(docLen, caret + 500);
+                String text = doc.getText(0, fetchLen);
                 int limit = dimLimit(text, caret);
                 if (limit <= 0) {
                     clear();

@@ -49,3 +49,4 @@ Thumbs.db
 hs_err_pid*
 test_dist/
 target/
+Simjot/test_dist_final/

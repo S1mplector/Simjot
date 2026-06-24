@@ -249,20 +249,36 @@ class CustomFontGlyphView extends GlyphView {
         float cursorX = x;
         int offset = getStartOffset();
         Composite baseComposite = g2.getComposite();
-        for (int i = 0; i < text.length();) {
-            int cp = text.codePointAt(i);
-            int chars = Character.charCount(cp);
-            String glyphText = text.substring(i, i + chars);
-            boolean dimmed = isOffsetDimmed(offset, dimRanges);
-            if (dimmed) {
+        
+        int i = 0;
+        while (i < text.length()) {
+            boolean currentDimmed = isOffsetDimmed(offset, dimRanges);
+            int chunkEndIndex = i;
+            int chunkEndOffset = offset;
+            
+            while (chunkEndIndex < text.length()) {
+                int cp = text.codePointAt(chunkEndIndex);
+                int chars = Character.charCount(cp);
+                if (isOffsetDimmed(chunkEndOffset, dimRanges) != currentDimmed) {
+                    break;
+                }
+                chunkEndIndex += chars;
+                chunkEndOffset += chars;
+            }
+            
+            String chunkText = text.substring(i, chunkEndIndex);
+            
+            if (currentDimmed) {
                 g2.setComposite(AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA));
             } else {
                 g2.setComposite(baseComposite);
             }
-            RENDERER.drawText(g2, font, glyphText, Math.round(cursorX), baseline, size, color);
-            cursorX += advanceForCodepoint(font, cp, size);
-            offset += chars;
-            i += chars;
+            
+            RENDERER.drawText(g2, font, chunkText, Math.round(cursorX), baseline, size, color);
+            cursorX += measureTextWidth(font, chunkText, size);
+            
+            offset = chunkEndOffset;
+            i = chunkEndIndex;
         }
         g2.setComposite(baseComposite);
     }
@@ -287,10 +303,10 @@ class CustomFontGlyphView extends GlyphView {
             boolean underline = StyleConstants.isUnderline(getAttributes());
             boolean strike = StyleConstants.isStrikeThrough(getAttributes());
 
-            for (int i = 0; i < text.length();) {
+            int i = 0;
+            while (i < text.length()) {
                 int cp = text.codePointAt(i);
                 int chars = Character.charCount(cp);
-                String glyphText = text.substring(i, i + chars);
 
                 if (cp == '\n' || cp == '\r') {
                     offset += chars;
@@ -298,26 +314,46 @@ class CustomFontGlyphView extends GlyphView {
                     continue;
                 }
 
-                boolean dimmed = isOffsetDimmed(offset, dimRanges);
-                g2.setComposite(dimmed ? AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA) : baseComposite);
-
                 if (cp == '\t') {
+                    boolean dimmed = isOffsetDimmed(offset, dimRanges);
+                    g2.setComposite(dimmed ? AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA) : baseComposite);
                     cursorX += metrics.charWidth(' ') * 4f;
-                } else {
-                    g2.drawString(glyphText, cursorX, baseline);
-                    int width = metrics.stringWidth(glyphText);
-                    if (underline) {
-                        int y = baseline + 1;
-                        g2.drawLine(Math.round(cursorX), y, Math.round(cursorX + width), y);
-                    }
-                    if (strike) {
-                        int y = baseline - Math.max(1, metrics.getAscent() / 3);
-                        g2.drawLine(Math.round(cursorX), y, Math.round(cursorX + width), y);
-                    }
-                    cursorX += width;
+                    offset += chars;
+                    i += chars;
+                    continue;
                 }
-                offset += chars;
-                i += chars;
+
+                boolean currentDimmed = isOffsetDimmed(offset, dimRanges);
+                int chunkEndIndex = i;
+                int chunkEndOffset = offset;
+                
+                while (chunkEndIndex < text.length()) {
+                    int nextCp = text.codePointAt(chunkEndIndex);
+                    int nextChars = Character.charCount(nextCp);
+                    if (nextCp == '\n' || nextCp == '\r' || nextCp == '\t') break;
+                    if (isOffsetDimmed(chunkEndOffset, dimRanges) != currentDimmed) break;
+                    
+                    chunkEndIndex += nextChars;
+                    chunkEndOffset += nextChars;
+                }
+                
+                String chunkText = text.substring(i, chunkEndIndex);
+                g2.setComposite(currentDimmed ? AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA) : baseComposite);
+                
+                g2.drawString(chunkText, cursorX, baseline);
+                int width = metrics.stringWidth(chunkText);
+                if (underline) {
+                    int y = baseline + 1;
+                    g2.drawLine(Math.round(cursorX), y, Math.round(cursorX + width), y);
+                }
+                if (strike) {
+                    int y = baseline - Math.max(1, metrics.getAscent() / 3);
+                    g2.drawLine(Math.round(cursorX), y, Math.round(cursorX + width), y);
+                }
+                cursorX += width;
+                
+                offset = chunkEndOffset;
+                i = chunkEndIndex;
             }
             g2.setComposite(baseComposite);
         } finally {
