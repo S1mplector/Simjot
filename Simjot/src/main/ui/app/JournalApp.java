@@ -544,6 +544,11 @@ public class JournalApp extends JFrame {
             return;
         }
         
+        if (configRoot != null) {
+            configureRootFolder(configRoot, false);
+            return;
+        }
+
         // Show setup wizard
         SetupWizardDialog dlg = new SetupWizardDialog(this);
         dlg.setVisible(true);
