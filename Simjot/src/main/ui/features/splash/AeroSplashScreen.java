@@ -37,10 +37,12 @@ public class AeroSplashScreen extends JWindow {
     private final JLabel subtitle = new JLabel("Loading...", SwingConstants.CENTER);
 
     public AeroSplashScreen() {
+        float manualScale = main.ui.scaling.UIScalingManager.getManualScaleFactor();
+        
         setAlwaysOnTop(true);
         // Transparent window; only the rounded inner panel will be visible
         setBackground(new Color(0, 0, 0, 0));
-        setSize(520, 260);
+        setSize(Math.round(520 * manualScale), Math.round(260 * manualScale));
         setLocationRelativeTo(null);
 
         JPanel content = new JPanel(new GridBagLayout());
@@ -49,20 +51,24 @@ public class AeroSplashScreen extends JWindow {
         content.setDoubleBuffered(true);
 
         // Centered frosted panel to match editor chrome
-        JPanel rounded = new FrostedGlassPanel(16);
+        JPanel rounded = new FrostedGlassPanel(Math.round(16 * manualScale));
         rounded.setLayout(new BoxLayout(rounded, BoxLayout.Y_AXIS));
-        rounded.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
+        rounded.setBorder(BorderFactory.createEmptyBorder(
+            Math.round(20 * manualScale), 
+            Math.round(24 * manualScale), 
+            Math.round(20 * manualScale), 
+            Math.round(24 * manualScale)));
         rounded.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Icon + title row
         JLabel icon = new JLabel();
         icon.setAlignmentY(Component.CENTER_ALIGNMENT);
-        int size = 48;
+        int size = Math.round(48 * manualScale);
         String res = "img/icons/original/simjot.png";
         icon.setIcon(ImageIconRenderer.icon(res, size, false));
 
         title.setForeground(AeroTheme.TEXT_PRIMARY);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 28f));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 28f * manualScale));
         title.setAlignmentY(Component.CENTER_ALIGNMENT);
 
         JPanel titleRow = new JPanel();
@@ -75,18 +81,18 @@ public class AeroSplashScreen extends JWindow {
 
         // Version
         version.setForeground(new Color(0, 0, 0, 170));
-        version.setFont(resolveHandFont(version.getFont(), 16f));
+        version.setFont(resolveHandFont(version.getFont(), 16f * manualScale));
         version.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Status
         subtitle.setForeground(new Color(0, 0, 0, 180));
-        subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 15f));
+        subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 15f * manualScale));
         subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         rounded.add(titleRow);
-        rounded.add(Box.createVerticalStrut(6));
+        rounded.add(Box.createVerticalStrut(Math.round(6 * manualScale)));
         rounded.add(version);
-        rounded.add(Box.createVerticalStrut(6));
+        rounded.add(Box.createVerticalStrut(Math.round(6 * manualScale)));
         rounded.add(subtitle);
 
         GridBagConstraints gbc = new GridBagConstraints();

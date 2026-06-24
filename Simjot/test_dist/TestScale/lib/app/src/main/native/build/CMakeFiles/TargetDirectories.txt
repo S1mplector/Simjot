@@ -1,0 +1,6 @@
+/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build/CMakeFiles/simjot_native.dir
+/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build/CMakeFiles/simjot_native_cli.dir
+/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build/CMakeFiles/profiler_cli.dir
+/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build/CMakeFiles/test.dir
+/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build/CMakeFiles/edit_cache.dir
+/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build/CMakeFiles/rebuild_cache.dir

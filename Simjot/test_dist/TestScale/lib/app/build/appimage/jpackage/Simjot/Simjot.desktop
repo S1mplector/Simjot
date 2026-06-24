@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Simjot
+Comment=Personal journaling and creative writing studio
+Exec=Simjot
+Icon=simjot
+Terminal=false
+Categories=Office;Utility;
+StartupWMClass=Simjot

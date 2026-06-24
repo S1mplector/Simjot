@@ -1,0 +1,64 @@
+# NOTICE - Image Assets
+
+## Asset Generation
+
+All image assets in this directory are generated using Google's Gemini LLM. These assets include icons, illustrations, UI elements, and decorative graphics created specifically for the Simjot application.
+
+## Generation Methodology
+
+- **Model**: Google Gemini LLM (various versions depending on asset complexity)
+- **Generation Date**: 2024-2025
+- **Purpose**: UI/UX assets for the Simjot journaling application
+- **Asset Types**: Icons, buttons, backgrounds, decorative elements, illustrations
+- **Format**: PNG, SVG, and other web-compatible formats
+- **Resolution**: Optimized for both standard and high-DPI displays
+
+## Ownership and Usage Rights
+
+According to Google's Gemini usage terms, the prompter (user) owns the generated resources. These assets were generated with proper authorization and are owned by the project maintainer. The generation process involved creative prompting and iterative refinement by the project owner.
+
+### Legal Basis
+- **Google's Gemini Terms of Service**: https://ai.google.dev/terms (explicitly states that users own the output they generate)
+- No third-party copyrighted material was used in prompts
+- All assets are original creations based on descriptive prompts
+- Commercial use is permitted under Google's terms
+
+## License
+
+These generated assets are distributed under the same license as the main Simjot project. This license does not affect the underlying ownership rights established by Google's terms of service.
+
+## Usage Guidelines
+
+### Permitted Uses
+- Use within the Simjot application
+- Modification and adaptation for application needs
+- Distribution as part of the Simjot application
+- Creating derivative works for application purposes
+
+### Restrictions
+- Redistribution outside of Simjot requires explicit permission
+- Use in competing products without permission is prohibited
+- Attribution to Google Gemini is appreciated but not required
+
+## Asset Maintenance
+
+- **Version Control**: All assets are tracked in version control
+- **Updates**: Assets may be regenerated or updated as needed
+- **Quality Assurance**: Assets are reviewed for appropriateness and functionality
+- **Optimization**: Assets are optimized for performance and file size
+
+## Technical Specifications
+
+- **Color Space**: sRGB
+- **Compression**: Optimized for web use
+- **Scalability**: Vector assets where appropriate, raster for complex illustrations
+- **Accessibility**: Assets designed with accessibility considerations in mind
+
+## Contact and Questions
+
+For questions about these assets or their usage, please contact the Simjot project maintainers.
+
+---
+
+**Notice Effective Date**: December 2024
+**Last Updated**: December 2024

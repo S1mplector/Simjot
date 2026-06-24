@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: main.infrastructure.io.AppDirectoriesTest
+-------------------------------------------------------------------------------
+Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.078 s -- in main.infrastructure.io.AppDirectoriesTest

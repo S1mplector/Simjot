@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/simjot_native_cli.dir/link.d CMakeFiles/simjot_native_cli.dir/tests/simjot_native_cli.c.o -o simjot_native_cli  -Wl,-rpath,"\$ORIGIN:/home/sim/Desktop/Files/Projects/Simjot/Simjot/src/main/native/build" libsimjot_native.so

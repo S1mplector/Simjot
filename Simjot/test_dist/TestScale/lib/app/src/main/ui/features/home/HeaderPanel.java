@@ -1,0 +1,805 @@
+/*
+ * SIMJOT - No Derivatives License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE for full terms.
+ */
+
+package main.ui.features.home;
+
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.awt.font.*;
+import java.awt.image.BufferedImage;
+import java.util.Random;
+import javax.swing.*;
+
+import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.io.QuoteLibrary;
+import main.infrastructure.monitoring.AppPerf;
+import main.core.service.SettingsStore;
+import main.ui.app.JournalApp;
+import main.ui.components.icons.ImageIconRenderer;
+import main.ui.theme.Theme;
+import main.ui.theme.aero.AeroTheme;
+import main.ui.util.AccentColorUtil;
+
+public class HeaderPanel extends JPanel {
+    private float textAlpha = 0f;
+    private float heartScale = 1f;
+    private float ecgDraw = 1f;    // reused as sweep position [0..1]
+    private float ecgOpacity = 0f; // current alpha of ECG line
+    private Timer fadeTimer, pulseTimer;
+    private Timer fullscreenFadeTimer;
+    // Quote rotation
+    private Timer rotateTimer, quoteFadeTimer;
+    // Inline Next (chevron) button hit area & hover state
+    private Rectangle nextHit = new Rectangle();
+    private boolean nextHover = false;
+    private Rectangle panelRectCache;
+    private Rectangle fullscreenHit = new Rectangle();
+    private boolean panelHover = false;
+    private boolean fullscreenHover = false;
+    private float fullscreenAlpha = 0f;
+    // Heartbeat state (time-based for stable animation across frame-rate changes)
+    private double phase = 0; // subtle drift for timing variation
+    private float beatCycleSec = 0.94f;
+    private float beatClockSec = 0f;
+    private float beatDrive = 0f;
+    private float spring = 0f; // small overshoot that decays after peak
+    private long lastPulseNanos = 0L;
+    private final EcgTraceRenderer ecgTrace = new EcgTraceRenderer();
+    private String quote;
+    private String quoteAuthor;
+    private java.util.List<QuoteLibrary.QuoteEntry> quotePool;
+    private int quoteIndex = 0;
+    private final Color accent;
+    private final JournalApp app;
+    private BufferedImage cachedHeart;
+    private int cachedW;
+    private int cachedH;
+    private Color cachedAccent;
+    private static final float PANEL_HEART_SCALE = 1.12f;
+    private static final int FULLSCREEN_BTN_SIZE = 28;
+    private static final int FULLSCREEN_BTN_PAD = 10;
+    
+    public HeaderPanel() {
+        this(null, Theme.getWidgetAccent());
+    }
+
+    public HeaderPanel(Color accent) {
+        this(null, accent);
+    }
+
+    public HeaderPanel(JournalApp app, Color accent) {
+        setPreferredSize(new Dimension(800, 120));
+        setOpaque(false);
+        setLayout(new BorderLayout());
+        this.app = app;
+        this.accent = (accent != null ? accent : AeroTheme.AERO_BLUE);
+        // Load curated quotes from resources (native-accelerated I/O when available).
+        quotePool = new java.util.ArrayList<>(QuoteLibrary.loadQuoteEntries());
+        try {
+            String[] custom = SettingsStore.get().getHeaderCustomQuotes();
+            if (custom != null) {
+                for (String q : custom) {
+                    if (q != null && !q.trim().isEmpty()) {
+                        quotePool.add(new QuoteLibrary.QuoteEntry(q.trim(), null));
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        if (quotePool.isEmpty()) quotePool.add(new QuoteLibrary.QuoteEntry("Take a deep breath. You are enough.", null));
+        quoteIndex = new Random().nextInt(quotePool.size());
+        QuoteLibrary.QuoteEntry initial = quotePool.get(quoteIndex);
+        quote = initial.text;
+        quoteAuthor = initial.author;
+
+        // Mouse interactivity for inline chevron + fullscreen button
+        MouseAdapter mx = new MouseAdapter() {
+            @Override public void mouseMoved(MouseEvent e) {
+                boolean repaintNeeded = false;
+                boolean overPanel = panelRectCache != null && panelRectCache.contains(e.getPoint());
+                if (overPanel != panelHover) {
+                    panelHover = overPanel;
+                    animateFullscreenVisibility(panelHover);
+                    repaintNeeded = true;
+                }
+
+                boolean overNext = nextHit != null && nextHit.contains(e.getPoint());
+                if (overNext != nextHover) {
+                    nextHover = overNext;
+                    repaintNeeded = true;
+                }
+
+                boolean overFullscreen = fullscreenHit != null && fullscreenHit.contains(e.getPoint()) && fullscreenAlpha > 0.05f;
+                if (overFullscreen != fullscreenHover) {
+                    fullscreenHover = overFullscreen;
+                    repaintNeeded = true;
+                }
+
+                boolean hand = overNext || overFullscreen;
+                setCursor(hand ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+                if (repaintNeeded) repaint();
+            }
+
+            @Override public void mouseExited(MouseEvent e) {
+                if (panelHover) {
+                    panelHover = false;
+                    animateFullscreenVisibility(false);
+                }
+                boolean repaintNeeded = nextHover || fullscreenHover;
+                nextHover = false;
+                fullscreenHover = false;
+                setCursor(Cursor.getDefaultCursor());
+                if (repaintNeeded) repaint();
+            }
+
+            @Override public void mouseClicked(MouseEvent e) {
+                if (fullscreenHit != null && fullscreenHit.contains(e.getPoint()) && fullscreenAlpha > 0.1f) {
+                    openQuotePanel();
+                    return;
+                }
+                if (nextHit != null && nextHit.contains(e.getPoint())) advanceQuote();
+            }
+        };
+        addMouseMotionListener(mx);
+        addMouseListener(mx);
+
+        ecgTrace.setCapacity(190);
+        ecgTrace.setStep(0.0105);
+        ecgTrace.advance(ecgTrace.getCapacity());
+    }
+    
+    public void startAnimation() {
+        lastPulseNanos = 0L;
+        beatClockSec = 0f;
+        spring = 0f;
+        ecgOpacity = 0f;
+        ecgDraw = 1f;
+
+        fadeTimer = new Timer(50, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                textAlpha += 0.05f;
+                if (textAlpha >= 1f) {
+                    textAlpha = 1f;
+                    fadeTimer.stop();
+                }
+                repaint();
+            }
+        });
+        fadeTimer.start();
+        
+        // Check if main menu animations are disabled before starting pulse animation
+        if (!SettingsStore.get().isMainMenuAnimationsDisabled()) {
+            pulseTimer = new Timer(AppPerf.getAnimationDelay(), new ActionListener() { // centralized FPS
+                public void actionPerformed(ActionEvent e) {
+                    long now = System.nanoTime();
+                    if (lastPulseNanos == 0L) {
+                        lastPulseNanos = now;
+                    }
+                    float dt = (now - lastPulseNanos) / 1_000_000_000f;
+                    lastPulseNanos = now;
+                    advancePulse(dt);
+                    repaint();
+                }
+            });
+            pulseTimer.setCoalesce(true);
+            pulseTimer.start();
+        }
+
+        // Periodic quote rotation with soft fade
+        int periodSec = 12;
+        try { periodSec = SettingsStore.get().getHeaderQuoteRotationSeconds(); } catch (Throwable ignored) {}
+        rotateTimer = new Timer(Math.max(5, periodSec) * 1000, e -> advanceQuote());
+        rotateTimer.start();
+    }
+
+    private void advancePulse(float dt) {
+        // Keep animation stable across timer jitter and frame drops.
+        dt = Math.max(1f / 240f, Math.min(0.05f, dt));
+
+        phase += dt * 0.85;
+        beatCycleSec = 0.92f + 0.06f * (float) Math.sin(phase * 0.55);
+        beatClockSec += dt;
+        while (beatClockSec >= beatCycleSec) {
+            beatClockSec -= beatCycleSec;
+            onBeatTrigger();
+        }
+
+        float t = beatClockSec / Math.max(0.001f, beatCycleSec);
+        float lub = gaussianPulse(t, 0.14f, 0.045f);
+        float dub = gaussianPulse(t, 0.30f, 0.055f) * 0.62f;
+        float settle = gaussianPulse(t, 0.45f, 0.09f) * -0.20f;
+        beatDrive = lub + dub + settle;
+
+        // Exponential damping per elapsed time instead of per frame.
+        float damping = (float) Math.pow(0.90f, dt * 60f);
+        spring = NativeAccess.springDecay(spring, damping, 0.0008f);
+
+        float targetScale = 1f + beatDrive * 0.11f + spring * 0.95f;
+        float follow = Math.min(1f, dt * 15f);
+        heartScale += (targetScale - heartScale) * follow;
+
+        int samples = Math.max(1, Math.min(14, Math.round(dt * 240f)));
+        ecgTrace.advance(samples);
+
+        ecgDraw = Math.min(1f, ecgDraw + dt * 2.3f);
+        if (ecgOpacity > 0f) {
+            ecgOpacity = Math.max(0f, ecgOpacity - dt * 0.72f);
+        }
+    }
+
+    private void onBeatTrigger() {
+        spring = 0.08f;
+        ecgDraw = 0f;
+        ecgOpacity = 1f;
+        ecgTrace.onBeatSync();
+    }
+
+    private static float gaussianPulse(float t, float center, float width) {
+        float safeWidth = Math.max(0.001f, width);
+        float d = (t - center) / safeWidth;
+        return (float) Math.exp(-0.5f * d * d);
+    }
+
+    private void animateFullscreenVisibility(boolean show) {
+        float target = show ? 1f : 0f;
+        if (Math.abs(fullscreenAlpha - target) < 0.01f) {
+            fullscreenAlpha = target;
+            repaint();
+            return;
+        }
+        if (SettingsStore.get().isMainMenuAnimationsDisabled() || SettingsStore.get().isAnimationsDisabled()) {
+            fullscreenAlpha = target;
+            repaint();
+            return;
+        }
+        if (fullscreenFadeTimer != null && fullscreenFadeTimer.isRunning()) {
+            fullscreenFadeTimer.stop();
+        }
+        final float start = fullscreenAlpha;
+        final long startNanos = System.nanoTime();
+        final int durationMs = show ? 180 : 220;
+        fullscreenFadeTimer = new Timer(16, ev -> {
+            float t = (System.nanoTime() - startNanos) / (durationMs * 1_000_000f);
+            if (t >= 1f) {
+                fullscreenAlpha = target;
+                fullscreenFadeTimer.stop();
+            } else {
+                float eased = NativeAccess.easeSmoothstep(Math.max(0f, Math.min(1f, t)));
+                fullscreenAlpha = start + (target - start) * eased;
+            }
+            repaint();
+        });
+        fullscreenFadeTimer.setCoalesce(true);
+        fullscreenFadeTimer.start();
+    }
+
+    private void openQuotePanel() {
+        if (app == null) return;
+        try {
+            app.openQuoteViewer(quote, quoteAuthor);
+        } catch (Throwable ignored) {
+            app.switchCard(JournalApp.QUOTE_GALLERY);
+        }
+    }
+
+    private void advanceQuote(){
+        if (quotePool == null || quotePool.isEmpty()) return;
+        quoteIndex = (quoteIndex + 1) % quotePool.size();
+        QuoteLibrary.QuoteEntry next = quotePool.get(quoteIndex);
+        startQuoteFadeTo(next);
+    }
+
+    private void startQuoteFadeTo(QuoteLibrary.QuoteEntry next){
+        if (fadeTimer != null && fadeTimer.isRunning()) fadeTimer.stop();
+        if (quoteFadeTimer != null) quoteFadeTimer.stop();
+        final QuoteLibrary.QuoteEntry target = next;
+        final int[] phaseRef = {0}; // 0 = fade out, 1 = fade in
+        quoteFadeTimer = new Timer(40, ev -> {
+            if (phaseRef[0] == 0){
+                textAlpha -= 0.10f;
+                if (textAlpha <= 0f){
+                    textAlpha = 0f;
+                    phaseRef[0] = 1;
+                    quote = target.text;
+                    quoteAuthor = target.author;
+                }
+            } else {
+                textAlpha += 0.10f;
+                if (textAlpha >= 1f){
+                    textAlpha = 1f;
+                    quoteFadeTimer.stop();
+                }
+            }
+            repaint();
+        });
+        quoteFadeTimer.start();
+    }
+    
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        int width = getWidth();
+        int height = getHeight();
+        if (width > 0 && height > 0) {
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+
+            // Precompute text shapes for panel sizing and drawing.
+            Font titleFont = new Font("Segoe UI", Font.BOLD, 36);
+            String text = "Simjot";
+            FontRenderContext frc = g2.getFontRenderContext();
+            GlyphVector gv = titleFont.createGlyphVector(frc, text);
+            Rectangle2D titleVisual = gv.getVisualBounds();
+            int x = (int) Math.round((width - titleVisual.getWidth()) / 2.0);
+            int y = height / 2;
+            Shape textShape = gv.getOutline(x, y);
+            Rectangle2D titleBounds = textShape.getBounds2D();
+
+            Font quoteFont = new Font("Segoe UI", Font.ITALIC, 18);
+            GlyphVector qgv = quoteFont.createGlyphVector(frc, quote);
+            Rectangle2D quoteVisual = qgv.getVisualBounds();
+            int quoteX = (int) Math.round((width - quoteVisual.getWidth()) / 2.0);
+            int quoteY = y + 30;
+            Shape quoteShape = qgv.getOutline(quoteX, quoteY);
+            Rectangle2D quoteBounds = quoteShape.getBounds2D();
+
+            String authorText = formatAuthorText(quoteAuthor);
+            Font authorFont = new Font("Segoe UI", Font.PLAIN, 14);
+            Shape authorShape = null;
+            Rectangle2D authorBounds = null;
+            if (authorText != null && !authorText.isBlank()) {
+                GlyphVector agv = authorFont.createGlyphVector(frc, authorText);
+                Rectangle2D authorVisual = agv.getVisualBounds();
+                int authorX = (int) Math.round((width - authorVisual.getWidth()) / 2.0);
+                int authorY = quoteY + 22;
+                authorShape = agv.getOutline(authorX, authorY);
+                authorBounds = authorShape.getBounds2D();
+            }
+
+            // Inline next button hit area (used for hover/click).
+            int btnSize = 22;
+            int arrowCX = (int) Math.round(quoteBounds.getX() + quoteBounds.getWidth() + 16);
+            int arrowCY = (int) Math.round(quoteBounds.getY() + quoteBounds.getHeight() / 2.0);
+            nextHit.setBounds(arrowCX - btnSize / 2, arrowCY - btnSize / 2, btnSize, btnSize);
+
+            // Frosted glass panel behind heart + title + quote for contrast.
+            Shape heartBase = createHeartShape();
+            Rectangle hb = heartBase.getBounds();
+            double heartX = (width / 2.0) + hb.x * PANEL_HEART_SCALE;
+            double heartY = (height / 2.0 - 10) + hb.y * PANEL_HEART_SCALE;
+            Rectangle2D heartBounds = new Rectangle2D.Double(
+                heartX, heartY, hb.width * PANEL_HEART_SCALE, hb.height * PANEL_HEART_SCALE
+            );
+            Rectangle panelRect = computePanelRect(width, height, titleBounds, quoteBounds, authorBounds, heartBounds, nextHit);
+            panelRectCache = panelRect;
+            updateFullscreenHit(panelRect);
+            paintFrostedPanel(g2, panelRect, textAlpha * 0.72f, accent);
+
+            if (cachedHeart == null || cachedW != width || cachedH != height || cachedAccent == null || !cachedAccent.equals(accent)) {
+                cachedW = width;
+                cachedH = height;
+                cachedAccent = accent;
+                BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D cg = img.createGraphics();
+                cg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                AffineTransform at = cg.getTransform();
+                cg.translate(width / 2, height / 2 - 10);
+                Shape heart0 = createHeartShape();
+                Rectangle b0 = heart0.getBounds();
+                Graphics2D gS = (Graphics2D) cg.create();
+                gS.translate(0, 4);
+                Color sc = new Color(0, 0, 0, 40);
+                for (int i = 0; i < 3; i++) {
+                    gS.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f - i*0.06f));
+                    gS.translate(0, 1);
+                    gS.setColor(sc);
+                    gS.fill(heart0);
+                }
+                gS.dispose();
+                float cx0 = b0.x + b0.width * 0.45f;
+                float cy0 = b0.y + b0.height * 0.35f;
+                float r0 = Math.max(b0.width, b0.height) * 0.75f;
+                Color light0 = AccentColorUtil.lighten(accent, 0.45f);
+                Color dark0  = AccentColorUtil.darken(accent, 0.30f);
+                RadialGradientPaint hp = new RadialGradientPaint(
+                    new Point2D.Float(cx0, cy0), r0,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                        new Color(light0.getRed(), light0.getGreen(), light0.getBlue(), 210),
+                        new Color(dark0.getRed(),  dark0.getGreen(),  dark0.getBlue(),  190)
+                    }
+                );
+                cg.setPaint(hp);
+                cg.fill(heart0);
+                cg.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                cg.setColor(new Color(255, 255, 255, 28));
+                cg.draw(heart0);
+                Shape oc = cg.getClip();
+                cg.setClip(heart0);
+                LinearGradientPaint hl = new LinearGradientPaint(
+                    new Point2D.Float(b0.x, b0.y),
+                    new Point2D.Float(b0.x, b0.y + b0.height * 0.35f),
+                    new float[]{0f, 1f},
+                    new Color[]{new Color(255,255,255,80), new Color(255,255,255,0)}
+                );
+                cg.setPaint(hl);
+                cg.fill(new Rectangle2D.Float(b0.x, b0.y, b0.width, (float)(b0.height * 0.35)));
+                cg.setClip(oc);
+                cg.setTransform(at);
+                cg.dispose();
+                cachedHeart = img;
+            }
+            AffineTransform old = g2.getTransform();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, textAlpha))));
+            g2.translate(width / 2, height / 2 - 10);
+            g2.scale(heartScale, heartScale);
+            g2.drawImage(cachedHeart, -width/2, -(height/2 - 10), null);
+            Shape heart = createHeartShape();
+            Rectangle bounds = heart.getBounds();
+            if (spring > 0f) {
+                Graphics2D gGlow = (Graphics2D) g2.create();
+                float glowAlpha = Math.min(0.35f, spring * 2.5f);
+                gGlow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, glowAlpha));
+                float glowR = Math.max(bounds.width, bounds.height) * 0.95f;
+                RadialGradientPaint glowPaint = new RadialGradientPaint(
+                    new Point2D.Float(bounds.x + bounds.width/2f, bounds.y + bounds.height/2f), glowR,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                        new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 140),
+                        new Color(AccentColorUtil.lighten(accent, 0.40f).getRed(), AccentColorUtil.lighten(accent, 0.40f).getGreen(), AccentColorUtil.lighten(accent, 0.40f).getBlue(), 0)
+                    }
+                );
+                gGlow.setPaint(glowPaint);
+                gGlow.fill(new Ellipse2D.Float(bounds.x - glowR*0.15f, bounds.y - glowR*0.15f, bounds.width + glowR*0.3f, bounds.height + glowR*0.3f));
+                gGlow.dispose();
+            }
+            g2.setTransform(old);
+        
+            // ECG trace rendering removed
+
+        // Apply overall alpha for fade-in
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, textAlpha));
+
+        // Soft shadow
+        Graphics2D gs = (Graphics2D) g2.create();
+        gs.translate(1.5, 2.0);
+        gs.setColor(new Color(0, 0, 0, 90));
+        gs.fill(textShape);
+        gs.dispose();
+
+        // Gradient fill inside glyphs
+        Rectangle2D tb = textShape.getBounds2D();
+        LinearGradientPaint textPaint = new LinearGradientPaint(
+            new Point2D.Double(tb.getX(), tb.getY()),
+            new Point2D.Double(tb.getX(), tb.getY() + tb.getHeight()),
+            new float[]{0f, 1f},
+            new Color[]{new Color(255,255,255), AeroTheme.lift(accent, 0.72f)}
+        );
+        Graphics2D gf = (Graphics2D) g2.create();
+        gf.setPaint(textPaint);
+        gf.fill(textShape);
+        gf.dispose();
+
+        // Thin highlight stroke for glassy edge
+        Graphics2D gh = (Graphics2D) g2.create();
+        gh.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        gh.setColor(new Color(255,255,255, 90));
+        gh.draw(textShape);
+        gh.dispose();
+        
+        // Draw the encouragement quote in italic with theme color, soft shadow and subtle highlight
+        
+        // Apply global fade-in alpha
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, textAlpha));
+
+        // Soft shadow for legibility
+        Graphics2D qShadow = (Graphics2D) g2.create();
+        qShadow.translate(1.0, 1.0);
+        qShadow.setColor(new Color(0, 0, 0, 70));
+        qShadow.fill(quoteShape);
+        qShadow.dispose();
+
+        // Primary fill in white (as requested)
+        Graphics2D qFill = (Graphics2D) g2.create();
+        qFill.setColor(Color.WHITE);
+        qFill.fill(quoteShape);
+        qFill.dispose();
+
+        // Subtle top highlight inside glyphs for an aero touch
+        Rectangle2D qb = quoteShape.getBounds2D();
+        Shape oldClip3 = g2.getClip();
+        g2.setClip(quoteShape);
+        LinearGradientPaint qHighlight = new LinearGradientPaint(
+            new Point2D.Double(qb.getX(), qb.getY()),
+            new Point2D.Double(qb.getX(), qb.getY() + qb.getHeight() * 0.5),
+            new float[]{0f, 1f},
+            new Color[]{new Color(255,255,255,60), new Color(255,255,255,0)}
+        );
+        g2.setPaint(qHighlight);
+        g2.fill(new Rectangle2D.Double(qb.getX(), qb.getY(), qb.getWidth(), qb.getHeight() * 0.5));
+        g2.setClip(oldClip3);
+        
+        // Author line (subtle, below quote)
+        if (authorText != null && !authorText.isBlank()) {
+            Graphics2D aShadow = (Graphics2D) g2.create();
+            aShadow.translate(0.8, 0.8);
+            aShadow.setColor(new Color(0, 0, 0, 60));
+            aShadow.fill(authorShape);
+            aShadow.dispose();
+
+            Graphics2D aFill = (Graphics2D) g2.create();
+            aFill.setColor(new Color(255, 255, 255, 220));
+            aFill.fill(authorShape);
+            aFill.dispose();
+        }
+
+        // ---- Inline vector 'Next' arrow button right of the quote ----
+
+        Graphics2D nb = (Graphics2D) g2.create();
+        nb.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        nb.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, textAlpha))));
+        if (nextHover) {
+            nb.setPaint(new RadialGradientPaint(
+                    new Point2D.Float(nextHit.x + nextHit.width / 2f, nextHit.y + nextHit.height / 2f),
+                    nextHit.width * 0.95f,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                            AeroTheme.withAlpha(AeroTheme.lift(accent, 0.16f), 90),
+                            new Color(255, 255, 255, 0)
+                    }
+            ));
+            nb.fillOval(nextHit.x - 4, nextHit.y - 4, nextHit.width + 8, nextHit.height + 8);
+        }
+        nb.setColor(new Color(0,0,0, nextHover ? 112 : 84));
+        nb.fillOval(nextHit.x + 1, nextHit.y + 2, nextHit.width, nextHit.height);
+        nb.setPaint(new RadialGradientPaint(
+                new Point2D.Float(nextHit.x + nextHit.width * 0.35f, nextHit.y + nextHit.height * 0.3f),
+                nextHit.width * 0.9f,
+                new float[]{0f, 0.55f, 1f},
+                new Color[]{
+                        AeroTheme.withAlpha(AeroTheme.lift(accent, 0.92f), nextHover ? 168 : 132),
+                        new Color(255, 255, 255, nextHover ? 104 : 84),
+                        AeroTheme.withAlpha(AeroTheme.lift(accent, 0.72f), nextHover ? 122 : 92)
+                }
+        ));
+        nb.fillOval(nextHit.x, nextHit.y, nextHit.width, nextHit.height);
+        nb.setStroke(new BasicStroke(1.2f));
+        nb.setColor(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.7f), 170));
+        nb.drawOval(nextHit.x, nextHit.y, nextHit.width, nextHit.height);
+        // Chevron '>'
+        Path2D chevron = new Path2D.Double();
+        double ax = arrowCX - 3.5, ay = arrowCY - 5.0;
+        chevron.moveTo(ax, ay);
+        chevron.lineTo(arrowCX + 4.5, arrowCY);
+        chevron.lineTo(ax, arrowCY + 5.0);
+        nb.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        nb.setColor(Color.WHITE);
+        nb.draw(chevron);
+        nb.dispose();
+
+        paintFullscreenButton(g2);
+
+        }
+        g2.dispose();
+    }
+    
+    private void updateFullscreenHit(Rectangle panelRect) {
+        if (panelRect == null) {
+            fullscreenHit.setBounds(0, 0, 0, 0);
+            return;
+        }
+        int size = FULLSCREEN_BTN_SIZE;
+        int x = panelRect.x + panelRect.width - size - FULLSCREEN_BTN_PAD;
+        int y = panelRect.y + FULLSCREEN_BTN_PAD;
+        int minX = panelRect.x + 6;
+        int minY = panelRect.y + 6;
+        if (x < minX) x = minX;
+        if (y < minY) y = minY;
+        fullscreenHit.setBounds(x, y, size, size);
+    }
+
+    private void paintFullscreenButton(Graphics2D g2) {
+        float alpha = fullscreenAlpha * textAlpha;
+        if (alpha <= 0.01f) return;
+        if (fullscreenHit == null || fullscreenHit.width <= 0 || fullscreenHit.height <= 0) return;
+
+        Graphics2D fb = (Graphics2D) g2.create();
+        fb.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        fb.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
+
+        int x = fullscreenHit.x;
+        int y = fullscreenHit.y;
+        int size = fullscreenHit.width;
+        int arc = 10;
+        if (fullscreenHover) {
+            fb.setPaint(new RadialGradientPaint(
+                    new Point2D.Float(x + size / 2f, y + size / 2f),
+                    size * 1.15f,
+                    new float[]{0f, 1f},
+                    new Color[]{
+                            AeroTheme.withAlpha(AeroTheme.lift(accent, 0.14f), 88),
+                            new Color(255, 255, 255, 0)
+                    }
+            ));
+            fb.fillRoundRect(x - 4, y - 4, size + 8, size + 8, arc + 4, arc + 4);
+        }
+        Color top = fullscreenHover
+                ? AeroTheme.withAlpha(AeroTheme.lift(accent, 0.86f), 224)
+                : AeroTheme.withAlpha(AeroTheme.lift(accent, 0.92f), 196);
+        Color bottom = fullscreenHover
+                ? AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.74f), new Color(230, 238, 246), 0.4f), 222)
+                : AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(accent, 0.82f), new Color(232, 238, 246), 0.3f), 188);
+        fb.setPaint(new GradientPaint(x, y, top, x, y + size, bottom));
+        fb.fillRoundRect(x, y, size, size, arc, arc);
+        fb.setPaint(new GradientPaint(x, y, new Color(255, 255, 255, 96), x, y + size * 0.55f, new Color(255, 255, 255, 0)));
+        fb.fillRoundRect(x + 1, y + 1, size - 2, Math.max(10, (int) (size * 0.58f)), arc - 2, arc - 2);
+        fb.setColor(AeroTheme.withAlpha(AeroTheme.blend(accent, Color.WHITE, 0.66f), 168));
+        fb.drawRoundRect(x, y, size - 1, size - 1, arc, arc);
+        if (fullscreenHover) {
+            fb.setColor(new Color(255, 255, 255, 176));
+            fb.drawRoundRect(x + 1, y + 1, size - 3, size - 3, arc - 2, arc - 2);
+        }
+
+        String iconPath = ImageIconRenderer.mapIdToResource("fullscreen");
+        if (iconPath != null) {
+            int iconSize = Math.max(10, size - 12);
+            int ix = x + (size - iconSize) / 2;
+            int iy = y + (size - iconSize) / 2;
+            ImageIconRenderer.draw(fb, iconPath, ix, iy, iconSize, this, true);
+        }
+        fb.dispose();
+    }
+
+    
+
+    private Shape createHeartShape() {
+        Path2D.Double path = new Path2D.Double();
+        path.moveTo(0, -20);
+        path.curveTo(-25, -50, -60, -10, 0, 30);
+        path.curveTo(60, -10, 25, -50, 0, -20);
+        path.closePath();
+        return path;
+    }
+
+    private static Rectangle computePanelRect(int width,
+                                              int height,
+                                              Rectangle2D titleBounds,
+                                              Rectangle2D quoteBounds,
+                                              Rectangle2D authorBounds,
+                                              Rectangle2D heartBounds,
+                                              Rectangle nextBounds) {
+        double minX = Math.min(Math.min(titleBounds.getX(), quoteBounds.getX()), heartBounds.getX());
+        double maxX = Math.max(Math.max(titleBounds.getX() + titleBounds.getWidth(), quoteBounds.getX() + quoteBounds.getWidth()),
+                heartBounds.getX() + heartBounds.getWidth());
+        double minY = Math.min(Math.min(titleBounds.getY(), quoteBounds.getY()), heartBounds.getY());
+        double maxY = Math.max(Math.max(titleBounds.getY() + titleBounds.getHeight(), quoteBounds.getY() + quoteBounds.getHeight()),
+                heartBounds.getY() + heartBounds.getHeight());
+
+        if (authorBounds != null) {
+            minX = Math.min(minX, authorBounds.getX());
+            maxX = Math.max(maxX, authorBounds.getX() + authorBounds.getWidth());
+            minY = Math.min(minY, authorBounds.getY());
+            maxY = Math.max(maxY, authorBounds.getY() + authorBounds.getHeight());
+        }
+
+        if (nextBounds != null) {
+            minX = Math.min(minX, nextBounds.getX());
+            maxX = Math.max(maxX, nextBounds.getX() + nextBounds.getWidth());
+            minY = Math.min(minY, nextBounds.getY());
+            maxY = Math.max(maxY, nextBounds.getY() + nextBounds.getHeight());
+        }
+
+        int padX = 26;
+        int padY = 18;
+        Rectangle r = new Rectangle(
+            (int) Math.floor(minX) - padX,
+            (int) Math.floor(minY) - padY,
+            (int) Math.ceil(maxX - minX) + padX * 2,
+            (int) Math.ceil(maxY - minY) + padY * 2
+        );
+
+        int minXClamp = 12;
+        int minYClamp = 6;
+        int maxXClamp = width - 12;
+        int maxYClamp = height - 6;
+        int x = Math.max(minXClamp, r.x);
+        int y = Math.max(minYClamp, r.y);
+        int right = Math.min(maxXClamp, r.x + r.width);
+        int bottom = Math.min(maxYClamp, r.y + r.height);
+        int w = Math.max(0, right - x);
+        int h = Math.max(0, bottom - y);
+        return new Rectangle(x, y, w, h);
+    }
+
+    private static String formatAuthorText(String author) {
+        if (author == null) return "";
+        String trimmed = author.trim();
+        if (trimmed.isEmpty()) return "";
+        if (trimmed.startsWith("—") || trimmed.startsWith("-")) {
+            return trimmed;
+        }
+        return "— " + trimmed;
+    }
+
+    private static void paintFrostedPanel(Graphics2D g2, Rectangle r, float alpha, Color accent) {
+        if (r == null || r.width <= 0 || r.height <= 0) return;
+        float clamped = Math.max(0f, Math.min(1f, alpha));
+        if (clamped <= 0f) return;
+        Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        boolean plain = Theme.isPlainWhite();
+        Color chrome = accent != null ? accent : AeroTheme.resolveChromeAccent();
+        int arc = Math.min(22, Math.min(r.width, r.height));
+        int innerArc = Math.max(arc - 2, 2);
+        RoundRectangle2D shape = new RoundRectangle2D.Float(r.x, r.y, r.width, r.height, arc, arc);
+
+        GradientPaint base = new GradientPaint(
+            r.x, r.y, scaleAlpha(plain ? new Color(255, 255, 255, 206) : AeroTheme.withAlpha(AeroTheme.lift(chrome, 0.9f), 214), clamped),
+            r.x, r.y + r.height, scaleAlpha(plain ? new Color(235, 239, 244, 138) : AeroTheme.withAlpha(AeroTheme.blend(AeroTheme.lift(chrome, 0.76f), new Color(232, 239, 246), 0.4f), 170), clamped)
+        );
+        g2.setPaint(base);
+        g2.fill(shape);
+
+        Shape oldClip = g2.getClip();
+        g2.setClip(shape);
+        RadialGradientPaint bloom = new RadialGradientPaint(
+                new Point2D.Float(r.x + r.width * 0.22f, r.y + r.height * 0.10f),
+                Math.max(r.width, r.height) * 0.88f,
+                new float[]{0f, 0.42f, 1f},
+                new Color[]{
+                        scaleAlpha(AeroTheme.withAlpha(AeroTheme.lift(chrome, 0.58f), plain ? 34 : 92), clamped),
+                        scaleAlpha(new Color(255, 255, 255, plain ? 20 : 44), clamped),
+                        new Color(255, 255, 255, 0)
+                }
+        );
+        g2.setPaint(bloom);
+        g2.fillRect(r.x, r.y, r.width, r.height);
+        g2.setClip(oldClip);
+
+        GradientPaint sheen = new GradientPaint(
+            r.x, r.y, scaleAlpha(new Color(255, 255, 255, plain ? 110 : 152), clamped),
+            r.x, r.y + r.height * 0.55f, scaleAlpha(new Color(255, 255, 255, plain ? 20 : 34), clamped)
+        );
+        g2.setPaint(sheen);
+        g2.fill(shape);
+
+        GradientPaint aquaLift = new GradientPaint(
+                r.x, r.y + r.height * 0.56f, scaleAlpha(AeroTheme.withAlpha(chrome, 0), clamped),
+                r.x, r.y + r.height, scaleAlpha(AeroTheme.withAlpha(AeroTheme.sink(chrome, 0.18f), plain ? 16 : 46), clamped)
+        );
+        g2.setPaint(aquaLift);
+        g2.fill(shape);
+
+        GradientPaint shadow = new GradientPaint(
+            r.x, (float) (r.y + r.height * 0.45f), scaleAlpha(new Color(0, 0, 0, plain ? 12 : 10), clamped),
+            r.x, r.y + r.height, scaleAlpha(new Color(0, 0, 0, plain ? 35 : 30), clamped)
+        );
+        g2.setPaint(shadow);
+        g2.fill(shape);
+
+        g2.setStroke(new BasicStroke(1f));
+        g2.setColor(scaleAlpha(new Color(255, 255, 255, plain ? 90 : 130), clamped));
+        g2.draw(new RoundRectangle2D.Float(r.x + 1.5f, r.y + 1.5f, r.width - 3f, r.height - 3f, innerArc, innerArc));
+        g2.setColor(scaleAlpha(AeroTheme.withAlpha(AeroTheme.blend(chrome, Color.WHITE, 0.56f), plain ? 24 : 76), clamped));
+        g2.draw(new RoundRectangle2D.Float(r.x + 0.9f, r.y + 0.9f, r.width - 1.8f, r.height - 1.8f, Math.max(innerArc + 1, 4), Math.max(innerArc + 1, 4)));
+        g2.setColor(scaleAlpha(new Color(0, 0, 0, plain ? 30 : 34), clamped));
+        g2.draw(new RoundRectangle2D.Float(r.x + 0.5f, r.y + 0.5f, r.width - 1f, r.height - 1f, arc, arc));
+
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+    }
+
+    private static Color scaleAlpha(Color color, float scale) {
+        int alpha = Math.round(color.getAlpha() * scale);
+        alpha = Math.max(0, Math.min(255, alpha));
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
+    }
+}
