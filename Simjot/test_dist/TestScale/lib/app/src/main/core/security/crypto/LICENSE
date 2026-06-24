@@ -1,0 +1,11 @@
+SIMJOT CRYPTOGRAPHIC ENGINE
+
+This component is part of the Simjot project and is governed by the
+Simjot No Derivatives License in the repository root LICENSE file.
+
+Copyright (c) 2024-2025 Ilgaz Mehmetoğlu
+
+SECURITY NOTE:
+If you discover security vulnerabilities in this cryptographic code, please
+report them responsibly through the project's security disclosure process.
+See SECURITY.md in the root of the repository for details.

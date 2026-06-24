@@ -1,0 +1,656 @@
+/*
+ * SIMJOT - No Derivatives License
+ * 
+ * Copyright (c) 2024-2025 Ilgaz Mehmetoğlu.
+ * 
+ * See LICENSE for full terms.
+ */
+
+package main.infrastructure.io;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import main.infrastructure.ffi.NativeAccess;
+
+/**
+ * Centralized directory management for Simjot application file locations.
+ * 
+ * <p>This class provides a single source of truth for all file system locations used by Simjot.
+ * On first launch, the user chooses a root "Simjot" folder, and this class automatically creates
+ * and manages the subdirectory structure within that root. This eliminates path duplication
+ * throughout the application and provides a clean interface for directory access.</p>
+ * 
+ * <p><strong>Directory Structure:</strong></p>
+ * <pre>
+ * Simjot/ (user-selected root)
+ * ├── notebooks/          # All notebook files and subdirectories
+ * ├── mood/               # Mood tracking data and analytics
+ * ├── settings/           # Application preferences and configuration
+ * ├── wallpapers/         # Custom background images
+ * ├── fonts/              # User-created custom fonts
+ * └── [legacy folders]    # Older content types (entries, poems, drawings, tasks)
+ * </pre>
+ * 
+ * <p><strong>Usage Example:</strong></p>
+ * <pre>{@code
+ * // Initialize root directory (typically on app startup)
+ * File userChosenRoot = new File("/path/to/user/Simjot");
+ * AppDirectories.setRoot(userChosenRoot);
+ * 
+ * // Get specific directories
+ * File notebooksDir = AppDirectories.folder(AppDirectories.Type.NOTEBOOKS);
+ * File settingsDir = AppDirectories.folder(AppDirectories.Type.SETTINGS);
+ * File moodDir = AppDirectories.folder(AppDirectories.Type.MOOD_DATA);
+ * 
+ * // Get root directory
+ * File root = AppDirectories.getRoot();
+ * }</pre>
+ * 
+ * @author Simjot Development Team
+ * @since 1.0.0
+ */
+public final class AppDirectories {
+
+    /**
+     * Enumeration of directory types managed by the application.
+     * 
+     * <p>Each type represents a specific category of content with its own subdirectory
+     * within the root Simjot folder. Legacy types are maintained for backward compatibility
+     * but are no longer automatically created.</p>
+     */
+    public enum Type {
+        /**
+         * Legacy directory for journal entries.
+         * No longer auto-created in favor of notebook-based organization.
+         */
+        ENTRIES("entries"),
+        
+        /**
+         * Legacy directory for poetry files.
+         * No longer auto-created in favor of notebook-based organization.
+         */
+        POEMS("poems"),
+        
+        /**
+         * Legacy directory for drawing files.
+         * No longer auto-created in favor of notebook-based organization.
+         */
+        DRAWINGS("drawings"),
+        
+        /**
+         * Legacy directory for task files.
+         * No longer auto-created in favor of notebook-based organization.
+         */
+        TASKS("tasks"),
+
+        /**
+         * Active directory for all notebook files and subdirectories.
+         * This is the primary content storage location in the modern architecture.
+         */
+        NOTEBOOKS("notebooks"),
+        
+        /**
+         * Directory for mood tracking data and analytics files.
+         * Stores mood entries, charts, and analysis results.
+         */
+        MOOD_DATA("mood"),
+        
+        /**
+         * Directory for application settings and preferences.
+         * Contains configuration files and user preferences.
+         */
+        SETTINGS("settings"),
+        
+        /**
+         * Directory for custom wallpaper and background images.
+         * Stores user-uploaded and generated background files.
+         */
+        WALLPAPERS("wallpapers"),
+        
+        /**
+         * Directory for user-created custom fonts.
+         * Stores .sjf font files created in the Custom Font Studio.
+         */
+        CUSTOM_FONTS("fonts");
+
+        /** The folder name for this directory type. */
+        private final String folderName;
+        
+        /**
+         * Creates a new directory type with the specified folder name.
+         * 
+         * @param folderName The name of the subdirectory within the root folder
+         */
+        Type(String folderName) { this.folderName = folderName; }
+        
+        /**
+         * Gets the folder name for this directory type.
+         * 
+         * @return The folder name as a string
+         */
+        public String folderName() { return folderName; }
+    }
+
+    /**
+     * The root directory chosen by the user on first launch.
+     * This is the parent directory for all Simjot content.
+     */
+    private static File root; // chosen by user on first launch
+
+    /** Private constructor to prevent instantiation of utility class. */
+    private AppDirectories() {}
+
+    /**
+     * Sets the root directory for all Simjot content.
+     * 
+     * <p>This should be called once during application initialization, typically after
+     * the user selects their preferred location for storing Simjot data.</p>
+     * 
+     * @param rootFolder The root directory to use for all Simjot content
+     * @throws IllegalArgumentException if rootFolder is null
+     */
+    public static void setRoot(File rootFolder) {
+        if (rootFolder != null) {
+            try {
+                MacSecurityBookmarkStore.ensureAccess(rootFolder);
+                MacSecurityBookmarkStore.remember(rootFolder);
+            } catch (Throwable ignored) {
+                // Best-effort only; non-macOS and non-sandboxed runs should continue.
+            }
+        }
+        root = rootFolder;
+    }
+
+    /**
+     * Best-effort restoration of macOS security-scoped access for the configured
+     * root and the folders Simjot touches during startup.
+     */
+    public static void restoreMacScopedAccess(File rootFolder) {
+        if (rootFolder == null) return;
+
+        ensureScopedAccess(rootFolder);
+        ensureScopedAccess(new File(rootFolder, "notebooks.json"));
+        ensureScopedAccess(new File(rootFolder, ".simjot_setup"));
+
+        File[] keyFolders = new File[] {
+            new File(rootFolder, Type.NOTEBOOKS.folderName()),
+            new File(rootFolder, Type.SETTINGS.folderName()),
+            new File(rootFolder, Type.MOOD_DATA.folderName()),
+            new File(rootFolder, Type.WALLPAPERS.folderName()),
+            new File(rootFolder, Type.CUSTOM_FONTS.folderName())
+        };
+        for (File folder : keyFolders) {
+            ensureScopedAccess(folder);
+        }
+
+        File notebooksDir = new File(rootFolder, Type.NOTEBOOKS.folderName());
+        if (!notebooksDir.exists() || !notebooksDir.isDirectory()) return;
+
+        File[] notebookFolders = notebooksDir.listFiles(File::isDirectory);
+        if (notebookFolders == null || notebookFolders.length == 0) return;
+        int limit = Math.min(notebookFolders.length, 256);
+        for (int i = 0; i < limit; i++) {
+            ensureScopedAccess(notebookFolders[i]);
+        }
+    }
+
+    /**
+     * Finder-launched macOS app bundles can see the configured root path but still
+     * fail to enumerate notebook contents until access is re-authorized once.
+     */
+    public static boolean hasReadableNotebookContent(File rootFolder) {
+        if (rootFolder == null) return false;
+        File notebooksDir = new File(rootFolder, Type.NOTEBOOKS.folderName());
+        if (!notebooksDir.exists() || !notebooksDir.isDirectory()) return false;
+
+        ensureScopedAccess(notebooksDir);
+        File[] notebookFolders = notebooksDir.listFiles(File::isDirectory);
+        if (notebookFolders == null || notebookFolders.length == 0) return false;
+
+        int checked = 0;
+        for (File folder : notebookFolders) {
+            if (folder == null || !folder.isDirectory()) continue;
+            if (containsReadableNotebookEntry(folder)) return true;
+            checked++;
+            if (checked >= 24) break;
+        }
+        return false;
+    }
+
+    /**
+     * Returns true when notebooks.json is readable from the current process.
+     */
+    public static boolean hasReadableNotebookRegistry(File rootFolder) {
+        if (rootFolder == null) return false;
+        File notebooksJson = new File(rootFolder, "notebooks.json");
+        ensureScopedAccess(notebooksJson);
+        try {
+            Path path = notebooksJson.toPath();
+            return Files.isRegularFile(path) && Files.size(path) > 0L;
+        } catch (IOException | SecurityException ignored) {
+            return notebooksJson.isFile() && notebooksJson.length() > 0L;
+        }
+    }
+
+    /**
+     * Best-effort signal that notebook registry data exists even if Finder-launched
+     * packaged apps cannot yet read it because macOS has not granted folder access.
+     */
+    public static boolean hasNotebookRegistryIndicator(File rootFolder) {
+        if (rootFolder == null) return false;
+        File notebooksJson = new File(rootFolder, "notebooks.json");
+        if (notebooksJson.isFile()) return true;
+        if (!isIcloudRoot(rootFolder)) return false;
+        try {
+            int status = NativeAccess.getMacIcloudItemStatus(notebooksJson.getAbsolutePath());
+            return (status & NativeAccess.ICLOUD_ITEM_EXISTS) != 0;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns true when the current process can use either the notebook registry
+     * or at least one notebook folder containing entries.
+     */
+    public static boolean hasUsableNotebookData(File rootFolder) {
+        return hasReadableNotebookRegistry(rootFolder) || hasReadableNotebookContent(rootFolder);
+    }
+
+    /**
+     * Finder-launched packaged apps can often read the notebook registry while the
+     * actual notebook folders remain inaccessible until the user re-selects the
+     * root once. This method detects that split-brain state.
+     */
+    public static boolean needsNotebookAccessReauthorization(File rootFolder) {
+        if (rootFolder == null) return false;
+        if (!isIcloudRoot(rootFolder)) return false;
+        if (hasReadableNotebookContent(rootFolder)) return false;
+        return hasNotebookRegistryIndicator(rootFolder);
+    }
+
+    /**
+     * Suggest an iCloud Drive path for Simjot on macOS, if available.
+     * Does not change the current root.
+     */
+    public static File suggestedIcloudRoot() {
+        String os = System.getProperty("os.name", "");
+        if (os == null || !os.toLowerCase().contains("mac")) return null;
+        String path = NativeAccess.getMacIcloudPath();
+        if (path == null || path.isBlank()) {
+            if (NativeAccess.isAvailable() && !NativeAccess.isMacIcloudAvailable()) return null;
+            File cloudDocs = icloudDriveRoot();
+            if (cloudDocs != null) {
+                path = new File(cloudDocs, "Simjot").getAbsolutePath();
+            }
+        }
+        if (path == null || path.isBlank()) return null;
+        return new File(path);
+    }
+
+    /**
+     * Attempt to set the root to iCloud Drive (creates folders if needed).
+     * @return true if iCloud path was available and root was set.
+     */
+    public static boolean trySetIcloudRoot() {
+        File icloud = suggestedIcloudRoot();
+        if (icloud == null) return false;
+        if (!icloud.exists() && !icloud.mkdirs()) return false;
+        setRoot(icloud);
+        // Ensure active subdirectories exist
+        folder(Type.NOTEBOOKS);
+        folder(Type.MOOD_DATA);
+        folder(Type.SETTINGS);
+        folder(Type.WALLPAPERS);
+        folder(Type.CUSTOM_FONTS);
+        return true;
+    }
+
+    /**
+     * Check if a folder is inside iCloud Drive on macOS.
+     */
+    public static boolean isIcloudRoot(File folder) {
+        if (folder == null) return false;
+        String os = System.getProperty("os.name", "");
+        if (os == null || !os.toLowerCase().contains("mac")) return false;
+        String path = folder.getAbsolutePath();
+        if (path == null || path.isBlank()) return false;
+        try {
+            if (NativeAccess.isMacIcloudPath(path)) return true;
+        } catch (Throwable ignored) {}
+        File icloud = suggestedIcloudRoot();
+        File icloudDrive = icloudDriveRoot();
+        if (icloud == null && icloudDrive == null) return false;
+        try {
+            java.nio.file.Path rootPath = folder.toPath().toAbsolutePath().normalize();
+            if (isUnderPath(rootPath, icloud)) return true;
+            if (isUnderPath(rootPath, icloudDrive)) return true;
+            return false;
+        } catch (Throwable ignored) {
+            String rootPath = path;
+            if (isUnderPath(rootPath, icloud)) return true;
+            return isUnderPath(rootPath, icloudDrive);
+        }
+    }
+
+    /**
+     * Heuristic check for existing Simjot data under a folder.
+     */
+    public static boolean looksLikeSimjotRoot(File folder) {
+        if (folder == null || !folder.exists() || !folder.isDirectory()) return false;
+        if (new File(folder, ".simjot_setup").exists()) return true;
+        String[] candidates = new String[] {
+            "notebooks", "settings", "mood", "wallpapers", "fonts",
+            "entries", "poems", "drawings", "tasks"
+        };
+        for (String name : candidates) {
+            File f = new File(folder, name);
+            if (f.exists()) return true;
+        }
+        return new File(folder, "notebooks.json").exists();
+    }
+
+    /**
+     * Returns true if the folder is a directory, or if it exists but access is denied.
+     * This helps recover user data locations when macOS privacy permissions are revoked.
+     */
+    public static boolean isDirectoryOrNoPermission(File folder) {
+        if (folder == null) return false;
+        Path path = folder.toPath();
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+            return attrs.isDirectory();
+        } catch (AccessDeniedException e) {
+            return true;
+        } catch (IOException | SecurityException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Find an existing Simjot root inside iCloud Drive, if available.
+     */
+    public static File findExistingIcloudRoot() {
+        File icloud = suggestedIcloudRoot();
+        if (icloud == null || !icloud.exists() || !icloud.isDirectory()) return null;
+        try {
+            if (NativeAccess.isSetupComplete(icloud.getAbsolutePath())) return icloud;
+        } catch (Throwable ignored) {}
+        return estimateDataScore(icloud) > 0 ? icloud : null;
+    }
+
+    /**
+     * Resolve the preferred Simjot root, restricting selection to iCloud Drive.
+     * Attempts (in order): provided config path if it is inside iCloud, an existing
+     * iCloud Simjot folder, or the suggested iCloud location (creating directories
+     * if necessary).
+     */
+    public static File resolveIcloudRoot(File preferredConfig) {
+        if (preferredConfig != null && isIcloudRoot(preferredConfig)) {
+            return preferredConfig;
+        }
+        File existing = findExistingIcloudRoot();
+        if (existing != null) {
+            return existing;
+        }
+        File suggested = suggestedIcloudRoot();
+        if (suggested == null) {
+            return null;
+        }
+        if (!suggested.exists()) {
+            // best effort to create the folder structure so we can initialize later
+            suggested.mkdirs();
+        }
+        return suggested.exists() && suggested.isDirectory() ? suggested : null;
+    }
+
+    /**
+     * Default Simjot root in the user's home folder.
+     */
+    public static File defaultLocalRoot() {
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) return null;
+        return new File(home, "Simjot");
+    }
+
+    /**
+     * Default Simjot root in the user's Documents folder.
+     */
+    public static File defaultDocumentsRoot() {
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) return null;
+        return new File(new File(home, "Documents"), "Simjot");
+    }
+
+    /**
+     * Estimate whether a root contains user data (higher score = more data).
+     */
+    public static int estimateDataScore(File rootFolder) {
+        if (rootFolder == null || !rootFolder.exists() || !rootFolder.isDirectory()) return 0;
+        boolean icloudRoot = isIcloudRoot(rootFolder);
+        int score = 0;
+        if (new File(rootFolder, ".simjot_setup").exists()) score += 2;
+
+        File notebooksJson = new File(rootFolder, "notebooks.json");
+        if (notebooksJson.isFile()) {
+            score += 50;
+            long len = notebooksJson.length();
+            score += (int) Math.min(100, len / 256);
+        } else if (icloudRoot) {
+            score += icloudItemScore(notebooksJson, 50);
+        }
+
+        File notebooks = new File(rootFolder, "notebooks");
+        int notebookCount = countChildren(notebooks, 64);
+        if (notebookCount > 0) {
+            score += 10;
+            score += Math.min(50, notebookCount);
+        } else if (icloudRoot) {
+            score += icloudItemScore(notebooks, 10);
+        }
+
+        File prefs = new File(new File(rootFolder, "settings"), "preferences.properties");
+        if (prefs.isFile()) {
+            score += 5;
+        } else if (icloudRoot) {
+            score += icloudItemScore(prefs, 5);
+        }
+
+        if (countChildren(new File(rootFolder, "mood"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "wallpapers"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "fonts"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "entries"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "poems"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "drawings"), 1) > 0) score += 1;
+        if (countChildren(new File(rootFolder, "tasks"), 1) > 0) score += 1;
+
+        return score;
+    }
+
+    private static int icloudItemScore(File file, int baseScore) {
+        if (file == null) return 0;
+        int status = NativeAccess.getMacIcloudItemStatus(file.getAbsolutePath());
+        if ((status & NativeAccess.ICLOUD_ITEM_EXISTS) == 0) return 0;
+        int score = baseScore;
+        if ((status & NativeAccess.ICLOUD_ITEM_DOWNLOADED) != 0) score += 2;
+        if ((status & NativeAccess.ICLOUD_ITEM_CONFLICT) != 0) score += 1;
+        return score;
+    }
+
+    /**
+     * Choose the best existing root, preferring the given root if it contains data.
+     */
+    public static File chooseBestRoot(File preferred, File... candidates) {
+        int preferredScore = estimateDataScore(preferred);
+        if (preferred != null && preferred.exists() && preferred.isDirectory() && preferredScore > 0) {
+            return preferred;
+        }
+
+        File best = null;
+        int bestScore = -1;
+        if (preferred != null && preferred.exists() && preferred.isDirectory()) {
+            best = preferred;
+            bestScore = preferredScore;
+        }
+
+        if (candidates != null) {
+            for (File candidate : candidates) {
+                if (candidate == null) continue;
+                if (!candidate.exists() || !candidate.isDirectory()) continue;
+                int score = estimateDataScore(candidate);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+        }
+
+        if (bestScore > 0) return best;
+        return (preferred != null && preferred.exists() && preferred.isDirectory()) ? preferred : null;
+    }
+
+    private static int countChildren(File dir, int max) {
+        if (dir == null || max <= 0 || !dir.exists() || !dir.isDirectory()) return 0;
+        ensureScopedAccess(dir);
+        File[] list = dir.listFiles();
+        if (list == null || list.length == 0) return 0;
+        return Math.min(max, list.length);
+    }
+
+    private static boolean containsReadableNotebookEntry(File folder) {
+        if (folder == null || !folder.exists() || !folder.isDirectory()) return false;
+        ensureScopedAccess(folder);
+        try (var stream = Files.list(folder.toPath())) {
+            return stream.anyMatch(path -> {
+                try {
+                    return Files.isRegularFile(path) && isNotebookEntryName(path.getFileName().toString());
+                } catch (Throwable ignored) {
+                    return false;
+                }
+            });
+        } catch (IOException | SecurityException ignored) {
+            File[] files = folder.listFiles();
+            if (files == null) return false;
+            for (File file : files) {
+                if (file != null && file.isFile() && isNotebookEntryName(file.getName())) return true;
+            }
+            return false;
+        }
+    }
+
+    private static boolean isNotebookEntryName(String name) {
+        if (name == null || name.isBlank()) return false;
+        String s = name.toLowerCase(java.util.Locale.ROOT);
+        return s.endsWith(".entry")
+                || s.endsWith(".note")
+                || s.endsWith(".txt")
+                || s.endsWith(".md")
+                || s.endsWith(".rtf")
+                || s.endsWith(".ntk")
+                || s.endsWith(".poem")
+                || s.endsWith(".jrnl");
+    }
+
+    private static void ensureScopedAccess(File target) {
+        if (target == null || !target.exists()) return;
+        try {
+            MacSecurityBookmarkStore.ensureAccess(target);
+        } catch (Throwable ignored) {
+            // Best-effort only for macOS packaged-app restores.
+        }
+    }
+
+    private static File icloudDriveRoot() {
+        String os = System.getProperty("os.name", "");
+        if (os == null || !os.toLowerCase().contains("mac")) return null;
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) return null;
+        File cloudDocs = new File(home, "Library/Mobile Documents/com~apple~CloudDocs");
+        if (cloudDocs.exists() && cloudDocs.isDirectory()) return cloudDocs;
+        return null;
+    }
+
+    private static boolean isUnderPath(java.nio.file.Path rootPath, File candidate) {
+        if (rootPath == null || candidate == null) return false;
+        try {
+            java.nio.file.Path candidatePath = candidate.toPath().toAbsolutePath().normalize();
+            return rootPath.equals(candidatePath) || rootPath.startsWith(candidatePath);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isUnderPath(String rootPath, File candidate) {
+        if (rootPath == null || rootPath.isBlank() || candidate == null) return false;
+        String candidatePath = candidate.getAbsolutePath();
+        if (candidatePath == null || candidatePath.isBlank()) return false;
+        if (rootPath.equals(candidatePath)) return true;
+        String prefix = candidatePath.endsWith(File.separator) ? candidatePath : candidatePath + File.separator;
+        return rootPath.startsWith(prefix);
+    }
+
+    /**
+     * Gets the root directory for Simjot content.
+     * 
+     * <p>This method ensures the root directory has been initialized before returning it.
+     * If the root has not been set, an IllegalStateException is thrown.</p>
+     * 
+     * @return The root directory file
+     * @throws IllegalStateException if root directory has not been initialized
+     */
+    public static File getRoot() {
+        ensureRootInitialized();
+        if(root == null) throw new IllegalStateException("Root folder not initialised yet");
+        return root;
+    }
+
+    /**
+     * Gets the directory for a specific type of content.
+     * 
+     * <p>This method returns the appropriate subdirectory within the root folder
+     * for the specified content type. The directory is created if it doesn't exist.</p>
+     * 
+     * @param t The type of directory to retrieve
+     * @return The directory file for the specified type
+     * @throws IllegalStateException if root directory has not been initialized
+     * @throws IllegalArgumentException if type is null
+     */
+    public static File folder(Type t) {
+        ensureRootInitialized();
+        if(root == null) throw new IllegalStateException("Root folder not initialised yet");
+        File f = new File(root, t.folderName());
+        // Do not auto-create legacy folders we no longer use.
+        switch (t) {
+            case ENTRIES:
+            case POEMS:
+            case DRAWINGS:
+            case TASKS:
+                // return as-is; caller can choose to create if absolutely needed
+                return f;
+            default:
+                if(!f.exists()) f.mkdirs();
+                return f;
+        }
+    }
+
+    private static void ensureRootInitialized() {
+        if (root != null) return;
+        try {
+            File cfg = new File(System.getProperty("user.home"), ".simjournal_config.txt");
+            if (!cfg.exists()) return;
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(cfg))) {
+                String path = reader.readLine();
+                if (path == null || path.isBlank()) return;
+                File folder = new File(path.trim());
+                if (isDirectoryOrNoPermission(folder)) {
+                    root = folder;
+                    restoreMacScopedAccess(root);
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+}

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="Layout-Dashboard--Streamline-Ultimate" height="24" width="24">
+  <desc>
+    Layout Dashboard Streamline Icon: https://streamlinehq.com
+  </desc>
+  <title>layout-dashboard</title>
+  <path d="M1.5 16.5h8s1 0 1 1v5s0 1 -1 1h-8s-1 0 -1 -1v-5s0 -1 1 -1" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  <path d="m22.5 23.5 -8 0s-1 0 -1 -1l0 -11s0 -1 1 -1l8 0s1 0 1 1l0 11s0 1 -1 1" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  <path d="m22.5 7.5 -8 0s-1 0 -1 -1l0 -5s0 -1 1 -1l8 0s1 0 1 1l0 5s0 1 -1 1" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  <path d="M1.5 0.5h8s1 0 1 1v11s0 1 -1 1h-8s-1 0 -1 -1v-11s0 -1 1 -1" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+</svg>

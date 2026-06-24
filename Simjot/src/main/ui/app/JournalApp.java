@@ -737,7 +737,8 @@ public class JournalApp extends JFrame {
     private void initUI() {
         // Apply Windows 7 Aero-inspired look & feel and defaults before building UI
         AeroLookAndFeel.apply();
-        // UI scaling disabled for now; use stored journal font size as-is
+        // Fallback UI scaling for components if native scaling failed
+        try { main.ui.scaling.UIScalingManager.applyToSwing(main.ui.scaling.UIScalingManager.getDetectedScale()); } catch (Throwable ignored) {}
         try { globalJournalFontSize = SettingsStore.get().getJournalFontSize(); } catch (Throwable ignored) {}
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
@@ -1813,6 +1814,10 @@ public class JournalApp extends JFrame {
                     try {
                         main.ui.features.entries.JournalTemplateManager.getInstance().getTemplates();
                     } catch (Throwable ignored) {}
+                    try { Thread.sleep(60); } catch (InterruptedException ignored) {}
+
+                    publish("Warming dock animations…");
+                    try { main.ui.components.dock.GlassDockBar.precacheAnimation(); } catch (Throwable ignored) {}
                     try { Thread.sleep(60); } catch (InterruptedException ignored) {}
 
                     // Prime common UI paints (Aero panels/fields) and load custom UI classes

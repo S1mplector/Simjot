@@ -474,6 +474,29 @@ public final class UIScalingManager {
     }
     
     /**
+     * Get a manual scale factor multiplier for components that need to scale themselves
+     * when native Java2D scaling (sun.java2d.uiScale) fails to apply correctly (e.g. jpackage Linux builds).
+     */
+    public static float getManualScaleFactor() {
+        float detected = getDetectedScale();
+        float nativeTransform = 1.0f;
+        try {
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice gd = ge.getDefaultScreenDevice();
+            GraphicsConfiguration gc = gd.getDefaultConfiguration();
+            nativeTransform = (float) Math.max(gc.getDefaultTransform().getScaleX(), gc.getDefaultTransform().getScaleY());
+        } catch (Throwable ignored) {}
+        
+        // If native scaling is active and matches detected scale, we don't need manual scaling
+        if (Math.abs(nativeTransform - detected) < 0.1f) {
+            return 1.0f;
+        }
+        
+        // Otherwise, native scaling failed (nativeTransform is likely 1.0), so we must manually scale components
+        return detected / Math.max(1.0f, nativeTransform);
+    }
+    
+    /**
      * Scale a dimension value by the detected scale.
      * Uses native C implementation for consistent results.
      */

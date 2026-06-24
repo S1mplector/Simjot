@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: main.core.poetry.PoetryDictionaryTest$SynonymsAntonymsTests
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in main.core.poetry.PoetryDictionaryTest$SynonymsAntonymsTests

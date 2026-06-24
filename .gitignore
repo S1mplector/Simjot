@@ -47,3 +47,5 @@ Thumbs.db
 
 # Virtual machine crash logs
 hs_err_pid*
+test_dist/
+target/

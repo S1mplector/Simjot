@@ -115,7 +115,8 @@ public class GlassDockBar extends JPanel {
     }
 
     public GlassDockBar(float scale, boolean showLabels) {
-        this.uiScale = Math.max(0.56f, Math.min(1.25f, scale));
+        float manualScale = main.ui.scaling.UIScalingManager.getManualScaleFactor();
+        this.uiScale = Math.max(0.56f, Math.min(1.25f, scale)) * manualScale;
         this.showLabels = showLabels;
         this.itemSize = Math.max(44, Math.round(BASE_ITEM_SIZE * this.uiScale));
         this.itemSpacing = Math.max(8, Math.round(BASE_ITEM_SPACING * this.uiScale));
@@ -900,5 +901,34 @@ public class GlassDockBar extends JPanel {
             this.resourcePath = ImageIconRenderer.mapIdToResource(iconId);
             this.action = action;
         }
+    }
+
+    /**
+     * Pre-caches the dock animation by rendering frames into a headless BufferedImage.
+     * This warms up the JVM/Java2D caches (gradients, SVGs, paths) to prevent stutter on first run.
+     */
+    public static void precacheAnimation() {
+        try {
+            GlassDockBar dummy = new GlassDockBar(1.18f, true);
+            dummy.addItem("Write", "write", () -> {});
+            dummy.addItem("Settings", "settings", () -> {});
+            dummy.addItem("Exit", "close", () -> {});
+            dummy.setSize(dummy.getPreferredSize());
+            dummy.doLayout();
+            
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
+                Math.max(10, dummy.getWidth()), 
+                Math.max(10, dummy.getHeight()), 
+                java.awt.image.BufferedImage.TYPE_INT_ARGB
+            );
+            Graphics2D g2 = img.createGraphics();
+            
+            for (float t = 0f; t <= 1f; t += 0.25f) {
+                dummy.expandProgress = t;
+                dummy.updateLayoutCache(dummy.getWidth(), dummy.expandProgress);
+                dummy.paintComponent(g2);
+            }
+            g2.dispose();
+        } catch (Throwable ignored) {}
     }
 }
