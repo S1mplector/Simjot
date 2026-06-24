@@ -86,7 +86,9 @@ resolve_java_home() {
   for home in "/opt/homebrew/opt/openjdk@${REQUIRED_VERSION}" \
               "/usr/local/opt/openjdk@${REQUIRED_VERSION}" \
               "/opt/homebrew/opt/openjdk" \
-              "/usr/local/opt/openjdk"; do
+              "/usr/local/opt/openjdk" \
+              "${HOME}/.local/opt/jdk-${REQUIRED_VERSION}" \
+              "${HOME}/.local/opt/jdk"; do
     if java_home_ok "${home}"; then
       echo "${home}"
       return 0

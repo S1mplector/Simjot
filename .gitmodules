@@ -1,0 +1,3 @@
+[submodule "Simjot/src/main/resources/simple-english-dictionary"]
+	path = Simjot/src/main/resources/simple-english-dictionary
+	url = https://github.com/nightblade9/simple-english-dictionary.git

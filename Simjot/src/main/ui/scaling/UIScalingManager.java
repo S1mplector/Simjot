@@ -72,6 +72,7 @@ public final class UIScalingManager {
         // Try to read user preference from config file BEFORE detecting system scale
         float userScale = readUserScaleFromConfig();
         float scale = (userScale > 0 && userScale != 1.0f) ? userScale : detectSystemScale();
+        scale = normalizeScale(scale);
 
         // Set JVM properties that various subsystems might check
         System.setProperty("sun.java2d.uiScale.enabled", "true");
@@ -369,6 +370,15 @@ public final class UIScalingManager {
         
         // Clamp to reasonable range
         return Math.max(0.5f, Math.min(4.0f, scale));
+    }
+
+    /**
+     * Use quarter-step scaling so text and one-pixel artwork remain crisp while
+     * still supporting common fractional desktop scales such as 125% and 150%.
+     */
+    private static float normalizeScale(float scale) {
+        float clamped = Math.max(0.5f, Math.min(4.0f, scale));
+        return Math.round(clamped * 4.0f) / 4.0f;
     }
     
     private static float checkJVMProperties() {

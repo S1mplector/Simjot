@@ -37,7 +37,7 @@ class AppDirectoriesTest {
         void shouldHaveAllExpectedTypes() {
             AppDirectories.Type[] types = AppDirectories.Type.values();
             
-            assertEquals(8, types.length);
+            assertEquals(9, types.length);
             assertNotNull(AppDirectories.Type.ENTRIES);
             assertNotNull(AppDirectories.Type.POEMS);
             assertNotNull(AppDirectories.Type.DRAWINGS);
@@ -46,6 +46,7 @@ class AppDirectoriesTest {
             assertNotNull(AppDirectories.Type.MOOD_DATA);
             assertNotNull(AppDirectories.Type.SETTINGS);
             assertNotNull(AppDirectories.Type.WALLPAPERS);
+            assertNotNull(AppDirectories.Type.CUSTOM_FONTS);
         }
 
         @ParameterizedTest
@@ -113,6 +114,12 @@ class AppDirectoriesTest {
         @DisplayName("WALLPAPERS should have 'wallpapers' folder name")
         void wallpapersShouldHaveCorrectFolderName() {
             assertEquals("wallpapers", AppDirectories.Type.WALLPAPERS.folderName());
+        }
+
+        @Test
+        @DisplayName("CUSTOM_FONTS should have 'fonts' folder name")
+        void customFontsShouldHaveCorrectFolderName() {
+            assertEquals("fonts", AppDirectories.Type.CUSTOM_FONTS.folderName());
         }
 
         @Test

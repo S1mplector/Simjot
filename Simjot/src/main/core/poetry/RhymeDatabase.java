@@ -48,34 +48,28 @@ public final class RhymeDatabase {
     
     public static List<String> getRhymesFor(String word) {
         if (word == null) return Collections.emptyList();
+
+        // Keep the curated common rhymes first so results stay deterministic
+        // regardless of whether the native dictionary has already been loaded.
+        List<String> result = getBuiltInRhymes(word);
         
         // Try native rhyme engine first (fastest, no memory overhead)
         List<String> nativeRhymes = NativeAccess.rhymeFind(word, 20);
-        if (nativeRhymes != null && !nativeRhymes.isEmpty()) {
-            return nativeRhymes.size() > 10 ? nativeRhymes.subList(0, 10) : nativeRhymes;
-        }
+        addUniqueRhymes(result, nativeRhymes, word);
         
         // Try native dictionary rhymes
         List<String> dictRhymes = NativeAccess.dictionaryRhymes(word, 64);
-        if (dictRhymes != null && !dictRhymes.isEmpty()) {
-            List<String> filtered = new ArrayList<>();
-            for (String w : dictRhymes) {
-                if (!w.equalsIgnoreCase(word)) filtered.add(w);
-            }
-            return filtered.size() > 10 ? filtered.subList(0, 10) : filtered;
-        }
+        addUniqueRhymes(result, dictRhymes, word);
         
         // If native is available but returned nothing, use built-in rhyme groups only
         // Avoid loading expensive Java dictionary
         if (isNativeAvailable()) {
-            return getBuiltInRhymes(word);
+            return result.size() > 10 ? result.subList(0, 10) : result;
         }
         
         // Fallback: use built-in groups + Java dictionary (expensive)
         String key = PoetryUtils.rhymeKey(word);
         if (key == null) return Collections.emptyList();
-        
-        List<String> result = getBuiltInRhymes(word);
         
         // Only load Java dictionary if native is truly unavailable
         ensureDictionaryLoaded();
@@ -91,6 +85,16 @@ public final class RhymeDatabase {
         }
         return result.size() > 10 ? result.subList(0, 10) : result;
     }
+
+    private static void addUniqueRhymes(List<String> result, List<String> candidates, String word) {
+        if (candidates == null) return;
+        for (String candidate : candidates) {
+            if (candidate == null || candidate.equalsIgnoreCase(word)) continue;
+            boolean alreadyPresent = result.stream()
+                    .anyMatch(existing -> existing.equalsIgnoreCase(candidate));
+            if (!alreadyPresent) result.add(candidate);
+        }
+    }
     
     private static List<String> getBuiltInRhymes(String word) {
         String key = PoetryUtils.rhymeKey(word);
@@ -100,7 +104,9 @@ public final class RhymeDatabase {
         List<String> result = new ArrayList<>();
         
         for (Map.Entry<String, List<String>> e : rhymeGroups.entrySet()) {
-            if (key.endsWith(e.getKey()) || e.getKey().endsWith(key)) {
+            boolean containsWord = e.getValue().stream()
+                    .anyMatch(candidate -> candidate.equalsIgnoreCase(word));
+            if (containsWord || key.endsWith(e.getKey()) || e.getKey().endsWith(key)) {
                 for (String w : e.getValue()) {
                     if (!w.equalsIgnoreCase(word) && !result.contains(w)) {
                         result.add(w);
