@@ -738,7 +738,7 @@ public class JournalApp extends JFrame {
         // Apply Windows 7 Aero-inspired look & feel and defaults before building UI
         AeroLookAndFeel.apply();
         // Fallback UI scaling for components if native scaling failed
-        try { main.ui.scaling.UIScalingManager.applyToSwing(main.ui.scaling.UIScalingManager.getDetectedScale()); } catch (Throwable ignored) {}
+        try { main.ui.scaling.UIScalingManager.applyToSwing(main.ui.scaling.UIScalingManager.getManualScaleFactor()); } catch (Throwable ignored) {}
         try { globalJournalFontSize = SettingsStore.get().getJournalFontSize(); } catch (Throwable ignored) {}
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
