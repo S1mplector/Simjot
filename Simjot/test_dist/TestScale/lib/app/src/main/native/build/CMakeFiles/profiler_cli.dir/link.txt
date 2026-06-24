@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/profiler_cli.dir/link.d CMakeFiles/profiler_cli.dir/tests/profiler_cli.c.o -o simjot_profiler

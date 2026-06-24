@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: main.core.security.crypto.SimjotCryptoTest$EdgeCaseTests
--------------------------------------------------------------------------------
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.390 s -- in main.core.security.crypto.SimjotCryptoTest$EdgeCaseTests

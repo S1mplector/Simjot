@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: main.infrastructure.io.DateFormatUtilTest$FormatNowTests
--------------------------------------------------------------------------------
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.041 s -- in main.infrastructure.io.DateFormatUtilTest$FormatNowTests

@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: main.core.poetry.RhymeDatabaseTest$GetSynonymsForTests
--------------------------------------------------------------------------------
-Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.329 s -- in main.core.poetry.RhymeDatabaseTest$GetSynonymsForTests
