@@ -9,6 +9,7 @@
 package main.ui.features.notebooks;
 
 import java.awt.BasicStroke;
+import main.core.service.SettingsStore;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -112,7 +113,7 @@ public class ModernClusterOrganizer extends JDialog {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int w = getWidth(), h = getHeight();
                 
-                if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled()) {
+                if (SettingsStore.get().isTransparentWindowsDisabled()) {
                     g2.setColor(new Color(245, 245, 245));
                     g2.fillRect(0, 0, w, h);
                     g2.dispose();
