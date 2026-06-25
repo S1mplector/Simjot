@@ -32,6 +32,12 @@ public class AeroPanel extends JPanel {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
+        g2.setComposite(java.awt.AlphaComposite.Clear);
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        g2.setComposite(java.awt.AlphaComposite.SrcOver);
+
         Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
         AeroPainters.paintVerticalGradient(g2, r, new Color(255,255,255,200), new Color(235,235,235,200), arc);
         AeroPainters.paintGlassOverlay(g2, r, arc);
