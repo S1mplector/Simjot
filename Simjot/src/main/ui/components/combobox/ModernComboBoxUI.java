@@ -11,6 +11,7 @@ package main.ui.components.combobox;
 import java.awt.*;
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicComboBoxUI;
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.theme.Theme;
 
@@ -19,6 +20,7 @@ public class ModernComboBoxUI extends BasicComboBoxUI {
     public void installUI(JComponent c) {
         super.installUI(c);
         c.setOpaque(false);
+        c.setBorder(BorderFactory.createEmptyBorder());
     }
 
     @Override
@@ -43,6 +45,8 @@ public class ModernComboBoxUI extends BasicComboBoxUI {
 
         int w = c.getWidth();
         int h = c.getHeight();
+
+        FrostedGlassPanel.paintAncestorBackground(c, g2);
 
         if (Theme.isPlainWhite()) {
             g2.setColor(Color.WHITE);

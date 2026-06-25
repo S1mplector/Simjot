@@ -21,6 +21,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.Timer;
 
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.icons.IconTransforms;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.aero.AeroTheme;
@@ -124,6 +125,8 @@ public class ToolbarMenuIconButton extends ToolbarIconButton {
         java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
         g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
         int w = getWidth(), h = getHeight();
+
+        FrostedGlassPanel.paintAncestorBackground(this, g2);
 
         boolean pressed = getModel().isArmed() && getModel().isPressed();
         if (hovering || pressed) {

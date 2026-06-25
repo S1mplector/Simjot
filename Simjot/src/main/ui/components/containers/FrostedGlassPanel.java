@@ -10,6 +10,7 @@ package main.ui.components.containers;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -21,6 +22,7 @@ import java.awt.Shape;
 import java.awt.geom.Point2D;
 
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
@@ -72,6 +74,24 @@ public class FrostedGlassPanel extends JPanel {
 
     protected float getOpacityScale() {
         return opacityScale;
+    }
+
+    public static boolean paintAncestorBackground(Component child, Graphics g) {
+        if (child == null || g == null) return false;
+        FrostedGlassPanel glass = (FrostedGlassPanel) SwingUtilities.getAncestorOfClass(FrostedGlassPanel.class, child);
+        if (glass == null) return false;
+        glass.paintBackgroundBehind(child, g);
+        return true;
+    }
+
+    public void paintBackgroundBehind(Component child, Graphics g) {
+        if (child == null || g == null || !SwingUtilities.isDescendingFrom(child, this)) return;
+        Graphics2D g2 = (Graphics2D) g.create();
+        java.awt.Point childOrigin = SwingUtilities.convertPoint(child, 0, 0, this);
+        g2.translate(-childOrigin.x, -childOrigin.y);
+        g2.clipRect(childOrigin.x, childOrigin.y, child.getWidth(), child.getHeight());
+        paintComponent(g2);
+        g2.dispose();
     }
 
     private static Color scaleAlpha(Color color, float scale) {

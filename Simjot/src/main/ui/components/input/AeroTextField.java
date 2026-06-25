@@ -8,6 +8,7 @@
 
 package main.ui.components.input;
 
+import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.theme.aero.AeroTheme;
 import main.ui.theme.Theme;
 
@@ -34,6 +35,8 @@ public class AeroTextField extends JTextField {
 
         int w = getWidth();
         int h = getHeight();
+        FrostedGlassPanel.paintAncestorBackground(this, g2);
+
         if (Theme.isPlainWhite()) {
             g2.setColor(Color.WHITE);
             g2.fillRoundRect(0, 0, w, h, 10, 10);
