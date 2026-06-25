@@ -194,6 +194,8 @@ case "${BUILD_MODE}" in
   auto)
     if [[ -z "${JAR_PATH}" ]]; then
       SHOULD_BUILD=true
+    elif [[ "${POM_FILE}" -nt "${JAR_PATH}" ]] || find "${PROJECT_DIR}/src" -type f -newer "${JAR_PATH}" -print -quit | grep -q .; then
+      SHOULD_BUILD=true
     fi
     ;;
 esac
