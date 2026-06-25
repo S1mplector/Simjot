@@ -420,30 +420,27 @@ public class ModernTemplateSelector extends JDialog {
     }
     
     private JPanel createNewCard() {
-        float baseOpacity = 0.9f;
-        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(), 12);
-        card.setOpacityScale(baseOpacity);
-        card.setBorder(BorderFactory.createCompoundBorder(
-            new RoundedBorder(12, CARD_BORDER),
-            new EmptyBorder(24, 16, 24, 16)
-        ));
+        final boolean[] hovered = {false};
+        JPanel card = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                paintPlainTemplateCard((Graphics2D) g.create(), getWidth(), getHeight(), hovered[0], false, 12);
+                super.paintComponent(g);
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(24, 16, 24, 16));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                card.setOpacityScale(1.0f);
-                card.setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(12, CARD_BORDER_HOVER),
-                    new EmptyBorder(24, 16, 24, 16)
-                ));
+                hovered[0] = true;
+                card.repaint();
             }
             @Override
             public void mouseExited(MouseEvent e) {
-                card.setOpacityScale(baseOpacity);
-                card.setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(12, CARD_BORDER),
-                    new EmptyBorder(24, 16, 24, 16)
-                ));
+                hovered[0] = false;
+                card.repaint();
             }
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -610,25 +607,44 @@ public class ModernTemplateSelector extends JDialog {
     public String[] getGuidedQuestions() { return selectedTemplate != null ? selectedTemplate.getQuestions() : null; }
     public boolean isGuidedMode() { return selectedTemplate != null && selectedTemplate.getQuestions().length > 0; }
     
+
+    private void paintPlainTemplateCard(Graphics2D g2, int w, int h, boolean hovered, boolean selected, int arc) {
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            if (w <= 2 || h <= 2) return;
+            int pad = selected ? 3 : 4;
+            if (selected) {
+                g2.setColor(new Color(82, 142, 255, 42));
+                g2.fillRoundRect(1, 1, w - 2, h - 2, arc + 5, arc + 5);
+                g2.setColor(new Color(82, 170, 255, 28));
+                g2.fillRoundRect(4, 4, w - 8, h - 8, arc + 3, arc + 3);
+            }
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(pad, pad, w - pad * 2, h - pad * 2, arc, arc);
+            Color border = selected ? ACCENT : (hovered ? CARD_BORDER_HOVER : CARD_BORDER);
+            g2.setColor(border);
+            g2.setStroke(new BasicStroke(selected ? 1.8f : 1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawRoundRect(pad, pad, w - pad * 2 - 1, h - pad * 2 - 1, arc, arc);
+        } finally {
+            g2.dispose();
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // TEMPLATE CARD
     // ═══════════════════════════════════════════════════════════════════════════
     
-    private class TemplateCard extends FrostedGlassPanel {
+    private class TemplateCard extends JPanel {
         final JournalTemplateManager.JournalTemplate template;
         private boolean selected = false;
         private boolean hovered = false;
-        private final float baseOpacity = 0.92f;
         private final EmptyBorder contentPadding = new EmptyBorder(16, 16, 16, 16);
         
         TemplateCard(JournalTemplateManager.JournalTemplate template) {
-            super(new BorderLayout(), 14);
+            super(new BorderLayout());
             this.template = template;
-            setOpacityScale(baseOpacity);
-            setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(14, CARD_BORDER),
-                contentPadding
-            ));
+            setOpaque(false);
+            setBorder(contentPadding);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             
             // Content
@@ -735,18 +751,12 @@ public class ModernTemplateSelector extends JDialog {
         }
 
         private void updateVisualState() {
-            float opacity = selected ? 1.0f : (hovered ? 0.98f : baseOpacity);
-            setOpacityScale(opacity);
-            Color border = selected ? ACCENT : (hovered ? CARD_BORDER_HOVER : CARD_BORDER);
-            setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(14, border),
-                contentPadding
-            ));
             repaint();
         }
         
         @Override
         protected void paintComponent(Graphics g) {
+            paintPlainTemplateCard((Graphics2D) g.create(), getWidth(), getHeight(), hovered, selected, 14);
             super.paintComponent(g);
             if (!selected) return;
 

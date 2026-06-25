@@ -127,6 +127,8 @@ public final class SettingsStore {
     private static final String KEY_AUTOCORRECT_JOURNAL = "autocorrect.journal";
     private static final String KEY_AUTOCORRECT_POETRY = "autocorrect.poetry";
     private static final String KEY_AUTOSAVE_ON_BLUR = "autosaveOnFocusLoss";
+    private static final String KEY_DEFAULT_JOURNAL_TEMPLATE_ENABLED = "journal.defaultTemplate.enabled";
+    private static final String KEY_DEFAULT_JOURNAL_TEMPLATE_ID = "journal.defaultTemplate.id";
     public static final String KEY_BACKUP_FREQ = "backup.frequency";
     public static final String KEY_BACKUP_KEEP = "backup.keep";
     private static final String KEY_LAST_BACKUP_EPOCH = "backup.last.epoch";
@@ -200,6 +202,8 @@ public final class SettingsStore {
     private static final boolean DEF_AUTOCORRECT_JOURNAL = true;
     private static final boolean DEF_AUTOCORRECT_POETRY = false;
     private static final boolean DEF_AUTOSAVE_ON_BLUR = false;
+    private static final boolean DEF_DEFAULT_JOURNAL_TEMPLATE_ENABLED = false;
+    private static final String DEF_DEFAULT_JOURNAL_TEMPLATE_ID = "BLANK";
     public static final String DEF_BACKUP_FREQ = "Off";
     public static final int DEF_BACKUP_KEEP = 7;
     public static final long DEF_LAST_BACKUP_EPOCH = 0L;
@@ -831,6 +835,20 @@ public final class SettingsStore {
 
     public boolean isAutosaveOnFocusLoss(){ return Boolean.parseBoolean(props.getProperty(KEY_AUTOSAVE_ON_BLUR, String.valueOf(DEF_AUTOSAVE_ON_BLUR))); }
     public void setAutosaveOnFocusLoss(boolean b){ props.setProperty(KEY_AUTOSAVE_ON_BLUR, String.valueOf(b)); }
+
+    public boolean isDefaultJournalTemplateEnabled(){
+        return Boolean.parseBoolean(props.getProperty(KEY_DEFAULT_JOURNAL_TEMPLATE_ENABLED, String.valueOf(DEF_DEFAULT_JOURNAL_TEMPLATE_ENABLED)));
+    }
+    public void setDefaultJournalTemplateEnabled(boolean enabled){
+        props.setProperty(KEY_DEFAULT_JOURNAL_TEMPLATE_ENABLED, String.valueOf(enabled));
+    }
+    public String getDefaultJournalTemplateId(){
+        return props.getProperty(KEY_DEFAULT_JOURNAL_TEMPLATE_ID, DEF_DEFAULT_JOURNAL_TEMPLATE_ID);
+    }
+    public void setDefaultJournalTemplateId(String id){
+        if (id == null || id.isBlank()) props.setProperty(KEY_DEFAULT_JOURNAL_TEMPLATE_ID, DEF_DEFAULT_JOURNAL_TEMPLATE_ID);
+        else props.setProperty(KEY_DEFAULT_JOURNAL_TEMPLATE_ID, id.trim());
+    }
 
     public String getBackupFrequency(){ return props.getProperty(KEY_BACKUP_FREQ, DEF_BACKUP_FREQ); }
     public void setBackupFrequency(String v){ if(v!=null) props.setProperty(KEY_BACKUP_FREQ, v); }

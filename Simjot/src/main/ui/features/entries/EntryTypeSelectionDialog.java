@@ -8,6 +8,7 @@
 
 package main.ui.features.entries;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -17,7 +18,9 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
@@ -208,11 +211,31 @@ public class EntryTypeSelectionDialog extends JDialog {
         grid.repaint();
     }
 
+
+    private void paintPlainTemplateCard(Graphics2D g2, int w, int h, boolean hovered) {
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            if (w <= 2 || h <= 2) return;
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(2, 2, w - 4, h - 4, 12, 12);
+            g2.setColor(hovered ? new Color(170, 200, 255, 210) : new Color(210, 220, 235, 180));
+            g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawRoundRect(2, 2, w - 5, h - 5, 12, 12);
+        } finally {
+            g2.dispose();
+        }
+    }
+
     private JPanel createTemplateCard(JournalTemplateManager.JournalTemplate template) {
-        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(8, 8), 12);
-        float baseOpacity = 0.92f;
-        card.setOpacityScale(baseOpacity);
-        card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
+        final boolean[] hovered = {false};
+        JPanel card = new JPanel(new BorderLayout(8, 8)) {
+            @Override protected void paintComponent(Graphics g) {
+                paintPlainTemplateCard((Graphics2D) g.create(), getWidth(), getHeight(), hovered[0]);
+                super.paintComponent(g);
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         // Text content only (no icons)
@@ -277,24 +300,25 @@ public class EntryTypeSelectionDialog extends JDialog {
             
             @Override
             public void mouseEntered(MouseEvent e) {
-                card.setOpacityScale(1.0f);
-                card.setBorder(BorderFactory.createLineBorder(new Color(170, 200, 255, 180)));
+                hovered[0] = true;
+                card.repaint();
             }
             
             @Override
             public void mouseExited(MouseEvent e) {
-                card.setOpacityScale(baseOpacity);
-                card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
+                hovered[0] = false;
+                card.repaint();
             }
             
             @Override
             public void mousePressed(MouseEvent e) {
-                card.setOpacityScale(1.0f);
+                hovered[0] = true;
+                card.repaint();
             }
             
             @Override
             public void mouseReleased(MouseEvent e) {
-                card.setOpacityScale(1.0f);
+                card.repaint();
             }
         });
 
@@ -302,10 +326,15 @@ public class EntryTypeSelectionDialog extends JDialog {
     }
 
     private JPanel createNewTemplateCard(){
-        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(), 12);
-        float baseOpacity = 0.9f;
-        card.setOpacityScale(baseOpacity);
-        card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
+        final boolean[] hovered = {false};
+        JPanel card = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                paintPlainTemplateCard((Graphics2D) g.create(), getWidth(), getHeight(), hovered[0]);
+                super.paintComponent(g);
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         JLabel lbl = new JLabel("+ Create New Template", SwingConstants.CENTER);
         lbl.setBorder(BorderFactory.createEmptyBorder(24, 12, 24, 12));
         lbl.setForeground(new Color(60, 90, 160));
@@ -315,12 +344,12 @@ public class EntryTypeSelectionDialog extends JDialog {
         card.addMouseListener(new MouseAdapter(){
             @Override public void mouseClicked(MouseEvent e){ openTemplateManager(); }
             @Override public void mouseEntered(MouseEvent e){
-                card.setOpacityScale(1.0f);
-                card.setBorder(BorderFactory.createLineBorder(new Color(170, 200, 255, 180)));
+                hovered[0] = true;
+                card.repaint();
             }
             @Override public void mouseExited(MouseEvent e){
-                card.setOpacityScale(baseOpacity);
-                card.setBorder(BorderFactory.createLineBorder(new Color(210, 220, 235, 140)));
+                hovered[0] = false;
+                card.repaint();
             }
         });
         return card;

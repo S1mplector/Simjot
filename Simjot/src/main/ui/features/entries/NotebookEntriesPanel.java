@@ -276,16 +276,7 @@ public class NotebookEntriesPanel extends JPanel {
         } catch (Throwable ignored) {}
     });
     
-    private final float[] dashedBorderPhase = new float[]{0f};
-    private int dashedAnimatedIndex = -1;
-    private final javax.swing.Timer dashedBorderTimer = new javax.swing.Timer(50, e -> {
-        try {
-            dashedBorderPhase[0] += 0.8f; // Speed of conveyor belt movement
-            if (dashedBorderPhase[0] > 10f) dashedBorderPhase[0] -= 10f; // Reset after full cycle
-            if (dashedAnimatedIndex < 0) dashedAnimatedIndex = list.getSelectedIndex();
-            repaintRow(dashedAnimatedIndex, 8);
-        } catch (Throwable ignored) {}
-    });
+    private int selectedGlowIndex = -1;
 
     // Folder watch
     private WatchService watchService;
@@ -365,7 +356,6 @@ public class NotebookEntriesPanel extends JPanel {
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
         private float selectionSweepPhase = 0f;
-        private float dashedBorderPhase = 0f; // Current animated phase for dashed border
         private boolean hovered = false;
         private boolean encrypted = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
@@ -602,8 +592,6 @@ public class NotebookEntriesPanel extends JPanel {
             } else {
                 selectionSweepPhase = 0f;
             }
-            Object dashedPhaseObj = list.getClientProperty("dashedBorderPhase");
-            dashedBorderPhase = dashedPhaseObj instanceof float[] dashedArr && dashedArr.length > 0 ? dashedArr[0] : 0f;
             Object hoverObj = list.getClientProperty("hoverIndex");
             int hoverIdx = hoverObj instanceof Integer ? (Integer) hoverObj : -1;
             hovered = (hoverIdx == index);
@@ -775,16 +763,23 @@ public class NotebookEntriesPanel extends JPanel {
             g2.setColor(new Color(255, 255, 255, 140));
             g2.drawRoundRect(5, 4, w - 10, h - 8, arc - 1, arc - 1);
             
-            // Draw dashed border overlay for selected state (when not hovered)
+            // Static Aero glow for selected state.
             if (selected && !hoverActive && deleteProgress <= 0.01f) {
-                // Create animated dashed stroke for selection indicator
-                float[] dashPattern = {6.0f, 4.0f}; // Dash length 6, gap 4
-                java.awt.BasicStroke dashedStroke = new java.awt.BasicStroke(2.0f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND, 0.0f, dashPattern, dashedBorderPhase);
-                g2.setStroke(dashedStroke);
-                g2.setColor(NotebookPersonalization.withAlpha(accent, 180)); // Notebook accent color
-                g2.drawRoundRect(2, 1, w - 4, h - 2, arc + 3, arc + 3);
-                
-                // Reset stroke for any subsequent drawing
+                Composite oldComposite = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.22f));
+                g2.setColor(NotebookPersonalization.withAlpha(accent, 120));
+                g2.setStroke(new java.awt.BasicStroke(7.0f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+                g2.drawRoundRect(5, 4, w - 10, h - 8, arc + 2, arc + 2);
+
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.26f));
+                g2.setColor(new Color(255, 255, 255, 210));
+                g2.setStroke(new java.awt.BasicStroke(3.0f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+                g2.drawRoundRect(7, 6, w - 14, h - 12, arc, arc);
+
+                g2.setComposite(oldComposite);
+                g2.setColor(NotebookPersonalization.withAlpha(accent, 220));
+                g2.setStroke(new java.awt.BasicStroke(2.2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+                g2.drawRoundRect(3, 2, w - 6, h - 4, arc + 3, arc + 3);
                 g2.setStroke(new java.awt.BasicStroke(1.0f));
             }
             
@@ -1676,7 +1671,6 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("entryTimestamps", entryTimestamps);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
         list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
-        list.putClientProperty("dashedBorderPhase", dashedBorderPhase);
         list.putClientProperty("previews", previewCache);
         list.putClientProperty("moodTrends", moodTrendCache);
         list.putClientProperty("encryptedFlags", encryptedFlags);
@@ -1716,7 +1710,7 @@ public class NotebookEntriesPanel extends JPanel {
                 }
             }
             updateSelectionSweepState();
-            updateDashedBorderState();
+            updateSelectionGlowState();
         });
         listScroll = new JScrollPane(list);
         try {
@@ -2761,7 +2755,6 @@ public class NotebookEntriesPanel extends JPanel {
         try { reorderAnimTimer.stop(); } catch (Throwable ignored) {}
         try { deleteAnimTimer.stop(); } catch (Throwable ignored) {}
         try { selectionSweepTimer.stop(); } catch (Throwable ignored) {}
-        try { dashedBorderTimer.stop(); } catch (Throwable ignored) {}
         try {
             if (metaLoader != null && !metaLoader.isDone()) {
                 metaLoader.cancel(true);
@@ -3037,22 +3030,12 @@ public class NotebookEntriesPanel extends JPanel {
         }
     }
     
-    private void updateDashedBorderState() {
+    private void updateSelectionGlowState() {
         int selectedIndex = list.getSelectedIndex();
-        boolean hasSelection = selectedIndex >= 0;
-        if (hasSelection) {
-            if (dashedAnimatedIndex != selectedIndex) {
-                repaintRow(dashedAnimatedIndex, 8);
-                dashedAnimatedIndex = selectedIndex;
-                repaintRow(dashedAnimatedIndex, 8);
-            }
-            if (!dashedBorderTimer.isRunning()) dashedBorderTimer.start();
-        } else {
-            if (dashedBorderTimer.isRunning()) dashedBorderTimer.stop();
-            dashedBorderPhase[0] = 0f;
-            repaintRow(dashedAnimatedIndex, 8);
-            dashedAnimatedIndex = -1;
-        }
+        if (selectedGlowIndex == selectedIndex) return;
+        repaintRow(selectedGlowIndex, 10);
+        selectedGlowIndex = selectedIndex;
+        repaintRow(selectedGlowIndex, 10);
     }
 
     private void updateHoverFromPoint(java.awt.Point p) {

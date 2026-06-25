@@ -46,6 +46,7 @@ import main.ui.components.buttons.RoundedButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.scrollbar.ModernScrollBarUI;
 import main.ui.components.spinner.ModernSpinnerUI;
+import main.ui.features.entries.JournalTemplateManager;
 import main.ui.features.font.CustomFontStudioDialog;
 
 class GeneralSettingsPage extends JPanel implements SettingsPage {
@@ -73,6 +74,8 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
     private final JCheckBox launchOnLoginChk;
     private final JCheckBox handwritingToolbarChk;
     private final JCheckBox codeSyntaxFormatterChk;
+    private final JCheckBox defaultJournalTemplateChk;
+    private final JComboBox<TemplateOption> defaultJournalTemplateBox;
     
 
     GeneralSettingsPage() {
@@ -177,6 +180,24 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
 
         gc.gridx = 0; gc.gridy = row; add(SettingsUi.label("Poem font size:"), gc);
         gc.gridx = 1; add(poemFont, gc);
+        row++;
+
+        defaultJournalTemplateChk = new JCheckBox("Use a default template for new journal entries", store.isDefaultJournalTemplateEnabled());
+        defaultJournalTemplateChk.setUI(new main.ui.components.checkbox.ModernCheckBoxUI());
+        defaultJournalTemplateChk.setBackground(new Color(0, 0, 0, 0));
+        gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; add(defaultJournalTemplateChk, gc);
+        row++;
+
+        defaultJournalTemplateBox = new JComboBox<>();
+        defaultJournalTemplateBox.setUI(new ModernComboBoxUI());
+        defaultJournalTemplateBox.setRenderer(new ModernComboBoxUI.ModernComboBoxRenderer());
+        reloadTemplateOptions(store.getDefaultJournalTemplateId());
+        defaultJournalTemplateBox.setEnabled(defaultJournalTemplateChk.isSelected());
+        defaultJournalTemplateChk.addActionListener(e -> defaultJournalTemplateBox.setEnabled(defaultJournalTemplateChk.isSelected()));
+        installPopupScrollbar(defaultJournalTemplateBox);
+        gc.gridwidth = 1;
+        gc.gridx = 0; gc.gridy = row; add(SettingsUi.label("Default journal template:"), gc);
+        gc.gridx = 1; add(defaultJournalTemplateBox, gc);
         row++;
 
         JLabel overrideNote = SettingsUi.label("To override the editor font size later, adjust the journal and poem sizes here.");
@@ -348,6 +369,9 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
         store.setPoetryAutocorrectEnabled(poetryAutocorrectChk.isSelected());
         store.setHandwritingToolbarEnabled(handwritingToolbarChk.isSelected());
         store.setCodeSyntaxFormatterEnabled(codeSyntaxFormatterChk.isSelected());
+        store.setDefaultJournalTemplateEnabled(defaultJournalTemplateChk.isSelected());
+        TemplateOption selectedTemplate = (TemplateOption) defaultJournalTemplateBox.getSelectedItem();
+        if (selectedTemplate != null) store.setDefaultJournalTemplateId(selectedTemplate.id);
         
         // Menu bar service (macOS only)
         boolean menuBarEnabled = store.isMenuBarServiceEnabled();
@@ -420,6 +444,44 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
                 : java.awt.desktop.QuitStrategy.CLOSE_ALL_WINDOWS;
             d.setQuitStrategy(qs);
         } catch (Throwable ignored) {}
+    }
+
+
+    private void reloadTemplateOptions(String preferredSelection) {
+        DefaultComboBoxModel<TemplateOption> model = new DefaultComboBoxModel<>();
+        try {
+            for (JournalTemplateManager.JournalTemplate template : JournalTemplateManager.getInstance().getTemplates()) {
+                if (template != null) {
+                    model.addElement(new TemplateOption(template.getId(), template.getName()));
+                }
+            }
+        } catch (Throwable ignored) {}
+        if (model.getSize() == 0) {
+            model.addElement(new TemplateOption("BLANK", "Blank Entry"));
+        }
+        defaultJournalTemplateBox.setModel(model);
+        int selectedIndex = -1;
+        if (preferredSelection != null) {
+            for (int i = 0; i < model.getSize(); i++) {
+                if (preferredSelection.equals(model.getElementAt(i).id)) {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        defaultJournalTemplateBox.setSelectedIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    }
+
+    private static final class TemplateOption {
+        final String id;
+        final String name;
+
+        TemplateOption(String id, String name) {
+            this.id = id == null || id.isBlank() ? "BLANK" : id;
+            this.name = name == null || name.isBlank() ? this.id : name;
+        }
+
+        @Override public String toString() { return name; }
     }
 
     private void reloadFontFamilyOptions(String preferredSelection) {

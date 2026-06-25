@@ -1341,27 +1341,28 @@ public class JournalApp extends JFrame {
         String cardId = "Editor_" + nb.getName() + "_" + System.currentTimeMillis();
         java.io.File targetFolder = nb.getFolder();
         
-        // For journal entries, show template selection dialog
+        // For journal entries, use the configured default template or show the selector.
         if (nb.getType() == NotebookInfo.Type.JOURNAL) {
-            main.ui.features.entries.ModernTemplateSelector dialog = 
-                new main.ui.features.entries.ModernTemplateSelector((Frame) SwingUtilities.getWindowAncestor(this), nb);
-            dialog.setVisible(true);
-            
-            if (!dialog.isAccepted()) {
-                return; // User cancelled
+            main.ui.features.entries.JournalTemplateManager.JournalTemplate template = resolveDefaultJournalTemplate(nb);
+            if (template == null) {
+                main.ui.features.entries.ModernTemplateSelector dialog =
+                    new main.ui.features.entries.ModernTemplateSelector((Frame) SwingUtilities.getWindowAncestor(this), nb);
+                dialog.setVisible(true);
+
+                if (!dialog.isAccepted()) {
+                    return; // User cancelled
+                }
+                template = dialog.getSelectedTemplate();
             }
-            
+
             NotebookEditor editor = editorFactory.createInFolder(NotebookEditorType.ENTRY, targetFolder);
             openEditors.add(editor);
-            
-            // If guided mode, set up question flow
-            if (dialog.isGuidedMode()) {
-                String[] questions = dialog.getGuidedQuestions();
-                if (questions != null && questions.length > 0) {
-                    editor.setGuidedQuestions(questions);
-                }
+
+            String[] questions = template != null ? template.getQuestions() : null;
+            if (questions != null && questions.length > 0) {
+                editor.setGuidedQuestions(questions);
             }
-            
+
             cardPanel.add(editor.getMainComponent(), cardId);
             switchCard(cardId);
         } else if (nb.getType() == NotebookInfo.Type.NOTETAKING) {
@@ -1377,6 +1378,22 @@ public class JournalApp extends JFrame {
             cardPanel.add(editor.getMainComponent(), cardId);
             switchCard(cardId);
         }
+    }
+
+
+    private main.ui.features.entries.JournalTemplateManager.JournalTemplate resolveDefaultJournalTemplate(NotebookInfo nb) {
+        if (nb == null || nb.getType() != NotebookInfo.Type.JOURNAL) return null;
+        SettingsStore store = SettingsStore.get();
+        if (!store.isDefaultJournalTemplateEnabled()) return null;
+        String id = store.getDefaultJournalTemplateId();
+        if (id == null || id.isBlank()) return null;
+        try {
+            for (main.ui.features.entries.JournalTemplateManager.JournalTemplate template
+                    : main.ui.features.entries.JournalTemplateManager.getInstance().getTemplates(nb)) {
+                if (template != null && id.equals(template.getId())) return template;
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     /** Opens an existing file in proper editor based on notebook type */
