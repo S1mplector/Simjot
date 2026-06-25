@@ -1585,6 +1585,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 return getEditorGlassOpacity();
             }
         };
+        textWrapper.putClientProperty(FrostedGlassPanel.MINIMAL_LOOK_KEEP_GLASS, Boolean.TRUE);
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Content Area: Rich text editor (StyledDocument)

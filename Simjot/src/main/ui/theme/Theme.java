@@ -39,7 +39,15 @@ public final class Theme {
     }
 
     public static boolean isPlainWhite() {
-        return getVariant() == Variant.LIGHT;
+        return isMinimalLook() || getVariant() == Variant.LIGHT;
+    }
+
+    public static boolean isMinimalLook() {
+        try {
+            return SettingsStore.get().isMinimalLookEnabled();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     public static boolean isAero() {

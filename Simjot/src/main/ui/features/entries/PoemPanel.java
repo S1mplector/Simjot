@@ -419,6 +419,7 @@ public class PoemPanel extends AbstractEditorPanel {
                 return SettingsStore.get().getPoemGlassOpacity();
             }
         };
+        textWrapper.putClientProperty(FrostedGlassPanel.MINIMAL_LOOK_KEEP_GLASS, Boolean.TRUE);
         textWrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         poemEditor = new CustomFontTextPane();

@@ -100,6 +100,7 @@ public final class SettingsStore {
     private static final String KEY_LAYOUT_DENSITY = "layoutDensity";
     private static final String KEY_LOW_POWER_MODE = "lowPowerMode";
     private static final String KEY_DISABLE_TRANSPARENT_WINDOWS = "disableTransparentWindows";
+    private static final String KEY_MINIMAL_LOOK = "minimalLookEnabled";
     // Menu bar service (macOS)
     private static final String KEY_MENUBAR_ENABLED = "menuBarServiceEnabled";
     private static final String KEY_LAUNCH_ON_LOGIN = "launchOnLogin";
@@ -193,6 +194,7 @@ public final class SettingsStore {
     private static final boolean DEF_UI_SCALING_ENABLED = true;
     private static final boolean DEF_LOW_POWER_MODE = false;
     private static final boolean DEF_DISABLE_TRANSPARENT_WINDOWS = false;
+    private static final boolean DEF_MINIMAL_LOOK = false;
     private static final boolean DEF_WIDGET_PANEL_VISIBLE = true;
     private static final String  DEF_DATE_FORMAT = "yyyy-MM-dd";
     private static final boolean DEF_OPEN_LAST = false;
@@ -755,6 +757,12 @@ public final class SettingsStore {
         return Boolean.parseBoolean(props.getProperty(KEY_DISABLE_TRANSPARENT_WINDOWS, String.valueOf(DEF_DISABLE_TRANSPARENT_WINDOWS)));
     }
     public void setTransparentWindowsDisabled(boolean b){ props.setProperty(KEY_DISABLE_TRANSPARENT_WINDOWS, String.valueOf(b)); }
+
+    // Minimal Look
+    public boolean isMinimalLookEnabled(){
+        return Boolean.parseBoolean(props.getProperty(KEY_MINIMAL_LOOK, String.valueOf(DEF_MINIMAL_LOOK)));
+    }
+    public void setMinimalLookEnabled(boolean b){ props.setProperty(KEY_MINIMAL_LOOK, String.valueOf(b)); }
 
     // Menu Bar Service (macOS quick entry)
     public boolean isMenuBarServiceEnabled(){

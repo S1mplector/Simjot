@@ -11,6 +11,7 @@ package main.ui.components.containers;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.*;
+import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroPainters;
 
 public class AeroPanel extends JPanel {
@@ -39,6 +40,15 @@ public class AeroPanel extends JPanel {
             g2.dispose();
             Window win = SwingUtilities.getWindowAncestor(this);
             if (win != null && win.getBackground().getAlpha() == 0) win.setBackground(new Color(245, 245, 245));
+            return;
+        }
+
+        if (Theme.isMinimalLook()) {
+            g2.setColor(Color.WHITE);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.setColor(new Color(218, 226, 234));
+            g2.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+            g2.dispose();
             return;
         }
 

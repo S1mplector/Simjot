@@ -118,6 +118,17 @@ public class ShadowedDialogPanel extends JPanel {
             return;
         }
 
+        if (Theme.isMinimalLook()) {
+            g2.setColor(flatColor != null ? flatColor : Color.WHITE);
+            g2.fillRect(0, 0, w, h);
+            g2.setColor(new Color(218, 226, 234));
+            g2.drawRect(0, 0, w - 1, h - 1);
+            g2.dispose();
+            java.awt.Window win = javax.swing.SwingUtilities.getWindowAncestor(this);
+            if (win != null && win.getBackground().getAlpha() == 0) win.setBackground(flatColor != null ? flatColor : Color.WHITE);
+            return;
+        }
+
         // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
         g2.setComposite(java.awt.AlphaComposite.Clear);
         g2.fillRect(0, 0, w, h);

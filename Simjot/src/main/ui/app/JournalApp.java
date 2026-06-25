@@ -742,6 +742,7 @@ public class JournalApp extends JFrame {
         try { globalJournalFontSize = SettingsStore.get().getJournalFontSize(); } catch (Throwable ignored) {}
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
+        cardPanel.setBackground(main.ui.theme.Theme.isMinimalLook() ? Color.WHITE : getBackground());
 
         // Main menu
         mainMenuPanel = createMainMenuPanel();

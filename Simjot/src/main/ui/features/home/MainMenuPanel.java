@@ -802,8 +802,9 @@ public class MainMenuPanel extends JPanel {
 
     private void buildUI() {
         String bgPath = SettingsStore.get().getBackgroundImage();
-        final boolean hasWallpaper = bgPath != null && !bgPath.isEmpty();
-        final Color wallpaperFallback = new Color(246, 249, 252);
+        boolean minimalLook = Theme.isMinimalLook();
+        final boolean hasWallpaper = !minimalLook && bgPath != null && !bgPath.isEmpty();
+        final Color wallpaperFallback = minimalLook ? Color.WHITE : new Color(246, 249, 252);
         Color accent = AccentColorUtil.defaultAccent();
         JPanel content;
         if (hasWallpaper) {
@@ -837,8 +838,7 @@ public class MainMenuPanel extends JPanel {
             }
             content.setBackground(wallpaperFallback);
         } else {
-            // Blank / default – give the landing screen some atmospheric Aero depth.
-            content = createAeroFallbackContent(accent);
+            content = minimalLook ? new JPanel() : createAeroFallbackContent(accent);
             content.setBackground(Color.WHITE);
         }
         // Keep icon cache in sync after accent changes (tinting disabled for current icon set).

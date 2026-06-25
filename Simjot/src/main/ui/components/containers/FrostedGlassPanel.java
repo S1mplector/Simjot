@@ -40,6 +40,8 @@ import main.ui.theme.aero.AeroTheme;
  * @author S1mplector
  */
 public class FrostedGlassPanel extends JPanel {
+    public static final String MINIMAL_LOOK_KEEP_GLASS = "minimalLook.keepGlass";
+
     private int arc;
     private float opacityScale = 1.0f;
 
@@ -74,6 +76,15 @@ public class FrostedGlassPanel extends JPanel {
         return opacityScale;
     }
 
+    public void setMinimalLookKeepGlass(boolean keepGlass) {
+        putClientProperty(MINIMAL_LOOK_KEEP_GLASS, Boolean.valueOf(keepGlass));
+        repaint();
+    }
+
+    private boolean shouldUseSolidMinimalLook() {
+        return Theme.isMinimalLook() && !Boolean.TRUE.equals(getClientProperty(MINIMAL_LOOK_KEEP_GLASS));
+    }
+
     private static Color scaleAlpha(Color color, float scale) {
         int alpha = Math.round(color.getAlpha() * scale);
         alpha = Math.max(0, Math.min(255, alpha));
@@ -96,6 +107,15 @@ public class FrostedGlassPanel extends JPanel {
             g2.dispose();
             java.awt.Window win = javax.swing.SwingUtilities.getWindowAncestor(this);
             if (win != null && win.getBackground().getAlpha() == 0) win.setBackground(Color.WHITE);
+            return;
+        }
+
+        if (shouldUseSolidMinimalLook()) {
+            g2.setColor(Color.WHITE);
+            g2.fillRect(0, 0, w, h);
+            g2.setColor(new Color(218, 226, 234));
+            g2.drawRect(0, 0, w - 1, h - 1);
+            g2.dispose();
             return;
         }
 
