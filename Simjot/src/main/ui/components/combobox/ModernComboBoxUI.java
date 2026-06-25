@@ -22,6 +22,11 @@ public class ModernComboBoxUI extends BasicComboBoxUI {
     }
 
     @Override
+    public void update(Graphics g, JComponent c) {
+        paint(g, c);
+    }
+
+    @Override
     protected JButton createArrowButton() {
         return new JButton() {{ setVisible(false); }};
     }
