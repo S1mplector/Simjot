@@ -183,6 +183,14 @@ if [[ ${#jars[@]} -gt 0 ]]; then
   JAR_PATH="$(ls -t "${PROJECT_DIR}"/target/Simjot-*.jar | head -n 1)"
 fi
 
+SOURCE_NEWER=false
+if [[ -n "${JAR_PATH}" ]]; then
+  NEWER_INPUT="$(find "${PROJECT_DIR}/src/main" "${POM_FILE}" -type f -newer "${JAR_PATH}" -print -quit 2>/dev/null || true)"
+  if [[ -n "${NEWER_INPUT}" ]]; then
+    SOURCE_NEWER=true
+  fi
+fi
+
 SHOULD_BUILD=false
 case "${BUILD_MODE}" in
   force)
@@ -192,7 +200,7 @@ case "${BUILD_MODE}" in
     SHOULD_BUILD=false
     ;;
   auto)
-    if [[ -z "${JAR_PATH}" ]]; then
+    if [[ -z "${JAR_PATH}" || "${SOURCE_NEWER}" == true ]]; then
       SHOULD_BUILD=true
     fi
     ;;

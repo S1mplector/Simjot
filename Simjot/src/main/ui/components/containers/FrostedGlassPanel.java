@@ -44,6 +44,7 @@ import main.ui.theme.aero.AeroTheme;
 public class FrostedGlassPanel extends JPanel {
     private int arc;
     private float opacityScale = 1.0f;
+    private float bottomShadeStrength = 1.0f;
 
     public FrostedGlassPanel() {
         this(new BorderLayout(), 14);
@@ -69,6 +70,12 @@ public class FrostedGlassPanel extends JPanel {
     public void setOpacityScale(float opacityScale) {
         if (Float.isNaN(opacityScale)) return;
         this.opacityScale = Math.max(0f, Math.min(1f, opacityScale));
+        repaint();
+    }
+
+    public void setBottomShadeStrength(float bottomShadeStrength) {
+        if (Float.isNaN(bottomShadeStrength)) return;
+        this.bottomShadeStrength = Math.max(0f, Math.min(1f, bottomShadeStrength));
         repaint();
     }
 
@@ -183,8 +190,8 @@ public class FrostedGlassPanel extends JPanel {
         g2.setPaint(aquaRim);
         g2.fill(fillShape);
         GradientPaint shadow = new GradientPaint(
-                0, h * 0.45f, scaleAlpha(new Color(0, 0, 0, plain ? 8 : 12), opacity),
-                0, h, scaleAlpha(new Color(0, 0, 0, plain ? 24 : 42), opacity)
+                0, h * 0.45f, scaleAlpha(new Color(0, 0, 0, plain ? 8 : 12), opacity * bottomShadeStrength),
+                0, h, scaleAlpha(new Color(0, 0, 0, plain ? 24 : 42), opacity * bottomShadeStrength)
         );
         g2.setPaint(shadow);
         g2.fill(fillShape);

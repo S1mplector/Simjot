@@ -973,9 +973,10 @@ public class MainMenuPanel extends JPanel {
         FrostedGlassPanel southPanel = new FrostedGlassPanel(new BorderLayout(), 14) {
             @Override
             protected float getOpacityScale() {
-                return Theme.isPlainWhite() ? 0.45f : 0.42f;
+                return Theme.isPlainWhite() ? 0.82f : 0.74f;
             }
         };
+        southPanel.setBottomShadeStrength(0f);
         southPanel.setOpaque(false);
         southPanel.setPreferredSize(new Dimension(10, 56));
         southPanel.setBorder(BorderFactory.createEmptyBorder(3, 8, 6, 8));
