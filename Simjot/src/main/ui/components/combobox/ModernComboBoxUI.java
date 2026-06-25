@@ -16,6 +16,12 @@ import main.ui.theme.Theme;
 
 public class ModernComboBoxUI extends BasicComboBoxUI {
     @Override
+    public void installUI(JComponent c) {
+        super.installUI(c);
+        c.setOpaque(false);
+    }
+
+    @Override
     protected JButton createArrowButton() {
         return new JButton() {{ setVisible(false); }};
     }
