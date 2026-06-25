@@ -71,6 +71,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
     private final JComboBox<AccentOption> accentBox;
     private final JCheckBox disableAnimationsChk;
     private final JCheckBox disableMainMenuAnimationsChk;
+    private final JCheckBox disableTransparentWindowsChk;
     private final MoodSlider journalGlassOpacitySlider;
     private final JLabel journalGlassOpacityValueLabel;
     private final GlassOpacityPreview journalGlassPreview;
@@ -136,6 +137,10 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         disableMainMenuAnimationsChk.setUI(new ModernCheckBoxUI());
         disableMainMenuAnimationsChk.setBackground(new Color(0, 0, 0, 0));
 
+        disableTransparentWindowsChk = new JCheckBox("Disable transparent windows (fixes Linux graphical glitches)", store.isTransparentWindowsDisabled());
+        disableTransparentWindowsChk.setUI(new ModernCheckBoxUI());
+        disableTransparentWindowsChk.setBackground(new Color(0, 0, 0, 0));
+
         backgroundOptionsBtn = new IconMenuButton("", "backgroundoptions");
         backgroundOptionsBtn.setToolTipText("Background Options");
         backgroundOptionsBtn.addActionListener(e -> openBackgroundOptions());
@@ -153,6 +158,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         gc.gridx = 1; add(accentBox, gc);
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; add(disableAnimationsChk, gc);
         gc.gridx = 0; gc.gridy = 5; gc.gridwidth = 2; add(disableMainMenuAnimationsChk, gc);
+        gc.gridx = 0; gc.gridy = 6; gc.gridwidth = 2; add(disableTransparentWindowsChk, gc);
 
         // Editor glass panel opacity sliders (per editor type)
         gc.gridwidth = 1;
@@ -168,7 +174,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             journalGlassOpacityValueLabel.setText(String.format("%d%%", v));
             journalGlassPreview.setOpacity(v / 100f);
         });
-        gc.gridx = 0; gc.gridy = 6; add(SettingsUi.label("Journal editor glass opacity:"), gc);
+        gc.gridx = 0; gc.gridy = 7; add(SettingsUi.label("Journal editor glass opacity:"), gc);
         gc.gridx = 1; add(buildGlassOpacityRow(journalGlassOpacitySlider, journalGlassOpacityValueLabel, journalGlassPreview), gc);
 
         float savedPoemGlassOpacity = store.getPoemGlassOpacity();
@@ -183,7 +189,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             poemGlassOpacityValueLabel.setText(String.format("%d%%", v));
             poemGlassPreview.setOpacity(v / 100f);
         });
-        gc.gridx = 0; gc.gridy = 7; add(SettingsUi.label("Poem editor glass opacity:"), gc);
+        gc.gridx = 0; gc.gridy = 8; add(SettingsUi.label("Poem editor glass opacity:"), gc);
         gc.gridx = 1; add(buildGlassOpacityRow(poemGlassOpacitySlider, poemGlassOpacityValueLabel, poemGlassPreview), gc);
 
         float savedNotetakingGlassOpacity = store.getNotetakingGlassOpacity();
@@ -198,7 +204,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
             notetakingGlassOpacityValueLabel.setText(String.format("%d%%", v));
             notetakingGlassPreview.setOpacity(v / 100f);
         });
-        gc.gridx = 0; gc.gridy = 8; add(SettingsUi.label("Notetaking editor glass opacity:"), gc);
+        gc.gridx = 0; gc.gridy = 9; add(SettingsUi.label("Notetaking editor glass opacity:"), gc);
         gc.gridx = 1; add(buildGlassOpacityRow(notetakingGlassOpacitySlider, notetakingGlassOpacityValueLabel, notetakingGlassPreview), gc);
 
         paperFeelChk = new JCheckBox("Paper feel overlay in journal/poem editors", store.isEditorPaperFeelEnabled());
@@ -216,11 +222,11 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         headerLocationField.setText(store.getEditorHeaderStampLocation());
         headerLocationField.setPlaceholder("Optional location (e.g., Paris)");
 
-        gc.gridx = 0; gc.gridy = 9; gc.gridwidth = 2; add(paperFeelChk, gc);
-        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2; add(typographyPolishChk, gc);
-        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2; add(headerStampChk, gc);
+        gc.gridx = 0; gc.gridy = 10; gc.gridwidth = 2; add(paperFeelChk, gc);
+        gc.gridx = 0; gc.gridy = 11; gc.gridwidth = 2; add(typographyPolishChk, gc);
+        gc.gridx = 0; gc.gridy = 12; gc.gridwidth = 2; add(headerStampChk, gc);
         gc.gridwidth = 1;
-        gc.gridx = 0; gc.gridy = 12; add(SettingsUi.label("Header location:"), gc);
+        gc.gridx = 0; gc.gridy = 13; add(SettingsUi.label("Header location:"), gc);
         gc.gridx = 1; add(headerLocationField, gc);
         gc.gridwidth = 2;
 
@@ -229,24 +235,24 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         toggleHeaderLocation.run();
 
         // Clock & Calendar Style section
-        gc.gridx = 0; gc.gridy = 14; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
         gc.insets = new Insets(20, 5, 5, 5);
         add(SettingsUi.header("Clock & Calendar", "Style for main menu widgets"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
 
         // Clock style selection
-        gc.gridx = 0; gc.gridy = 15; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 16; gc.gridwidth = 2;
         add(SettingsUi.label("Clock style:"), gc);
 
         selectedClockStyle = store.getClockStyle();
         StyleCycler clockCycler = new StyleCycler(CLOCK_STYLES, selectedClockStyle, true);
         clockCycler.setOnChange(style -> selectedClockStyle = style);
-        gc.gridx = 0; gc.gridy = 16; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 17; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(clockCycler, gc);
 
         // Calendar style selection
-        gc.gridx = 0; gc.gridy = 17; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 18; gc.gridwidth = 2;
         gc.insets = new Insets(10, 5, 5, 5);
         add(SettingsUi.label("Calendar style:"), gc);
         gc.insets = new Insets(5, 5, 5, 5);
@@ -254,7 +260,7 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         selectedCalendarStyle = store.getCalendarStyle();
         StyleCycler calendarCycler = new StyleCycler(CALENDAR_STYLES, selectedCalendarStyle, false);
         calendarCycler.setOnChange(style -> selectedCalendarStyle = style);
-        gc.gridx = 0; gc.gridy = 18; gc.gridwidth = 2;
+        gc.gridx = 0; gc.gridy = 19; gc.gridwidth = 2;
         gc.fill = GridBagConstraints.HORIZONTAL;
         add(calendarCycler, gc);
         gc.gridwidth = 1;
@@ -375,6 +381,8 @@ class AppearanceSettingsPage extends JPanel implements SettingsPage {
         store.setAnimationsDisabled(disableAnimationsChk.isSelected());
 
         store.setMainMenuAnimationsDisabled(disableMainMenuAnimationsChk.isSelected());
+        
+        store.setTransparentWindowsDisabled(disableTransparentWindowsChk.isSelected());
 
         // Editor glass panel opacity (per editor)
         store.setEntryGlassOpacity(journalGlassOpacitySlider.getValue() / 100f);

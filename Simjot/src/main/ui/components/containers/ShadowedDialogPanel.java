@@ -23,6 +23,7 @@ import java.awt.geom.Point2D;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
+import main.core.service.SettingsStore;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
 
@@ -107,6 +108,15 @@ public class ShadowedDialogPanel extends JPanel {
         
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        if (SettingsStore.get().isTransparentWindowsDisabled()) {
+            g2.setColor(flatColor != null ? flatColor : Color.WHITE);
+            g2.fillRect(0, 0, w, h);
+            g2.dispose();
+            java.awt.Window win = javax.swing.SwingUtilities.getWindowAncestor(this);
+            if (win != null && win.getBackground().getAlpha() == 0) win.setBackground(flatColor != null ? flatColor : Color.WHITE);
+            return;
+        }
 
         // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
         g2.setComposite(java.awt.AlphaComposite.Clear);

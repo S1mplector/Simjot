@@ -111,6 +111,21 @@ public class ModernClusterOrganizer extends JDialog {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int w = getWidth(), h = getHeight();
+                
+                if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled()) {
+                    g2.setColor(new Color(245, 245, 245));
+                    g2.fillRect(0, 0, w, h);
+                    g2.dispose();
+                    java.awt.Window win = javax.swing.SwingUtilities.getWindowAncestor(this);
+                    if (win != null && win.getBackground().getAlpha() == 0) win.setBackground(new Color(245, 245, 245));
+                    return;
+                }
+
+                // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
+                g2.setComposite(java.awt.AlphaComposite.Clear);
+                g2.fillRect(0, 0, w, h);
+                g2.setComposite(java.awt.AlphaComposite.SrcOver);
+
                 int arc = 20;
                 RoundRectangle2D shape = new RoundRectangle2D.Float(0, 0, w, h, arc, arc);
                 // Flat semi-transparent fill
