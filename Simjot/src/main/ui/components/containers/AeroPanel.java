@@ -34,12 +34,19 @@ public class AeroPanel extends JPanel {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled()) {
-            g2.setColor(new Color(245, 245, 245));
-            g2.fillRect(0, 0, getWidth(), getHeight());
-            g2.dispose();
             Window win = SwingUtilities.getWindowAncestor(this);
-            if (win != null && win.getBackground().getAlpha() == 0) win.setBackground(new Color(245, 245, 245));
-            return;
+            boolean isUndecorated = false;
+            if (win instanceof javax.swing.JDialog d) isUndecorated = d.isUndecorated();
+            else if (win instanceof javax.swing.JFrame f) isUndecorated = f.isUndecorated();
+            else if (win instanceof javax.swing.JWindow) isUndecorated = true;
+
+            if (isUndecorated) {
+                g2.setColor(new Color(245, 245, 245));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+                if (win.getBackground().getAlpha() == 0) win.setBackground(new Color(245, 245, 245));
+                return;
+            }
         }
 
         // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
