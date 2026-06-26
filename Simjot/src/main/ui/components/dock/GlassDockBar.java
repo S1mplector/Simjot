@@ -37,6 +37,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import main.infrastructure.ffi.NativeAccess;
+import main.infrastructure.monitoring.AppPerf;
 import main.ui.components.icons.ImageIconRenderer;
 import main.ui.theme.Theme;
 import main.ui.theme.aero.AeroTheme;
@@ -68,7 +69,16 @@ public class GlassDockBar extends JPanel {
     private float expandProgress;
     private long lastHoverNanos;
     private long lastFrameNanos;
+    private long lastPointerRefreshNanos;
     private Timer animationTimer;
+    private boolean layoutCacheValid;
+    private int cachedLayoutWidth = Integer.MIN_VALUE;
+    private float cachedLayoutProgress = Float.NaN;
+    private long layoutRevision;
+    private int[] cachedDrawOrder;
+    private boolean drawOrderDirty = true;
+    private int drawOrderHoveredIndex = Integer.MIN_VALUE;
+    private long drawOrderLayoutRevision = -1L;
     private final float uiScale;
     private final boolean showLabels;
     private final int itemSize;
@@ -100,7 +110,9 @@ public class GlassDockBar extends JPanel {
     private static final float BASE_MIN_COLLAPSED_ITEM_SIZE = 46f;
     private static final float ANIMATION_RATE = 10.5f;
     private static final long COLLAPSE_LINGER_NS = 170_000_000L;
+    private static final long POINTER_REFRESH_INTERVAL_NS = 90_000_000L;
     private static final float LAYOUT_EPSILON = 0.001f;
+    private static final int ICON_SIZE_QUANTUM = 2;
     private static final float BASE_HOVER_ZONE_MARGIN = 14f;
     private static final int BASE_LABEL_AREA = 18;
     private static final int BASE_CORNER_RADIUS = 36;
@@ -133,40 +145,34 @@ public class GlassDockBar extends JPanel {
         setLayout(null); // Custom positioning
         setDoubleBuffered(true);
         
-        // Animation timer for smooth transitions
-        animationTimer = new Timer(16, e -> animateItems());
+        // Animation timer for smooth transitions. It is started on demand and sleeps when settled.
+        animationTimer = new Timer(AppPerf.getAnimationDelay(), e -> animateItems());
         animationTimer.setCoalesce(true);
         animationTimer.setRepeats(true);
-        animationTimer.start();
         
         // Mouse tracking
         addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
-                mousePoint = e.getPoint();
-                mouseInside = true;
-                updateHoveredItem(mousePoint);
+                handlePointerMotion(e.getPoint());
             }
 
             @Override
             public void mouseDragged(MouseEvent e) {
-                mousePoint = e.getPoint();
-                mouseInside = true;
-                updateHoveredItem(mousePoint);
+                handlePointerMotion(e.getPoint());
             }
         });
         
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                mouseInside = true;
-                mousePoint = e.getPoint();
-                updateHoveredItem(mousePoint);
+                handlePointerMotion(e.getPoint());
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
                 clearMouseTrackingState();
+                ensureAnimationTimerRunning();
             }
             
             @Override
@@ -178,6 +184,17 @@ public class GlassDockBar extends JPanel {
                 }
             }
         });
+    }
+
+    private void handlePointerMotion(Point p) {
+        if (p == null) return;
+        if (mouseInside && p.equals(mousePoint)) {
+            return;
+        }
+        mouseInside = true;
+        mousePoint = p;
+        updateHoveredItem(mousePoint);
+        ensureAnimationTimerRunning();
     }
     
     public void addItem(String label, String iconId, Runnable action) {
@@ -196,6 +213,7 @@ public class GlassDockBar extends JPanel {
             itemGlows[i] = 0f;
         }
         rebuildScatterLayout();
+        invalidateLayoutCache();
         updatePreferredSize();
         updateLayoutCache(getPreferredSize().width, expandProgress);
         repaint();
@@ -210,48 +228,66 @@ public class GlassDockBar extends JPanel {
         setPreferredSize(new Dimension(width, height));
         setMinimumSize(new Dimension(width, height));
         setMaximumSize(new Dimension(width, height));
+        invalidateLayoutCache();
     }
     
     private void updateHoveredItem(Point p) {
         updateLayoutCache(getWidth(), expandProgress);
-        hoveredIndex = getItemAtPoint(p);
-        Cursor targetCursor = hoveredIndex >= 0 ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor();
-        if (getCursor() != targetCursor) {
-            setCursor(targetCursor);
-        }
+        setHoveredIndex(getItemAtPoint(p));
     }
 
-    private void clearMouseTrackingState() {
+    private boolean clearMouseTrackingState() {
+        boolean changed = mouseInside || mousePoint != null || hoveredIndex != -1;
         mouseInside = false;
         mousePoint = null;
-        hoveredIndex = -1;
-        if (getCursor().getType() != Cursor.DEFAULT_CURSOR) {
-            setCursor(Cursor.getDefaultCursor());
+        changed |= setHoveredIndex(-1);
+        return changed;
+    }
+
+    private boolean setHoveredIndex(int index) {
+        if (hoveredIndex == index) {
+            updateCursorForHoveredIndex();
+            return false;
+        }
+        hoveredIndex = index;
+        invalidateDrawOrderCache();
+        updateCursorForHoveredIndex();
+        return true;
+    }
+
+    private void updateCursorForHoveredIndex() {
+        int targetType = hoveredIndex >= 0 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR;
+        Cursor current = getCursor();
+        if (current == null || current.getType() != targetType) {
+            setCursor(Cursor.getPredefinedCursor(targetType));
         }
     }
 
-    private void refreshMouseStateFromPointer() {
+    private boolean refreshMouseStateFromPointer() {
         if (!isShowing() || getWidth() <= 0 || getHeight() <= 0) {
-            clearMouseTrackingState();
-            return;
+            return clearMouseTrackingState();
         }
         try {
             java.awt.PointerInfo pointerInfo = MouseInfo.getPointerInfo();
             if (pointerInfo == null) {
-                clearMouseTrackingState();
-                return;
+                return clearMouseTrackingState();
             }
             Point p = pointerInfo.getLocation();
             SwingUtilities.convertPointFromScreen(p, this);
             boolean insideNow = p.x >= 0 && p.x < getWidth() && p.y >= 0 && p.y < getHeight();
             if (insideNow) {
+                boolean changed = !mouseInside || mousePoint == null || !mousePoint.equals(p);
                 mouseInside = true;
                 mousePoint = p;
+                int oldHovered = hoveredIndex;
+                updateHoveredItem(p);
+                return changed || oldHovered != hoveredIndex;
             } else {
-                clearMouseTrackingState();
+                return clearMouseTrackingState();
             }
         } catch (Throwable ignored) {
             // Keep existing state if pointer lookup is unavailable on this platform/mode.
+            return false;
         }
     }
     
@@ -274,12 +310,19 @@ public class GlassDockBar extends JPanel {
 
     private int[] buildDrawOrder() {
         int n = items.size();
+        if (!drawOrderDirty
+                && cachedDrawOrder != null
+                && cachedDrawOrder.length == n
+                && drawOrderHoveredIndex == hoveredIndex
+                && drawOrderLayoutRevision == layoutRevision) {
+            return cachedDrawOrder;
+        }
         int[] order = new int[n];
         for (int i = 0; i < n; i++) {
             order[i] = i;
         }
         if (n <= 1 || itemY == null || itemSizes == null) {
-            return order;
+            return cacheDrawOrder(order);
         }
 
         // Front-most items should render last. Sort by baseline Y, then by X.
@@ -316,7 +359,24 @@ public class GlassDockBar extends JPanel {
                 order[n - 1] = v;
             }
         }
-        return order;
+        return cacheDrawOrder(order);
+    }
+
+    private int[] cacheDrawOrder(int[] order) {
+        cachedDrawOrder = order;
+        drawOrderDirty = false;
+        drawOrderHoveredIndex = hoveredIndex;
+        drawOrderLayoutRevision = layoutRevision;
+        return cachedDrawOrder;
+    }
+
+    private void invalidateLayoutCache() {
+        layoutCacheValid = false;
+        invalidateDrawOrderCache();
+    }
+
+    private void invalidateDrawOrderCache() {
+        drawOrderDirty = true;
     }
 
     private void rebuildScatterLayout() {
@@ -471,9 +531,16 @@ public class GlassDockBar extends JPanel {
     }
     
     private void animateItems() {
-        if (itemScales == null) return;
-        refreshMouseStateFromPointer();
+        if (itemScales == null || items.isEmpty()) {
+            stopAnimationTimer();
+            return;
+        }
         long now = System.nanoTime();
+        boolean needsRepaint = false;
+        if (now - lastPointerRefreshNanos >= POINTER_REFRESH_INTERVAL_NS) {
+            needsRepaint = refreshMouseStateFromPointer();
+            lastPointerRefreshNanos = now;
+        }
         if (lastFrameNanos == 0L) {
             lastFrameNanos = now;
         }
@@ -488,7 +555,6 @@ public class GlassDockBar extends JPanel {
         boolean shouldExpand = inActiveZone || (now - lastHoverNanos) < COLLAPSE_LINGER_NS;
         float targetExpand = shouldExpand ? 1f : 0f;
 
-        boolean needsRepaint = false;
         float expandDiff = targetExpand - expandProgress;
         if (Math.abs(expandDiff) > LAYOUT_EPSILON) {
             float t = 1f - (float)Math.exp(-ANIMATION_RATE * dt);
@@ -500,12 +566,7 @@ public class GlassDockBar extends JPanel {
 
         updateLayoutCache(getWidth(), expandProgress);
         int newHoveredIndex = (shouldExpand && mousePoint != null) ? getItemAtPoint(mousePoint) : -1;
-        if (newHoveredIndex != hoveredIndex) {
-            hoveredIndex = newHoveredIndex;
-            Cursor targetCursor = hoveredIndex >= 0 ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor();
-            if (getCursor() != targetCursor) {
-                setCursor(targetCursor);
-            }
+        if (newHoveredIndex != hoveredIndex && setHoveredIndex(newHoveredIndex)) {
             needsRepaint = true;
         }
 
@@ -533,6 +594,8 @@ public class GlassDockBar extends JPanel {
         
         if (needsRepaint) {
             repaint();
+        } else if (inActiveZone || !shouldExpand) {
+            stopAnimationTimer();
         }
     }
 
@@ -554,6 +617,11 @@ public class GlassDockBar extends JPanel {
 
     private void updateLayoutCache(int componentWidth, float progress) {
         if (items.isEmpty() || itemX == null || componentWidth <= 0) {
+            return;
+        }
+        if (layoutCacheValid
+                && cachedLayoutWidth == componentWidth
+                && Math.abs(cachedLayoutProgress - progress) <= LAYOUT_EPSILON) {
             return;
         }
         if (scatterOffsetX == null || scatterOffsetX.length != items.size()) {
@@ -588,6 +656,11 @@ public class GlassDockBar extends JPanel {
             itemY[i] = lerp(collapsedItemY, expandedY, t);
             itemSizes[i] = lerp(collapsedSize, itemExpandedSize, t);
         }
+        layoutCacheValid = true;
+        cachedLayoutWidth = componentWidth;
+        cachedLayoutProgress = progress;
+        layoutRevision++;
+        invalidateDrawOrderCache();
     }
 
     private static float lerp(float a, float b, float t) {
@@ -741,7 +814,7 @@ public class GlassDockBar extends JPanel {
             float scatterScaleAdjust = (scatterScale != null && i < scatterScale.length) ? scatterScale[i] : 1f;
             float collapsedIconScale = 0.98f + (scatterScaleAdjust - 0.98f) * 0.35f;
             float iconPhaseScale = lerp(collapsedIconScale, 1f, buttonReveal);
-            int iconScaledSize = Math.max(18, Math.round(iconSize * iconBaseScale * iconPhaseScale));
+            int iconScaledSize = quantizeIconSize(Math.max(18, Math.round(iconSize * iconBaseScale * iconPhaseScale)));
             int iconX = Math.round(drawX + (scaledSize - iconScaledSize) * 0.5f);
             int iconY = Math.round(drawY + (scaledSize - iconScaledSize) * 0.5f - 4f * iconBaseScale * buttonReveal);
 
@@ -872,21 +945,53 @@ public class GlassDockBar extends JPanel {
         g2.drawString(label, textX, textY);
     }
 
+    private static int quantizeIconSize(int size) {
+        if (size <= ICON_SIZE_QUANTUM) return size;
+        return Math.max(1, Math.round(size / (float) ICON_SIZE_QUANTUM) * ICON_SIZE_QUANTUM);
+    }
+
+    private void ensureAnimationTimerRunning() {
+        if (animationTimer == null) return;
+        syncAnimationDelay();
+        if (!animationTimer.isRunning()) {
+            lastFrameNanos = 0L;
+            lastPointerRefreshNanos = 0L;
+            animationTimer.start();
+        }
+    }
+
+    private void stopAnimationTimer() {
+        if (animationTimer != null && animationTimer.isRunning()) {
+            animationTimer.stop();
+        }
+        lastFrameNanos = 0L;
+    }
+
+    private void syncAnimationDelay() {
+        if (animationTimer == null) return;
+        int delay = AppPerf.getAnimationDelay();
+        if (animationTimer.getDelay() != delay) {
+            animationTimer.setDelay(delay);
+            animationTimer.setInitialDelay(delay);
+        }
+    }
+
     @Override
     public void addNotify() {
         super.addNotify();
         lastFrameNanos = 0L;
-        refreshMouseStateFromPointer();
-        if (animationTimer != null && !animationTimer.isRunning()) {
-            animationTimer.start();
+        lastPointerRefreshNanos = 0L;
+        boolean pointerChanged = refreshMouseStateFromPointer();
+        updateLayoutCache(getWidth(), expandProgress);
+        boolean active = mouseInside && mousePoint != null && isInActiveZone(mousePoint);
+        if (pointerChanged || active || expandProgress > LAYOUT_EPSILON) {
+            ensureAnimationTimerRunning();
         }
     }
 
     @Override
     public void removeNotify() {
-        if (animationTimer != null) {
-            animationTimer.stop();
-        }
+        stopAnimationTimer();
         clearMouseTrackingState();
         super.removeNotify();
     }
@@ -910,9 +1015,11 @@ public class GlassDockBar extends JPanel {
     public static void precacheAnimation() {
         try {
             GlassDockBar dummy = new GlassDockBar(1.18f, true);
-            dummy.addItem("Write", "write", () -> {});
-            dummy.addItem("Settings", "settings", () -> {});
-            dummy.addItem("Exit", "close", () -> {});
+            dummy.addItem("Write", "fountain_pen", () -> {});
+            dummy.addItem("Mood", "moodchart", () -> {});
+            dummy.addItem("Gallery", "image", () -> {});
+            dummy.addItem("Settings", "wrench", () -> {});
+            dummy.addItem("Exit", "saveandexit", () -> {});
             dummy.setSize(dummy.getPreferredSize());
             dummy.doLayout();
             
@@ -923,7 +1030,7 @@ public class GlassDockBar extends JPanel {
             );
             Graphics2D g2 = img.createGraphics();
             
-            for (float t = 0f; t <= 1f; t += 0.25f) {
+            for (float t = 0f; t <= 1f; t += 0.125f) {
                 dummy.expandProgress = t;
                 dummy.updateLayoutCache(dummy.getWidth(), dummy.expandProgress);
                 dummy.paintComponent(g2);
