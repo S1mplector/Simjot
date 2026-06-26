@@ -59,11 +59,13 @@ class CustomFontGlyphView extends GlyphView {
 
     @Override
     public float getMinimumSpan(int axis) {
+        if (resolveFont() == null) return super.getMinimumSpan(axis);
         return getPreferredSpan(axis);
     }
 
     @Override
     public float getMaximumSpan(int axis) {
+        if (resolveFont() == null) return super.getMaximumSpan(axis);
         return getPreferredSpan(axis);
     }
 

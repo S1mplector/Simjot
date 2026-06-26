@@ -12,13 +12,17 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsEnvironment;
 import java.awt.Graphics2D;
 import java.awt.LayoutManager;
 import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
+import java.awt.Transparency;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.Shape;
 import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
 
 import javax.swing.JPanel;
 
@@ -44,6 +48,14 @@ public class FrostedGlassPanel extends JPanel {
 
     private int arc;
     private float opacityScale = 1.0f;
+    private transient BufferedImage cachedGlassImage;
+    private transient int cachedGlassW = -1;
+    private transient int cachedGlassH = -1;
+    private transient int cachedGlassArc = -1;
+    private transient int cachedGlassAccentRgb = 0;
+    private transient float cachedGlassOpacity = -1f;
+    private transient boolean cachedGlassPlain;
+    private transient boolean cachedGlassTrueAero;
 
     public FrostedGlassPanel() {
         this(new BorderLayout(), 14);
@@ -63,12 +75,14 @@ public class FrostedGlassPanel extends JPanel {
 
     public void setArc(int arc) {
         this.arc = arc;
+        invalidateGlassCache();
         repaint();
     }
 
     public void setOpacityScale(float opacityScale) {
         if (Float.isNaN(opacityScale)) return;
         this.opacityScale = Math.max(0f, Math.min(1f, opacityScale));
+        invalidateGlassCache();
         repaint();
     }
 
@@ -78,6 +92,7 @@ public class FrostedGlassPanel extends JPanel {
 
     public void setMinimalLookKeepGlass(boolean keepGlass) {
         putClientProperty(MINIMAL_LOOK_KEEP_GLASS, Boolean.valueOf(keepGlass));
+        invalidateGlassCache();
         repaint();
     }
 
@@ -91,6 +106,12 @@ public class FrostedGlassPanel extends JPanel {
         return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
     }
 
+    private void invalidateGlassCache() {
+        cachedGlassImage = null;
+        cachedGlassW = -1;
+        cachedGlassH = -1;
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -98,12 +119,10 @@ public class FrostedGlassPanel extends JPanel {
         int h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
         boolean trueAero = main.core.service.SettingsStore.get().isTrueAeroEnabled();
 
         if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled() && !trueAero) {
+            Graphics2D g2 = (Graphics2D) g.create();
             g2.setColor(Color.WHITE); // FrostedGlassPanel usually resolves to near white
             g2.fillRect(0, 0, w, h);
             g2.dispose();
@@ -113,6 +132,7 @@ public class FrostedGlassPanel extends JPanel {
         }
 
         if (shouldUseSolidMinimalLook()) {
+            Graphics2D g2 = (Graphics2D) g.create();
             g2.setColor(Color.WHITE);
             g2.fillRect(0, 0, w, h);
             g2.setColor(new Color(218, 226, 234));
@@ -121,16 +141,63 @@ public class FrostedGlassPanel extends JPanel {
             return;
         }
 
+        float opacity = Math.max(0f, Math.min(1f, getOpacityScale()));
+        boolean plain = Theme.isPlainWhite();
+        Color accent = AeroTheme.resolveChromeAccent();
+        int accentRgb = accent.getRGB();
+
+        if (!isGlassCacheValid(w, h, trueAero, plain, accentRgb, opacity)) {
+            if (cachedGlassImage != null) cachedGlassImage.flush();
+            cachedGlassImage = createTranslucentImage(w, h);
+            Graphics2D imageG = cachedGlassImage.createGraphics();
+            try {
+                paintGlass(imageG, w, h, trueAero, plain, accent, opacity);
+            } finally {
+                imageG.dispose();
+            }
+            cachedGlassW = w;
+            cachedGlassH = h;
+            cachedGlassArc = arc;
+            cachedGlassAccentRgb = accentRgb;
+            cachedGlassOpacity = opacity;
+            cachedGlassPlain = plain;
+            cachedGlassTrueAero = trueAero;
+        }
+
+        g.drawImage(cachedGlassImage, 0, 0, this);
+    }
+
+    private boolean isGlassCacheValid(int w, int h, boolean trueAero, boolean plain, int accentRgb, float opacity) {
+        return cachedGlassImage != null
+                && cachedGlassW == w
+                && cachedGlassH == h
+                && cachedGlassArc == arc
+                && cachedGlassAccentRgb == accentRgb
+                && Float.compare(cachedGlassOpacity, opacity) == 0
+                && cachedGlassPlain == plain
+                && cachedGlassTrueAero == trueAero;
+    }
+
+    private static BufferedImage createTranslucentImage(int w, int h) {
+        try {
+            GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice()
+                    .getDefaultConfiguration();
+            return gc.createCompatibleImage(w, h, Transparency.TRANSLUCENT);
+        } catch (Throwable ignored) {
+            return new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        }
+    }
+
+    private void paintGlass(Graphics2D g2, int w, int h, boolean trueAero, boolean plain, Color accent, float opacity) {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
         if (!trueAero) {
             // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
             g2.setComposite(java.awt.AlphaComposite.Clear);
             g2.fillRect(0, 0, w, h);
             g2.setComposite(java.awt.AlphaComposite.SrcOver);
         }
-
-        float opacity = Math.max(0f, Math.min(1f, getOpacityScale()));
-        boolean plain = Theme.isPlainWhite();
-        Color accent = AeroTheme.resolveChromeAccent();
 
         int rArc = Math.max(arc, 6);
         RoundRectangle2D fillShape = new RoundRectangle2D.Float(0, 0, w, h, rArc, rArc);
@@ -193,7 +260,5 @@ public class FrostedGlassPanel extends JPanel {
         g2.draw(new RoundRectangle2D.Float(0.9f, 0.9f, w - 1.8f, h - 1.8f, Math.max(rArc - 1, 4), Math.max(rArc - 1, 4)));
         g2.setColor(scaleAlpha(new Color(0, 0, 0, plain ? 30 : 38), opacity));
         g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1f, h - 1f, rArc, rArc));
-
-        g2.dispose();
     }
 }

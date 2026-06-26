@@ -8,6 +8,7 @@
 
 package main.ui.components.editor;
 
+import javax.swing.JViewport;
 import javax.swing.JTextPane;
 
 import main.core.font.CustomFont;
@@ -21,6 +22,7 @@ public class CustomFontTextPane extends JTextPane {
     public CustomFontTextPane() {
         super();
         setEditorKit(new CustomFontEditorKit());
+        setDoubleBuffered(true);
     }
 
     public void setCustomFont(CustomFont font) {
@@ -35,5 +37,10 @@ public class CustomFontTextPane extends JTextPane {
 
     public boolean isCustomFontActive() {
         return customFont != null;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+        return getParent() instanceof JViewport || super.getScrollableTracksViewportWidth();
     }
 }
