@@ -54,7 +54,6 @@ import main.infrastructure.backup.NotebookInfo;
 import main.infrastructure.ffi.NativeAccess;
 import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
-import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.input.AeroTextField;
 
 /**
@@ -102,7 +101,18 @@ public class ModernTemplateSelector extends JDialog {
         setBackground(new Color(0, 0, 0, 0));
         setLayout(new BorderLayout());
         
-        FrostedGlassPanel main = new FrostedGlassPanel(new BorderLayout(0, 0), 20);
+        JPanel main = new JPanel(new BorderLayout(0, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                g2.dispose();
+            }
+        };
+        main.setOpaque(false);
         main.setBorder(new EmptyBorder(0, 0, 0, 0));
         
         // ═══════════════════════════════════════════════════════════════════
@@ -162,13 +172,13 @@ public class ModernTemplateSelector extends JDialog {
         cardsContainer.setBorder(new EmptyBorder(20, 24, 20, 24));
         cardsContainer.setOpaque(true);
         cardsContainer.setDoubleBuffered(true);
-        cardsContainer.setBackground(new Color(250, 251, 253));
+        cardsContainer.setBackground(Color.WHITE);
         
         JScrollPane scroll = new JScrollPane(cardsContainer);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.setOpaque(true);
         scroll.getViewport().setOpaque(true);
-        scroll.getViewport().setBackground(new Color(250, 251, 253));
+        scroll.getViewport().setBackground(Color.WHITE);
         scroll.getVerticalScrollBar().setUnitIncrement(24);
         
         // Optimize scroll performance
@@ -420,9 +430,18 @@ public class ModernTemplateSelector extends JDialog {
     }
     
     private JPanel createNewCard() {
-        float baseOpacity = 0.9f;
-        FrostedGlassPanel card = new FrostedGlassPanel(new BorderLayout(), 12);
-        card.setOpacityScale(baseOpacity);
+        JPanel card = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
         card.setBorder(BorderFactory.createCompoundBorder(
             new RoundedBorder(12, CARD_BORDER),
             new EmptyBorder(24, 16, 24, 16)
@@ -431,7 +450,6 @@ public class ModernTemplateSelector extends JDialog {
         card.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                card.setOpacityScale(1.0f);
                 card.setBorder(BorderFactory.createCompoundBorder(
                     new RoundedBorder(12, CARD_BORDER_HOVER),
                     new EmptyBorder(24, 16, 24, 16)
@@ -439,7 +457,6 @@ public class ModernTemplateSelector extends JDialog {
             }
             @Override
             public void mouseExited(MouseEvent e) {
-                card.setOpacityScale(baseOpacity);
                 card.setBorder(BorderFactory.createCompoundBorder(
                     new RoundedBorder(12, CARD_BORDER),
                     new EmptyBorder(24, 16, 24, 16)
@@ -614,17 +631,16 @@ public class ModernTemplateSelector extends JDialog {
     // TEMPLATE CARD
     // ═══════════════════════════════════════════════════════════════════════════
     
-    private class TemplateCard extends FrostedGlassPanel {
+    private class TemplateCard extends JPanel {
         final JournalTemplateManager.JournalTemplate template;
         private boolean selected = false;
         private boolean hovered = false;
-        private final float baseOpacity = 0.92f;
         private final EmptyBorder contentPadding = new EmptyBorder(16, 16, 16, 16);
         
         TemplateCard(JournalTemplateManager.JournalTemplate template) {
-            super(new BorderLayout(), 14);
+            super(new BorderLayout());
             this.template = template;
-            setOpacityScale(baseOpacity);
+            setOpaque(false);
             setBorder(BorderFactory.createCompoundBorder(
                 new RoundedBorder(14, CARD_BORDER),
                 contentPadding
@@ -735,8 +751,6 @@ public class ModernTemplateSelector extends JDialog {
         }
 
         private void updateVisualState() {
-            float opacity = selected ? 1.0f : (hovered ? 0.98f : baseOpacity);
-            setOpacityScale(opacity);
             Color border = selected ? ACCENT : (hovered ? CARD_BORDER_HOVER : CARD_BORDER);
             setBorder(BorderFactory.createCompoundBorder(
                 new RoundedBorder(14, border),
@@ -748,18 +762,23 @@ public class ModernTemplateSelector extends JDialog {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            if (!selected) return;
-
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int cx = getWidth() - 24;
-            int cy = 16;
-            g2.setColor(ACCENT);
-            g2.fillOval(cx - 10, cy - 10, 20, 20);
+            
+            // Plain white background
             g2.setColor(Color.WHITE);
-            g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.drawLine(cx - 5, cy, cx - 1, cy + 4);
-            g2.drawLine(cx - 1, cy + 4, cx + 6, cy - 4);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+
+            if (selected) {
+                int cx = getWidth() - 24;
+                int cy = 16;
+                g2.setColor(ACCENT);
+                g2.fillOval(cx - 10, cy - 10, 20, 20);
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(cx - 5, cy, cx - 1, cy + 4);
+                g2.drawLine(cx - 1, cy + 4, cx + 6, cy - 4);
+            }
             g2.dispose();
         }
         
