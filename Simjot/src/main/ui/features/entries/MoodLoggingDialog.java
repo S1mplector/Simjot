@@ -265,13 +265,11 @@ final class MoodLoggingDialog extends JDialog {
     private void installListeners() {
         overallSlider.addChangeListener(e -> {
             if (suppressEvents) return;
-            refreshFromCurrentState();
+            if (anyEmotionSelected()) {
+                syncOverallFromDetails();
+            }
+            refreshScorePreview();
         });
-
-        ChangeListener emotionSliderListener = e -> {
-            if (suppressEvents) return;
-            refreshFromCurrentState();
-        };
 
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
             final int idx = i;
@@ -280,6 +278,12 @@ final class MoodLoggingDialog extends JDialog {
                 refreshFromCurrentState();
                 if (emotionRows[idx] != null) emotionRows[idx].repaint();
             });
+            ChangeListener emotionSliderListener = e -> {
+                if (suppressEvents) return;
+                refreshEmotionState(idx);
+                syncOverallFromDetails();
+                refreshScorePreview();
+            };
             emotionSliders[i].addChangeListener(emotionSliderListener);
             emotionSliders[i].setEnabled(false);
             emotionSemanticLabels[i].setEnabled(false);
@@ -303,33 +307,42 @@ final class MoodLoggingDialog extends JDialog {
     }
 
     private void refreshFromCurrentState() {
-        boolean hasDetails = anyEmotionSelected();
-        if (hasDetails) {
-            int composite = computeCompositeFromDetails();
-            if (overallSlider.getValue() != composite) {
-                suppressEvents = true;
-                overallSlider.setValue(composite);
-                suppressEvents = false;
-            }
-        }
-
+        syncOverallFromDetails();
         for (int i = 0; i < EMOTION_NAMES.length; i++) {
-            boolean active = emotionChecks[i].isSelected();
-            emotionSliders[i].setEnabled(active);
-            emotionSemanticLabels[i].setEnabled(active);
-            emotionValueLabels[i].setEnabled(active);
-
-            int value = emotionSliders[i].getValue();
-            emotionSemanticLabels[i].setText(DetailedMoodPanel.semanticIntensityLabel(i, value));
-            emotionSemanticLabels[i].setForeground(active
-                    ? blend(EMOTION_COLORS[i], new Color(62, 70, 84), 0.42f)
-                    : new Color(104, 112, 128));
-            emotionValueLabels[i].setText(value + "%");
-            emotionValueLabels[i].setForeground(active
-                    ? blend(EMOTION_COLORS[i], new Color(48, 56, 70), 0.36f)
-                    : new Color(104, 112, 128));
+            refreshEmotionState(i);
         }
+        refreshScorePreview();
+    }
 
+    private void syncOverallFromDetails() {
+        if (!anyEmotionSelected()) return;
+        int composite = computeCompositeFromDetails();
+        if (overallSlider.getValue() != composite) {
+            suppressEvents = true;
+            overallSlider.setValue(composite);
+            suppressEvents = false;
+        }
+    }
+
+    private void refreshEmotionState(int i) {
+        if (i < 0 || i >= EMOTION_NAMES.length) return;
+        boolean active = emotionChecks[i].isSelected();
+        emotionSliders[i].setEnabled(active);
+        emotionSemanticLabels[i].setEnabled(active);
+        emotionValueLabels[i].setEnabled(active);
+
+        int value = emotionSliders[i].getValue();
+        emotionSemanticLabels[i].setText(DetailedMoodPanel.semanticIntensityLabel(i, value));
+        emotionSemanticLabels[i].setForeground(active
+                ? blend(EMOTION_COLORS[i], new Color(62, 70, 84), 0.42f)
+                : new Color(104, 112, 128));
+        emotionValueLabels[i].setText(value + "%");
+        emotionValueLabels[i].setForeground(active
+                ? blend(EMOTION_COLORS[i], new Color(48, 56, 70), 0.36f)
+                : new Color(104, 112, 128));
+    }
+
+    private void refreshScorePreview() {
         int mood = currentMood();
         scoreLabel.setText(String.valueOf(mood));
         preview.setMood(mood, selectedColors());

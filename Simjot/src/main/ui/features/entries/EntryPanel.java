@@ -2490,22 +2490,23 @@ public class EntryPanel extends AbstractEditorPanel {
     }
 
     private int getLineStart(Document doc, int pos) throws BadLocationException {
-        while (pos > 0) {
-            String s = doc.getText(pos - 1, 1);
-            if ("\n".equals(s)) break;
-            pos--;
-        }
-        return pos;
+        int safePos = Math.max(0, Math.min(pos, doc.getLength()));
+        Element root = doc.getDefaultRootElement();
+        Element line = root.getElement(root.getElementIndex(safePos));
+        return line != null ? line.getStartOffset() : 0;
     }
 
     private int getLineEnd(Document doc, int pos) throws BadLocationException {
-        int len = doc.getLength();
-        while (pos < len) {
-            String s = doc.getText(pos, 1);
-            if ("\n".equals(s)) break;
-            pos++;
+        int safePos = Math.max(0, Math.min(pos, doc.getLength()));
+        Element root = doc.getDefaultRootElement();
+        Element line = root.getElement(root.getElementIndex(safePos));
+        if (line == null) return doc.getLength();
+        int end = Math.min(line.getEndOffset(), doc.getLength());
+        if (end > line.getStartOffset()) {
+            String tail = doc.getText(end - 1, 1);
+            if ("\n".equals(tail)) end--;
         }
-        return pos;
+        return end;
     }
 
     private void updateWordCount() {

@@ -12,6 +12,7 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -131,9 +132,49 @@ public final class SentenceFocusHighlighter {
         private void publishRanges(List<DimRange> nextRanges) {
             List<DimRange> immutable = nextRanges == null || nextRanges.isEmpty() ? List.of() : List.copyOf(nextRanges);
             if (ranges.equals(immutable)) return;
+            List<DimRange> previous = ranges;
             ranges = immutable;
             editor.putClientProperty(DIM_RANGES_PROPERTY, ranges);
-            editor.repaint();
+            repaintChangedRanges(previous, immutable);
+        }
+
+        private void repaintChangedRanges(List<DimRange> previous, List<DimRange> next) {
+            Rectangle dirty = null;
+            dirty = addRangesToDirty(dirty, previous);
+            dirty = addRangesToDirty(dirty, next);
+            if (dirty == null) {
+                editor.repaint();
+                return;
+            }
+            dirty.grow(4, 4);
+            editor.repaint(dirty.x, dirty.y, dirty.width, dirty.height);
+        }
+
+        private Rectangle addRangesToDirty(Rectangle dirty, List<DimRange> source) {
+            if (source == null || source.isEmpty()) return dirty;
+            for (DimRange range : source) {
+                Rectangle bounds = rangeBounds(range);
+                if (bounds == null) continue;
+                dirty = dirty == null ? bounds : dirty.union(bounds);
+            }
+            return dirty;
+        }
+
+        private Rectangle rangeBounds(DimRange range) {
+            if (range == null || range.end <= range.start) return null;
+            try {
+                java.awt.geom.Rectangle2D start = editor.modelToView2D(range.start);
+                java.awt.geom.Rectangle2D end = editor.modelToView2D(Math.max(range.start, range.end - 1));
+                if (start == null || end == null) return null;
+                Rectangle a = start.getBounds();
+                Rectangle b = end.getBounds();
+                Rectangle union = a.union(b);
+                union.x = 0;
+                union.width = Math.max(editor.getWidth(), union.width);
+                return union;
+            } catch (BadLocationException ignored) {
+                return null;
+            }
         }
     }
 
@@ -207,7 +248,14 @@ public final class SentenceFocusHighlighter {
                 i++;
             }
         }
-        return ranges;
+        return coalesceRanges(ranges);
+    }
+
+    private static List<DimRange> coalesceRanges(List<DimRange> ranges) {
+        if (ranges == null || ranges.isEmpty()) return List.of();
+        int start = ranges.get(0).start();
+        int end = ranges.get(ranges.size() - 1).end();
+        return List.of(new DimRange(start, end));
     }
 
     private static int nextNonWhitespace(String text, int start, int limit) {

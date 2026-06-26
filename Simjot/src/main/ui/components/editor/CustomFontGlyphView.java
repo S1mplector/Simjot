@@ -38,6 +38,9 @@ import main.infrastructure.font.NativeFontSupport;
 class CustomFontGlyphView extends GlyphView {
     private static final CustomFontRenderer RENDERER = new CustomFontRenderer();
     private static final float DIMMED_TEXT_ALPHA = 0.38f;
+    private static final int DIM_NONE = 0;
+    private static final int DIM_ALL = 1;
+    private static final int DIM_MIXED = 2;
 
     CustomFontGlyphView(Element elem) {
         super(elem);
@@ -69,11 +72,22 @@ class CustomFontGlyphView extends GlyphView {
         CustomFont font = resolveFont();
         if (font == null) {
             List<SentenceFocusHighlighter.DimRange> dimRanges = resolveDimRanges();
-            if (!dimRanges.isEmpty()) {
-                drawPlatformTextWithDimmedRanges(g, a, dimRanges);
+            int dimState = dimState(getStartOffset(), getEndOffset(), dimRanges);
+            if (dimState == DIM_NONE) {
+                super.paint(g, a);
                 return;
             }
-            super.paint(g, a);
+            if (dimState == DIM_ALL) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setComposite(AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA));
+                    super.paint(g2, a);
+                } finally {
+                    g2.dispose();
+                }
+                return;
+            }
+            drawPlatformTextWithDimmedRanges(g, a, dimRanges);
             return;
         }
         String text = getViewText();
@@ -87,8 +101,14 @@ class CustomFontGlyphView extends GlyphView {
             Color color = resolveColor();
             g2.setColor(color);
             List<SentenceFocusHighlighter.DimRange> dimRanges = resolveDimRanges();
-            if (dimRanges.isEmpty()) {
+            int dimState = dimState(getStartOffset(), getEndOffset(), dimRanges);
+            if (dimState == DIM_NONE) {
                 RENDERER.drawText(g2, font, text, alloc.x, baseline, size, color);
+            } else if (dimState == DIM_ALL) {
+                Composite base = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver.derive(DIMMED_TEXT_ALPHA));
+                RENDERER.drawText(g2, font, text, alloc.x, baseline, size, color);
+                g2.setComposite(base);
             } else {
                 drawCustomTextWithDimmedRanges(g2, font, text, alloc.x, baseline, size, color, dimRanges);
             }
@@ -237,11 +257,25 @@ class CustomFontGlyphView extends GlyphView {
     }
 
     private boolean isOffsetDimmed(int offset, List<SentenceFocusHighlighter.DimRange> dimRanges) {
+        if (dimRanges.size() == 1) {
+            return dimRanges.get(0).contains(offset);
+        }
         for (SentenceFocusHighlighter.DimRange range : dimRanges) {
             if (range.contains(offset)) return true;
             if (range.start() > offset) return false;
         }
         return false;
+    }
+
+    private int dimState(int start, int end, List<SentenceFocusHighlighter.DimRange> dimRanges) {
+        if (dimRanges == null || dimRanges.isEmpty() || end <= start) return DIM_NONE;
+        for (SentenceFocusHighlighter.DimRange range : dimRanges) {
+            if (range.end() <= start) continue;
+            if (range.start() >= end) break;
+            if (range.start() <= start && range.end() >= end) return DIM_ALL;
+            return DIM_MIXED;
+        }
+        return DIM_NONE;
     }
 
     private void drawCustomTextWithDimmedRanges(Graphics2D g2, CustomFont font, String text, int x, int baseline,

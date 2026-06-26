@@ -56,6 +56,8 @@ public final class CurrentLineGlowHighlighter {
         private final BooleanSupplier enabledSupplier;
         private final Highlighter.HighlightPainter painter;
         private Object tag;
+        private int currentStart = -1;
+        private int currentEnd = -1;
 
         private Controller(JTextComponent editor, BooleanSupplier enabledSupplier, Color fill, Color outline) {
             this.editor = editor;
@@ -84,9 +86,14 @@ public final class CurrentLineGlowHighlighter {
                     clear();
                     return;
                 }
+                if (tag != null && start == currentStart && end == currentEnd) {
+                    return;
+                }
                 Highlighter hl = editor.getHighlighter();
                 if (tag != null) hl.removeHighlight(tag);
                 tag = hl.addHighlight(start, end, painter);
+                currentStart = start;
+                currentEnd = end;
             } catch (BadLocationException ignored) {
                 clear();
             }
@@ -97,6 +104,8 @@ public final class CurrentLineGlowHighlighter {
                 try { editor.getHighlighter().removeHighlight(tag); } catch (Throwable ignored) {}
                 tag = null;
             }
+            currentStart = -1;
+            currentEnd = -1;
         }
     }
 

@@ -13,6 +13,7 @@ import java.awt.Color;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.Element;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -333,14 +334,22 @@ public final class RichTextStyler {
     }
     
     private static int getLineStart(StyledDocument doc, int pos) throws BadLocationException {
-        String text = doc.getText(0, pos);
-        int lastNewline = text.lastIndexOf('\n');
-        return lastNewline + 1;
+        int safePos = Math.max(0, Math.min(pos, doc.getLength()));
+        Element root = doc.getDefaultRootElement();
+        Element line = root.getElement(root.getElementIndex(safePos));
+        return line != null ? line.getStartOffset() : 0;
     }
     
     private static int getLineEnd(StyledDocument doc, int pos) throws BadLocationException {
-        String text = doc.getText(0, doc.getLength());
-        int nextNewline = text.indexOf('\n', pos);
-        return nextNewline == -1 ? doc.getLength() : nextNewline;
+        int safePos = Math.max(0, Math.min(pos, doc.getLength()));
+        Element root = doc.getDefaultRootElement();
+        Element line = root.getElement(root.getElementIndex(safePos));
+        if (line == null) return doc.getLength();
+        int end = Math.min(line.getEndOffset(), doc.getLength());
+        if (end > line.getStartOffset()) {
+            String tail = doc.getText(end - 1, 1);
+            if ("\n".equals(tail)) end--;
+        }
+        return end;
     }
 }
