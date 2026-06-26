@@ -36,7 +36,7 @@ public class PaperFeelViewport extends JViewport {
     private final Color marginColor = new Color(200, 120, 120, 70);
     private final Color vignetteEdge = new Color(0, 0, 0, 22);
 
-    private java.awt.image.BufferedImage cachedVignette = null;
+    private java.awt.image.BufferedImage topVignette, bottomVignette, leftVignette, rightVignette;
     private int cachedW = -1;
     private int cachedH = -1;
 
@@ -122,30 +122,44 @@ public class PaperFeelViewport extends JViewport {
     }
 
     private void paintVignette(Graphics2D g2, int w, int h) {
-        if (w != cachedW || h != cachedH || cachedVignette == null) {
-            cachedVignette = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            Graphics2D vg = cachedVignette.createGraphics();
-            int min = Math.min(w, h);
-            int fade = Math.max(22, Math.min(80, min / 6));
+        int fade = Math.max(22, Math.min(80, Math.min(w, h) / 6));
 
-            GradientPaint top = new GradientPaint(0, 0, vignetteEdge, 0, fade, new Color(0, 0, 0, 0));
-            GradientPaint bottom = new GradientPaint(0, h - fade, new Color(0, 0, 0, 0), 0, h, vignetteEdge);
-            GradientPaint left = new GradientPaint(0, 0, vignetteEdge, fade, 0, new Color(0, 0, 0, 0));
-            GradientPaint right = new GradientPaint(w - fade, 0, new Color(0, 0, 0, 0), w, 0, vignetteEdge);
+        if (w != cachedW || h != cachedH || topVignette == null) {
+            java.awt.GraphicsConfiguration gc = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice().getDefaultConfiguration();
 
-            vg.setPaint(top);
-            vg.fillRect(0, 0, w, fade);
-            vg.setPaint(bottom);
-            vg.fillRect(0, h - fade, w, fade);
-            vg.setPaint(left);
-            vg.fillRect(0, 0, fade, h);
-            vg.setPaint(right);
-            vg.fillRect(w - fade, 0, fade, h);
-            vg.dispose();
+            topVignette = gc.createCompatibleImage(w, fade, java.awt.Transparency.TRANSLUCENT);
+            bottomVignette = gc.createCompatibleImage(w, fade, java.awt.Transparency.TRANSLUCENT);
+            leftVignette = gc.createCompatibleImage(fade, h, java.awt.Transparency.TRANSLUCENT);
+            rightVignette = gc.createCompatibleImage(fade, h, java.awt.Transparency.TRANSLUCENT);
+
+            Graphics2D tg = topVignette.createGraphics();
+            tg.setPaint(new GradientPaint(0, 0, vignetteEdge, 0, fade, new Color(0, 0, 0, 0)));
+            tg.fillRect(0, 0, w, fade);
+            tg.dispose();
+
+            Graphics2D bg = bottomVignette.createGraphics();
+            bg.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 0), 0, fade, vignetteEdge));
+            bg.fillRect(0, 0, w, fade);
+            bg.dispose();
+
+            Graphics2D lg = leftVignette.createGraphics();
+            lg.setPaint(new GradientPaint(0, 0, vignetteEdge, fade, 0, new Color(0, 0, 0, 0)));
+            lg.fillRect(0, 0, fade, h);
+            lg.dispose();
+
+            Graphics2D rg = rightVignette.createGraphics();
+            rg.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 0), fade, 0, vignetteEdge));
+            rg.fillRect(0, 0, fade, h);
+            rg.dispose();
 
             cachedW = w;
             cachedH = h;
         }
-        g2.drawImage(cachedVignette, 0, 0, null);
+
+        g2.drawImage(topVignette, 0, 0, null);
+        g2.drawImage(bottomVignette, 0, h - fade, null);
+        g2.drawImage(leftVignette, 0, 0, null);
+        g2.drawImage(rightVignette, w - fade, 0, null);
     }
 }
