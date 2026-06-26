@@ -36,6 +36,10 @@ public class PaperFeelViewport extends JViewport {
     private final Color marginColor = new Color(200, 120, 120, 70);
     private final Color vignetteEdge = new Color(0, 0, 0, 22);
 
+    private java.awt.image.BufferedImage cachedVignette = null;
+    private int cachedW = -1;
+    private int cachedH = -1;
+
     public PaperFeelViewport(JTextComponent editor) {
         this.editor = editor;
         setOpaque(false);
@@ -118,21 +122,30 @@ public class PaperFeelViewport extends JViewport {
     }
 
     private void paintVignette(Graphics2D g2, int w, int h) {
-        int min = Math.min(w, h);
-        int fade = Math.max(22, Math.min(80, min / 6));
+        if (w != cachedW || h != cachedH || cachedVignette == null) {
+            cachedVignette = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D vg = cachedVignette.createGraphics();
+            int min = Math.min(w, h);
+            int fade = Math.max(22, Math.min(80, min / 6));
 
-        GradientPaint top = new GradientPaint(0, 0, vignetteEdge, 0, fade, new Color(0, 0, 0, 0));
-        GradientPaint bottom = new GradientPaint(0, h - fade, new Color(0, 0, 0, 0), 0, h, vignetteEdge);
-        GradientPaint left = new GradientPaint(0, 0, vignetteEdge, fade, 0, new Color(0, 0, 0, 0));
-        GradientPaint right = new GradientPaint(w - fade, 0, new Color(0, 0, 0, 0), w, 0, vignetteEdge);
+            GradientPaint top = new GradientPaint(0, 0, vignetteEdge, 0, fade, new Color(0, 0, 0, 0));
+            GradientPaint bottom = new GradientPaint(0, h - fade, new Color(0, 0, 0, 0), 0, h, vignetteEdge);
+            GradientPaint left = new GradientPaint(0, 0, vignetteEdge, fade, 0, new Color(0, 0, 0, 0));
+            GradientPaint right = new GradientPaint(w - fade, 0, new Color(0, 0, 0, 0), w, 0, vignetteEdge);
 
-        g2.setPaint(top);
-        g2.fillRect(0, 0, w, fade);
-        g2.setPaint(bottom);
-        g2.fillRect(0, h - fade, w, fade);
-        g2.setPaint(left);
-        g2.fillRect(0, 0, fade, h);
-        g2.setPaint(right);
-        g2.fillRect(w - fade, 0, fade, h);
+            vg.setPaint(top);
+            vg.fillRect(0, 0, w, fade);
+            vg.setPaint(bottom);
+            vg.fillRect(0, h - fade, w, fade);
+            vg.setPaint(left);
+            vg.fillRect(0, 0, fade, h);
+            vg.setPaint(right);
+            vg.fillRect(w - fade, 0, fade, h);
+            vg.dispose();
+
+            cachedW = w;
+            cachedH = h;
+        }
+        g2.drawImage(cachedVignette, 0, 0, null);
     }
 }

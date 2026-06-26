@@ -1705,16 +1705,26 @@ public class EntryPanel extends AbstractEditorPanel {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { if (autosaveCoordinator != null && !UndoRedoManager.isUndoOrRedoInProgress()) autosaveCoordinator.markDirty(); }
         });
 
-        // Middle-click floating popup
+        // Middle-click floating popup and Right-click context menu
         formatPopup = new AnimatedGlassPopup(SwingUtilities.getWindowAncestor(this));
         contentArea.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showContextMenu(e);
+                    return;
+                }
                 if (SwingUtilities.isMiddleMouseButton(e)) {
                     Point p = e.getPoint();
                     SwingUtilities.convertPointToScreen(p, contentArea);
                     formatPopup.showAt(p.x, p.y, () -> createFormattingToolbar());
                     e.consume();
+                }
+            }
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showContextMenu(e);
                 }
             }
         });
@@ -1735,12 +1745,12 @@ public class EntryPanel extends AbstractEditorPanel {
         vbar.setUI(new ModernScrollBarUI());
         vbar.setPreferredSize(new Dimension(10, Integer.MAX_VALUE));
         vbar.setOpaque(false);
-        vbar.setUnitIncrement(16);
+        vbar.setUnitIncrement(24);
         JScrollBar hbar = scrollPane.getHorizontalScrollBar();
         hbar.setUI(new ModernScrollBarUI());
         hbar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 10));
         hbar.setOpaque(false);
-        hbar.setUnitIncrement(16);
+        hbar.setUnitIncrement(24);
 
         // Add scroll pane to the translucent wrapper (no inline formatting bar)
         textWrapper.setLayout(new BorderLayout());
@@ -3730,6 +3740,37 @@ public class EntryPanel extends AbstractEditorPanel {
             }
         }
         return out.toString();
+    }
+
+    private void showContextMenu(java.awt.event.MouseEvent e) {
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        
+        javax.swing.JMenuItem cutItem = new javax.swing.JMenuItem("Cut");
+        cutItem.addActionListener(ev -> contentArea.cut());
+        cutItem.setEnabled(contentArea.getSelectionStart() != contentArea.getSelectionEnd());
+        menu.add(cutItem);
+        
+        javax.swing.JMenuItem copyItem = new javax.swing.JMenuItem("Copy");
+        copyItem.addActionListener(ev -> contentArea.copy());
+        copyItem.setEnabled(contentArea.getSelectionStart() != contentArea.getSelectionEnd());
+        menu.add(copyItem);
+        
+        javax.swing.JMenuItem pasteItem = new javax.swing.JMenuItem("Paste");
+        pasteItem.addActionListener(ev -> contentArea.paste());
+        menu.add(pasteItem);
+        
+        javax.swing.JMenuItem deleteItem = new javax.swing.JMenuItem("Delete");
+        deleteItem.addActionListener(ev -> contentArea.replaceSelection(""));
+        deleteItem.setEnabled(contentArea.getSelectionStart() != contentArea.getSelectionEnd());
+        menu.add(deleteItem);
+        
+        menu.addSeparator();
+        
+        javax.swing.JMenuItem selectAllItem = new javax.swing.JMenuItem("Select All");
+        selectAllItem.addActionListener(ev -> contentArea.selectAll());
+        menu.add(selectAllItem);
+        
+        menu.show(contentArea, e.getX(), e.getY());
     }
 }
 
