@@ -34,7 +34,9 @@ public class AeroPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled()) {
+        boolean trueAero = main.core.service.SettingsStore.get().isTrueAeroEnabled();
+
+        if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled() && !trueAero) {
             g2.setColor(new Color(245, 245, 245));
             g2.fillRect(0, 0, getWidth(), getHeight());
             g2.dispose();
@@ -52,10 +54,12 @@ public class AeroPanel extends JPanel {
             return;
         }
 
-        // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
-        g2.setComposite(java.awt.AlphaComposite.Clear);
-        g2.fillRect(0, 0, getWidth(), getHeight());
-        g2.setComposite(java.awt.AlphaComposite.SrcOver);
+        if (!trueAero) {
+            // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
+            g2.setComposite(java.awt.AlphaComposite.Clear);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.setComposite(java.awt.AlphaComposite.SrcOver);
+        }
 
         Rectangle r = new Rectangle(0, 0, getWidth(), getHeight());
         AeroPainters.paintVerticalGradient(g2, r, new Color(255,255,255,200), new Color(235,235,235,200), arc);

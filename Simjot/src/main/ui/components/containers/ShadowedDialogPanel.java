@@ -109,7 +109,9 @@ public class ShadowedDialogPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        if (SettingsStore.get().isTransparentWindowsDisabled()) {
+        boolean trueAero = main.core.service.SettingsStore.get().isTrueAeroEnabled();
+
+        if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled() && !trueAero) {
             g2.setColor(flatColor != null ? flatColor : Color.WHITE);
             g2.fillRect(0, 0, w, h);
             g2.dispose();
@@ -129,10 +131,12 @@ public class ShadowedDialogPanel extends JPanel {
             return;
         }
 
-        // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
-        g2.setComposite(java.awt.AlphaComposite.Clear);
-        g2.fillRect(0, 0, w, h);
-        g2.setComposite(java.awt.AlphaComposite.SrcOver);
+        if (!trueAero) {
+            // Explicitly clear background to transparent to fix uninitialized VRAM artifacts on some Linux compositors
+            g2.setComposite(java.awt.AlphaComposite.Clear);
+            g2.fillRect(0, 0, w, h);
+            g2.setComposite(java.awt.AlphaComposite.SrcOver);
+        }
         
         float opacity = Math.max(0f, Math.min(1f, getOpacityScale()));
         
