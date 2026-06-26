@@ -26,7 +26,7 @@ import javax.swing.JToggleButton;
  * @author S1mplector
  */
 public class NumberedListButton extends JToggleButton {
-    private static final Font HAND_FONT = new Font("Bradley Hand", Font.PLAIN, 16);
+    private static final Font HAND_FONT = main.ui.theme.Theme.resolveHandFont(Font.PLAIN, 16);
 
     public NumberedListButton() {
         setFocusPainted(false);

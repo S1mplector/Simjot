@@ -27,7 +27,7 @@ import javax.swing.JButton;
  * @author S1mplector
  */
 public class TextColorButton extends JButton {
-    private static final Font HAND_FONT = new Font("Bradley Hand", Font.BOLD, 20);
+    private static final Font HAND_FONT = main.ui.theme.Theme.resolveHandFont(Font.BOLD, 20);
     private Color textColor = Color.BLACK;
 
     public TextColorButton() {

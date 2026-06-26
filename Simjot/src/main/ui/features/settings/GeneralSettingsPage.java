@@ -424,12 +424,22 @@ class GeneralSettingsPage extends JPanel implements SettingsPage {
 
     private void reloadFontFamilyOptions(String preferredSelection) {
         DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+        
+        String[] sysFonts = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+        java.util.Set<String> installedFonts = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        installedFonts.addAll(java.util.Arrays.asList(sysFonts));
+        installedFonts.addAll(java.util.Arrays.asList("Serif", "SansSerif", "Monospaced", "Dialog", "DialogInput", "Cursive"));
+
         for (String font : BUILTIN_FONTS) {
-            model.addElement(font);
+            if (installedFonts.contains(font)) {
+                model.addElement(font);
+            }
         }
+        
         for (String custom : CustomFontSupport.listDisplayNames()) {
             model.addElement(custom);
         }
+        
         fontFamilyBox.setModel(model);
         if (preferredSelection != null && model.getIndexOf(preferredSelection) >= 0) {
             fontFamilyBox.setSelectedItem(preferredSelection);

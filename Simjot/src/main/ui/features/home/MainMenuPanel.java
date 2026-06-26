@@ -657,12 +657,12 @@ public class MainMenuPanel extends JPanel {
             String title = (dailyPromptLabel == null || dailyPromptLabel.isBlank()) ? "SIM DAILY PROMPT" : dailyPromptLabel;
             JLabel titleLbl = new JLabel(title + " • " + countdownToEndOfDay() + " left");
             titleLbl.setForeground(new Color(62, 143, 224));
-            titleLbl.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            titleLbl.setFont(main.ui.theme.Theme.resolveHandFont(Font.PLAIN, 12));
             wrap.add(titleLbl, BorderLayout.NORTH);
 
             JLabel body = new JLabel("<html><div style='width:320px; color:#2d3f57; font-size:12px;'>"
                     + escapeHtml(dailyPromptText) + "</div></html>");
-            body.setFont(new Font("Bradley Hand", Font.PLAIN, 12));
+            body.setFont(main.ui.theme.Theme.resolveHandFont(Font.PLAIN, 12));
             wrap.add(body, BorderLayout.CENTER);
 
             dailyPromptPopup.add(wrap);

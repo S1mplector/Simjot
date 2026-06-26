@@ -110,11 +110,7 @@ public class AeroSplashScreen extends JWindow {
     }
 
     private static Font resolveHandFont(Font base, float size) {
-        Font hand = new Font("Bradley Hand", Font.PLAIN, Math.round(size));
-        if ("dialog".equalsIgnoreCase(hand.getFamily())) {
-            return base.deriveFont(Font.PLAIN, size);
-        }
-        return hand.deriveFont(Font.PLAIN, size);
+        return main.ui.theme.Theme.resolveHandFont(base, size);
     }
 
     // No window shape manipulation needed with the simplified visuals

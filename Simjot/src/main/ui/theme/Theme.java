@@ -106,4 +106,26 @@ public final class Theme {
         if (d.startsWith("dense") || d.startsWith("information")) return 0.92f;
         return 1.0f; // balanced/default
     }
+
+    public static java.awt.Font resolveHandFont(int style, int size) {
+        String[] preferred = { "Bradley Hand", "Comic Sans MS", "Chalkboard SE", "Marker Felt", "Noteworthy" };
+        for (String family : preferred) {
+            java.awt.Font f = new java.awt.Font(family, style, size);
+            if (!"dialog".equalsIgnoreCase(f.getFamily())) {
+                return f;
+            }
+        }
+        return new java.awt.Font(java.awt.Font.SANS_SERIF, style, size);
+    }
+    
+    public static java.awt.Font resolveHandFont(java.awt.Font base, float size) {
+        String[] preferred = { "Bradley Hand", "Comic Sans MS", "Chalkboard SE", "Marker Felt", "Noteworthy" };
+        for (String family : preferred) {
+            java.awt.Font f = new java.awt.Font(family, java.awt.Font.PLAIN, Math.round(size));
+            if (!"dialog".equalsIgnoreCase(f.getFamily())) {
+                return f;
+            }
+        }
+        return base.deriveFont(java.awt.Font.PLAIN, size);
+    }
 }
