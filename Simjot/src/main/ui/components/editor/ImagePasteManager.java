@@ -17,13 +17,16 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.GraphicsConfiguration;
 import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.KeyboardFocusManager;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
+import java.awt.Transparency;
 import java.awt.Window;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
@@ -628,7 +631,7 @@ public final class ImagePasteManager {
         cacheImageNative(softened, out);
 
         // Insert as icon at caret, preserving scroll position to prevent jumping
-        ImageIcon icon = new ImageIcon(softened);
+        ImageIcon icon = createEditorImageIcon(softened);
         SimpleAttributeSet attrs = new SimpleAttributeSet();
         StyleConstants.setIcon(attrs, icon);
         // Keep track of the source file so we can rescale later
@@ -739,6 +742,33 @@ public final class ImagePasteManager {
         g2.drawImage(img, 0, 0, null);
         g2.dispose();
         return b;
+    }
+
+    public static ImageIcon createEditorImageIcon(BufferedImage img) {
+        if (img == null) return new ImageIcon();
+        BufferedImage prepared = toCompatibleImage(img);
+        try {
+            prepared.setAccelerationPriority(1.0f);
+        } catch (Throwable ignored) {}
+        return new ImageIcon(prepared);
+    }
+
+    private static BufferedImage toCompatibleImage(BufferedImage src) {
+        if (src == null) return null;
+        try {
+            GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice()
+                    .getDefaultConfiguration();
+            int transparency = src.getColorModel().hasAlpha() ? Transparency.TRANSLUCENT : Transparency.OPAQUE;
+            BufferedImage out = gc.createCompatibleImage(src.getWidth(), src.getHeight(), transparency);
+            Graphics2D g2 = out.createGraphics();
+            g2.setComposite(AlphaComposite.Src);
+            g2.drawImage(src, 0, 0, null);
+            g2.dispose();
+            return out;
+        } catch (Throwable ignored) {
+            return src;
+        }
     }
 
     private static BufferedImage scaleToMaxWidth(BufferedImage src, int maxW) {
@@ -1137,7 +1167,7 @@ public final class ImagePasteManager {
             // Use resizeToWidth for both upscaling and downscaling
             BufferedImage scaled = resizeToWidth(orig, targetW);
             scaled = softenCornersIfNeeded(scaled);
-            ImageIcon newIcon = new ImageIcon(scaled);
+            ImageIcon newIcon = createEditorImageIcon(scaled);
             
             StyledDocument doc = editor.getStyledDocument();
             SimpleAttributeSet attrs = new SimpleAttributeSet();

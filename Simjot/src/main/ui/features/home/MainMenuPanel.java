@@ -895,6 +895,7 @@ public class MainMenuPanel extends JPanel {
         // Glass Dock Bar - Frutiger Aero style
         main.ui.components.dock.GlassDockBar dockBar = new main.ui.components.dock.GlassDockBar(MAIN_MENU_DOCK_SCALE, true);
         dockBar.addItem("Write", "fountain_pen", () -> app.switchCard(JournalApp.NOTEBOOK_MANAGER));
+        dockBar.addItem("Mood", "moodchart", () -> app.switchCard(JournalApp.MOOD_CHART));
         if (SHOW_GALLERY) {
             dockBar.addItem("Gallery", "image", () -> app.switchCard(JournalApp.GALLERY));
         }

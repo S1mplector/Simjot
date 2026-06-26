@@ -473,6 +473,7 @@ public class PoemPanel extends AbstractEditorPanel {
         paperViewport.setPaperFeelEnabled(SettingsStore.get().isEditorPaperFeelEnabled());
         paperViewport.setView(poemEditor);
         scrollPane.setViewport(paperViewport);
+        scrollPane.getViewport().setScrollMode(javax.swing.JViewport.BLIT_SCROLL_MODE);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);

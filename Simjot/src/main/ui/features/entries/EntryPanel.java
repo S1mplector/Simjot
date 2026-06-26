@@ -37,6 +37,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -192,6 +193,9 @@ public class EntryPanel extends AbstractEditorPanel {
     private ToolbarMenuIconButton moodDetailsToggleButton;
     private MoodHoverRevealStrip moodRevealStrip;
     private Component moodToolbarGap;
+    private ToolbarIconButton moodLogButton;
+    private int loggedMoodValue = -1;
+    private DetailedMoodPanel.DetailedMoodSnapshot loggedMoodDetails;
     private JPanel bottomPanel;
     private ToolbarIconButton saveButton;
     private boolean distractionFree = false;
@@ -585,7 +589,7 @@ public class EntryPanel extends AbstractEditorPanel {
      * Whether this editor should display mood controls under the toolbar.
      * Subclasses can override to disable (e.g., NotetakingPanel).
      */
-    protected boolean supportsMoodControls() { return false; }
+    protected boolean supportsMoodControls() { return true; }
 
     /**
      * Whether to show the clock (insert time) button in the right toolbar.
@@ -712,6 +716,8 @@ public class EntryPanel extends AbstractEditorPanel {
     private void applyEntryContent(BufferedReader reader, String firstLine) throws Exception {
         EntryFileFormat.EntryMeta meta = EntryFileFormat.parseHeader(firstLine);
         DetailedMoodPanel.DetailedMoodSnapshot loadedMoodDetails = null;
+        loggedMoodValue = -1;
+        loggedMoodDetails = null;
         try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
         try {
             if (detailedMoodPanel != null) {
@@ -732,13 +738,19 @@ public class EntryPanel extends AbstractEditorPanel {
             if (meta.mood >= 0 && moodSlider != null) {
                 try { moodSlider.setValue(meta.mood); } catch (Throwable ignored) {}
             }
+            if (meta.mood >= 0) {
+                loggedMoodValue = Math.max(0, Math.min(100, meta.mood));
+            }
             if (meta.moodDetails != null && detailedMoodPanel != null) {
                 DetailedMoodPanel.DetailedMoodSnapshot snapshot = detailedMoodSnapshotFromArray(meta.moodDetails);
                 if (snapshot != null) {
                     detailedMoodPanel.applySnapshot(snapshot);
                     loadedMoodDetails = snapshot;
                 }
+            } else if (meta.moodDetails != null) {
+                loadedMoodDetails = detailedMoodSnapshotFromArray(meta.moodDetails);
             }
+            loggedMoodDetails = loadedMoodDetails;
         } else {
             title = (firstLine == null ? "" : firstLine);
             // Expect a blank separator line
@@ -748,7 +760,8 @@ public class EntryPanel extends AbstractEditorPanel {
 
         titleField.setText(title);
         refreshMoodTrendBaselineFromHistory();
-        updateMoodSummaryPills(loadedMoodDetails, moodSlider != null ? moodSlider.getValue() : 50);
+        updateMoodSummaryPills(loadedMoodDetails, loggedMoodValue >= 0 ? loggedMoodValue : 50);
+        refreshMoodLogButtonVisual();
 
         // Check for guided mode metadata
         if (firstContentLine != null && firstContentLine.startsWith("[GUIDED_MODE:")) {
@@ -1427,12 +1440,53 @@ public class EntryPanel extends AbstractEditorPanel {
         return button;
     }
 
+    private void openMoodLoggingDialog() {
+        if (readOnlyMode) {
+            main.ui.components.toast.ToastOverlay.info("Editor is read-only.");
+            return;
+        }
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        MoodLoggingDialog dialog = new MoodLoggingDialog(owner, loggedMoodValue, loggedMoodDetails);
+        dialog.setVisible(true);
+        if (!dialog.isSaved()) return;
+
+        loggedMoodValue = dialog.getSavedMood();
+        loggedMoodDetails = dialog.getSavedDetails();
+        try {
+            if (moodSlider != null) moodSlider.setValue(loggedMoodValue);
+            if (detailedMoodPanel != null) {
+                if (loggedMoodDetails != null) {
+                    detailedMoodPanel.applySnapshot(loggedMoodDetails);
+                } else {
+                    detailedMoodPanel.clearSnapshot();
+                }
+            }
+            updateMoodSummaryPills(loggedMoodDetails, loggedMoodValue);
+            SimEventBus.get().emitMoodChanged((double) loggedMoodValue);
+        } catch (Throwable ignored) {}
+        refreshMoodLogButtonVisual();
+        main.ui.components.toast.ToastOverlay.success("Mood logged.");
+    }
+
+    private void refreshMoodLogButtonVisual() {
+        if (moodLogButton == null) return;
+        boolean hasMood = loggedMoodValue >= 0;
+        moodLogButton.setSelected(hasMood);
+        moodLogButton.setToolTipText(hasMood ? "Mood logged: " + loggedMoodValue : "Log mood");
+        moodLogButton.setEnabled(!readOnlyMode);
+    }
+
     private void initUI() {
         // Build right-side controls (journal-specific) that live inside the main frosted bar
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightToolbar.setOpaque(false);
         if (supportsClockButton()) {
             rightToolbar.add(createToolbarActionButton("clock", "Insert time snapshot", this::insertClockSnapshot));
+        }
+        if (supportsMoodControls()) {
+            moodLogButton = createToolbarActionButton("moodchart", "Log mood", this::openMoodLoggingDialog);
+            rightToolbar.add(moodLogButton);
+            refreshMoodLogButtonVisual();
         }
         installExtraRightToolbarButtons(rightToolbar);
         rightToolbar.add(createToolbarActionButton("fullscreen", "Toggle focus mode", this::toggleDistractionFree));
@@ -1505,63 +1559,7 @@ public class EntryPanel extends AbstractEditorPanel {
         toolbarGroup.add(toolbarContainer);
 
         if (supportsMoodControls()) {
-            JPanel moodRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-            moodRow.setOpaque(false);
-            moodSlider = new MoodSlider();
-            moodSlider.setHoverFadeEnabled(false);
-            moodSlider.addChangeListener(e -> {
-                if (detailedMoodPanel == null || !detailedMoodPanel.hasSnapshot()) {
-                    updateMoodSummaryPills(null, moodSlider.getValue());
-                }
-                try { SimEventBus.get().emitMoodChanged((double) moodSlider.getValue()); } catch (Throwable ignored) {}
-            });
-
-            moodDetailsToggleButton = new ToolbarMenuIconButton("", "forward");
-            moodDetailsToggleButton.setToolTipText("Show detailed emotions");
-            moodDetailsToggleButton.setIconOpacity(0.8f);
-            moodDetailsToggleButton.setPreferredSize(new Dimension(32, 32));
-            moodDetailsToggleButton.setMinimumSize(new Dimension(32, 32));
-            moodDetailsToggleButton.setMaximumSize(new Dimension(32, 32));
-            moodDetailsToggleButton.addActionListener(e -> setDetailedMoodExpanded(
-                    detailedMoodPanel == null || !detailedMoodPanel.isExpanded()
-            ));
-
-            moodRevealStrip = new MoodHoverRevealStrip(moodSlider, moodDetailsToggleButton);
-            moodRevealStrip.setAlignmentY(Component.CENTER_ALIGNMENT);
-            moodRow.add(moodRevealStrip);
-
-            detailedMoodPanel = new DetailedMoodPanel((composite, snapshot) -> {
-                try {
-                    if (moodSlider != null) {
-                        moodSlider.setValue(composite);
-                    }
-                    updateMoodSummaryPills(snapshot, composite);
-                    SimEventBus.get().emitMoodChanged((double) composite);
-                } catch (Throwable ignored) {}
-            });
-            detailedMoodPanel.setBorder(BorderFactory.createEmptyBorder(6, 30, 0, 6));
-            detailedMoodPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-            moodContainer = new JPanel(new BorderLayout());
-            moodContainer.setOpaque(false);
-            moodContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
-            moodContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-            moodContainer.add(moodRow, BorderLayout.NORTH);
-            moodContainer.add(detailedMoodPanel, BorderLayout.CENTER);
-            moodSummaryPills = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-            moodSummaryPills.setOpaque(false);
-            moodSummaryPills.setBorder(BorderFactory.createEmptyBorder(4, 30, 0, 6));
-            moodSummaryPills.setAlignmentX(Component.LEFT_ALIGNMENT);
-            moodSummaryPills.setVisible(false);
-            moodContainer.add(moodSummaryPills, BorderLayout.SOUTH);
-            moodToolbarGap = Box.createVerticalStrut(0);
-            toolbarGroup.add(moodToolbarGap);
-            toolbarGroup.add(moodContainer);
-            refreshDetailedMoodToggleVisual();
-            moodRevealStrip.setPinnedVisible(false);
-            updateMoodSectionSpacing(0f);
             refreshMoodTrendBaselineFromHistory();
-            updateMoodSummaryPills(null, moodSlider.getValue());
         }
 
         add(toolbarGroup, BorderLayout.NORTH);
@@ -1735,6 +1733,7 @@ public class EntryPanel extends AbstractEditorPanel {
         paperViewport.setPaperFeelEnabled(SettingsStore.get().isEditorPaperFeelEnabled());
         paperViewport.setView(contentArea);
         scrollPane.setViewport(paperViewport);
+        scrollPane.getViewport().setScrollMode(javax.swing.JViewport.BLIT_SCROLL_MODE);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         // Only show the vertical bar when content actually overflows.
@@ -2080,7 +2079,7 @@ public class EntryPanel extends AbstractEditorPanel {
             File out = new File(dir, name);
             try { ImageIO.write(img, "PNG", out); } catch (IOException ignored) {}
 
-            ImageIcon icon = new ImageIcon(img);
+            ImageIcon icon = ImagePasteManager.createEditorImageIcon(img);
             SimpleAttributeSet attrs = new SimpleAttributeSet();
             StyleConstants.setIcon(attrs, icon);
             attrs.addAttribute("imageSourceFile", out);
@@ -2109,7 +2108,7 @@ public class EntryPanel extends AbstractEditorPanel {
             File out = new File(dir, name);
             try { ImageIO.write(img, "PNG", out); } catch (IOException ignored) {}
 
-            ImageIcon icon = new ImageIcon(img);
+            ImageIcon icon = ImagePasteManager.createEditorImageIcon(img);
             SimpleAttributeSet attrs = new SimpleAttributeSet();
             StyleConstants.setIcon(attrs, icon);
             attrs.addAttribute("imageSourceFile", out);
@@ -2553,7 +2552,9 @@ public class EntryPanel extends AbstractEditorPanel {
             if (SwingUtilities.isEventDispatchThread()) {
                 titleHolder[0] = titleField.getText().trim();
                 contentHolder[0] = contentArea.getText();
-                moodHolder[0] = (moodSlider != null) ? moodSlider.getValue() : -1;
+                moodHolder[0] = loggedMoodValue >= 0 ? Math.max(0, Math.min(100, loggedMoodValue)) : -1;
+                detailHolder[0] = loggedMoodDetails;
+                hasDetailHolder[0] = loggedMoodDetails != null;
                 if (detailedMoodPanel != null) {
                     detailHolder[0] = detailedMoodPanel.captureSnapshot();
                     hasDetailHolder[0] = detailedMoodPanel.hasSnapshot();
@@ -2565,7 +2566,9 @@ public class EntryPanel extends AbstractEditorPanel {
                 SwingUtilities.invokeAndWait(() -> {
                     titleHolder[0] = titleField.getText().trim();
                     contentHolder[0] = contentArea.getText();
-                    moodHolder[0] = (moodSlider != null) ? moodSlider.getValue() : -1;
+                    moodHolder[0] = loggedMoodValue >= 0 ? Math.max(0, Math.min(100, loggedMoodValue)) : -1;
+                    detailHolder[0] = loggedMoodDetails;
+                    hasDetailHolder[0] = loggedMoodDetails != null;
                     if (detailedMoodPanel != null) {
                         detailHolder[0] = detailedMoodPanel.captureSnapshot();
                         hasDetailHolder[0] = detailedMoodPanel.hasSnapshot();
@@ -2727,7 +2730,9 @@ public class EntryPanel extends AbstractEditorPanel {
             // Log mood only after the entry file is successfully persisted,
             // based on the exact metadata that was written for this save.
             logMoodFromPersistedMetadata(meta);
-            setMoodTrendBaseline(meta.mood, meta.moodDetails);
+            if (meta.mood >= 0) {
+                setMoodTrendBaseline(meta.mood, meta.moodDetails);
+            }
 
             // Record versioned snapshot
             try {
@@ -2793,6 +2798,7 @@ public class EntryPanel extends AbstractEditorPanel {
         try { if (moodSlider != null) moodSlider.setEnabled(!readOnly); } catch (Throwable ignored) {}
         try { if (detailedMoodPanel != null) detailedMoodPanel.setEnabled(!readOnly); } catch (Throwable ignored) {}
         try { if (moodDetailsToggleButton != null) moodDetailsToggleButton.setEnabled(!readOnly); } catch (Throwable ignored) {}
+        refreshMoodLogButtonVisual();
         try { if (saveButton != null) saveButton.setEnabled(!readOnly); } catch (Throwable ignored) {}
         if (readOnly && autosaveCoordinator != null) {
             try { autosaveCoordinator.stop(); } catch (Throwable ignored) {}
@@ -2981,7 +2987,7 @@ public class EntryPanel extends AbstractEditorPanel {
                 try { img = ImageIO.read(f); } catch (Throwable ignored) {}
                 if (img == null) continue;
                 BufferedImage scaled = (targetW > 0) ? scaleToWidth(img, targetW) : img;
-                ImageIcon icon = new ImageIcon(scaled);
+                ImageIcon icon = ImagePasteManager.createEditorImageIcon(scaled);
                 javax.swing.text.SimpleAttributeSet attrs = new javax.swing.text.SimpleAttributeSet();
                 javax.swing.text.StyleConstants.setIcon(attrs, icon);
                 attrs.addAttribute("imageSourceFile", f);
@@ -3335,9 +3341,12 @@ public class EntryPanel extends AbstractEditorPanel {
     protected void clearEditor() {
         titleField.setText("");
         contentArea.setText("");
+        loggedMoodValue = -1;
+        loggedMoodDetails = null;
         try { if (moodSlider != null) moodSlider.setValue(50); } catch (Throwable ignored) {}
         refreshMoodTrendBaselineFromHistory();
-        updateMoodSummaryPills(null, moodSlider != null ? moodSlider.getValue() : 50);
+        updateMoodSummaryPills(null, 50);
+        refreshMoodLogButtonVisual();
         try {
             if (detailedMoodPanel != null) {
                 detailedMoodPanel.clearSnapshot();
