@@ -1630,7 +1630,7 @@ public class NotebookManagerPanel extends JPanel {
                 this.accentColor = accent;
                 setOpaque(false);
                 setLayout(new BorderLayout(8, 4));
-                setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+                setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 32));
                 setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
                 JPanel textPanel = new JPanel();
@@ -1680,15 +1680,9 @@ public class NotebookManagerPanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                int arc = 12;
-                // Background
-                if (selected) {
-                    g2.setColor(new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 25));
-                } else if (hovered) {
-                    g2.setColor(new Color(240, 242, 248));
-                } else {
-                    g2.setColor(new Color(250, 251, 253));
-                }
+                int arc = 14;
+                // Plain white background
+                g2.setColor(Color.WHITE);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
 
                 // Border
@@ -1701,10 +1695,16 @@ public class NotebookManagerPanel extends JPanel {
                 }
                 g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, arc, arc);
 
-                // Accent stripe on left when selected
+                // Checkmark for selected state
                 if (selected) {
+                    int cx = getWidth() - 24;
+                    int cy = 16;
                     g2.setColor(accentColor);
-                    g2.fillRoundRect(0, 4, 4, getHeight() - 8, 2, 2);
+                    g2.fillOval(cx - 10, cy - 10, 20, 20);
+                    g2.setColor(Color.WHITE);
+                    g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    g2.drawLine(cx - 5, cy, cx - 1, cy + 4);
+                    g2.drawLine(cx - 1, cy + 4, cx + 6, cy - 4);
                 }
 
                 g2.dispose();
