@@ -1849,6 +1849,7 @@ public class NotebookEntriesPanel extends JPanel {
         button.setMinimumSize(size);
         button.setMaximumSize(size);
         button.setToolTipText("Show favorites only");
+        button.setMonochromeWhenUnselected(true);
         button.addActionListener(e -> setFavoritesOnlyFilter(!favoritesOnlyFilter));
         return button;
     }

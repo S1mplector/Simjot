@@ -15,7 +15,6 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.KeyboardFocusManager;
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
@@ -28,13 +27,12 @@ import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
-import javax.swing.Timer;
 
 /**
- * Stable popup for hover suggestions with smooth fade/slide animation.
- * 
- * Unlike the older popup, this does not animate width/height from tiny bounds,
- * which avoids jitter when the popup is frequently updated while moving mouse.
+ * Stable popup for hover suggestions.
+ *
+ * Deliberately non-animated: hover suggestions appear and disappear instantly so
+ * frequent mouse movement never drives a Swing timer on the UI thread.
  */
 public class AdvancedSuggestionPopup extends JWindow {
 
@@ -43,18 +41,11 @@ public class AdvancedSuggestionPopup extends JWindow {
     private static final int SHADOW = 8;
     private static final int MIN_WIDTH = 240;
     private static final int MIN_HEIGHT = 72;
-    private static final int ANIM_TICK_MS = 15;
-    private static final int SHOW_OFFSET_Y = 8;
-    private static final long SHOW_DURATION_MS = 180;
-    private static final long UPDATE_DURATION_MS = 130;
-    private static final long HIDE_DURATION_MS = 150;
-
     private final KeyEventDispatcher escDispatcher;
     private final AWTEventListener outsideClickListener;
 
     private JPanel chromePanel;
     private JPanel contentHost;
-    private Timer animationTimer;
 
     public AdvancedSuggestionPopup(Window owner) {
         super(owner);
@@ -91,7 +82,6 @@ public class AdvancedSuggestionPopup extends JWindow {
         try {
             Toolkit.getDefaultToolkit().removeAWTEventListener(outsideClickListener);
         } catch (Throwable ignored) {}
-        stopAnimation();
         super.dispose();
     }
 
@@ -114,33 +104,17 @@ public class AdvancedSuggestionPopup extends JWindow {
         int targetY = screenY - height - 8;
 
         Rectangle targetBounds = new Rectangle(targetX, targetY, width, height);
+        if (!getBounds().equals(targetBounds)) {
+            setBounds(targetBounds);
+        }
         if (!isVisible()) {
-            Rectangle startBounds = new Rectangle(targetX, targetY + SHOW_OFFSET_Y, width, height);
-            setBounds(startBounds);
             setVisible(true);
-            animateLocation(new Point(startBounds.x, startBounds.y),
-                    new Point(targetBounds.x, targetBounds.y),
-                    SHOW_DURATION_MS, null);
-            return;
         }
-
-        Rectangle startBounds = getBounds();
-        if (startBounds.equals(targetBounds)) {
-            return;
-        }
-        // Keep updates stable while visible: no fade/scale, just smooth relocation.
-        setSize(targetBounds.width, targetBounds.height);
-        animateLocation(new Point(startBounds.x, startBounds.y),
-                new Point(targetBounds.x, targetBounds.y),
-                UPDATE_DURATION_MS, null);
     }
 
     public void hidePopup() {
         if (!isVisible()) return;
-        Rectangle startBounds = getBounds();
-        Point from = new Point(startBounds.x, startBounds.y);
-        Point to = new Point(startBounds.x, startBounds.y + SHOW_OFFSET_Y);
-        animateLocation(from, to, HIDE_DURATION_MS, () -> setVisible(false));
+        setVisible(false);
     }
 
     private void ensureUiShell() {
@@ -184,47 +158,4 @@ public class AdvancedSuggestionPopup extends JWindow {
         setContentPane(chromePanel);
     }
 
-    private void animateLocation(Point start, Point end, long durationMs, Runnable onComplete) {
-        stopAnimation();
-
-        if (durationMs <= 0L) {
-            setLocation(end);
-            if (onComplete != null) onComplete.run();
-            return;
-        }
-
-        final long startTime = System.nanoTime();
-        animationTimer = new Timer(ANIM_TICK_MS, null);
-        animationTimer.addActionListener(e -> {
-            double elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0;
-            float t = (float) Math.min(1.0, elapsedMs / durationMs);
-            float ease = easeOutCubic(t);
-
-            int x = lerp(start.x, end.x, ease);
-            int y = lerp(start.y, end.y, ease);
-            setLocation(x, y);
-
-            if (t >= 1f) {
-                stopAnimation();
-                setLocation(end);
-                if (onComplete != null) onComplete.run();
-            }
-        });
-        animationTimer.start();
-    }
-
-    private void stopAnimation() {
-        if (animationTimer != null && animationTimer.isRunning()) {
-            animationTimer.stop();
-        }
-    }
-
-    private static int lerp(int a, int b, float t) {
-        return Math.round(a + (b - a) * t);
-    }
-
-    private static float easeOutCubic(float t) {
-        float inv = 1f - t;
-        return 1f - inv * inv * inv;
-    }
 }

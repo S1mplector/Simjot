@@ -70,6 +70,9 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     private static final String CLIENT_PROP_UNDO_DELEGATE = "autocorrect.undo.delegate";
     private static final int HOVER_SHOW_DELAY_MS = 120;
     private static final int HOVER_HIDE_DELAY_MS = 180;
+    private static final int WORD_SCAN_CONTEXT_CHARS = 192;
+    private static final int MAX_AUTOCORRECT_WORD_CHARS = 42;
+    private static final int MAX_PENDING_SUGGESTIONS = 80;
 
     // Trigger characters that cause autocorrect detection to run.
     private static final String TRIGGER_CHARS = " .,;:!?)\n\t";
@@ -267,8 +270,9 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         }
         if (!suggestionsEnabled) return;
         pruneSuggestionsAfterDocumentChange();
-        if (isTriggerChar(string)) {
-            SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
+        int triggerOffset = lastTriggerOffset(offset, string);
+        if (triggerOffset >= 0) {
+            SwingUtilities.invokeLater(() -> checkAndProposeWord(triggerOffset));
         }
     }
 
@@ -284,8 +288,9 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         }
         if (!suggestionsEnabled) return;
         pruneSuggestionsAfterDocumentChange();
-        if (text != null && isTriggerChar(text)) {
-            SwingUtilities.invokeLater(() -> checkAndProposeWord(offset));
+        int triggerOffset = lastTriggerOffset(offset, text);
+        if (triggerOffset >= 0) {
+            SwingUtilities.invokeLater(() -> checkAndProposeWord(triggerOffset));
         }
     }
 
@@ -296,10 +301,14 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         pruneSuggestionsAfterDocumentChange();
     }
 
-    private boolean isTriggerChar(String text) {
-        if (text == null || text.isEmpty()) return false;
-        char c = text.charAt(0);
-        return TRIGGER_CHARS.indexOf(c) >= 0;
+    private int lastTriggerOffset(int offset, String text) {
+        if (text == null || text.isEmpty()) return -1;
+        for (int i = text.length() - 1; i >= 0; i--) {
+            if (TRIGGER_CHARS.indexOf(text.charAt(i)) >= 0) {
+                return offset + i;
+            }
+        }
+        return -1;
     }
 
     private void applySmartSymbolSubstitutionsAround(int pivotOffset) {
@@ -363,31 +372,31 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
     private void checkAndProposeWord(int triggerOffset) {
         try {
             Document doc = textComponent.getDocument();
-            String text = doc.getText(0, doc.getLength());
+            int docLen = doc.getLength();
+            int wordEnd = Math.max(0, Math.min(triggerOffset, docLen));
+            if (wordEnd <= 0) return;
 
-            int wordEnd = triggerOffset;
-            int wordStart = wordEnd - 1;
-            while (wordStart >= 0 && isWordChar(text.charAt(wordStart))) {
-                wordStart--;
+            int windowStart = Math.max(0, wordEnd - WORD_SCAN_CONTEXT_CHARS);
+            String beforeTrigger = doc.getText(windowStart, wordEnd - windowStart);
+            int localEnd = beforeTrigger.length();
+            int localStart = localEnd - 1;
+            while (localStart >= 0 && isWordChar(beforeTrigger.charAt(localStart))) {
+                localStart--;
             }
-            wordStart++;
+            localStart++;
 
-            if (wordStart >= wordEnd) return;
-            String word = text.substring(wordStart, wordEnd);
-            if (word.length() <= 1) return;
+            if (localStart >= localEnd) return;
+            if (windowStart > 0 && localStart == 0 && isWordChar(beforeTrigger.charAt(0))) return;
 
-            if (ignoredThisSession.contains(word.toLowerCase(Locale.ROOT))) {
-                return;
-            }
+            String word = beforeTrigger.substring(localStart, localEnd);
+            if (!isAutocorrectCandidate(word)) return;
 
-            String prevWord = getPreviousWord(text, wordStart);
-            String nextWord = null;
+            String lower = word.toLowerCase(Locale.ROOT);
+            if (ignoredThisSession.contains(lower)) return;
 
-            String correction = autocorrect.getContextualCorrection(word, prevWord, nextWord);
-            if (correction == null) {
-                correction = autocorrect.getCorrection(word);
-            }
-
+            int wordStart = windowStart + localStart;
+            String prevWord = getPreviousWord(beforeTrigger, localStart);
+            String correction = autocorrect.getContextualCorrection(word, prevWord, null);
             if (correction != null && !correction.equals(word)) {
                 proposeSuggestion(wordStart, wordEnd, word, correction);
             }
@@ -413,6 +422,10 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
 
         try {
             Document doc = textComponent.getDocument();
+            while (pendingSuggestions.size() >= MAX_PENDING_SUGGESTIONS) {
+                removeSuggestion(pendingSuggestions.get(0), false);
+            }
+
             Position startPos = doc.createPosition(start);
             Position endPos = doc.createPosition(end);
 
@@ -426,15 +439,16 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
 
     private void pruneSuggestionsAfterDocumentChange() {
         if (pendingSuggestions.isEmpty()) return;
-        List<PendingSuggestion> toRemove = new ArrayList<>();
-        for (PendingSuggestion suggestion : pendingSuggestions) {
-            if (!suggestion.matchesCurrentWord(textComponent.getDocument())) {
-                toRemove.add(suggestion);
+        boolean removed = false;
+        Document doc = textComponent.getDocument();
+        for (int i = pendingSuggestions.size() - 1; i >= 0; i--) {
+            PendingSuggestion suggestion = pendingSuggestions.get(i);
+            if (!suggestion.matchesCurrentWord(doc)) {
+                removeSuggestion(suggestion, false);
+                removed = true;
             }
         }
-        for (PendingSuggestion suggestion : toRemove) {
-            removeSuggestion(suggestion);
-        }
+        if (removed) textComponent.repaint();
         if (hoveredSuggestion != null && !pendingSuggestions.contains(hoveredSuggestion)) {
             hideSuggestionPopup();
         }
@@ -453,6 +467,12 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         if (offset < 0) {
             cancelShowPopup();
             scheduleHidePopup();
+            return;
+        }
+
+        PendingSuggestion current = hoveredSuggestion;
+        if (current != null && current.containsOffset(offset)) {
+            cancelHidePopup();
             return;
         }
 
@@ -654,12 +674,17 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
         if (pendingSuggestions.isEmpty()) return;
         List<PendingSuggestion> copy = new ArrayList<>(pendingSuggestions);
         for (PendingSuggestion suggestion : copy) {
-            removeSuggestion(suggestion);
+            removeSuggestion(suggestion, false);
         }
+        textComponent.repaint();
         hideSuggestionPopup();
     }
 
     private void removeSuggestion(PendingSuggestion suggestion) {
+        removeSuggestion(suggestion, true);
+    }
+
+    private void removeSuggestion(PendingSuggestion suggestion, boolean repaint) {
         if (suggestion == null) return;
         pendingSuggestions.remove(suggestion);
         try {
@@ -668,7 +693,7 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
             }
         } catch (Throwable ignored) {}
         suggestion.highlightTag = null;
-        textComponent.repaint();
+        if (repaint) textComponent.repaint();
     }
 
     private String getPreviousWord(String text, int beforeOffset) {
@@ -691,6 +716,21 @@ public class AutocorrectDocumentFilter extends DocumentFilter {
 
     private boolean isWordChar(char c) {
         return Character.isLetter(c) || c == '\'';
+    }
+
+    private boolean isAutocorrectCandidate(String word) {
+        if (word == null || word.length() <= 1 || word.length() > MAX_AUTOCORRECT_WORD_CHARS) return false;
+        boolean sawLetter = false;
+        for (int i = 0; i < word.length(); i++) {
+            char c = word.charAt(i);
+            if (c == '\'') {
+                if (i == 0 || i == word.length() - 1) return false;
+                continue;
+            }
+            if (c > 127 || !Character.isLetter(c)) return false;
+            sawLetter = true;
+        }
+        return sawLetter;
     }
 
     private void applyCorrection(int start, int end, String original, String correction, boolean advancePastTrigger) {

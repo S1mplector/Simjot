@@ -43,6 +43,9 @@ public class IntelligentAutocorrect {
     // User-driven caches - bounded to prevent memory growth
     private static final int USER_CACHE_SIZE = 1024;
     private static final int IGNORED_WORDS_SIZE = 512;
+    private static final int CORRECTION_CACHE_SIZE = 2048;
+    private static final int MAX_AUTOCORRECT_WORD_LEN = 42;
+    private static final String NO_CORRECTION = "\u0000";
     
     private final Map<String, String> userCorrections = Collections.synchronizedMap(
         new LinkedHashMap<>(128, 0.75f, true) {
@@ -64,6 +67,12 @@ public class IntelligentAutocorrect {
                     if (it.hasNext()) { it.next(); it.remove(); }
                 }
                 return super.add(e);
+            }
+        });
+    private final Map<String, String> correctionCache = Collections.synchronizedMap(
+        new LinkedHashMap<>(256, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, String> e) {
+                return size() > CORRECTION_CACHE_SIZE;
             }
         });
     private final SpellCheckEngine spellChecker;
@@ -205,67 +214,57 @@ public class IntelligentAutocorrect {
      * Returns null if no correction is needed.
      */
     public String getCorrection(String word) {
-        if (word == null || word.length() <= 1) return null;
-        
+        if (word == null || word.length() <= 1 || word.length() > MAX_AUTOCORRECT_WORD_LEN) return null;
+
         String lower = word.toLowerCase(Locale.ROOT);
-        
-        // CRITICAL: Never autocorrect common valid words
-        // This prevents adjacent-key corrections from breaking valid words
+
+        // CRITICAL: Never autocorrect common valid words.
         if (NEVER_CORRECT.contains(lower)) return null;
-        
-        // Check if word is in ignore list
         if (ignoredWords.contains(lower)) return null;
-        
-        // Check if word is already correct
-        if (spellChecker.isCorrect(word)) return null;
-        
-        // Check user corrections first (learning)
-        String userCorrection = userCorrections.get(lower);
-        if (userCorrection != null) {
-            return preserveCase(word, userCorrection);
-        }
-        
-        // Check standard corrections
-        String correction = corrections.get(lower);
-        if (correction != null) {
-            return preserveCase(word, correction);
+
+        String cached = correctionCache.get(lower);
+        if (cached != null) {
+            return NO_CORRECTION.equals(cached) ? null : preserveCase(word, cached);
         }
 
-        // Prefer native combined autocorrect when available.
-        // This path uses the native spell dictionary and ranked corrections.
+        String correction = computeCorrection(word, lower);
+        correctionCache.put(lower, correction == null ? NO_CORRECTION : correction);
+        return correction == null ? null : preserveCase(word, correction);
+    }
+
+    private String computeCorrection(String word, String lower) {
+        if (spellChecker.isCorrect(word)) return null;
+
+        String correction = userCorrections.get(lower);
+        if (correction != null) return correction;
+
+        correction = corrections.get(lower);
+        if (correction != null) return correction;
+
         if (NativeAccess.spellReady()) {
             correction = NativeAccess.autocorrectCorrect(word);
             if (correction != null && !correction.isBlank()) {
                 String trimmed = correction.trim();
                 if (!trimmed.equalsIgnoreCase(word)
                         && levenshteinDistance(lower, trimmed.toLowerCase(Locale.ROOT)) <= 2) {
-                    return preserveCase(word, trimmed);
+                    return trimmed;
                 }
             }
         }
 
-        // Try phonetic matching
         correction = findPhoneticCorrection(lower);
-        if (correction != null) {
-            return preserveCase(word, correction);
-        }
-        
-        // Try keyboard adjacency correction
+        if (correction != null) return correction;
+
         correction = findAdjacentKeyCorrection(lower);
-        if (correction != null) {
-            return preserveCase(word, correction);
-        }
-        
-        // Fall back to spell checker suggestions
+        if (correction != null) return correction;
+
         List<String> suggestions = spellChecker.getSuggestions(word);
         if (!suggestions.isEmpty()) {
             String best = suggestions.get(0);
-            // Only auto-correct if it's a very close match
-            if (levenshteinDistance(lower, best.toLowerCase()) <= 2) {
-                return preserveCase(word, best);
+            if (levenshteinDistance(lower, best.toLowerCase(Locale.ROOT)) <= 2) {
+                return best;
             }
         }
-        
         return null;
     }
     
@@ -425,7 +424,8 @@ public class IntelligentAutocorrect {
         if (typo == null || correction == null) return;
         String lowerTypo = typo.toLowerCase(Locale.ROOT);
         userCorrections.put(lowerTypo, correction.toLowerCase(Locale.ROOT));
-        
+        correctionCache.remove(lowerTypo);
+
         // Track word frequency
         String lowerCorrection = correction.toLowerCase(Locale.ROOT);
         userWordFrequency.merge(lowerCorrection, 1, Integer::sum);
@@ -436,7 +436,9 @@ public class IntelligentAutocorrect {
      */
     public void ignore(String word) {
         if (word != null) {
-            ignoredWords.add(word.toLowerCase(Locale.ROOT));
+            String lower = word.toLowerCase(Locale.ROOT);
+            ignoredWords.add(lower);
+            correctionCache.put(lower, NO_CORRECTION);
         }
     }
     
@@ -445,7 +447,9 @@ public class IntelligentAutocorrect {
      */
     public void unignore(String word) {
         if (word != null) {
-            ignoredWords.remove(word.toLowerCase(Locale.ROOT));
+            String lower = word.toLowerCase(Locale.ROOT);
+            ignoredWords.remove(lower);
+            correctionCache.remove(lower);
         }
     }
     
@@ -518,22 +522,32 @@ public class IntelligentAutocorrect {
     }
     
     private int levenshteinDistance(String a, String b) {
-        // Try native implementation first
         Integer nativeResult = NativeAccess.textLevenshtein(a, b);
-        if (nativeResult != null) {
-            return nativeResult;
-        }
-        // Java fallback
-        int[][] dp = new int[a.length() + 1][b.length() + 1];
-        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
-        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
-        for (int i = 1; i <= a.length(); i++) {
-            for (int j = 1; j <= b.length(); j++) {
-                int cost = (a.charAt(i - 1) == b.charAt(j - 1)) ? 0 : 1;
-                dp[i][j] = Math.min(Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1), dp[i - 1][j - 1] + cost);
+        if (nativeResult != null) return nativeResult;
+        if (a == null || b == null) return Integer.MAX_VALUE / 4;
+        int m = a.length();
+        int n = b.length();
+        if (m == 0) return n;
+        if (n == 0) return m;
+        if (Math.abs(m - n) > 2) return Math.abs(m - n);
+
+        int[] prev = new int[n + 1];
+        int[] curr = new int[n + 1];
+        for (int j = 0; j <= n; j++) prev[j] = j;
+        for (int i = 1; i <= m; i++) {
+            curr[0] = i;
+            int rowMin = curr[0];
+            char ca = a.charAt(i - 1);
+            for (int j = 1; j <= n; j++) {
+                int cost = ca == b.charAt(j - 1) ? 0 : 1;
+                int v = Math.min(Math.min(prev[j] + 1, curr[j - 1] + 1), prev[j - 1] + cost);
+                curr[j] = v;
+                if (v < rowMin) rowMin = v;
             }
+            if (rowMin > 2) return rowMin;
+            int[] tmp = prev; prev = curr; curr = tmp;
         }
-        return dp[a.length()][b.length()];
+        return prev[n];
     }
     
     /**

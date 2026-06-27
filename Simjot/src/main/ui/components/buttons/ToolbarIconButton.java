@@ -16,6 +16,7 @@ import java.awt.Dimension;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
 import java.awt.LinearGradientPaint;
 import java.awt.Point;
 import java.awt.RadialGradientPaint;
@@ -24,6 +25,7 @@ import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 
 import javax.swing.JButton;
 import javax.swing.Timer;
@@ -49,6 +51,10 @@ public class ToolbarIconButton extends JButton {
     private float glowPhase=0f;
     private float iconOpacity = 1f; // 0..1 alpha multiplier for icon only
     private double iconRotationRadians = 0.0;
+    private boolean monochromeWhenUnselected = false;
+    private BufferedImage monochromeIconCache;
+    private String monochromeIconCachePath;
+    private int monochromeIconCacheSize = -1;
 
     private static boolean globalGlow = false;
     private static final java.util.List<ToolbarIconButton> INSTANCES = new java.util.ArrayList<>();
@@ -74,6 +80,13 @@ public class ToolbarIconButton extends JButton {
     public void setIconOpacity(float alpha){
         float a = Math.max(0f, Math.min(1f, alpha));
         if (this.iconOpacity != a) { this.iconOpacity = a; repaint(); }
+    }
+
+    /** Render the icon without color until the button is selected. */
+    public void setMonochromeWhenUnselected(boolean enabled) {
+        if (this.monochromeWhenUnselected == enabled) return;
+        this.monochromeWhenUnselected = enabled;
+        repaint();
     }
 
     /** Rotate icon around its center (used for mirrored/repurposed nav icons). */
@@ -146,7 +159,9 @@ public class ToolbarIconButton extends JButton {
         if (!useVectorOnly && resourcePath != null) {
             Composite old = g2.getComposite();
             if (iconOpacity < 0.999f) g2.setComposite(AlphaComposite.SrcOver.derive(iconOpacity));
-            if (Math.abs(iconRotationRadians) > 0.0001) {
+            if (monochromeWhenUnselected && !selected && Math.abs(iconRotationRadians) <= 0.0001) {
+                painted = drawMonochromeResource(g2, ix, iy, size);
+            } else if (Math.abs(iconRotationRadians) > 0.0001) {
                 painted = IconTransforms.drawRotated(g2, resourcePath, ix, iy, size, this, true, iconRotationRadians);
             } else {
                 painted = ImageIconRenderer.draw(g2, resourcePath, ix, iy, size, this, true);
@@ -179,6 +194,71 @@ public class ToolbarIconButton extends JButton {
         }
 
         g2.dispose();
+    }
+
+    private boolean drawMonochromeResource(Graphics2D g2, int x, int y, int size) {
+        if (resourcePath == null || size <= 0) return false;
+        double scale = resolveIconScale(g2);
+        int scaledSize = Math.max(1, (int) Math.ceil(size * scale));
+        BufferedImage img = getMonochromeIcon(scaledSize);
+        if (img == null) return false;
+        if (Math.abs(scale - 1.0) < 0.01) {
+            g2.drawImage(img, x, y, this);
+        } else {
+            g2.drawImage(img, x, y, size, size, this);
+        }
+        return true;
+    }
+
+    private BufferedImage getMonochromeIcon(int scaledSize) {
+        if (monochromeIconCache != null
+                && monochromeIconCacheSize == scaledSize
+                && java.util.Objects.equals(monochromeIconCachePath, resourcePath)) {
+            return monochromeIconCache;
+        }
+        BufferedImage src = ImageIconRenderer.get(resourcePath, scaledSize, true);
+        if (src == null) return null;
+        BufferedImage mono = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < src.getHeight(); y++) {
+            for (int x = 0; x < src.getWidth(); x++) {
+                int argb = src.getRGB(x, y);
+                int a = (argb >>> 24) & 0xff;
+                if (a == 0) {
+                    mono.setRGB(x, y, 0);
+                    continue;
+                }
+                int r = (argb >>> 16) & 0xff;
+                int g = (argb >>> 8) & 0xff;
+                int b = argb & 0xff;
+                int gray = Math.max(0, Math.min(255, (r * 30 + g * 59 + b * 11) / 100));
+                mono.setRGB(x, y, (a << 24) | (gray << 16) | (gray << 8) | gray);
+            }
+        }
+        monochromeIconCache = mono;
+        monochromeIconCachePath = resourcePath;
+        monochromeIconCacheSize = scaledSize;
+        return mono;
+    }
+
+    private double resolveIconScale(Graphics2D g2) {
+        double scale = 1.0;
+        try {
+            GraphicsConfiguration gc = getGraphicsConfiguration();
+            if (gc != null) {
+                AffineTransform tx = gc.getDefaultTransform();
+                scale = Math.max(tx.getScaleX(), tx.getScaleY());
+            }
+        } catch (Throwable ignored) {}
+        if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale) || Math.abs(scale - 1.0) < 0.01) {
+            try {
+                AffineTransform tx = g2.getTransform();
+                scale = Math.max(Math.abs(tx.getScaleX()), Math.abs(tx.getScaleY()));
+            } catch (Throwable ignored) {
+                scale = 1.0;
+            }
+        }
+        if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) return 1.0;
+        return scale;
     }
 
     // Check if this icon should always use vector rendering (drawing tools)

@@ -39,6 +39,8 @@ public class SpellCheckEngine {
     // LRU-bounded caches to limit memory usage
     private static final int SPELL_CACHE_SIZE = 2048;
     private static final int SUGGESTION_CACHE_SIZE = 512;
+    private static final int MAX_SUGGESTION_WORD_LENGTH = 32;
+    private static final int MAX_EDIT2_WORD_LENGTH = 8;
     
     private final Map<String, Boolean> spellCheckCache = Collections.synchronizedMap(
         new LinkedHashMap<>(256, 0.75f, true) {
@@ -155,7 +157,11 @@ public class SpellCheckEngine {
     public List<String> getSuggestions(String word) {
         if (word == null || word.isEmpty()) return Collections.emptyList();
         String lower = word.toLowerCase(Locale.ROOT);
-        
+        if (lower.length() > MAX_SUGGESTION_WORD_LENGTH || !isSuggestionCandidate(lower)) {
+            suggestionCache.put(lower, Collections.emptyList());
+            return Collections.emptyList();
+        }
+
         List<String> cached = suggestionCache.get(lower);
         if (cached != null) return cached;
         
@@ -179,7 +185,7 @@ public class SpellCheckEngine {
         // Fallback to Java edit-distance suggestions
         Set<String> suggestions = new LinkedHashSet<>();
         addEditDistance1Candidates(lower, suggestions);
-        if (suggestions.size() < 3) addEditDistance2Candidates(lower, suggestions);
+        if (suggestions.size() < 3 && lower.length() <= MAX_EDIT2_WORD_LENGTH) addEditDistance2Candidates(lower, suggestions);
         
         List<String> result = suggestions.stream()
             .filter(s -> !s.equals(lower))
@@ -295,6 +301,18 @@ public class SpellCheckEngine {
         return dictionary.contains(word);
     }
 
+    private boolean isSuggestionCandidate(String lower) {
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            if (c == '\'') {
+                if (i == 0 || i == lower.length() - 1) return false;
+                continue;
+            }
+            if (c < 'a' || c > 'z') return false;
+        }
+        return true;
+    }
+
     private boolean isInAnyDictionaryJava(String word) {
         if (word == null || word.isEmpty()) return false;
         if (userDictionary.contains(word)) return true;
@@ -310,17 +328,24 @@ public class SpellCheckEngine {
         Integer legacyResult = NativeAccess.textLevenshtein(a, b);
         if (legacyResult != null && legacyResult >= 0) return legacyResult;
         
-        // Java fallback
-        int[][] dp = new int[a.length() + 1][b.length() + 1];
-        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
-        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
-        for (int i = 1; i <= a.length(); i++) {
-            for (int j = 1; j <= b.length(); j++) {
-                int cost = (a.charAt(i - 1) == b.charAt(j - 1)) ? 0 : 1;
-                dp[i][j] = Math.min(Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1), dp[i - 1][j - 1] + cost);
+        // Java fallback with O(n) memory.
+        int m = a.length();
+        int n = b.length();
+        if (m == 0) return n;
+        if (n == 0) return m;
+        int[] prev = new int[n + 1];
+        int[] curr = new int[n + 1];
+        for (int j = 0; j <= n; j++) prev[j] = j;
+        for (int i = 1; i <= m; i++) {
+            curr[0] = i;
+            char ca = a.charAt(i - 1);
+            for (int j = 1; j <= n; j++) {
+                int cost = ca == b.charAt(j - 1) ? 0 : 1;
+                curr[j] = Math.min(Math.min(prev[j] + 1, curr[j - 1] + 1), prev[j - 1] + cost);
             }
+            int[] tmp = prev; prev = curr; curr = tmp;
         }
-        return dp[a.length()][b.length()];
+        return prev[n];
     }
     
     /**
