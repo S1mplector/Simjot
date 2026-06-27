@@ -22,7 +22,6 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.LinearGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Rectangle;
 import java.awt.Shape;
@@ -277,16 +276,15 @@ public class NotebookEntriesPanel extends JPanel {
 
     private int hoverIndex = -1;
     private File hoverFile = null;
-    private final float[] selectionSweepPhase = new float[]{0f};
-    private final javax.swing.Timer selectionSweepTimer = new javax.swing.Timer(33, e -> {
+    private int selectedGlowIndex = -1;
+    private final javax.swing.Timer listScrollSettledTimer = new javax.swing.Timer(120, e -> {
         try {
-            selectionSweepPhase[0] += 0.018f;
-            if (selectionSweepPhase[0] > 1f) selectionSweepPhase[0] -= 1f;
-            repaintRow(hoverIndex, 12);
+            if (Boolean.TRUE.equals(list.getClientProperty("fastScrollActive"))) {
+                list.putClientProperty("fastScrollActive", Boolean.FALSE);
+                list.repaint();
+            }
         } catch (Throwable ignored) {}
     });
-    
-    private int selectedGlowIndex = -1;
 
     // Folder watch
     private WatchService watchService;
@@ -365,8 +363,8 @@ public class NotebookEntriesPanel extends JPanel {
         private boolean selected;
         private float reorderGlow = 0f;
         private float deleteProgress = 0f; // 0=normal, 1=fully gone
-        private float selectionSweepPhase = 0f;
         private boolean hovered = false;
+        private boolean fastScrolling = false;
         private boolean encrypted = false;
         private boolean favorite = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
@@ -599,12 +597,7 @@ public class NotebookEntriesPanel extends JPanel {
                     encrypted = EncryptionManager.isEncrypted(file);
                 }
             }
-            Object phaseObj = list.getClientProperty("selectionSweepPhase");
-            if (phaseObj instanceof float[] arr && arr.length > 0) {
-                selectionSweepPhase = arr[0];
-            } else {
-                selectionSweepPhase = 0f;
-            }
+            fastScrolling = Boolean.TRUE.equals(list.getClientProperty("fastScrollActive"));
             Object hoverObj = list.getClientProperty("hoverIndex");
             int hoverIdx = hoverObj instanceof Integer ? (Integer) hoverObj : -1;
             hovered = (hoverIdx == index);
@@ -715,12 +708,14 @@ public class NotebookEntriesPanel extends JPanel {
             // Subtle background texture
             java.awt.Shape oldClip = g2.getClip();
             g2.setClip(shape);
-            BufferedImage bg = getBg(Math.max(1, w - 8), Math.max(1, h - 6));
-            if (bg != null) {
-                Composite old = g2.getComposite();
-                g2.setComposite(AlphaComposite.SrcOver.derive(0.12f));
-                g2.drawImage(bg, 4, 3, null);
-                g2.setComposite(old);
+            if (!fastScrolling) {
+                BufferedImage bg = getBg(Math.max(1, w - 8), Math.max(1, h - 6));
+                if (bg != null) {
+                    Composite old = g2.getComposite();
+                    g2.setComposite(AlphaComposite.SrcOver.derive(0.12f));
+                    g2.drawImage(bg, 4, 3, null);
+                    g2.setComposite(old);
+                }
             }
 
             // Glass highlight
@@ -736,29 +731,6 @@ public class NotebookEntriesPanel extends JPanel {
                 g2.setComposite(AlphaComposite.SrcOver);
             }
             g2.setClip(oldClip);
-
-            // Selected sweep highlight (subtle Aero-like sheen)
-            if (hoverActive && deleteProgress <= 0.01f) {
-                int bandW = Math.max(80, Math.round(w * 0.35f));
-                float startX = (selectionSweepPhase * 1.4f - 0.2f) * w;
-                Shape sweepClip = g2.getClip();
-                g2.setClip(shape);
-                Composite old = g2.getComposite();
-                g2.setComposite(AlphaComposite.SrcOver.derive(0.16f));
-                LinearGradientPaint sweep = new LinearGradientPaint(
-                    startX, 0, startX + bandW, 0,
-                    new float[]{0f, 0.5f, 1f},
-                    new Color[]{
-                        new Color(255, 255, 255, 0),
-                        new Color(255, 255, 255, 180),
-                        new Color(255, 255, 255, 0)
-                    }
-                );
-                g2.setPaint(sweep);
-                g2.fill(shape);
-                g2.setComposite(old);
-                g2.setClip(sweepClip);
-            }
 
             // Borders
             if (hoverActive) {
@@ -790,8 +762,8 @@ public class NotebookEntriesPanel extends JPanel {
                 g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 g2.setColor(NotebookPersonalization.withAlpha(accent, 175));
                 g2.draw(new RoundRectangle2D.Float(5, 4, w - 10, h - 8, arc - 1, arc - 1));
-                g2.setColor(new Color(255, 255, 255, 155));
-                g2.draw(new RoundRectangle2D.Float(7, 6, w - 14, Math.max(16, (h - 12) / 2), arc - 3, arc - 3));
+                g2.setColor(new Color(255, 255, 255, 120));
+                g2.draw(new RoundRectangle2D.Float(7, 6, w - 14, h - 12, arc - 3, arc - 3));
                 g2.setStroke(oldStroke);
                 g2.setComposite(oldComposite);
             }
@@ -1728,7 +1700,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("moods", moodValues);
         list.putClientProperty("entryTimestamps", entryTimestamps);
         list.putClientProperty("reorderAnim", reorderAnimProgress);
-        list.putClientProperty("selectionSweepPhase", selectionSweepPhase);
+        list.putClientProperty("fastScrollActive", Boolean.FALSE);
         list.putClientProperty("previews", previewCache);
         list.putClientProperty("moodTrends", moodTrendCache);
         list.putClientProperty("encryptedFlags", encryptedFlags);
@@ -1773,7 +1745,6 @@ public class NotebookEntriesPanel extends JPanel {
                     else list.clearSelection();
                 }
             }
-            updateSelectionSweepState();
             updateStaticSelectionGlowState();
         });
         listScroll = new JScrollPane(list);
@@ -1800,6 +1771,7 @@ public class NotebookEntriesPanel extends JPanel {
         try {
             listScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
                 if (viewMode == EntryViewMode.CALENDAR) return;
+                markEntryListScrolling();
                 ensureLazyRowsForViewport();
                 if (!e.getValueIsAdjusting()) {
                     ensureMetaForVisibleRange();
@@ -1813,6 +1785,7 @@ public class NotebookEntriesPanel extends JPanel {
         // Configure debouncers
         listUpdateDebounce.setRepeats(false);
         watchDebounce.setRepeats(false);
+        listScrollSettledTimer.setRepeats(false);
         lazyAppendTimer.setRepeats(true);
         reorderAnimTimer.setRepeats(true);
 
@@ -2185,7 +2158,6 @@ public class NotebookEntriesPanel extends JPanel {
         if (sel != null && ordered.contains(sel)) {
             selectFile(sel, false);
         }
-        updateSelectionSweepState();
         updateStaticSelectionGlowState();
         // Restore approximate scroll position
         try {
@@ -3017,7 +2989,7 @@ public class NotebookEntriesPanel extends JPanel {
         try { watchDebounce.stop(); } catch (Throwable ignored) {}
         try { reorderAnimTimer.stop(); } catch (Throwable ignored) {}
         try { deleteAnimTimer.stop(); } catch (Throwable ignored) {}
-        try { selectionSweepTimer.stop(); } catch (Throwable ignored) {}
+        try { listScrollSettledTimer.stop(); } catch (Throwable ignored) {}
         try {
             if (metaLoader != null && !metaLoader.isDone()) {
                 metaLoader.cancel(true);
@@ -3283,16 +3255,13 @@ public class NotebookEntriesPanel extends JPanel {
         }
     }
 
-    private void updateSelectionSweepState() {
-        boolean active = hoverIndex >= 0;
-        if (active) {
-            if (!selectionSweepTimer.isRunning()) selectionSweepTimer.start();
-        } else {
-            if (selectionSweepTimer.isRunning()) selectionSweepTimer.stop();
-            selectionSweepPhase[0] = 0f;
+    private void markEntryListScrolling() {
+        if (!Boolean.TRUE.equals(list.getClientProperty("fastScrollActive"))) {
+            list.putClientProperty("fastScrollActive", Boolean.TRUE);
         }
+        listScrollSettledTimer.restart();
     }
-    
+
     private void updateStaticSelectionGlowState() {
         int selectedIndex = list.getSelectedIndex();
         if (selectedGlowIndex == selectedIndex) return;
@@ -3322,7 +3291,6 @@ public class NotebookEntriesPanel extends JPanel {
         hoverIndex = idx;
         hoverFile = row.file;
         list.putClientProperty("hoverIndex", hoverIndex);
-        updateSelectionSweepState();
         repaintRow(oldHoverIndex, 12);
         repaintRow(hoverIndex, 12);
     }
@@ -3333,7 +3301,6 @@ public class NotebookEntriesPanel extends JPanel {
         hoverIndex = -1;
         hoverFile = null;
         list.putClientProperty("hoverIndex", -1);
-        updateSelectionSweepState();
         repaintRow(oldHoverIndex, 12);
     }
 
