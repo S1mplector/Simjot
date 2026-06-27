@@ -1008,34 +1008,150 @@ public class GlassDockBar extends JPanel {
         }
     }
 
+    private static final String[][] MAIN_DOCK_WARMUP_ITEMS = {
+        {"Write", "fountain_pen"},
+        {"Mood", "moodchart"},
+        {"Settings", "wrench"},
+        {"Exit", "saveandexit"}
+    };
+
+    private static final String[][] GALLERY_DOCK_WARMUP_ITEMS = {
+        {"Write", "fountain_pen"},
+        {"Mood", "moodchart"},
+        {"Gallery", "image"},
+        {"Settings", "wrench"},
+        {"Exit", "saveandexit"}
+    };
+
+    private static final float[] WARMUP_PROGRESS_FRAMES = {
+        0f, 0.025f, 0.055f, 0.09f, 0.135f, 0.19f, 0.27f,
+        0.36f, 0.48f, 0.62f, 0.76f, 0.89f, 1f
+    };
+
+    private static final float[] WARMUP_HOVER_FRAMES = {0.24f, 0.58f, 1f};
+
     /**
-     * Pre-caches the dock animation by rendering frames into a headless BufferedImage.
-     * This warms up the JVM/Java2D caches (gradients, SVGs, paths) to prevent stutter on first run.
+     * Pre-caches the dock icons at the sizes the animation commonly requests.
+     * The full animation warmup calls this too; it is public so splash startup can
+     * report this work as a distinct step.
+     */
+    public static void precacheIconResources() {
+        try {
+            warmDockNativePaths();
+            warmDockIconResources(MAIN_DOCK_WARMUP_ITEMS);
+            warmDockIconResources(GALLERY_DOCK_WARMUP_ITEMS);
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * Pre-caches the dock animation by rendering realistic offscreen frame sequences.
+     * This warms Java2D gradients, text metrics, icon rasterization, hover glow, layout
+     * order, and scatter-to-expanded states so the first visible dock interaction is smooth.
      */
     public static void precacheAnimation() {
         try {
-            GlassDockBar dummy = new GlassDockBar(1.18f, true);
-            dummy.addItem("Write", "fountain_pen", () -> {});
-            dummy.addItem("Mood", "moodchart", () -> {});
-            dummy.addItem("Gallery", "image", () -> {});
-            dummy.addItem("Settings", "wrench", () -> {});
-            dummy.addItem("Exit", "saveandexit", () -> {});
-            dummy.setSize(dummy.getPreferredSize());
-            dummy.doLayout();
-            
-            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
-                Math.max(10, dummy.getWidth()), 
-                Math.max(10, dummy.getHeight()), 
-                java.awt.image.BufferedImage.TYPE_INT_ARGB
-            );
-            Graphics2D g2 = img.createGraphics();
-            
-            for (float t = 0f; t <= 1f; t += 0.125f) {
-                dummy.expandProgress = t;
-                dummy.updateLayoutCache(dummy.getWidth(), dummy.expandProgress);
-                dummy.paintComponent(g2);
-            }
-            g2.dispose();
+            precacheIconResources();
+            renderWarmupDock(1.00f, true, MAIN_DOCK_WARMUP_ITEMS);
+            renderWarmupDock(1.18f, true, GALLERY_DOCK_WARMUP_ITEMS);
+            renderWarmupDock(1.18f, true, MAIN_DOCK_WARMUP_ITEMS);
         } catch (Throwable ignored) {}
     }
+
+    private static void warmDockNativePaths() {
+        try { NativeAccess.aeroOuterGlowAlpha(1, 8, 18); } catch (Throwable ignored) {}
+        try { NativeAccess.aeroOuterGlowAlpha(3, 6, 70); } catch (Throwable ignored) {}
+        try { NativeAccess.imageScaleReady(); } catch (Throwable ignored) {}
+    }
+
+    private static void warmDockIconResources(String[][] itemSpecs) {
+        int[] likelySizes = {28, 32, 34, 36, 38, 40, 42, 46, 48, 50, 52, 54, 56, 60, 64, 72, 84, 96, 108, 128};
+        for (String[] spec : itemSpecs) {
+            if (spec == null || spec.length < 2) continue;
+            String resource = ImageIconRenderer.mapIdToResource(spec[1]);
+            if (resource == null) continue;
+            for (int size : likelySizes) {
+                ImageIconRenderer.get(resource, size, true);
+            }
+        }
+    }
+
+    private static void renderWarmupDock(float scale, boolean showLabels, String[][] itemSpecs) {
+        GlassDockBar dock = new GlassDockBar(scale, showLabels);
+        for (String[] spec : itemSpecs) {
+            if (spec == null || spec.length < 2) continue;
+            dock.addItem(spec[0], spec[1], () -> {});
+        }
+
+        Dimension pref = dock.getPreferredSize();
+        int prefW = Math.max(10, pref.width);
+        int prefH = Math.max(10, pref.height);
+        int wideW = Math.max(prefW, Math.round(prefW * 1.18f));
+        renderWarmupDockAtSize(dock, prefW, prefH, 2f);
+        renderWarmupDockAtSize(dock, wideW, prefH, 1f);
+        renderWarmupDockAtSize(dock, prefW, prefH, 1f);
+        dock.stopAnimationTimer();
+    }
+
+    private static void renderWarmupDockAtSize(GlassDockBar dock, int width, int height, float renderScale) {
+        dock.setSize(width, height);
+        dock.doLayout();
+        int imageW = Math.max(1, Math.round(width * renderScale));
+        int imageH = Math.max(1, Math.round(height * renderScale));
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(
+                imageW, imageH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        try {
+            if (renderScale != 1f) {
+                g2.scale(renderScale, renderScale);
+            }
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
+            for (float progress : WARMUP_PROGRESS_FRAMES) {
+                paintWarmupFrame(dock, g2, width, height, progress, -1, 0f);
+            }
+            for (float progress : new float[]{0.38f, 0.66f, 1f}) {
+                for (int idx = 0; idx < dock.items.size(); idx++) {
+                    for (float hover : WARMUP_HOVER_FRAMES) {
+                        paintWarmupFrame(dock, g2, width, height, progress, idx, hover);
+                    }
+                }
+            }
+            for (int idx = dock.items.size() - 1; idx >= 0; idx--) {
+                paintWarmupFrame(dock, g2, width, height, 0.72f, idx, 0.44f);
+                paintWarmupFrame(dock, g2, width, height, 0.18f, idx, 0.18f);
+            }
+        } finally {
+            g2.dispose();
+            img.flush();
+        }
+    }
+
+    private static void paintWarmupFrame(GlassDockBar dock, Graphics2D g2, int width, int height,
+                                         float progress, int hoverIndex, float hoverAmount) {
+        g2.setComposite(AlphaComposite.Clear);
+        g2.fillRect(0, 0, width, height);
+        g2.setComposite(AlphaComposite.SrcOver);
+
+        dock.expandProgress = Math.max(0f, Math.min(1f, progress));
+        dock.hoveredIndex = hoverIndex;
+        if (dock.itemScales != null && dock.itemGlows != null) {
+            for (int i = 0; i < dock.itemScales.length; i++) {
+                if (i == hoverIndex) {
+                    float h = Math.max(0f, Math.min(1f, hoverAmount));
+                    dock.itemScales[i] = 1f + (MAX_SCALE - 1f) * h;
+                    dock.itemGlows[i] = MAX_GLOW * h;
+                } else {
+                    dock.itemScales[i] = 1f;
+                    dock.itemGlows[i] = 0f;
+                }
+            }
+        }
+        dock.invalidateDrawOrderCache();
+        dock.updateLayoutCache(width, dock.expandProgress);
+        dock.paint(g2);
+    }
+
 }

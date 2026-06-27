@@ -1817,9 +1817,13 @@ public class JournalApp extends JFrame {
                     } catch (Throwable ignored) {}
                     try { Thread.sleep(60); } catch (InterruptedException ignored) {}
 
-                    publish("Warming dock animations…");
+                    publish("Warming dock icons…");
+                    try { main.ui.components.dock.GlassDockBar.precacheIconResources(); } catch (Throwable ignored) {}
+                    try { Thread.sleep(55); } catch (InterruptedException ignored) {}
+
+                    publish("Rehearsing dock animation…");
                     try { main.ui.components.dock.GlassDockBar.precacheAnimation(); } catch (Throwable ignored) {}
-                    try { Thread.sleep(60); } catch (InterruptedException ignored) {}
+                    try { Thread.sleep(95); } catch (InterruptedException ignored) {}
 
                     // Prime common UI paints (Aero panels/fields) and load custom UI classes
                     publish("Priming UI components…");
