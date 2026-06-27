@@ -100,6 +100,10 @@ public class FrostedGlassPanel extends JPanel {
         return Theme.isMinimalLook() && !Boolean.TRUE.equals(getClientProperty(MINIMAL_LOOK_KEEP_GLASS));
     }
 
+    protected boolean shouldForceSolidWhenTransparentWindowsDisabled() {
+        return true;
+    }
+
     private static Color scaleAlpha(Color color, float scale) {
         int alpha = Math.round(color.getAlpha() * scale);
         alpha = Math.max(0, Math.min(255, alpha));
@@ -121,7 +125,9 @@ public class FrostedGlassPanel extends JPanel {
 
         boolean trueAero = main.core.service.SettingsStore.get().isTrueAeroEnabled();
 
-        if (main.core.service.SettingsStore.get().isTransparentWindowsDisabled() && !trueAero) {
+        if (shouldForceSolidWhenTransparentWindowsDisabled()
+                && main.core.service.SettingsStore.get().isTransparentWindowsDisabled()
+                && !trueAero) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setColor(Color.WHITE); // FrostedGlassPanel usually resolves to near white
             g2.fillRect(0, 0, w, h);

@@ -94,6 +94,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.RoundedButton;
 import main.ui.components.combobox.ModernComboBoxUI;
 import main.ui.components.buttons.ToolbarMenuIconButton;
+import main.ui.components.containers.AeroToolbarPanel;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.containers.RoundedPanel;
 import main.ui.components.containers.ShadowedDialogPanel;
@@ -140,7 +141,7 @@ public class NotebookManagerPanel extends JPanel {
         setBackground(Color.WHITE);
 
         // Top toolbar matching other panels
-        JPanel topBar = new FrostedGlassPanel(new BorderLayout(), 16);
+        JPanel topBar = new AeroToolbarPanel(new BorderLayout(), 16);
         topBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         
         // Left side - back button

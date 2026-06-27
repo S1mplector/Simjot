@@ -107,6 +107,7 @@ import main.ui.app.JournalApp;
 import main.ui.components.buttons.ToolbarIconButton;
 import main.ui.components.buttons.ToolbarMenuIconButton;
 import main.ui.components.combobox.ModernComboBoxUI;
+import main.ui.components.containers.AeroToolbarPanel;
 import main.ui.components.containers.FrostedGlassPanel;
 import main.ui.components.datepicker.ModernDatePicker;
 import main.ui.components.input.AeroTextField;
@@ -1640,7 +1641,7 @@ public class NotebookEntriesPanel extends JPanel {
         loadFavoriteEntries();
 
         // Top bar
-        JPanel top = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
+        JPanel top = new AeroToolbarPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
         top.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         // Replace text back button with PNG back icon button
         ToolbarMenuIconButton backBtn = new ToolbarMenuIconButton("", "back");
