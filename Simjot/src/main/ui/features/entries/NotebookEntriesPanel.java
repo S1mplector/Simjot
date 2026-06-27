@@ -24,6 +24,7 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.LinearGradientPaint;
 import java.awt.RenderingHints;
+import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -131,6 +132,11 @@ public class NotebookEntriesPanel extends JPanel {
     private static final String CENTER_CARD_LIST = "list";
     private static final String CENTER_CARD_CALENDAR = "calendar";
     private static final String VIEW_MODE_PREF_KEY_PREFIX = "entries.view.mode.";
+    private static final String ENTRY_FAVORITES_PREF_KEY_PREFIX = "entries.favorites.";
+    private static final int ENTRY_BOOKMARK_BUTTON_SIZE = 24;
+    private static final int ENTRY_BOOKMARK_HIT_SIZE = 32;
+    private static final int ENTRY_BOOKMARK_BUTTON_PAD_RIGHT = 16;
+    private static final int ENTRY_BOOKMARK_BUTTON_PAD_TOP = 8;
 
     private enum EntryViewMode {
         COMFORT,
@@ -152,6 +158,8 @@ public class NotebookEntriesPanel extends JPanel {
     private EntryViewMode viewMode = EntryViewMode.COMFORT;
     private ToolbarIconButton comfortViewBtn;
     private ToolbarIconButton calendarViewBtn;
+    private ToolbarIconButton favoritesFilterBtn;
+    private boolean favoritesOnlyFilter = false;
 
     private final java.util.Map<File,Integer> wordCounts = new java.util.HashMap<>();
     private final java.util.Map<File,String> titles = new java.util.HashMap<>();
@@ -162,6 +170,8 @@ public class NotebookEntriesPanel extends JPanel {
     private final java.util.Map<File, PreviewSnapshot> previewCache = new java.util.HashMap<>();
     private final java.util.Map<File, int[]> moodTrendCache = new java.util.HashMap<>();
     private final java.util.Map<File, Boolean> encryptedFlags = new java.util.HashMap<>();
+    private final java.util.Map<File, Boolean> favoriteFlags = new java.util.HashMap<>();
+    private final java.util.Set<String> favoriteEntryKeys = new java.util.LinkedHashSet<>();
     private final java.util.Map<File, Integer> rowIndexByFile = new java.util.HashMap<>();
     private List<File> allFiles = new ArrayList<>();
     private List<File> lastOrderedFiles = java.util.Collections.emptyList();
@@ -368,6 +378,7 @@ public class NotebookEntriesPanel extends JPanel {
         private float dashedBorderPhase = 0f; // Current animated phase for dashed border
         private boolean hovered = false;
         private boolean encrypted = false;
+        private boolean favorite = false;
         private final DateDividerRenderer divider = new DateDividerRenderer();
         private static final int SNIPPET_CACHE_MAX = 768;
         private static final int TIME_CACHE_MAX = 1024;
@@ -516,7 +527,7 @@ public class NotebookEntriesPanel extends JPanel {
             // Right stats panel: vertically stacked stats
             statsPanel.setLayout(new javax.swing.BoxLayout(statsPanel, javax.swing.BoxLayout.Y_AXIS));
             statsPanel.setOpaque(false);
-            statsPanel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+            statsPanel.setBorder(BorderFactory.createEmptyBorder(28, 8, 0, 0));
             
             Font statsFont = title.getFont().deriveFont(Font.PLAIN, 11f);
             Color statsColor = metaColor;
@@ -567,6 +578,7 @@ public class NotebookEntriesPanel extends JPanel {
             @SuppressWarnings("unchecked") Map<File,Float> deleteAnim = (Map<File,Float>) list.getClientProperty("deleteAnim");
             @SuppressWarnings("unchecked") Map<File, PreviewSnapshot> previews = (Map<File, PreviewSnapshot>) list.getClientProperty("previews");
             @SuppressWarnings("unchecked") Map<File, Boolean> encryptedState = (Map<File, Boolean>) list.getClientProperty("encryptedFlags");
+            @SuppressWarnings("unchecked") Map<File, Boolean> favoriteState = (Map<File, Boolean>) list.getClientProperty("favoriteFlags");
             String searchQuery = String.valueOf(list.getClientProperty("searchQuery") == null
                     ? ""
                     : list.getClientProperty("searchQuery"));
@@ -583,6 +595,7 @@ public class NotebookEntriesPanel extends JPanel {
             reorderGlow = glow == null ? 0f : glow;
             Float delProg = file != null && deleteAnim != null ? deleteAnim.get(file) : null;
             deleteProgress = delProg == null ? 0f : delProg;
+            favorite = file != null && favoriteState != null && Boolean.TRUE.equals(favoriteState.get(file));
             encrypted = false;
             if (file != null) {
                 if (encryptedState != null) {
@@ -814,6 +827,46 @@ public class NotebookEntriesPanel extends JPanel {
             }
             g2.dispose();
             super.paintComponent(g);
+            paintFavoriteButton(g, w, h);
+        }
+
+        private void paintFavoriteButton(Graphics g, int w, int h) {
+            Rectangle b = favoriteButtonVisualBounds(w, h);
+            if (b.width <= 0 || b.height <= 0) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color red = new Color(216, 48, 60);
+            Color outline = favorite ? new Color(red.getRed(), red.getGreen(), red.getBlue(), 210) : new Color(82, 90, 106, hovered ? 150 : 105);
+            Color fill = favorite ? new Color(255, 238, 241, 238) : new Color(255, 255, 255, hovered ? 218 : 180);
+            g2.setColor(new Color(0, 0, 0, favorite ? 24 : 14));
+            g2.fillRoundRect(b.x + 1, b.y + 2, b.width, b.height, 10, 10);
+            g2.setColor(fill);
+            g2.fillRoundRect(b.x, b.y, b.width, b.height, 10, 10);
+            g2.setColor(outline);
+            g2.drawRoundRect(b.x, b.y, b.width, b.height, 10, 10);
+
+            java.awt.geom.Path2D.Float mark = new java.awt.geom.Path2D.Float();
+            int mx = b.x + 7;
+            int my = b.y + 5;
+            int mw = b.width - 14;
+            int mh = b.height - 9;
+            mark.moveTo(mx, my);
+            mark.lineTo(mx + mw, my);
+            mark.lineTo(mx + mw, my + mh);
+            mark.lineTo(mx + mw / 2f, my + mh - 4);
+            mark.lineTo(mx, my + mh);
+            mark.closePath();
+            if (favorite) {
+                g2.setColor(red);
+                g2.fill(mark);
+                g2.setColor(new Color(255, 255, 255, 120));
+                g2.draw(mark);
+            } else {
+                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(outline);
+                g2.draw(mark);
+            }
+            g2.dispose();
         }
 
         private TimeLabelCache resolveTimeLabels(File file, long createdTs, long modifiedTs) {
@@ -1617,6 +1670,7 @@ public class NotebookEntriesPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(Color.WHITE);
         this.viewMode = loadPersistedViewMode();
+        loadFavoriteEntries();
 
         // Top bar
         JPanel top = new FrostedGlassPanel(new FlowLayout(FlowLayout.LEFT, 8, 6), 16);
@@ -1653,8 +1707,12 @@ public class NotebookEntriesPanel extends JPanel {
         viewModeRow.add(comfortViewBtn);
         viewModeRow.add(calendarViewBtn);
         top.add(viewModeRow);
+        top.add(new JLabel("Favorites:"));
+        favoritesFilterBtn = createFavoritesFilterButton();
+        top.add(favoritesFilterBtn);
         top.add(newBtn); top.add(deleteBtn); top.add(delNbBtn);
         applyViewModeSelectionState();
+        applyFavoritesFilterSelectionState();
         add(top,BorderLayout.NORTH);
 
         // Debounce search updates to avoid frequent resorting/filtering while typing
@@ -1680,6 +1738,7 @@ public class NotebookEntriesPanel extends JPanel {
         list.putClientProperty("previews", previewCache);
         list.putClientProperty("moodTrends", moodTrendCache);
         list.putClientProperty("encryptedFlags", encryptedFlags);
+        list.putClientProperty("favoriteFlags", favoriteFlags);
         list.putClientProperty("searchQuery", "");
         list.putClientProperty("entryViewMode", viewMode);
         list.putClientProperty("hoverIndex", -1);
@@ -1689,13 +1748,18 @@ public class NotebookEntriesPanel extends JPanel {
         list.setCellRenderer(new EntryCardRenderer());
         MouseAdapter hoverListener = new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e){
+                if (handleFavoriteClick(e)) return;
                 if(e.getClickCount()==2){ openSelected(); }
             }
             @Override public void mouseExited(MouseEvent e) {
                 clearHoverIndex();
+                list.setCursor(java.awt.Cursor.getDefaultCursor());
             }
             @Override public void mouseMoved(MouseEvent e) {
                 updateHoverFromPoint(e.getPoint());
+                list.setCursor(isFavoriteButtonAt(e.getPoint())
+                        ? java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                        : java.awt.Cursor.getDefaultCursor());
             }
         };
         list.addMouseListener(hoverListener);
@@ -1778,6 +1842,17 @@ public class NotebookEntriesPanel extends JPanel {
         return button;
     }
 
+    private ToolbarIconButton createFavoritesFilterButton() {
+        ToolbarIconButton button = new ToolbarIconButton("bookmark_filter");
+        Dimension size = new Dimension(42, 38);
+        button.setPreferredSize(size);
+        button.setMinimumSize(size);
+        button.setMaximumSize(size);
+        button.setToolTipText("Show favorites only");
+        button.addActionListener(e -> setFavoritesOnlyFilter(!favoritesOnlyFilter));
+        return button;
+    }
+
     private void setViewMode(EntryViewMode mode) {
         EntryViewMode next = mode == null ? EntryViewMode.COMFORT : mode;
         if (viewMode == next) return;
@@ -1826,6 +1901,19 @@ public class NotebookEntriesPanel extends JPanel {
     private void applyViewModeSelectionState() {
         if (comfortViewBtn != null) comfortViewBtn.setSelected(viewMode == EntryViewMode.COMFORT);
         if (calendarViewBtn != null) calendarViewBtn.setSelected(viewMode == EntryViewMode.CALENDAR);
+    }
+
+    private void setFavoritesOnlyFilter(boolean enabled) {
+        if (favoritesOnlyFilter == enabled) return;
+        favoritesOnlyFilter = enabled;
+        applyFavoritesFilterSelectionState();
+        update();
+    }
+
+    private void applyFavoritesFilterSelectionState() {
+        if (favoritesFilterBtn == null) return;
+        favoritesFilterBtn.setSelected(favoritesOnlyFilter);
+        favoritesFilterBtn.setToolTipText(favoritesOnlyFilter ? "Showing favorites only" : "Show favorites only");
     }
 
     private void syncCenterViewMode() {
@@ -1950,6 +2038,7 @@ public class NotebookEntriesPanel extends JPanel {
                 if (!entryTimestamps.containsKey(f)) entryTimestamps.put(f, entrySortTimestamp(f));
                 if (!entryDates.containsKey(f)) entryDates.put(f, resolveEntryDate(entryTimestamps.get(f)));
             }
+            pruneFavoriteEntriesToCurrentFiles();
             metaCache.clear();
             metaCache.putAll(refreshedCache);
             lastOrderedFiles = java.util.Collections.emptyList();
@@ -1971,6 +2060,7 @@ public class NotebookEntriesPanel extends JPanel {
             previewCache.clear();
             moodTrendCache.clear();
             encryptedFlags.clear();
+            favoriteFlags.clear();
             rowIndexByFile.clear();
             lastOrderedFiles = java.util.Collections.emptyList();
             fullRows = java.util.Collections.emptyList();
@@ -1998,6 +2088,7 @@ public class NotebookEntriesPanel extends JPanel {
         boolean hasQuery = !q.isEmpty();
         List<File> filtered = new ArrayList<>(allFiles.size());
         for (File f : allFiles) {
+            if (favoritesOnlyFilter && !isFavoriteEntry(f)) continue;
             if (hasQuery) {
                 String name = f.getName().toLowerCase();
                 String title = java.util.Objects.toString(titles.get(f), f.getName()).toLowerCase();
@@ -2055,7 +2146,9 @@ public class NotebookEntriesPanel extends JPanel {
         String nextSignature = sortBox.getSelectedIndex()
                 + "|" + rawQuery.toLowerCase(Locale.ROOT)
                 + "|" + (filterStartDate != null ? filterStartDate : "-")
-                + "|" + (filterEndDate != null ? filterEndDate : "-");
+                + "|" + (filterEndDate != null ? filterEndDate : "-")
+                + "|" + favoritesOnlyFilter
+                + "|" + (favoritesOnlyFilter ? favoriteEntryKeys.hashCode() : 0);
         boolean lazyMode = shouldUseLazyLoading(ordered.size());
         if (!lazyMode) {
             fullRows = rows;
@@ -2392,6 +2485,7 @@ public class NotebookEntriesPanel extends JPanel {
         metaCache.remove(file);
         previewCache.remove(file);
         encryptedFlags.remove(file);
+        clearFavoriteForFile(file);
         rowIndexByFile.remove(file);
         metaComputed.remove(file);
         synchronized (metaQueued) {
@@ -2643,6 +2737,173 @@ public class NotebookEntriesPanel extends JPanel {
         
         popup.add(content);
         popup.show(this, 200, 40);
+    }
+
+    private boolean handleFavoriteClick(MouseEvent e) {
+        if (e == null || !SwingUtilities.isLeftMouseButton(e) || !isFavoriteButtonAt(e.getPoint())) return false;
+        if (e.getClickCount() == 1) {
+            int index = list.locationToIndex(e.getPoint());
+            EntryRow row = index >= 0 && index < model.size() ? model.get(index) : null;
+            if (row != null && !row.isHeader() && row.file != null) {
+                toggleFavorite(row.file);
+            }
+        }
+        e.consume();
+        return true;
+    }
+
+    private boolean isFavoriteButtonAt(java.awt.Point point) {
+        if (point == null) return false;
+        int index = list.locationToIndex(point);
+        if (index < 0 || index >= model.size()) return false;
+        EntryRow row = model.get(index);
+        if (row == null || row.isHeader() || row.file == null) return false;
+        Rectangle bounds = list.getCellBounds(index, index);
+        if (bounds == null || !bounds.contains(point)) return false;
+        Rectangle hit = favoriteButtonHitBounds(bounds.width, bounds.height);
+        return hit.contains(point.x - bounds.x, point.y - bounds.y);
+    }
+
+    private static Rectangle favoriteButtonHitBounds(int width, int height) {
+        int size = ENTRY_BOOKMARK_HIT_SIZE;
+        int x = Math.max(0, width - size - ENTRY_BOOKMARK_BUTTON_PAD_RIGHT);
+        int y = Math.max(0, ENTRY_BOOKMARK_BUTTON_PAD_TOP - ((ENTRY_BOOKMARK_HIT_SIZE - ENTRY_BOOKMARK_BUTTON_SIZE) / 2));
+        return new Rectangle(x, y, size, size);
+    }
+
+    private static Rectangle favoriteButtonVisualBounds(int width, int height) {
+        Rectangle hit = favoriteButtonHitBounds(width, height);
+        int x = hit.x + Math.max(0, (hit.width - ENTRY_BOOKMARK_BUTTON_SIZE) / 2);
+        int y = hit.y + Math.max(0, (hit.height - ENTRY_BOOKMARK_BUTTON_SIZE) / 2);
+        return new Rectangle(x, y, ENTRY_BOOKMARK_BUTTON_SIZE, ENTRY_BOOKMARK_BUTTON_SIZE);
+    }
+
+    private boolean isFavoriteEntry(File file) {
+        return file != null && favoriteEntryKeys.contains(favoriteEntryKey(file));
+    }
+
+    private void toggleFavorite(File file) {
+        if (file == null) return;
+        String key = favoriteEntryKey(file);
+        if (key.isBlank()) return;
+        boolean added;
+        if (favoriteEntryKeys.contains(key)) {
+            favoriteEntryKeys.remove(key);
+            favoriteFlags.remove(file);
+            added = false;
+        } else {
+            favoriteEntryKeys.add(key);
+            favoriteFlags.put(file, Boolean.TRUE);
+            added = true;
+        }
+        persistFavoriteEntries();
+        if (favoritesOnlyFilter && !added) {
+            update();
+        } else {
+            repaintFileRow(file, 10);
+            if (calendarPanel != null) calendarPanel.repaint();
+        }
+    }
+
+    private void clearFavoriteForFile(File file) {
+        if (file == null) return;
+        boolean removed = favoriteEntryKeys.remove(favoriteEntryKey(file));
+        favoriteFlags.remove(file);
+        if (removed) persistFavoriteEntries();
+    }
+
+    private void loadFavoriteEntries() {
+        favoriteEntryKeys.clear();
+        try {
+            String raw = SettingsStore.get().getValue(favoritesSettingsKey(), "");
+            if (raw != null && !raw.isBlank()) {
+                for (String line : raw.split("\\R")) {
+                    String decoded = decodeFavoriteKey(line.trim());
+                    if (!decoded.isBlank()) favoriteEntryKeys.add(decoded);
+                }
+            }
+        } catch (Throwable ignored) {}
+        refreshFavoriteFlags();
+    }
+
+    private void pruneFavoriteEntriesToCurrentFiles() {
+        if (favoriteEntryKeys.isEmpty()) {
+            refreshFavoriteFlags();
+            return;
+        }
+        java.util.Set<String> liveKeys = new HashSet<>();
+        for (File file : allFiles) {
+            String key = favoriteEntryKey(file);
+            if (!key.isBlank()) liveKeys.add(key);
+        }
+        boolean changed = favoriteEntryKeys.retainAll(liveKeys);
+        refreshFavoriteFlags();
+        if (changed) persistFavoriteEntries();
+    }
+
+    private void refreshFavoriteFlags() {
+        favoriteFlags.clear();
+        if (!favoriteEntryKeys.isEmpty()) {
+            for (File file : allFiles) {
+                if (favoriteEntryKeys.contains(favoriteEntryKey(file))) {
+                    favoriteFlags.put(file, Boolean.TRUE);
+                }
+            }
+        }
+        if (list != null) list.putClientProperty("favoriteFlags", favoriteFlags);
+    }
+
+    private void persistFavoriteEntries() {
+        try {
+            StringBuilder out = new StringBuilder();
+            for (String key : favoriteEntryKeys) {
+                if (key == null || key.isBlank()) continue;
+                if (out.length() > 0) out.append('\n');
+                out.append(encodeFavoriteKey(key));
+            }
+            SettingsStore store = SettingsStore.get();
+            store.setValue(favoritesSettingsKey(), out.toString());
+            store.save();
+        } catch (Throwable ignored) {}
+    }
+
+    private String favoriteEntryKey(File file) {
+        if (file == null) return "";
+        try {
+            Path filePath = file.toPath().toAbsolutePath().normalize();
+            File folder = nb != null ? nb.getFolder() : null;
+            if (folder != null) {
+                Path root = folder.toPath().toAbsolutePath().normalize();
+                if (filePath.startsWith(root)) {
+                    return root.relativize(filePath).toString();
+                }
+            }
+        } catch (Throwable ignored) {}
+        return file.getAbsolutePath();
+    }
+
+    private String favoritesSettingsKey() {
+        String scope = "default";
+        try {
+            File folder = nb != null ? nb.getFolder() : null;
+            if (folder != null) scope = folder.getAbsolutePath();
+            else if (nb != null && nb.getName() != null) scope = nb.getName();
+        } catch (Throwable ignored) {}
+        return ENTRY_FAVORITES_PREF_KEY_PREFIX + Integer.toUnsignedString(scope.hashCode(), 36);
+    }
+
+    private static String encodeFavoriteKey(String key) {
+        if (key == null || key.isBlank()) return "";
+        return java.util.Base64.getEncoder().encodeToString(key.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decodeFavoriteKey(String value) {
+        if (value == null || value.isBlank()) return "";
+        try {
+            return new String(java.util.Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            return value;
+        }
     }
 
     private void openSelected(){ File f = getSelectedFile(); if(f!=null) openFile(f); }

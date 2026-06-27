@@ -59,7 +59,6 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import main.core.analytics.MoodAnalyticsEngine;
@@ -124,8 +123,7 @@ public class ElegantMoodChartPanel extends JPanel {
     private int selectedRangeIndex = 1;
     private final String[] ranges = {"7d", "30d", "90d", "1y", "All"};
 
-    private float revealProgress = 0f;
-    private Timer revealTimer;
+    private float revealProgress = 1f;
 
     private ChartCanvas chartCanvas;
     private EmotionTrendCanvas emotionTrendCanvas;
@@ -144,6 +142,7 @@ public class ElegantMoodChartPanel extends JPanel {
     private int hoveredEmotionDayIndex = -1;
     private int hoveredChartIndex = -1;
     private int selectedChartIndex = -1;
+    private int lastInspectorDisplayIndex = Integer.MIN_VALUE;
     private List<EmotionStackAggregator.EmotionStack> emotionStacks = List.of();
     private Map<LocalDate, EmotionStackAggregator.EmotionStack> emotionStacksByDay = Map.of();
     private Map<LocalDate, double[]> emotionAveragesByDay = Map.of();
@@ -573,6 +572,8 @@ public class ElegantMoodChartPanel extends JPanel {
     private void refreshInspectorDrawer() {
         if (inspectorDrawer == null) return;
         if (!isValidMoodIndex(selectedChartIndex)) {
+            if (lastInspectorDisplayIndex == -1) return;
+            lastInspectorDisplayIndex = -1;
             inspectorDrawer.showNoSelection(coMovementResult, regimeSegments, changePoints);
             return;
         }
@@ -580,6 +581,8 @@ public class ElegantMoodChartPanel extends JPanel {
         if (!isValidMoodIndex(idx)) {
             idx = selectedChartIndex;
         }
+        if (idx == lastInspectorDisplayIndex) return;
+        lastInspectorDisplayIndex = idx;
         inspectorDrawer.showDay(buildInspectorState(idx), coMovementResult);
     }
 
@@ -785,18 +788,8 @@ public class ElegantMoodChartPanel extends JPanel {
     }
 
     private void startReveal() {
-        revealProgress = 0f;
-        if (revealTimer != null && revealTimer.isRunning()) {
-            revealTimer.stop();
-        }
-        revealTimer = new Timer(16, e -> {
-            revealProgress = Math.min(1f, revealProgress + 0.05f);
-            if (revealProgress >= 1f) {
-                revealTimer.stop();
-            }
-            repaint();
-        });
-        revealTimer.start();
+        revealProgress = 1f;
+        repaint();
     }
 
     private JPanel createEmotionInsightsCard() {
@@ -1095,9 +1088,11 @@ public class ElegantMoodChartPanel extends JPanel {
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseExited(MouseEvent e) {
+                    if (hoveredChartIndex == -1) return;
+                    int oldIdx = hoveredChartIndex;
                     hoveredChartIndex = -1;
                     refreshInspectorDrawer();
-                    repaint();
+                    repaintMoodHoverChange(oldIdx, -1);
                 }
 
                 @Override
@@ -1116,9 +1111,10 @@ public class ElegantMoodChartPanel extends JPanel {
                 public void mouseMoved(MouseEvent e) {
                     int idx = resolveMoodIndexAtX(e.getX());
                     if (hoveredChartIndex != idx) {
+                        int oldIdx = hoveredChartIndex;
                         hoveredChartIndex = idx;
                         refreshInspectorDrawer();
-                        repaint();
+                        repaintMoodHoverChange(oldIdx, idx);
                     }
                 }
             });
@@ -1137,9 +1133,6 @@ public class ElegantMoodChartPanel extends JPanel {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
 
-            float alpha = 0.3f + 0.7f * revealProgress;
-            g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
-
             if (model.getDays().isEmpty() || model.getValues().stream().allMatch(Objects::isNull)) {
                 g2.setFont(AeroTheme.defaultFont().deriveFont(Font.PLAIN, 14f));
                 g2.setColor(TEXT_SECONDARY);
@@ -1157,6 +1150,29 @@ public class ElegantMoodChartPanel extends JPanel {
             paintAnomalyMarkers(g2);
 
             g2.dispose();
+        }
+
+        private void repaintMoodHoverChange(int oldIdx, int newIdx) {
+            Rectangle dirty = moodHoverBounds(oldIdx);
+            Rectangle next = moodHoverBounds(newIdx);
+            if (next != null) {
+                dirty = dirty == null ? next : dirty.union(next);
+            }
+            if (dirty == null) {
+                repaint();
+            } else {
+                repaint(dirty.x, dirty.y, dirty.width, dirty.height);
+            }
+        }
+
+        private Rectangle moodHoverBounds(int idx) {
+            if (idx < 0) return null;
+            int x = renderer.getX(idx);
+            if (x < 0) return null;
+            int pad = Math.max(96, Math.min(190, getWidth() / 4));
+            int left = Math.max(0, x - pad);
+            int right = Math.min(getWidth(), x + pad);
+            return new Rectangle(left, 0, Math.max(1, right - left), getHeight());
         }
 
         private int resolveMoodIndexAtX(int x) {
